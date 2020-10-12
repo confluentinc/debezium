@@ -100,16 +100,17 @@ public class PostgresConnector extends SourceConnector {
                 && databaseValue.errorMessages().isEmpty()) {
             // Try to connect to the database ...
             try (PostgresConnection connection = new PostgresConnection(config.jdbcConfig())) {
-                try {
-                    connection.execute("SELECT version()");
-                    logger.info("Successfully tested connection for {} with user '{}'", connection.connectionString(),
-                            connection.username());
-                }
-                catch (SQLException e) {
-                    logger.info("Failed testing connection for {} with user '{}'", connection.connectionString(),
-                            connection.username());
-                    hostnameValue.addErrorMessage("Unable to connect: " + e.getMessage());
-                }
+                connection.execute("SELECT version()");
+                logger.info("Successfully tested connection for {} with user '{}'", connection.connectionString(),
+                    connection.username());
+            } catch (Throwable e) {
+                logger.info("Failed testing connection for {} with user '{}'", config.jdbcConfig(),
+                    userValue);
+                hostnameValue.addErrorMessage("Unable to connect: " + e.getMessage());
+                portValue.addErrorMessage("Unable to connect: " + e.getMessage());
+                databaseValue.addErrorMessage("Unable to connect: " + e.getMessage());
+                userValue.addErrorMessage("Unable to connect: " + e.getMessage());
+                passwordValue.addErrorMessage("Unable to connect: " + e.getMessage());
             }
         }
         return new Config(new ArrayList<>(results.values()));
