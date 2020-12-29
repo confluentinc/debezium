@@ -6,7 +6,6 @@
 
 package io.debezium.connector.postgresql;
 
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -102,10 +101,11 @@ public class PostgresConnector extends SourceConnector {
             try (PostgresConnection connection = new PostgresConnection(config.jdbcConfig())) {
                 connection.execute("SELECT version()");
                 logger.info("Successfully tested connection for {} with user '{}'", connection.connectionString(),
-                    connection.username());
-            } catch (Throwable e) {
+                        connection.username());
+            }
+            catch (Throwable e) {
                 logger.info("Failed testing connection for {} with user '{}'", config.jdbcConfig(),
-                    userValue);
+                        userValue);
                 hostnameValue.addErrorMessage("Unable to connect: " + e.getMessage());
                 portValue.addErrorMessage("Unable to connect: " + e.getMessage());
                 databaseValue.addErrorMessage("Unable to connect: " + e.getMessage());
