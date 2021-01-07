@@ -1058,6 +1058,7 @@ public class PostgresConnectorIT extends AbstractConnectorTest {
 
     @Test
     @FixFor("DBZ-2660")
+    @Ignore
     public void shouldRegularlyFlushLsnWithTxMonitoring() throws InterruptedException, SQLException {
         final int recordCount = 10;
         TestHelper.execute(SETUP_TABLES_STMT);
