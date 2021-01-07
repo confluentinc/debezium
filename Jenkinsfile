@@ -4,5 +4,6 @@ common {
   nodeLabel = 'docker-oraclejdk8'
   publish = false
   downStreamValidate = false
+  timeoutHours = 3
 }
 
