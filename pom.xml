@@ -1057,5 +1057,11 @@
                 <release>11</release>
             </properties>
         </profile>
+        <profile>
+            <id>jenkins</id>
+            <properties>
+                <maven.test.skip>true</maven.test.skip>
+            </properties>
+        </profile>
     </profiles>
 </project>

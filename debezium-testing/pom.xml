@@ -14,4 +14,12 @@
     <module>debezium-testing-testcontainers</module>
     <module>debezium-testing-openshift</module>
   </modules>
+  <profiles>
+    <profile>
+      <id>jenkins</id>
+      <properties>
+        <maven.test.skip>true</maven.test.skip>
+      </properties>
+    </profile>
+  </profiles>
 </project>
