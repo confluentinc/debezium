@@ -81,4 +81,12 @@
             </resource>
         </resources>
     </build>
+    <profiles>
+        <profile>
+            <id>jenkins</id>
+            <properties>
+                <maven.test.skip>true</maven.test.skip>
+            </properties>
+        </profile>
+    </profiles>
 </project>

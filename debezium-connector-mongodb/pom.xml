@@ -297,5 +297,12 @@
           <docker.skip>true</docker.skip>
         </properties>
       </profile>
+
+      <profile>
+        <id>jenkins</id>
+        <properties>
+          <maven.test.skip>true</maven.test.skip>
+        </properties>
+      </profile>
     </profiles>
 </project>
