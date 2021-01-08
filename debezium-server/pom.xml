@@ -170,6 +170,7 @@
             <id>jenkins</id>
             <properties>
                 <maven.test.skip>true</maven.test.skip>
+                <docker.skip>true</docker.skip>
             </properties>
         </profile>
     </profiles>
