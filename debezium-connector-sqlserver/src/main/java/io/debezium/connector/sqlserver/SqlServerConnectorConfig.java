@@ -414,6 +414,10 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
         };
     }
 
+    public Configuration jdbcConfig() {
+        return getConfig().subset(DATABASE_CONFIG_PREFIX, true);
+    }
+
     public String getDatabaseName() {
         return databaseName;
     }
