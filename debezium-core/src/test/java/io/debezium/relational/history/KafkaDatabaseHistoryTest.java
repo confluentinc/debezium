@@ -102,23 +102,23 @@ public class KafkaDatabaseHistoryTest {
     private Configuration startHistory(String topicName, boolean skipUnparseableDDL) {
         // Start up the history ...
         Configuration config = Configuration.create()
-            .with(KafkaDatabaseHistory.BOOTSTRAP_SERVERS, kafka.brokerList())
-            .with(KafkaDatabaseHistory.TOPIC, topicName)
-            .with(DatabaseHistory.NAME, "my-db-history")
-            .with(KafkaDatabaseHistory.RECOVERY_POLL_INTERVAL_MS, 500)
-            // new since 0.10.1.0 - we want a low value because we're running everything locally
-            // in this test. However, it can't be so low that the broker returns the same
-            // messages more than once.
-            .with(KafkaDatabaseHistory.consumerConfigPropertyName(
-                ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG),
-                100)
-            .with(KafkaDatabaseHistory.consumerConfigPropertyName(
-                ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG),
-                50000)
-            .with(KafkaDatabaseHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, skipUnparseableDDL)
-            .with(KafkaDatabaseHistory.INTERNAL_CONNECTOR_CLASS, "org.apache.kafka.connect.source.SourceConnector")
-            .with(KafkaDatabaseHistory.INTERNAL_CONNECTOR_ID, "dbz-test")
-            .build();
+                .with(KafkaDatabaseHistory.BOOTSTRAP_SERVERS, kafka.brokerList())
+                .with(KafkaDatabaseHistory.TOPIC, topicName)
+                .with(DatabaseHistory.NAME, "my-db-history")
+                .with(KafkaDatabaseHistory.RECOVERY_POLL_INTERVAL_MS, 500)
+                // new since 0.10.1.0 - we want a low value because we're running everything locally
+                // in this test. However, it can't be so low that the broker returns the same
+                // messages more than once.
+                .with(KafkaDatabaseHistory.consumerConfigPropertyName(
+                        ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG),
+                        100)
+                .with(KafkaDatabaseHistory.consumerConfigPropertyName(
+                        ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG),
+                        50000)
+                    .with(KafkaDatabaseHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, skipUnparseableDDL)
+                    .with(KafkaDatabaseHistory.INTERNAL_CONNECTOR_CLASS, "org.apache.kafka.connect.source.SourceConnector")
+                    .with(KafkaDatabaseHistory.INTERNAL_CONNECTOR_ID, "dbz-test")
+                    .build();
         history.configure(config, null, DatabaseHistoryMetrics.NOOP, true);
         history.start();
 
