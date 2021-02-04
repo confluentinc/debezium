@@ -457,7 +457,7 @@ public class KafkaDatabaseHistory extends AbstractDatabaseHistory {
                     this.producer.flush();
                 }
                 finally {
-                    this.producer.close();
+                    this.producer.close(Duration.ofSeconds(30));
                 }
             }
         }
