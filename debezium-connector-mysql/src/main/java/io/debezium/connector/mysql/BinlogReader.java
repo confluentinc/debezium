@@ -207,6 +207,7 @@ public class BinlogReader extends AbstractReader {
 
         // Set up the log reader ...
         client = new BinaryLogClient(connectionContext.hostname(), connectionContext.port(), connectionContext.username(), connectionContext.password());
+        client.setBlocking(false);
         // BinaryLogClient will overwrite thread names later
         client.setThreadFactory(
                 Threads.threadFactory(MySqlConnector.class, context.getConnectorConfig().getLogicalName(), "binlog-client", false, false,
