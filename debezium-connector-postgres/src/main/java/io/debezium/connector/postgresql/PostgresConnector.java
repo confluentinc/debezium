@@ -104,8 +104,7 @@ public class PostgresConnector extends SourceConnector {
                         connection.username());
             }
             catch (Throwable e) {
-                logger.info("Failed testing connection for {} with user '{}'", config.jdbcConfig(),
-                        userValue);
+                logger.info("Failed testing connection for {}", config.jdbcConfig(), e);
                 hostnameValue.addErrorMessage("Unable to connect: " + e.getMessage());
                 portValue.addErrorMessage("Unable to connect: " + e.getMessage());
                 databaseValue.addErrorMessage("Unable to connect: " + e.getMessage());
