@@ -9,16 +9,19 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.apache.kafka.connect.source.SourceConnector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.debezium.annotation.ThreadSafe;
+import io.debezium.config.CommonConnectorConfig;
 import io.debezium.connector.base.ChangeEventQueueMetrics;
 import io.debezium.connector.common.CdcSourceTaskContext;
 import io.debezium.pipeline.metrics.SnapshotChangeEventSourceMetrics;
 import io.debezium.pipeline.metrics.StreamingChangeEventSourceMetrics;
+import io.debezium.pipeline.metrics.spi.ChangeEventSourceMetricsFactory;
 import io.debezium.pipeline.source.spi.ChangeEventSource;
 import io.debezium.pipeline.source.spi.ChangeEventSource.ChangeEventSourceContext;
 import io.debezium.pipeline.source.spi.ChangeEventSourceFactory;
@@ -28,6 +31,7 @@ import io.debezium.pipeline.source.spi.StreamingChangeEventSource;
 import io.debezium.pipeline.spi.OffsetContext;
 import io.debezium.pipeline.spi.SnapshotResult;
 import io.debezium.pipeline.spi.SnapshotResult.SnapshotResultStatus;
+import io.debezium.schema.DatabaseSchema;
 import io.debezium.util.Threads;
 
 /**
@@ -40,31 +44,43 @@ public class ChangeEventSourceCoordinator {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ChangeEventSourceCoordinator.class);
 
-    private static final Duration SHUTDOWN_WAIT_TIMEOUT = Duration.ofSeconds(90);
+    /**
+     * Waiting period for the polling loop to finish. Will be applied twice, once gracefully, once forcefully.
+     */
+    public static final Duration SHUTDOWN_WAIT_TIMEOUT = Duration.ofSeconds(90);
 
     private final OffsetContext previousOffset;
     private final ErrorHandler errorHandler;
     private final ChangeEventSourceFactory changeEventSourceFactory;
+    private final ChangeEventSourceMetricsFactory changeEventSourceMetricsFactory;
     private final ExecutorService executor;
     private final EventDispatcher<?> eventDispatcher;
+    private final DatabaseSchema<?> schema;
 
     private volatile boolean running;
     private volatile StreamingChangeEventSource streamingSource;
+    private final ReentrantLock commitOffsetLock = new ReentrantLock();
 
     private SnapshotChangeEventSourceMetrics snapshotMetrics;
     private StreamingChangeEventSourceMetrics streamingMetrics;
 
-    public ChangeEventSourceCoordinator(OffsetContext previousOffset, ErrorHandler errorHandler, Class<? extends SourceConnector> connectorType, String logicalName, ChangeEventSourceFactory changeEventSourceFactory, EventDispatcher<?> eventDispatcher) {
+    public ChangeEventSourceCoordinator(OffsetContext previousOffset, ErrorHandler errorHandler, Class<? extends SourceConnector> connectorType,
+                                        CommonConnectorConfig connectorConfig,
+                                        ChangeEventSourceFactory changeEventSourceFactory,
+                                        ChangeEventSourceMetricsFactory changeEventSourceMetricsFactory, EventDispatcher<?> eventDispatcher, DatabaseSchema<?> schema) {
         this.previousOffset = previousOffset;
         this.errorHandler = errorHandler;
         this.changeEventSourceFactory = changeEventSourceFactory;
-        this.executor = Threads.newSingleThreadExecutor(connectorType, logicalName, "change-event-source-coordinator");
+        this.changeEventSourceMetricsFactory = changeEventSourceMetricsFactory;
+        this.executor = Threads.newSingleThreadExecutor(connectorType, connectorConfig.getLogicalName(), "change-event-source-coordinator");
         this.eventDispatcher = eventDispatcher;
+        this.schema = schema;
     }
 
-    public synchronized <T extends CdcSourceTaskContext> void start(T taskContext, ChangeEventQueueMetrics changeEventQueueMetrics, EventMetadataProvider metadataProvider) {
-        this.snapshotMetrics = new SnapshotChangeEventSourceMetrics(taskContext, changeEventQueueMetrics, metadataProvider);
-        this.streamingMetrics = new StreamingChangeEventSourceMetrics(taskContext, changeEventQueueMetrics, metadataProvider);
+    public synchronized <T extends CdcSourceTaskContext> void start(T taskContext, ChangeEventQueueMetrics changeEventQueueMetrics,
+                                                                    EventMetadataProvider metadataProvider) {
+        this.snapshotMetrics = changeEventSourceMetricsFactory.getSnapshotMetrics(taskContext, changeEventQueueMetrics, metadataProvider);
+        this.streamingMetrics = changeEventSourceMetricsFactory.getStreamingMetrics(taskContext, changeEventQueueMetrics, metadataProvider);
         running = true;
 
         // run the snapshot source on a separate thread so start() won't block
@@ -72,22 +88,33 @@ public class ChangeEventSourceCoordinator {
             try {
                 snapshotMetrics.register(LOGGER);
                 streamingMetrics.register(LOGGER);
+                LOGGER.info("Metrics registered");
 
                 ChangeEventSourceContext context = new ChangeEventSourceContextImpl();
+                LOGGER.info("Context created");
 
                 SnapshotChangeEventSource snapshotSource = changeEventSourceFactory.getSnapshotChangeEventSource(previousOffset, snapshotMetrics);
+                CatchUpStreamingResult catchUpStreamingResult = executeCatchUpStreaming(previousOffset, context, snapshotSource);
+                if (catchUpStreamingResult.performedCatchUpStreaming) {
+                    streamingMetrics.connected(false);
+                    commitOffsetLock.lock();
+                    streamingSource = null;
+                    commitOffsetLock.unlock();
+                }
                 eventDispatcher.setEventListener(snapshotMetrics);
                 SnapshotResult snapshotResult = snapshotSource.execute(context);
+                LOGGER.info("Snapshot ended with {}", snapshotResult);
 
-                if (running && snapshotResult.getStatus() == SnapshotResultStatus.COMPLETED) {
-                    streamingSource = changeEventSourceFactory.getStreamingChangeEventSource(snapshotResult.getOffset());
-                    eventDispatcher.setEventListener(streamingMetrics);
-                    streamingMetrics.connected(true);
-                    streamingSource.execute(context);
+                if (snapshotResult.getStatus() == SnapshotResultStatus.COMPLETED || schema.tableInformationComplete()) {
+                    schema.assureNonEmptySchema();
+                }
+
+                if (running && snapshotResult.isCompletedOrSkipped()) {
+                    streamEvents(snapshotResult.getOffset(), context);
                 }
             }
             catch (InterruptedException e) {
-                Thread.interrupted();
+                Thread.currentThread().interrupt();
                 LOGGER.warn("Change event source executor was interrupted", e);
             }
             catch (Throwable e) {
@@ -99,8 +126,23 @@ public class ChangeEventSourceCoordinator {
         });
     }
 
+    protected CatchUpStreamingResult executeCatchUpStreaming(OffsetContext previousOffset, ChangeEventSourceContext context,
+                                                             SnapshotChangeEventSource snapshotSource)
+            throws InterruptedException {
+        return new CatchUpStreamingResult(false);
+    }
+
+    protected void streamEvents(OffsetContext offsetContext, ChangeEventSourceContext context) throws InterruptedException {
+        streamingSource = changeEventSourceFactory.getStreamingChangeEventSource(offsetContext);
+        eventDispatcher.setEventListener(streamingMetrics);
+        streamingMetrics.connected(true);
+        LOGGER.info("Starting streaming");
+        streamingSource.execute(context);
+        LOGGER.info("Finished streaming");
+    }
+
     public void commitOffset(Map<String, ?> offset) {
-        if (streamingSource != null) {
+        if (!commitOffsetLock.isLocked() && streamingSource != null && offset != null) {
             streamingSource.commitOffset(offset);
         }
     }
@@ -111,18 +153,25 @@ public class ChangeEventSourceCoordinator {
     public synchronized void stop() throws InterruptedException {
         running = false;
 
-        executor.shutdown();
-        Thread.interrupted();
-        boolean isShutdown = executor.awaitTermination(SHUTDOWN_WAIT_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        try {
+            // Clear interrupt flag so the graceful termination is always attempted
+            Thread.interrupted();
+            executor.shutdown();
+            boolean isShutdown = executor.awaitTermination(SHUTDOWN_WAIT_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-        if (!isShutdown) {
-            LOGGER.warn("Coordinator didn't stop in the expected time, shutting down executor now");
+            if (!isShutdown) {
+                LOGGER.warn("Coordinator didn't stop in the expected time, shutting down executor now");
 
-            executor.shutdownNow();
-            executor.awaitTermination(SHUTDOWN_WAIT_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                // Clear interrupt flag so the forced termination is always attempted
+                Thread.interrupted();
+                executor.shutdownNow();
+                executor.awaitTermination(SHUTDOWN_WAIT_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            }
         }
-        snapshotMetrics.unregister(LOGGER);
-        streamingMetrics.unregister(LOGGER);
+        finally {
+            snapshotMetrics.unregister(LOGGER);
+            streamingMetrics.unregister(LOGGER);
+        }
     }
 
     private class ChangeEventSourceContextImpl implements ChangeEventSourceContext {
@@ -131,5 +180,15 @@ public class ChangeEventSourceCoordinator {
         public boolean isRunning() {
             return running;
         }
+    }
+
+    protected class CatchUpStreamingResult {
+
+        public boolean performedCatchUpStreaming;
+
+        public CatchUpStreamingResult(boolean performedCatchUpStreaming) {
+            this.performedCatchUpStreaming = performedCatchUpStreaming;
+        }
+
     }
 }

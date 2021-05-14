@@ -51,33 +51,31 @@ public class ParallelSnapshotReader implements Reader {
         this.serverIdGenerator = serverIdGenerator;
         AtomicBoolean oldTablesReaderNearEnd = new AtomicBoolean(false);
         AtomicBoolean newTablesReaderNearEnd = new AtomicBoolean(false);
-        ParallelHaltingPredicate oldTablesReaderHaltingPredicate =
-            new ParallelHaltingPredicate(oldTablesReaderNearEnd, newTablesReaderNearEnd);
-        ParallelHaltingPredicate newTablesReaderHaltingPredicate =
-            new ParallelHaltingPredicate(newTablesReaderNearEnd, oldTablesReaderNearEnd);
+        ParallelHaltingPredicate oldTablesReaderHaltingPredicate = new ParallelHaltingPredicate(oldTablesReaderNearEnd, newTablesReaderNearEnd);
+        ParallelHaltingPredicate newTablesReaderHaltingPredicate = new ParallelHaltingPredicate(newTablesReaderNearEnd, oldTablesReaderNearEnd);
 
         this.oldTablesReader = new BinlogReader("oldBinlog",
-                                                noSnapshotContext,
-                                                oldTablesReaderHaltingPredicate,
-                                                serverIdGenerator.getNextServerId());
+                noSnapshotContext,
+                oldTablesReaderHaltingPredicate,
+                serverIdGenerator.getNextServerId());
 
         MySqlTaskContext newTablesContext = new MySqlTaskContext(config,
-                                                                 snapshotFilters,
-                                                                 noSnapshotContext.source().offset());
+                snapshotFilters,
+                noSnapshotContext.source().offset());
         newTablesContext.start();
         SnapshotReader newTablesSnapshotReader = new SnapshotReader("newSnapshot", newTablesContext);
 
         this.newTablesBinlogReader = new BinlogReader("newBinlog",
-                                                      newTablesContext,
-                                                      newTablesReaderHaltingPredicate,
-                                                      serverIdGenerator.getNextServerId());
+                newTablesContext,
+                newTablesReaderHaltingPredicate,
+                serverIdGenerator.getNextServerId());
         this.newTablesReader = new ChainedReader.Builder().addReader(newTablesSnapshotReader).addReader(newTablesBinlogReader).build();
     }
 
     // for testing purposes
-    /*package private*/ ParallelSnapshotReader(BinlogReader oldTablesBinlogReader,
-                                               SnapshotReader newTablesSnapshotReader,
-                                               BinlogReader newTablesBinlogReader) {
+    /* package private */ ParallelSnapshotReader(BinlogReader oldTablesBinlogReader,
+                                                 SnapshotReader newTablesSnapshotReader,
+                                                 BinlogReader newTablesBinlogReader) {
         this.oldTablesReader = oldTablesBinlogReader;
         this.newTablesBinlogReader = newTablesBinlogReader;
         this.newTablesReader = new ChainedReader.Builder().addReader(newTablesSnapshotReader).addReader(newTablesBinlogReader).build();
@@ -91,9 +89,9 @@ public class ParallelSnapshotReader implements Reader {
      */
     public ReconcilingBinlogReader createReconcilingBinlogReader(BinlogReader unifiedReader) {
         return new ReconcilingBinlogReader(oldTablesReader,
-                                           newTablesBinlogReader,
-                                           unifiedReader,
-                                           serverIdGenerator.getNextServerId());
+                newTablesBinlogReader,
+                unifiedReader,
+                serverIdGenerator.getNextServerId());
     }
 
     @Override
@@ -122,7 +120,8 @@ public class ParallelSnapshotReader implements Reader {
                 LOGGER.info("Stopping the {} reader", oldTablesReader.name());
                 oldTablesReader.stop();
                 oldTablesReader.context.shutdown();
-            } catch (Throwable t) {
+            }
+            catch (Throwable t) {
                 LOGGER.error("Unexpected error stopping the {} reader", oldTablesReader.name());
             }
 
@@ -130,7 +129,8 @@ public class ParallelSnapshotReader implements Reader {
                 LOGGER.info("Stopping the {} reader", newTablesReader.name());
                 newTablesReader.stop();
                 oldTablesReader.context.shutdown();
-            } catch (Throwable t) {
+            }
+            catch (Throwable t) {
                 LOGGER.error("Unexpected error stopping the {} reader", newTablesReader.name());
             }
         }
@@ -144,16 +144,16 @@ public class ParallelSnapshotReader implements Reader {
         return State.STOPPED;
     }
 
-
     @Override
     public List<SourceRecord> poll() throws InterruptedException {
         // the old tables reader is a raw BinlogReader and will throw an exception of poll is called when it is not running.
-        List<SourceRecord> allRecords = oldTablesReader.isRunning()? oldTablesReader.poll() : null;
+        List<SourceRecord> allRecords = oldTablesReader.isRunning() ? oldTablesReader.poll() : null;
         List<SourceRecord> newTablesRecords = newTablesReader.poll();
         if (newTablesRecords != null) {
             if (allRecords == null) {
                 allRecords = newTablesRecords;
-            } else {
+            }
+            else {
                 allRecords.addAll(newTablesRecords);
             }
         }
@@ -195,7 +195,7 @@ public class ParallelSnapshotReader implements Reader {
      * the current time. Once a single record near the end of the binlog has been seen, we
      * we assume the reader will stay near the end of the binlog.
      */
-    /*package local*/ static class ParallelHaltingPredicate implements HaltingPredicate {
+    /* package local */ static class ParallelHaltingPredicate implements HaltingPredicate {
 
         private static final Logger LOGGER = LoggerFactory.getLogger(ParallelHaltingPredicate.class);
 
@@ -207,14 +207,14 @@ public class ParallelSnapshotReader implements Reader {
         // The minimum duration we must be within before we attempt to halt.
         private final Duration minHaltingDuration;
 
-        /*package local*/ ParallelHaltingPredicate(AtomicBoolean thisReaderNearEndRef,
-                                                   AtomicBoolean otherReaderNearEndRef) {
+        /* package local */ ParallelHaltingPredicate(AtomicBoolean thisReaderNearEndRef,
+                                                     AtomicBoolean otherReaderNearEndRef) {
             this(thisReaderNearEndRef, otherReaderNearEndRef, DEFAULT_MIN_HALTING_DURATION);
         }
 
-        /*package local*/ ParallelHaltingPredicate(AtomicBoolean thisReaderNearEndRef,
-                                                   AtomicBoolean otherReaderNearEndRef,
-                                                   Duration minHaltingDuration) {
+        /* package local */ ParallelHaltingPredicate(AtomicBoolean thisReaderNearEndRef,
+                                                     AtomicBoolean otherReaderNearEndRef,
+                                                     Duration minHaltingDuration) {
             this.otherReaderNearEnd = otherReaderNearEndRef;
             this.thisReaderNearEnd = thisReaderNearEndRef;
             this.minHaltingDuration = minHaltingDuration;
@@ -225,14 +225,17 @@ public class ParallelSnapshotReader implements Reader {
             // we assume if we ever end up near the end of the binlog, then we will remain there.
             if (!thisReaderNearEnd.get()) {
                 Long sourceRecordTimestamp = (Long) ourSourceRecord.sourceOffset().get(SourceInfo.TIMESTAMP_KEY);
-                Instant recordTimestamp = Instant.ofEpochSecond(sourceRecordTimestamp);
-                Instant now = Instant.now();
-                Duration durationToEnd = Duration.between(recordTimestamp, now);
+                // the timestamp will be null if we have not read any binlog events yet.
+                if (sourceRecordTimestamp != null) {
+                    Instant recordTimestamp = Instant.ofEpochSecond(sourceRecordTimestamp);
+                    Instant now = Instant.now();
+                    Duration durationToEnd = Duration.between(recordTimestamp, now);
 
-                if (durationToEnd.compareTo(minHaltingDuration) <= 0) {
-                    // we are within minHaltingDuration of the end
-                    LOGGER.debug("Parallel halting predicate: this reader near end");
-                    thisReaderNearEnd.set(true);
+                    if (durationToEnd.compareTo(minHaltingDuration) <= 0) {
+                        // we are within minHaltingDuration of the end
+                        LOGGER.debug("Parallel halting predicate: this reader near end");
+                        thisReaderNearEnd.set(true);
+                    }
                 }
             }
             // return false if both readers are near end, true otherwise.

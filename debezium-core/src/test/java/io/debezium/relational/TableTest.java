@@ -5,12 +5,12 @@
  */
 package io.debezium.relational;
 
+import static org.fest.assertions.Assertions.assertThat;
+
 import java.sql.Types;
 
 import org.junit.Before;
 import org.junit.Test;
-
-import static org.fest.assertions.Assertions.assertThat;
 
 public class TableTest {
 
@@ -24,27 +24,27 @@ public class TableTest {
     @Before
     public void beforeEach() {
         table = Table.editor()
-                     .tableId(id)
-                     .addColumns(Column.editor().name("C1")
-                                       .type("VARCHAR").jdbcType(Types.VARCHAR).length(10)
-                                       .generated(true)
-                                       .optional(false)
-                                       .create(),
-                                 Column.editor().name("C2")
-                                       .type("NUMBER").jdbcType(Types.NUMERIC).length(5)
-                                       .optional(false)
-                                       .create(),
-                                 Column.editor().name("C3")
-                                       .type("DATE").jdbcType(Types.DATE).length(4)
-                                       .optional(true)
-                                       .create(),
-                                 Column.editor().name("C4")
-                                       .type("COUNTER").jdbcType(Types.INTEGER)
-                                       .autoIncremented(true)
-                                       .optional(true)
-                                       .create())
-                     .setPrimaryKeyNames("C1", "C2")
-                     .create();
+                .tableId(id)
+                .addColumns(Column.editor().name("C1")
+                        .type("VARCHAR").jdbcType(Types.VARCHAR).length(10)
+                        .generated(true)
+                        .optional(false)
+                        .create(),
+                        Column.editor().name("C2")
+                                .type("NUMBER").jdbcType(Types.NUMERIC).length(5)
+                                .optional(false)
+                                .create(),
+                        Column.editor().name("C3")
+                                .type("DATE").jdbcType(Types.DATE).length(4)
+                                .optional(true)
+                                .create(),
+                        Column.editor().name("C4")
+                                .type("COUNTER").jdbcType(Types.INTEGER)
+                                .autoIncremented(true)
+                                .optional(true)
+                                .create())
+                .setPrimaryKeyNames("C1", "C2")
+                .create();
         c1 = table.columnWithName("C1");
         c2 = table.columnWithName("C2");
         c3 = table.columnWithName("C3");
@@ -84,11 +84,6 @@ public class TableTest {
     public void shouldHaveColumns() {
         assertThat(table.retrieveColumnNames()).containsExactly("C1", "C2", "C3", "C4");
         assertThat(table.columns()).containsExactly(c1, c2, c3, c4);
-    }
-
-    @Test
-    public void shouldHaveColumnsThatAreNotPartOfThePrimaryKey() {
-        assertThat(table.nonPrimaryKeyColumns()).containsExactly(c3, c4);
     }
 
     @Test
@@ -154,7 +149,7 @@ public class TableTest {
         assertThat(table.isAutoIncremented("C4")).isTrue();
         assertThat(table.isAutoIncremented("non-existant")).isFalse();
     }
-    
+
     @Test
     public void shouldDetermineIfColumnIsOptionalUsingColumnName() {
         assertThat(table.isOptional("C1")).isFalse();

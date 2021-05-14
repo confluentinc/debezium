@@ -12,6 +12,7 @@ import io.debezium.relational.HistorizedRelationalDatabaseSchema;
 import io.debezium.relational.Table;
 import io.debezium.relational.TableId;
 import io.debezium.relational.TableSchemaBuilder;
+import io.debezium.relational.ValueConverterProvider;
 import io.debezium.relational.ddl.DdlParser;
 import io.debezium.relational.history.TableChanges;
 import io.debezium.schema.SchemaChangeEvent;
@@ -28,14 +29,16 @@ public class SqlServerDatabaseSchema extends HistorizedRelationalDatabaseSchema 
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SqlServerDatabaseSchema.class);
 
-    public SqlServerDatabaseSchema(SqlServerConnectorConfig connectorConfig, SchemaNameAdjuster schemaNameAdjuster, TopicSelector<TableId> topicSelector, SqlServerConnection connection) {
+    public SqlServerDatabaseSchema(SqlServerConnectorConfig connectorConfig, ValueConverterProvider valueConverter, TopicSelector<TableId> topicSelector,
+                                   SchemaNameAdjuster schemaNameAdjuster) {
         super(connectorConfig, topicSelector, connectorConfig.getTableFilters().dataCollectionFilter(), connectorConfig.getColumnFilter(),
                 new TableSchemaBuilder(
-                        new SqlServerValueConverters(connectorConfig.getDecimalMode()),
+                        valueConverter,
                         schemaNameAdjuster,
-                        SourceInfo.SCHEMA
-                ),
-                false);
+                        connectorConfig.customConverterRegistry(),
+                        connectorConfig.getSourceInfoStructMaker().schema(),
+                        connectorConfig.getSanitizeFieldNames()),
+                false, connectorConfig.getKeyMapper());
     }
 
     @Override
@@ -56,7 +59,6 @@ public class SqlServerDatabaseSchema extends HistorizedRelationalDatabaseSchema 
             tableChanges = new TableChanges();
             tableChanges.alter(table);
         }
-
 
         record(schemaChange, tableChanges);
     }

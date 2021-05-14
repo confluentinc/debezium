@@ -14,10 +14,15 @@ import java.lang.annotation.Target;
  * Marker annotation used together with the {@link SkipTestDependingOnDecoderPluginNameRule} JUnit rule, that allows
  * tests to be skipped based on the decoder plugin name that is being used for testing.
  */
-@Retention( RetentionPolicy.RUNTIME)
-@Target( {ElementType.METHOD, ElementType.TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+@Target({ ElementType.METHOD, ElementType.TYPE })
 public @interface SkipWhenDecoderPluginNameIs {
     SkipWhenDecoderPluginNameIs.DecoderPluginName value();
+
+    /**
+     * Returns the reason why the test should be skipped.
+     */
+    String reason() default "";
 
     enum DecoderPluginName {
         WAL2JSON {
@@ -48,6 +53,12 @@ public @interface SkipWhenDecoderPluginNameIs {
             @Override
             boolean isEqualTo(String pluginName) {
                 return pluginName.equals("decoderbufs");
+            }
+        },
+        PGOUTPUT {
+            @Override
+            boolean isEqualTo(String pluginName) {
+                return pluginName.equals("pgoutput");
             }
         };
 

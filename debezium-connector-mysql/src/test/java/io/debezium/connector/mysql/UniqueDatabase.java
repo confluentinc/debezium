@@ -24,7 +24,6 @@ import java.util.stream.Stream;
 
 import io.debezium.config.Configuration;
 import io.debezium.relational.history.FileDatabaseHistory;
-import io.debezium.util.Testing;
 
 /**
  * Create and populate a unique instance of a MySQL database for each run of JUnit test. A user of class
@@ -41,7 +40,7 @@ public class UniqueDatabase {
     public static final ZoneId TIMEZONE = ZoneId.of("US/Samoa");
 
     private static final String DEFAULT_DATABASE = "mysql";
-    private static final String[] CREATE_DATABASE_DDL = new String[] {
+    private static final String[] CREATE_DATABASE_DDL = new String[]{
             "CREATE DATABASE $DBNAME$;",
             "USE $DBNAME$;"
     };
@@ -74,7 +73,7 @@ public class UniqueDatabase {
      * Creates an instance with given Debezium logical name and database name and id suffix same
      * as another database. This is handy for tests that need multpli databases and can use regex
      * based whitelisting.
-
+    
      * @param serverName - logical Debezium server name
      * @param databaseName - the name of the database (prix)
      * @param sibling - a database whose unique suffix will be used
@@ -137,20 +136,20 @@ public class UniqueDatabase {
                         Stream.concat(
                                 Arrays.stream(CREATE_DATABASE_DDL),
                                 Files.readAllLines(Paths.get(ddlTestFile.toURI())).stream())
-                            .map(String::trim)
-                            .filter(x -> !x.startsWith("--") && !x.isEmpty())
-                            .map(x -> {
-                                final Matcher m = COMMENT_PATTERN.matcher(x);
-                                return m.matches() ? m.group(1) : x;
-                            })
-                            .map(this::convertSQL)
-                            .collect(Collectors.joining("\n")).split(";")
-                        )
-                       .map(x -> x.replace("$$", ";"))
-                       .collect(Collectors.toList());
+                                .map(String::trim)
+                                .filter(x -> !x.startsWith("--") && !x.isEmpty())
+                                .map(x -> {
+                                    final Matcher m = COMMENT_PATTERN.matcher(x);
+                                    return m.matches() ? m.group(1) : x;
+                                })
+                                .map(this::convertSQL)
+                                .collect(Collectors.joining("\n")).split(";"))
+                        .map(x -> x.replace("$$", ";"))
+                        .collect(Collectors.toList());
                 connection.execute(statements.toArray(new String[statements.size()]));
             }
-        } catch (final Exception e) {
+        }
+        catch (final Exception e) {
             throw new IllegalStateException(e);
         }
     }
@@ -179,21 +178,14 @@ public class UniqueDatabase {
      * @return Configuration builder initialized with JDBC connection parameters and most frequently used parameters
      */
     public Configuration.Builder defaultConfig() {
-        String ddlParserMode = System.getProperty(
-                MySqlConnectorConfig.DDL_PARSER_MODE.name(),
-                MySqlConnectorConfig.DDL_PARSER_MODE.defaultValueAsString()
-        );
-        Testing.print("DDL parser mode: " + ddlParserMode);
-
         final Configuration.Builder builder = defaultJdbcConfigBuilder()
                 .with(MySqlConnectorConfig.SSL_MODE, MySqlConnectorConfig.SecureConnectionMode.DISABLED)
                 .with(MySqlConnectorConfig.SERVER_ID, 18765)
                 .with(MySqlConnectorConfig.SERVER_NAME, getServerName())
                 .with(MySqlConnectorConfig.POLL_INTERVAL_MS, 10)
-                .with(MySqlConnectorConfig.DATABASE_WHITELIST, getDatabaseName())
+                .with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, getDatabaseName())
                 .with(MySqlConnectorConfig.DATABASE_HISTORY, FileDatabaseHistory.class)
-                .with(MySqlConnectorConfig.BUFFER_SIZE_FOR_BINLOG_READER, 10_000)
-                .with(MySqlConnectorConfig.DDL_PARSER_MODE, ddlParserMode);
+                .with(MySqlConnectorConfig.BUFFER_SIZE_FOR_BINLOG_READER, 10_000);
 
         if (dbHistoryPath != null) {
             builder.with(FileDatabaseHistory.FILE_PATH, dbHistoryPath);

@@ -5,6 +5,8 @@
  */
 package io.debezium.connector.mysql;
 
+import static io.debezium.junit.EqualityCheck.LESS_THAN;
+import static org.fest.assertions.Assertions.assertThat;
 import static org.junit.Assert.fail;
 
 import java.io.IOException;
@@ -26,6 +28,7 @@ import java.util.stream.Collectors;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
+import org.junit.Rule;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,11 +50,12 @@ import com.github.shyiko.mysql.binlog.event.deserialization.EventDeserializer;
 import com.github.shyiko.mysql.binlog.network.SSLMode;
 import com.github.shyiko.mysql.binlog.network.ServerException;
 
-import static org.fest.assertions.Assertions.assertThat;
-
 import io.debezium.jdbc.JdbcConfiguration;
+import io.debezium.junit.SkipTestRule;
+import io.debezium.junit.SkipWhenDatabaseVersion;
 import io.debezium.util.Testing;
 
+@SkipWhenDatabaseVersion(check = LESS_THAN, major = 5, minor = 6, patch = 5, reason = "MySQL 5.5 does not support CURRENT_TIMESTAMP on DATETIME and only a single column can specify default CURRENT_TIMESTAMP, lifted in MySQL 5.6.5")
 public class ReadBinLogIT implements Testing {
 
     protected static final Logger LOGGER = LoggerFactory.getLogger(ReadBinLogIT.class);
@@ -70,6 +74,9 @@ public class ReadBinLogIT implements Testing {
     private JdbcConfiguration config;
 
     private final UniqueDatabase DATABASE = new UniqueDatabase("readbinlog_it", "readbinlog_test");
+
+    @Rule
+    public SkipTestRule skipTest = new SkipTestRule();
 
     @Before
     public void beforeEach() throws TimeoutException, IOException, SQLException, InterruptedException {
@@ -91,13 +98,15 @@ public class ReadBinLogIT implements Testing {
             if (client != null) {
                 client.disconnect();
             }
-        } finally {
+        }
+        finally {
             client = null;
             try {
                 if (conn != null) {
                     conn.close();
                 }
-            } finally {
+            }
+            finally {
                 conn = null;
             }
         }
@@ -106,7 +115,7 @@ public class ReadBinLogIT implements Testing {
     protected void startClient() throws IOException, TimeoutException, SQLException {
         startClient(null);
     }
-    
+
     protected void startClient(Consumer<BinaryLogClient> preConnect) throws IOException, TimeoutException, SQLException {
         // Connect the bin log client ...
         counters = new EventQueue(DEFAULT_TIMEOUT, this::logConsumedEvent, this::logIgnoredEvent);
@@ -127,26 +136,25 @@ public class ReadBinLogIT implements Testing {
 
         // Set up the table as one transaction and wait to see the events ...
         conn.execute("DROP TABLE IF EXISTS person",
-                     "CREATE TABLE person (" +
-                             "  name VARCHAR(255) primary key," +
-                             "  age INTEGER NULL DEFAULT 10," +
-                             "  createdAt DATETIME NULL DEFAULT CURRENT_TIMESTAMP," +
-                             "  updatedAt DATETIME NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" +
-                             ")");
+                "CREATE TABLE person (" +
+                        "  name VARCHAR(255) primary key," +
+                        "  age INTEGER NULL DEFAULT 10," +
+                        "  createdAt DATETIME NULL DEFAULT CURRENT_TIMESTAMP," +
+                        "  updatedAt DATETIME NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" +
+                        ")");
 
         counters.consume(2, EventType.QUERY);
         counters.reset();
     }
-    
+
     @Ignore
-    @Test( expected = ServerException.class)
+    @Test(expected = ServerException.class)
     public void shouldFailToConnectToInvalidBinlogFile() throws Exception {
         Testing.Print.enable();
         startClient(client -> {
             client.setBinlogFilename("invalid-mysql-binlog.filename.000001");
         });
     }
-
 
     @Ignore
     @Test
@@ -161,7 +169,7 @@ public class ReadBinLogIT implements Testing {
     @Test
     public void shouldCaptureSingleWriteUpdateDeleteEvents() throws Exception {
         startClient();
-        //Testing.Print.enable();
+        // Testing.Print.enable();
         // write/insert
         conn.execute("INSERT INTO person(name,age) VALUES ('Georgia',30)");
         counters.consume(1, WriteRowsEventData.class);
@@ -173,7 +181,7 @@ public class ReadBinLogIT implements Testing {
         counters.consume(1, UpdateRowsEventData.class);
         List<UpdateRowsEventData> updateRowEvents = recordedEventData(UpdateRowsEventData.class, 1);
         assertRows(updateRowEvents.get(0),
-                   rows().changeRow("Georgia", 30, any(), any()).to("Maggie", 30, any(), any()));
+                rows().changeRow("Georgia", 30, any(), any()).to("Maggie", 30, any(), any()));
 
         // delete
         conn.execute("DELETE FROM person WHERE name = 'Maggie'");
@@ -187,7 +195,7 @@ public class ReadBinLogIT implements Testing {
         startClient();
         // write/insert as a single transaction
         conn.execute("INSERT INTO person(name,age) VALUES ('Georgia',30)",
-                     "INSERT INTO person(name,age) VALUES ('Janice',19)");
+                "INSERT INTO person(name,age) VALUES ('Janice',19)");
         counters.consume(1, QueryEventData.class); // BEGIN
         counters.consume(1, TableMapEventData.class);
         counters.consume(2, WriteRowsEventData.class);
@@ -199,7 +207,7 @@ public class ReadBinLogIT implements Testing {
 
         // update as a single transaction
         conn.execute("UPDATE person SET name = 'Maggie' WHERE name = 'Georgia'",
-                     "UPDATE person SET name = 'Jamie' WHERE name = 'Janice'");
+                "UPDATE person SET name = 'Jamie' WHERE name = 'Janice'");
         counters.consume(1, QueryEventData.class); // BEGIN
         counters.consume(1, TableMapEventData.class);
         counters.consume(2, UpdateRowsEventData.class);
@@ -211,7 +219,7 @@ public class ReadBinLogIT implements Testing {
 
         // delete as a single transaction
         conn.execute("DELETE FROM person WHERE name = 'Maggie'",
-                     "DELETE FROM person WHERE name = 'Jamie'");
+                "DELETE FROM person WHERE name = 'Jamie'");
         counters.consume(1, QueryEventData.class); // BEGIN
         counters.consume(1, TableMapEventData.class);
         counters.consume(2, DeleteRowsEventData.class);
@@ -232,7 +240,7 @@ public class ReadBinLogIT implements Testing {
         counters.consume(1, XidEventData.class); // COMMIT
         List<WriteRowsEventData> writeRowEvents = recordedEventData(WriteRowsEventData.class, 1);
         assertRows(writeRowEvents.get(0), rows().insertedRow("Georgia", 30, any(), any())
-                                                .insertedRow("Janice", 19, any(), any()));
+                .insertedRow("Janice", 19, any(), any()));
         counters.reset();
 
         // update as a single statement/transaction
@@ -247,7 +255,7 @@ public class ReadBinLogIT implements Testing {
         counters.consume(1, XidEventData.class); // COMMIT
         List<UpdateRowsEventData> updateRowEvents = recordedEventData(UpdateRowsEventData.class, 1);
         assertRows(updateRowEvents.get(0), rows().changeRow("Georgia", 30, any(), any()).to("Maggie", 30, any(), any())
-                                                 .changeRow("Janice", 19, any(), any()).to("Jamie", 19, any(), any()));
+                .changeRow("Janice", 19, any(), any()).to("Jamie", 19, any(), any()));
         counters.reset();
 
         // delete as a single statement/transaction
@@ -258,13 +266,13 @@ public class ReadBinLogIT implements Testing {
         counters.consume(1, XidEventData.class); // COMMIT
         List<DeleteRowsEventData> deleteRowEvents = recordedEventData(DeleteRowsEventData.class, 1);
         assertRows(deleteRowEvents.get(0), rows().removedRow("Maggie", 30, any(), any())
-                                                 .removedRow("Jamie", 19, any(), any()));
+                .removedRow("Jamie", 19, any(), any()));
     }
 
     /**
      * Test case that is normally commented out since it is only useful to print out the DDL statements recorded by
      * the binlog during a MySQL server initialization and startup.
-     * 
+     *
      * @throws Exception if there are problems
      */
     @Ignore
@@ -502,7 +510,7 @@ public class ReadBinLogIT implements Testing {
 
         /**
          * Blocks for the specified amount of time, consuming (and discarding) all events.
-         * 
+         *
          * @param timeout the maximum amount of time that this method should block
          * @param unit the time unit for {@code timeout}
          * @throws TimeoutException if the waiting timed out before the expected number of events were received
@@ -522,7 +530,7 @@ public class ReadBinLogIT implements Testing {
          * Blocks until the listener has consume the specified number of matching events, blocking at most the default number of
          * milliseconds. If this method has not reached the number of matching events and comes across events that do not satisfy
          * the predicate, those events are consumed and ignored.
-         * 
+         *
          * @param eventCount the number of events
          * @param condition the event-based predicate that signals a match; may not be null
          * @throws TimeoutException if the waiting timed out before the expected number of events were received
@@ -535,7 +543,7 @@ public class ReadBinLogIT implements Testing {
          * Blocks until the listener has consume the specified number of matching events, blocking at most the specified number
          * of milliseconds. If this method has not reached the number of matching events and comes across events that do not
          * satisfy the predicate, those events are consumed and ignored.
-         * 
+         *
          * @param eventCount the number of events
          * @param timeoutInMillis the maximum amount of time in milliseconds that this method should block
          * @param condition the event-based predicate that signals a match; may not be null
@@ -557,7 +565,8 @@ public class ReadBinLogIT implements Testing {
                     if (condition.test(nextEvent)) {
                         --eventsRemaining;
                         consumedEvents.accept(nextEvent);
-                    } else {
+                    }
+                    else {
                         ignoredEvents.accept(nextEvent);
                     }
                 }
@@ -571,7 +580,7 @@ public class ReadBinLogIT implements Testing {
         /**
          * Blocks until the listener has seen the specified number of events with the given type, or until the default timeout
          * has passed.
-         * 
+         *
          * @param eventCount the number of events
          * @param type the type of event
          * @throws TimeoutException if the waiting timed out before the expected number of events were received
@@ -583,7 +592,7 @@ public class ReadBinLogIT implements Testing {
         /**
          * Blocks until the listener has seen the specified number of events with the given type, or until the specified time
          * has passed.
-         * 
+         *
          * @param eventCount the number of events
          * @param type the type of event
          * @param timeoutMillis the maximum amount of time in milliseconds that this method should block
@@ -600,7 +609,7 @@ public class ReadBinLogIT implements Testing {
         /**
          * Blocks until the listener has seen the specified number of events with the given type, or until the default timeout
          * has passed.
-         * 
+         *
          * @param eventCount the number of events
          * @param eventDataClass the EventData subclass
          * @throws TimeoutException if the waiting timed out before the expected number of events were received
@@ -612,7 +621,7 @@ public class ReadBinLogIT implements Testing {
         /**
          * Blocks until the listener has seen the specified number of events with event data matching the specified class,
          * or until the specified time has passed.
-         * 
+         *
          * @param eventCount the number of events
          * @param eventDataClass the EventData subclass
          * @param timeoutMillis the maximum amount of time in milliseconds that this method should block

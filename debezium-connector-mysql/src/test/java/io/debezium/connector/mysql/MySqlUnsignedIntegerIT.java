@@ -18,13 +18,9 @@ import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 
 import io.debezium.config.Configuration;
-import io.debezium.connector.mysql.junit.SkipForLegacyParser;
-import io.debezium.connector.mysql.junit.SkipTestForLegacyParser;
 import io.debezium.data.Envelope;
 import io.debezium.doc.FixFor;
 import io.debezium.embedded.AbstractConnectorTest;
@@ -33,7 +29,6 @@ import io.debezium.util.Testing;
 /**
  * @author Omar Al-Safi
  */
-@SkipForLegacyParser
 public class MySqlUnsignedIntegerIT extends AbstractConnectorTest {
 
     private static final Path DB_HISTORY_PATH = Testing.Files.createTestingPath("file-db-history-json.txt")
@@ -43,9 +38,6 @@ public class MySqlUnsignedIntegerIT extends AbstractConnectorTest {
 
     private final UniqueDatabase DATABASE = new UniqueDatabase("unsignednumericit", "unsigned_integer_test")
             .withDbHistoryPath(DB_HISTORY_PATH);
-
-    @Rule
-    public final TestRule skip = new SkipTestForLegacyParser();
 
     @Before
     public void beforeEach() {
@@ -59,7 +51,8 @@ public class MySqlUnsignedIntegerIT extends AbstractConnectorTest {
     public void afterEach() {
         try {
             stopConnector();
-        } finally {
+        }
+        finally {
             Testing.Files.delete(DB_HISTORY_PATH);
         }
     }
@@ -81,7 +74,7 @@ public class MySqlUnsignedIntegerIT extends AbstractConnectorTest {
         Testing.Debug.enable();
         int numCreateDatabase = 1;
         int numCreateTables = 7;
-        int numDataRecords = numCreateTables * 3; //Total data records
+        int numDataRecords = numCreateTables * 3; // Total data records
         SourceRecords records = consumeRecordsByTopic(numCreateDatabase + numCreateTables + numDataRecords);
         stopConnector();
         assertThat(records).isNotNull();
@@ -113,13 +106,17 @@ public class MySqlUnsignedIntegerIT extends AbstractConnectorTest {
             Struct value = (Struct) record.value();
             if (record.topic().endsWith("dbz_228_int_unsigned")) {
                 assertIntUnsigned(value);
-            } else if (record.topic().endsWith("dbz_228_tinyint_unsigned")) {
+            }
+            else if (record.topic().endsWith("dbz_228_tinyint_unsigned")) {
                 assertTinyintUnsigned(value);
-            } else if (record.topic().endsWith("dbz_228_smallint_unsigned")) {
+            }
+            else if (record.topic().endsWith("dbz_228_smallint_unsigned")) {
                 assertSmallUnsigned(value);
-            } else if (record.topic().endsWith("dbz_228_mediumint_unsigned")) {
+            }
+            else if (record.topic().endsWith("dbz_228_mediumint_unsigned")) {
                 assertMediumUnsigned(value);
-            } else if (record.topic().endsWith("dbz_228_bigint_unsigned")) {
+            }
+            else if (record.topic().endsWith("dbz_228_bigint_unsigned")) {
                 assertBigintUnsignedPrecise(value);
             }
         });
@@ -131,9 +128,9 @@ public class MySqlUnsignedIntegerIT extends AbstractConnectorTest {
     public void shouldConsumeAllEventsFromBigIntTableInDatabaseUsingBinlogAndNoSnapshotUsingLong() throws SQLException, InterruptedException {
         // Use the DB configuration to define the connector's configuration ...
         config = DATABASE.defaultConfig()
-                         .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.NEVER.toString())
-                         .with(MySqlConnectorConfig.BIGINT_UNSIGNED_HANDLING_MODE, MySqlConnectorConfig.BigIntUnsignedHandlingMode.LONG)
-                         .build();
+                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.NEVER.toString())
+                .with(MySqlConnectorConfig.BIGINT_UNSIGNED_HANDLING_MODE, MySqlConnectorConfig.BigIntUnsignedHandlingMode.LONG)
+                .build();
         // Start the connector ...
         start(MySqlConnector.class, config);
 
@@ -143,7 +140,7 @@ public class MySqlUnsignedIntegerIT extends AbstractConnectorTest {
         Testing.Debug.enable();
         int numCreateDatabase = 1;
         int numCreateTables = 7;
-        int numDataRecords = numCreateTables * 3; //Total data records
+        int numDataRecords = numCreateTables * 3; // Total data records
         SourceRecords records = consumeRecordsByTopic(numCreateDatabase + numCreateTables + numDataRecords);
         stopConnector();
         assertThat(records).isNotNull();
@@ -174,11 +171,10 @@ public class MySqlUnsignedIntegerIT extends AbstractConnectorTest {
         // ---------------------------------------------------------------------------------------------------------------
         // Consume all of the events due to startup and initialization of the database
         // ---------------------------------------------------------------------------------------------------------------
-        //Testing.Debug.enable();
+        // Testing.Debug.enable();
         int numTables = 7;
         int numDataRecords = numTables * 3;
-        int numDdlRecords =
-                numTables * 2 + 3; // for each table (1 drop + 1 create) + for each db (1 create + 1 drop + 1 use)
+        int numDdlRecords = numTables * 2 + 3; // for each table (1 drop + 1 create) + for each db (1 create + 1 drop + 1 use)
         int numSetVariables = 1;
         SourceRecords records = consumeRecordsByTopic(numDdlRecords + numSetVariables + numDataRecords);
         stopConnector();
@@ -211,13 +207,17 @@ public class MySqlUnsignedIntegerIT extends AbstractConnectorTest {
             Struct value = (Struct) record.value();
             if (record.topic().endsWith("dbz_228_int_unsigned")) {
                 assertIntUnsigned(value);
-            } else if (record.topic().endsWith("dbz_228_tinyint_unsigned")) {
+            }
+            else if (record.topic().endsWith("dbz_228_tinyint_unsigned")) {
                 assertTinyintUnsigned(value);
-            } else if (record.topic().endsWith("dbz_228_smallint_unsigned")) {
+            }
+            else if (record.topic().endsWith("dbz_228_smallint_unsigned")) {
                 assertSmallUnsigned(value);
-            } else if (record.topic().endsWith("dbz_228_mediumint_unsigned")) {
+            }
+            else if (record.topic().endsWith("dbz_228_mediumint_unsigned")) {
                 assertMediumUnsigned(value);
-            } else if (record.topic().endsWith("dbz_228_bigint_unsigned")) {
+            }
+            else if (record.topic().endsWith("dbz_228_bigint_unsigned")) {
                 assertBigintUnsignedLong(value);
             }
         });
@@ -229,32 +229,32 @@ public class MySqlUnsignedIntegerIT extends AbstractConnectorTest {
         Struct after = value.getStruct(Envelope.FieldName.AFTER);
         Integer i = after.getInt32("id");
         assertThat(i).isNotNull();
-        //Validate the schema first, we are expecting int-16 since we are dealing with unsignd-tinyint
-        //So Unsigned TINYINT would be an INT16 type
+        // Validate the schema first, we are expecting int-16 since we are dealing with unsignd-tinyint
+        // So Unsigned TINYINT would be an INT16 type
         assertThat(after.schema().field("c1").schema()).isEqualTo(Schema.INT16_SCHEMA);
         assertThat(after.schema().field("c2").schema()).isEqualTo(Schema.INT16_SCHEMA);
 
-        //Validate the schema first, we are expecting int-16 since we are dealing with signed-tinyint.
+        // Validate the schema first, we are expecting int-16 since we are dealing with signed-tinyint.
         // Note: the recommended mapping of Signed TINYINT is Short which is 16-bit. http://docs.oracle.com/javase/1.5.0/docs/guide/jdbc/getstart/mapping.html
-        //So Signed TINYINT would be an INT16 type
+        // So Signed TINYINT would be an INT16 type
         assertThat(after.schema().field("c3").schema()).isEqualTo(Schema.INT16_SCHEMA);
 
-        //Validate candidates values
+        // Validate candidates values
         switch (i) {
-        case 1:
-            assertThat(after.getInt16("c1")).isEqualTo((short) 255);
-            assertThat(after.getInt16("c2")).isEqualTo((short) (255));
-            assertThat(after.getInt16("c3")).isEqualTo((short) 127);
-            break;
-        case 2:
-            assertThat(after.getInt16("c1")).isEqualTo((short) 155);
-            assertThat(after.getInt16("c2")).isEqualTo((short) 155);
-            assertThat(after.getInt16("c3")).isEqualTo((short) - 100);
-            break;
-        case 3:
-            assertThat(after.getInt16("c1")).isEqualTo((short) 0);
-            assertThat(after.getInt16("c2")).isEqualTo((short) 0);
-            assertThat(after.getInt16("c3")).isEqualTo((short) - 128);
+            case 1:
+                assertThat(after.getInt16("c1")).isEqualTo((short) 255);
+                assertThat(after.getInt16("c2")).isEqualTo((short) (255));
+                assertThat(after.getInt16("c3")).isEqualTo((short) 127);
+                break;
+            case 2:
+                assertThat(after.getInt16("c1")).isEqualTo((short) 155);
+                assertThat(after.getInt16("c2")).isEqualTo((short) 155);
+                assertThat(after.getInt16("c3")).isEqualTo((short) -100);
+                break;
+            case 3:
+                assertThat(after.getInt16("c1")).isEqualTo((short) 0);
+                assertThat(after.getInt16("c2")).isEqualTo((short) 0);
+                assertThat(after.getInt16("c3")).isEqualTo((short) -128);
         }
     }
 
@@ -262,31 +262,31 @@ public class MySqlUnsignedIntegerIT extends AbstractConnectorTest {
         Struct after = value.getStruct(Envelope.FieldName.AFTER);
         Integer i = after.getInt32("id");
         assertThat(i).isNotNull();
-        //Validate the schema first, we are expecting int-32 since we are dealing with unsignd-smallint
-        //So Unsigned SMALLINT would be an int32 type
+        // Validate the schema first, we are expecting int-32 since we are dealing with unsignd-smallint
+        // So Unsigned SMALLINT would be an int32 type
         assertThat(after.schema().field("c1").schema()).isEqualTo(Schema.INT32_SCHEMA);
         assertThat(after.schema().field("c2").schema()).isEqualTo(Schema.INT32_SCHEMA);
 
-        //Validate the schema first, we are expecting int-16 since we are dealing with signed-smallint.
-        //So Signed SMALLINT would be an INT16 type
+        // Validate the schema first, we are expecting int-16 since we are dealing with signed-smallint.
+        // So Signed SMALLINT would be an INT16 type
         assertThat(after.schema().field("c3").schema()).isEqualTo(Schema.INT16_SCHEMA);
 
-        //Validate candidates values
+        // Validate candidates values
         switch (i) {
-        case 1:
-            assertThat(after.getInt32("c1")).isEqualTo(65535);
-            assertThat(after.getInt32("c2")).isEqualTo(65535);
-            assertThat(after.getInt16("c3")).isEqualTo((short) 32767);
-            break;
-        case 2:
-            assertThat(after.getInt32("c1")).isEqualTo(45535);
-            assertThat(after.getInt32("c2")).isEqualTo(45535);
-            assertThat(after.getInt16("c3")).isEqualTo((short) - 12767);
-            break;
-        case 3:
-            assertThat(after.getInt32("c1")).isEqualTo(0);
-            assertThat(after.getInt32("c2")).isEqualTo(0);
-            assertThat(after.getInt16("c3")).isEqualTo((short) - 32768);
+            case 1:
+                assertThat(after.getInt32("c1")).isEqualTo(65535);
+                assertThat(after.getInt32("c2")).isEqualTo(65535);
+                assertThat(after.getInt16("c3")).isEqualTo((short) 32767);
+                break;
+            case 2:
+                assertThat(after.getInt32("c1")).isEqualTo(45535);
+                assertThat(after.getInt32("c2")).isEqualTo(45535);
+                assertThat(after.getInt16("c3")).isEqualTo((short) -12767);
+                break;
+            case 3:
+                assertThat(after.getInt32("c1")).isEqualTo(0);
+                assertThat(after.getInt32("c2")).isEqualTo(0);
+                assertThat(after.getInt16("c3")).isEqualTo((short) -32768);
         }
     }
 
@@ -294,31 +294,31 @@ public class MySqlUnsignedIntegerIT extends AbstractConnectorTest {
         Struct after = value.getStruct(Envelope.FieldName.AFTER);
         Integer i = after.getInt32("id");
         assertThat(i).isNotNull();
-        //Validate the schema first, we are expecting int-32 since we are dealing with unsignd-mediumint
-        //So Unsigned MEDIUMINT would be an int32 type
+        // Validate the schema first, we are expecting int-32 since we are dealing with unsignd-mediumint
+        // So Unsigned MEDIUMINT would be an int32 type
         assertThat(after.schema().field("c1").schema()).isEqualTo(Schema.INT32_SCHEMA);
         assertThat(after.schema().field("c2").schema()).isEqualTo(Schema.INT32_SCHEMA);
 
-        //Validate the schema first, we are expecting int-32 since we are dealing with signed-mediumint.
-        //So Signed MEDIUMINT would be an INT32 type
+        // Validate the schema first, we are expecting int-32 since we are dealing with signed-mediumint.
+        // So Signed MEDIUMINT would be an INT32 type
         assertThat(after.schema().field("c3").schema()).isEqualTo(Schema.INT32_SCHEMA);
 
-        //Validate candidates values
+        // Validate candidates values
         switch (i) {
-        case 1:
-            assertThat(after.getInt32("c1")).isEqualTo(16777215);
-            assertThat(after.getInt32("c2")).isEqualTo(16777215);
-            assertThat(after.getInt32("c3")).isEqualTo(8388607);
-            break;
-        case 2:
-            assertThat(after.getInt32("c1")).isEqualTo(10777215);
-            assertThat(after.getInt32("c2")).isEqualTo(10777215);
-            assertThat(after.getInt32("c3")).isEqualTo(-6388607);
-            break;
-        case 3:
-            assertThat(after.getInt32("c1")).isEqualTo(0);
-            assertThat(after.getInt32("c2")).isEqualTo(0);
-            assertThat(after.getInt32("c3")).isEqualTo(-8388608);
+            case 1:
+                assertThat(after.getInt32("c1")).isEqualTo(16777215);
+                assertThat(after.getInt32("c2")).isEqualTo(16777215);
+                assertThat(after.getInt32("c3")).isEqualTo(8388607);
+                break;
+            case 2:
+                assertThat(after.getInt32("c1")).isEqualTo(10777215);
+                assertThat(after.getInt32("c2")).isEqualTo(10777215);
+                assertThat(after.getInt32("c3")).isEqualTo(-6388607);
+                break;
+            case 3:
+                assertThat(after.getInt32("c1")).isEqualTo(0);
+                assertThat(after.getInt32("c2")).isEqualTo(0);
+                assertThat(after.getInt32("c3")).isEqualTo(-8388608);
         }
     }
 
@@ -326,45 +326,45 @@ public class MySqlUnsignedIntegerIT extends AbstractConnectorTest {
         Struct after = value.getStruct(Envelope.FieldName.AFTER);
         Integer i = after.getInt32("id");
         assertThat(i).isNotNull();
-        //Validate the schema first, we are expecting int-64 since we are dealing with unsignd-int
-        //So Unsigned INT would be an INT64 type
+        // Validate the schema first, we are expecting int-64 since we are dealing with unsignd-int
+        // So Unsigned INT would be an INT64 type
         assertThat(after.schema().field("c1").schema()).isEqualTo(Schema.INT64_SCHEMA);
         assertThat(after.schema().field("c2").schema()).isEqualTo(Schema.INT64_SCHEMA);
         assertThat(after.schema().field("c4").schema()).isEqualTo(Schema.INT64_SCHEMA);
         assertThat(after.schema().field("c5").schema()).isEqualTo(Schema.INT64_SCHEMA);
 
-        //Validate the schema first, we are expecting int-32 since we are dealing with signed-int
-        //So Signed INT would be an INT32 type
+        // Validate the schema first, we are expecting int-32 since we are dealing with signed-int
+        // So Signed INT would be an INT32 type
         assertThat(after.schema().field("c3").schema()).isEqualTo(Schema.INT32_SCHEMA);
         assertThat(after.schema().field("c6").schema()).isEqualTo(Schema.INT32_SCHEMA);
 
-        //Source: https://kafka.apache.org/0102/javadoc/org/apache/kafka/connect/data/Schema.Type.html
+        // Source: https://kafka.apache.org/0102/javadoc/org/apache/kafka/connect/data/Schema.Type.html
 
-        //Validate candidates values
+        // Validate candidates values
         switch (i) {
-        case 1:
-            assertThat(after.getInt64("c1")).isEqualTo(4294967295L);
-            assertThat(after.getInt64("c2")).isEqualTo(4294967295L);
-            assertThat(after.getInt32("c3")).isEqualTo(2147483647);
-            assertThat(after.getInt64("c4")).isEqualTo(4294967295L);
-            assertThat(after.getInt64("c5")).isEqualTo(4294967295L);
-            assertThat(after.getInt32("c6")).isEqualTo(2147483647);
-            break;
-        case 2:
-            assertThat(after.getInt64("c1")).isEqualTo(3294967295L);
-            assertThat(after.getInt64("c2")).isEqualTo(3294967295L);
-            assertThat(after.getInt32("c3")).isEqualTo(-1147483647);
-            assertThat(after.getInt64("c4")).isEqualTo(3294967295L);
-            assertThat(after.getInt64("c5")).isEqualTo(3294967295L);
-            assertThat(after.getInt32("c6")).isEqualTo(-1147483647);
-            break;
-        case 3:
-            assertThat(after.getInt64("c1")).isEqualTo(0L);
-            assertThat(after.getInt64("c2")).isEqualTo(0L);
-            assertThat(after.getInt32("c3")).isEqualTo(-2147483648);
-            assertThat(after.getInt64("c4")).isEqualTo(0L);
-            assertThat(after.getInt64("c5")).isEqualTo(0L);
-            assertThat(after.getInt32("c6")).isEqualTo(-2147483648);
+            case 1:
+                assertThat(after.getInt64("c1")).isEqualTo(4294967295L);
+                assertThat(after.getInt64("c2")).isEqualTo(4294967295L);
+                assertThat(after.getInt32("c3")).isEqualTo(2147483647);
+                assertThat(after.getInt64("c4")).isEqualTo(4294967295L);
+                assertThat(after.getInt64("c5")).isEqualTo(4294967295L);
+                assertThat(after.getInt32("c6")).isEqualTo(2147483647);
+                break;
+            case 2:
+                assertThat(after.getInt64("c1")).isEqualTo(3294967295L);
+                assertThat(after.getInt64("c2")).isEqualTo(3294967295L);
+                assertThat(after.getInt32("c3")).isEqualTo(-1147483647);
+                assertThat(after.getInt64("c4")).isEqualTo(3294967295L);
+                assertThat(after.getInt64("c5")).isEqualTo(3294967295L);
+                assertThat(after.getInt32("c6")).isEqualTo(-1147483647);
+                break;
+            case 3:
+                assertThat(after.getInt64("c1")).isEqualTo(0L);
+                assertThat(after.getInt64("c2")).isEqualTo(0L);
+                assertThat(after.getInt32("c3")).isEqualTo(-2147483648);
+                assertThat(after.getInt64("c4")).isEqualTo(0L);
+                assertThat(after.getInt64("c5")).isEqualTo(0L);
+                assertThat(after.getInt32("c6")).isEqualTo(-2147483648);
         }
     }
 
@@ -372,31 +372,31 @@ public class MySqlUnsignedIntegerIT extends AbstractConnectorTest {
         Struct after = value.getStruct(Envelope.FieldName.AFTER);
         Integer i = after.getInt32("id");
         assertThat(i).isNotNull();
-        //Validate the schema first, we are expecting org.apache.kafka.connect.data.Decimal:Byte  since we are dealing with unsignd-bigint
-        //So Unsigned BIGINY would be an int32 type
+        // Validate the schema first, we are expecting org.apache.kafka.connect.data.Decimal:Byte since we are dealing with unsignd-bigint
+        // So Unsigned BIGINY would be an int32 type
         assertThat(after.schema().field("c1").schema()).isEqualTo(Decimal.builder(0).schema());
         assertThat(after.schema().field("c2").schema()).isEqualTo(Decimal.builder(0).schema());
 
-        //Validate the schema first, we are expecting int-64 since we are dealing with signed-bigint.
-        //So Signed BIGINT would be an INT64 type
+        // Validate the schema first, we are expecting int-64 since we are dealing with signed-bigint.
+        // So Signed BIGINT would be an INT64 type
         assertThat(after.schema().field("c3").schema()).isEqualTo(Schema.INT64_SCHEMA);
 
-        //Validate candidates values
+        // Validate candidates values
         switch (i) {
-        case 1:
-            assertThat(after.get("c1")).isEqualTo(new BigDecimal("18446744073709551615"));
-            assertThat(after.get("c2")).isEqualTo(new BigDecimal("18446744073709551615"));
-            assertThat(after.getInt64("c3")).isEqualTo(9223372036854775807L);
-            break;
-        case 2:
-            assertThat(after.get("c1")).isEqualTo(new BigDecimal("14446744073709551615"));
-            assertThat(after.get("c2")).isEqualTo(new BigDecimal("14446744073709551615"));
-            assertThat(after.getInt64("c3")).isEqualTo(-1223372036854775807L);
-            break;
-        case 3:
-            assertThat(after.get("c1")).isEqualTo(new BigDecimal("0"));
-            assertThat(after.get("c2")).isEqualTo(new BigDecimal("0"));
-            assertThat(after.getInt64("c3")).isEqualTo(-9223372036854775808L);
+            case 1:
+                assertThat(after.get("c1")).isEqualTo(new BigDecimal("18446744073709551615"));
+                assertThat(after.get("c2")).isEqualTo(new BigDecimal("18446744073709551615"));
+                assertThat(after.getInt64("c3")).isEqualTo(9223372036854775807L);
+                break;
+            case 2:
+                assertThat(after.get("c1")).isEqualTo(new BigDecimal("14446744073709551615"));
+                assertThat(after.get("c2")).isEqualTo(new BigDecimal("14446744073709551615"));
+                assertThat(after.getInt64("c3")).isEqualTo(-1223372036854775807L);
+                break;
+            case 3:
+                assertThat(after.get("c1")).isEqualTo(new BigDecimal("0"));
+                assertThat(after.get("c2")).isEqualTo(new BigDecimal("0"));
+                assertThat(after.getInt64("c3")).isEqualTo(-9223372036854775808L);
         }
     }
 
@@ -404,16 +404,16 @@ public class MySqlUnsignedIntegerIT extends AbstractConnectorTest {
         Struct after = value.getStruct(Envelope.FieldName.AFTER);
         Integer i = after.getInt32("id");
         assertThat(i).isNotNull();
-        //Validate the schema first, we are expecting int-64 since we have forced Long mode for BIGINT UNSIGNED
+        // Validate the schema first, we are expecting int-64 since we have forced Long mode for BIGINT UNSIGNED
         assertThat(after.schema().field("c1").schema()).isEqualTo(Schema.INT64_SCHEMA);
         assertThat(after.schema().field("c2").schema()).isEqualTo(Schema.INT64_SCHEMA);
 
-        //Validate the schema first, we are expecting int-64 since we are dealing with signed-bigint.
-        //So Signed BIGINT would be an INT64 type
+        // Validate the schema first, we are expecting int-64 since we are dealing with signed-bigint.
+        // So Signed BIGINT would be an INT64 type
         assertThat(after.schema().field("c3").schema()).isEqualTo(Schema.INT64_SCHEMA);
 
-        //Validate candidates values, note the loss in precision which is expected since BIGINT UNSIGNED cannot always be represented by
-        //a long datatype.
+        // Validate candidates values, note the loss in precision which is expected since BIGINT UNSIGNED cannot always be represented by
+        // a long datatype.
         switch (i) {
             case 1:
                 assertThat(after.getInt64("c1")).isEqualTo(-1L);
@@ -433,7 +433,7 @@ public class MySqlUnsignedIntegerIT extends AbstractConnectorTest {
     }
 
     private void assertSerial(List<SourceRecord> records) {
-        final long[] expected = new long[] {10, 11, -1};
+        final long[] expected = new long[]{ 10, 11, -1 };
         assertThat(records).hasSize(3);
         for (int i = 0; i < 3; i++) {
             final Struct after = ((Struct) records.get(i).value()).getStruct(Envelope.FieldName.AFTER);
@@ -445,7 +445,7 @@ public class MySqlUnsignedIntegerIT extends AbstractConnectorTest {
     }
 
     private void assertSerialPrecise(List<SourceRecord> records) {
-        final BigDecimal[] expected = new BigDecimal[] {new BigDecimal(10), new BigDecimal(11), new BigDecimal("18446744073709551615")};
+        final BigDecimal[] expected = new BigDecimal[]{ new BigDecimal(10), new BigDecimal(11), new BigDecimal("18446744073709551615") };
         assertThat(records).hasSize(3);
         for (int i = 0; i < 3; i++) {
             final Struct after = ((Struct) records.get(i).value()).getStruct(Envelope.FieldName.AFTER);
@@ -457,7 +457,7 @@ public class MySqlUnsignedIntegerIT extends AbstractConnectorTest {
     }
 
     private void assertSerialDefaultValue(List<SourceRecord> records) {
-        final int[] expected = new int[] {10, 11, 1000};
+        final int[] expected = new int[]{ 10, 11, 1000 };
         assertThat(records).hasSize(3);
         for (int i = 0; i < 3; i++) {
             final Struct after = ((Struct) records.get(i).value()).getStruct(Envelope.FieldName.AFTER);

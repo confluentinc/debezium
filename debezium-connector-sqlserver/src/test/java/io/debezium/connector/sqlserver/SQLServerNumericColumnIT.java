@@ -79,7 +79,7 @@ public class SQLServerNumericColumnIT extends AbstractConnectorTest {
     public void decimalModeConfigString() throws Exception {
         final Configuration config = TestHelper.defaultConfig()
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
-                .with(SqlServerConnectorConfig.TABLE_WHITELIST, "dbo.tablenuma")
+                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.tablenuma")
                 .with(SqlServerConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.STRING).build();
 
         start(SqlServerConnector.class, config);
@@ -111,7 +111,7 @@ public class SQLServerNumericColumnIT extends AbstractConnectorTest {
     public void decimalModeConfigDouble() throws Exception {
         final Configuration config = TestHelper.defaultConfig()
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
-                .with(SqlServerConnectorConfig.TABLE_WHITELIST, "dbo.tablenumb")
+                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.tablenumb")
                 .with(SqlServerConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.DOUBLE).build();
 
         start(SqlServerConnector.class, config);
@@ -142,7 +142,7 @@ public class SQLServerNumericColumnIT extends AbstractConnectorTest {
     public void decimalModeConfigPrecise() throws Exception {
         final Configuration config = TestHelper.defaultConfig()
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
-                .with(SqlServerConnectorConfig.TABLE_WHITELIST, "dbo.tablenumc")
+                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.tablenumc")
                 .with(SqlServerConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.PRECISE).build();
 
         start(SqlServerConnector.class, config);
@@ -154,10 +154,14 @@ public class SQLServerNumericColumnIT extends AbstractConnectorTest {
         final List<SourceRecord> results = records.recordsForTopic("server1.dbo.tablenumc");
         Assertions.assertThat(results).hasSize(1);
         final Struct valueA = (Struct) results.get(0).value();
-        Assertions.assertThat(valueA.schema().field("after").schema().field("cola").schema()).isEqualTo(Decimal.builder(4).parameter("connect.decimal.precision", "8").optional().schema());
-        Assertions.assertThat(valueA.schema().field("after").schema().field("colb").schema()).isEqualTo(Decimal.builder(0).parameter("connect.decimal.precision", "18").optional().schema());
-        Assertions.assertThat(valueA.schema().field("after").schema().field("colc").schema()).isEqualTo(Decimal.builder(1).parameter("connect.decimal.precision", "8").optional().schema());
-        Assertions.assertThat(valueA.schema().field("after").schema().field("cold").schema()).isEqualTo(Decimal.builder(0).parameter("connect.decimal.precision", "18").optional().schema());
+        Assertions.assertThat(valueA.schema().field("after").schema().field("cola").schema())
+                .isEqualTo(Decimal.builder(4).parameter("connect.decimal.precision", "8").optional().schema());
+        Assertions.assertThat(valueA.schema().field("after").schema().field("colb").schema())
+                .isEqualTo(Decimal.builder(0).parameter("connect.decimal.precision", "18").optional().schema());
+        Assertions.assertThat(valueA.schema().field("after").schema().field("colc").schema())
+                .isEqualTo(Decimal.builder(1).parameter("connect.decimal.precision", "8").optional().schema());
+        Assertions.assertThat(valueA.schema().field("after").schema().field("cold").schema())
+                .isEqualTo(Decimal.builder(0).parameter("connect.decimal.precision", "18").optional().schema());
         Assertions.assertThat(((Struct) valueA.get("after")).get("cola")).isEqualTo(BigDecimal.valueOf(333.3333));
         Assertions.assertThat(((Struct) valueA.get("after")).get("colb")).isEqualTo(BigDecimal.valueOf(3333));
         Assertions.assertThat(((Struct) valueA.get("after")).get("colc")).isEqualTo(BigDecimal.valueOf(3333.3));

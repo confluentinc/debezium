@@ -5,6 +5,7 @@
  */
 package io.debezium.relational;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -21,7 +22,7 @@ public interface Table {
      *
      * @return the editor; never null
      */
-    public static TableEditor editor() {
+    static TableEditor editor() {
         return new TableEditorImpl();
     }
 
@@ -40,18 +41,15 @@ public interface Table {
 
     /**
      * Get the columns that make up the primary key for this table.
-     * @return the list of columns that make up the primary key; never null but possibly empty
+     * @return the immutable list of columns that make up the primary key; never null but possibly empty
      */
     default List<Column> primaryKeyColumns() {
-        return filterColumns(col->isPrimaryKeyColumn(col.name()));
-    }
+        List<Column> pkColumns = primaryKeyColumnNames()
+                .stream()
+                .map(this::columnWithName)
+                .collect(Collectors.toList());
 
-    /**
-     * Get the columns that are not included in the primary key for this table.
-     * @return the list of columns that are not part of the primary key; never null but possibly empty
-     */
-    default List<Column> nonPrimaryKeyColumns() {
-        return filterColumns(col->!isPrimaryKeyColumn(col.name()));
+        return Collections.unmodifiableList(pkColumns);
     }
 
     /**
@@ -59,17 +57,11 @@ public interface Table {
      * @param predicate the filter predicate; may not be null
      * @return the list of columns that satisfy the predicate; never null but possibly empty
      */
-    default List<Column> filterColumns( Predicate<Column> predicate ) {
-        return columns().stream().filter(predicate).collect(Collectors.toList());
-    }
-
-    /**
-     * Utility to obtain a copy of a list of the names of those columns that satisfy the specified predicate.
-     * @param predicate the filter predicate; may not be null
-     * @return the list of names of those columns that satisfy the predicate; never null but possibly empty
-     */
-    default List<String> filterColumnNames( Predicate<Column> predicate ) {
-        return columns().stream().filter(predicate).map(Column::name).collect(Collectors.toList());
+    default List<Column> filterColumns(Predicate<Column> predicate) {
+        return columns()
+                .stream()
+                .filter(predicate)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -110,7 +102,7 @@ public interface Table {
      * @param columnName the name of the column
      * @return {@code true} if a column exists in this table and it is part of the primary key, or {@code false} otherwise
      */
-    default boolean isPrimaryKeyColumn( String columnName )  {
+    default boolean isPrimaryKeyColumn(String columnName) {
         Column column = columnWithName(columnName);
         return column == null ? false : primaryKeyColumnNames().contains(column.name());
     }

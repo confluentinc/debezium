@@ -5,13 +5,14 @@
  */
 package io.debezium.transforms.outbox;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.kafka.common.config.ConfigDef;
+
 import io.debezium.config.Configuration;
 import io.debezium.config.EnumeratedValue;
 import io.debezium.config.Field;
-import org.apache.kafka.common.config.ConfigDef;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Debezium Outbox Transform configuration definition
@@ -121,14 +122,14 @@ public class EventRouterConfigDefinition {
             .withWidth(ConfigDef.Width.MEDIUM)
             .withImportance(ConfigDef.Importance.LOW)
             .withDefault("id")
-            .withDescription("The column which contains the Event ID within the outbox table");
+            .withDescription("The column which contains the event ID within the outbox table");
 
     static final Field FIELD_EVENT_KEY = Field.create("table.field.event.key")
             .withDisplayName("Event Key Field")
             .withType(ConfigDef.Type.STRING)
             .withWidth(ConfigDef.Width.MEDIUM)
             .withImportance(ConfigDef.Importance.LOW)
-            .withDescription("The column which contains the Event Key within the outbox table");
+            .withDescription("The column which contains the event key within the outbox table");
 
     static final Field FIELD_EVENT_TYPE = Field.create("table.field.event.type")
             .withDisplayName("Event Type Field")
@@ -136,7 +137,7 @@ public class EventRouterConfigDefinition {
             .withWidth(ConfigDef.Width.MEDIUM)
             .withImportance(ConfigDef.Importance.LOW)
             .withDefault("type")
-            .withDescription("The column which contains the Event Type within the outbox table");
+            .withDescription("The column which contains the event type within the outbox table");
 
     static final Field FIELD_EVENT_TIMESTAMP = Field.create("table.field.event.timestamp")
             .withDisplayName("Event Timestamp Field")
@@ -144,23 +145,23 @@ public class EventRouterConfigDefinition {
             .withWidth(ConfigDef.Width.MEDIUM)
             .withImportance(ConfigDef.Importance.MEDIUM)
             .withDescription("Optionally you can override the Kafka message timestamp with a value from a chosen" +
-                    " field, otherwise it'll be the debezium event processed timestamp.");
+                    " column, otherwise it'll be the Debezium event processed timestamp.");
 
-    static final Field FIELD_PAYLOAD = Field.create("table.field.payload")
+    static final Field FIELD_PAYLOAD = Field.create("table.field.event.payload")
             .withDisplayName("Event Payload Field")
             .withType(ConfigDef.Type.STRING)
             .withWidth(ConfigDef.Width.MEDIUM)
             .withImportance(ConfigDef.Importance.LOW)
             .withDefault("payload")
-            .withDescription("The column which contains the Event Type within the outbox table");
+            .withDescription("The column which contains the event payload within the outbox table");
 
-    static final Field FIELD_PAYLOAD_ID = Field.create("table.field.payload.id")
+    static final Field FIELD_PAYLOAD_ID = Field.create("table.field.event.payload.id")
             .withDisplayName("Event Payload ID Field")
             .withType(ConfigDef.Type.STRING)
             .withWidth(ConfigDef.Width.MEDIUM)
             .withImportance(ConfigDef.Importance.LOW)
             .withDefault("aggregateid")
-            .withDescription("The column which contains the Payload ID within the outbox table");
+            .withDescription("The column which contains the payload ID within the outbox table");
 
     static final Field FIELDS_ADDITIONAL_PLACEMENT = Field.create("table.fields.additional.placement")
             .withDisplayName("Settings for each additional column in the outbox table")
@@ -172,12 +173,12 @@ public class EventRouterConfigDefinition {
                     " is a list of colon-delimited pairs or trios when you desire to have aliases," +
                     " e.g. <code>id:header,field_name:envelope:alias</code> ");
 
-    static final Field FIELD_SCHEMA_VERSION = Field.create("table.field.schema.version")
+    static final Field FIELD_SCHEMA_VERSION = Field.create("table.field.event.schema.version")
             .withDisplayName("Event Schema Version Field")
             .withType(ConfigDef.Type.STRING)
             .withWidth(ConfigDef.Width.MEDIUM)
             .withImportance(ConfigDef.Importance.LOW)
-            .withDescription("The column which contains the Schema version within the outbox table");
+            .withDescription("The column which contains the event schema version within the outbox table");
 
     static final Field ROUTE_BY_FIELD = Field.create("route.by.field")
             .withDisplayName("Field to route events by")
@@ -208,6 +209,14 @@ public class EventRouterConfigDefinition {
                     " '${routedByValue}' is available which is the value of The column configured" +
                     " via 'route.by.field'");
 
+    static final Field ROUTE_TOMBSTONE_ON_EMPTY_PAYLOAD = Field.create("route.tombstone.on.empty.payload")
+            .withDisplayName("Empty payloads cause a tombstone message")
+            .withType(ConfigDef.Type.BOOLEAN)
+            .withDefault(false)
+            .withWidth(ConfigDef.Width.MEDIUM)
+            .withImportance(ConfigDef.Importance.HIGH)
+            .withDescription("Whether or not an empty payload should cause a tombstone event.");
+
     static final Field OPERATION_INVALID_BEHAVIOR = Field.create("debezium.op.invalid.behavior")
             .withDisplayName("Behavior when the route fails to apply")
             .withEnum(InvalidOperationBehavior.class, InvalidOperationBehavior.SKIP_AND_WARN)
@@ -229,6 +238,7 @@ public class EventRouterConfigDefinition {
             ROUTE_BY_FIELD,
             ROUTE_TOPIC_REGEX,
             ROUTE_TOPIC_REPLACEMENT,
+            ROUTE_TOMBSTONE_ON_EMPTY_PAYLOAD,
             OPERATION_INVALID_BEHAVIOR
     };
 
@@ -245,36 +255,31 @@ public class EventRouterConfigDefinition {
         Field.group(
                 config,
                 "Table",
-                FIELD_EVENT_ID, FIELD_EVENT_KEY, FIELD_EVENT_TYPE, FIELD_PAYLOAD, FIELD_PAYLOAD_ID, FIELD_EVENT_TIMESTAMP, FIELDS_ADDITIONAL_PLACEMENT, FIELD_SCHEMA_VERSION
-        );
+                FIELD_EVENT_ID, FIELD_EVENT_KEY, FIELD_EVENT_TYPE, FIELD_PAYLOAD, FIELD_PAYLOAD_ID, FIELD_EVENT_TIMESTAMP, FIELDS_ADDITIONAL_PLACEMENT,
+                FIELD_SCHEMA_VERSION);
         Field.group(
                 config,
                 "Router",
-                ROUTE_BY_FIELD, ROUTE_TOPIC_REGEX, ROUTE_TOPIC_REPLACEMENT
-        );
+                ROUTE_BY_FIELD, ROUTE_TOPIC_REGEX, ROUTE_TOPIC_REPLACEMENT, ROUTE_TOMBSTONE_ON_EMPTY_PAYLOAD);
         Field.group(
                 config,
                 "Debezium",
-                OPERATION_INVALID_BEHAVIOR
-        );
+                OPERATION_INVALID_BEHAVIOR);
         return config;
     }
 
     static List<AdditionalField> parseAdditionalFieldsConfig(Configuration config) {
         String extraFieldsMapping = config.getString(EventRouterConfigDefinition.FIELDS_ADDITIONAL_PLACEMENT);
-
         List<AdditionalField> additionalFields = new ArrayList<>();
 
-        if (extraFieldsMapping == null) {
-            return additionalFields;
-        }
-
-        for (String field : extraFieldsMapping.split(",")) {
-            final String[] parts = field.split(":");
-            AdditionalFieldPlacement placement = AdditionalFieldPlacement.parse(parts[1]);
-            additionalFields.add(
-                    new AdditionalField(placement, parts[0], parts.length == 3 ? parts[2] : parts[0])
-            );
+        if (extraFieldsMapping != null) {
+            for (String field : extraFieldsMapping.split(",")) {
+                final String[] parts = field.split(":");
+                final String fieldName = parts[0];
+                AdditionalFieldPlacement placement = AdditionalFieldPlacement.parse(parts[1]);
+                final AdditionalField addField = new AdditionalField(placement, fieldName, parts.length == 3 ? parts[2] : fieldName);
+                additionalFields.add(addField);
+            }
         }
 
         return additionalFields;

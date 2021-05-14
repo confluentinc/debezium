@@ -5,11 +5,13 @@
  */
 package io.debezium.data;
 
+import static org.fest.assertions.Assertions.assertThat;
+
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
 import org.junit.Test;
 
-import static org.fest.assertions.Assertions.assertThat;
+import io.debezium.pipeline.txmetadata.TransactionMonitor;
 
 /**
  * @author Randall Hauch
@@ -20,10 +22,10 @@ public class EnvelopeTest {
     @Test
     public void shouldBuildWithSimpleOptionalTypesForBeforeAndAfter() {
         Envelope env = Envelope.defineSchema()
-                               .withName("someName")
-                               .withRecord(Schema.OPTIONAL_STRING_SCHEMA)
-                               .withSource(Schema.OPTIONAL_INT64_SCHEMA)
-                               .build();
+                .withName("someName")
+                .withRecord(Schema.OPTIONAL_STRING_SCHEMA)
+                .withSource(Schema.OPTIONAL_INT64_SCHEMA)
+                .build();
         assertThat(env.schema()).isNotNull();
         assertThat(env.schema().name()).isEqualTo("someName");
         assertThat(env.schema().doc()).isNull();
@@ -32,6 +34,7 @@ public class EnvelopeTest {
         assertOptionalField(env, Envelope.FieldName.BEFORE, Schema.OPTIONAL_STRING_SCHEMA);
         assertOptionalField(env, Envelope.FieldName.SOURCE, Schema.OPTIONAL_INT64_SCHEMA);
         assertRequiredField(env, Envelope.FieldName.OPERATION, Schema.STRING_SCHEMA);
+        assertOptionalField(env, Envelope.FieldName.TRANSACTION, TransactionMonitor.TRANSACTION_BLOCK_SCHEMA);
     }
 
     protected void assertRequiredField(Envelope env, String fieldName, Schema expectedSchema) {

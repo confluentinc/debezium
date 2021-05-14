@@ -3,7 +3,7 @@
     <parent>
         <groupId>io.debezium</groupId>
         <artifactId>debezium-parent</artifactId>
-        <version>0.9.4-SNAPSHOT</version>
+        <version>1.3.1.Final</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -11,6 +11,10 @@
     <name>Debezium Core</name>
     <packaging>jar</packaging>
     <dependencies>
+        <dependency>
+            <groupId>io.debezium</groupId>
+            <artifactId>debezium-api</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
@@ -27,8 +31,21 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>connect-json</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
         </dependency>
 
         <!-- Testing -->
@@ -52,6 +69,16 @@
             <artifactId>fest-assert</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.reflections</groupId>
+            <artifactId>reflections</artifactId>
+            <version>0.9.12</version>
+        </dependency>
+        <dependency>
+            <groupId>org.codehaus.groovy</groupId>
+            <artifactId>groovy-json</artifactId>
+            <scope>test</scope>
+        </dependency>
 
         <!-- Used for unit testing with Kafka -->
         <dependency>
@@ -67,11 +94,6 @@
         <dependency>
             <groupId>org.apache.zookeeper</groupId>
             <artifactId>zookeeper</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.kafka</groupId>
-            <artifactId>connect-json</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

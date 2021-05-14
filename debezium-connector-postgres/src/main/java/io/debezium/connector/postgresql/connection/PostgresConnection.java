@@ -7,37 +7,36 @@
 package io.debezium.connector.postgresql.connection;
 
 import java.nio.charset.Charset;
-import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.sql.Types;
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
-import io.debezium.connector.postgresql.spi.SlotState;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.postgresql.core.BaseConnection;
-import org.postgresql.core.TypeInfo;
-import org.postgresql.jdbc.PgConnection;
-import org.postgresql.jdbc.PgDatabaseMetaData;
 import org.postgresql.replication.LogSequenceNumber;
 import org.postgresql.util.PSQLState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.debezium.DebeziumException;
+import io.debezium.annotation.VisibleForTesting;
 import io.debezium.config.Configuration;
+import io.debezium.connector.postgresql.PostgresConnectorConfig;
 import io.debezium.connector.postgresql.PostgresType;
 import io.debezium.connector.postgresql.TypeRegistry;
+import io.debezium.connector.postgresql.spi.SlotState;
 import io.debezium.jdbc.JdbcConfiguration;
 import io.debezium.jdbc.JdbcConnection;
+import io.debezium.relational.Column;
+import io.debezium.relational.ColumnEditor;
 import io.debezium.relational.TableId;
+import io.debezium.relational.Tables;
 import io.debezium.util.Clock;
-import io.debezium.util.Collect;
 import io.debezium.util.Metronome;
 
 /**
@@ -52,44 +51,39 @@ public class PostgresConnection extends JdbcConnection {
     private static final String URL_PATTERN = "jdbc:postgresql://${" + JdbcConfiguration.HOSTNAME + "}:${"
             + JdbcConfiguration.PORT + "}/${" + JdbcConfiguration.DATABASE + "}";
     protected static final ConnectionFactory FACTORY = JdbcConnection.patternBasedFactory(URL_PATTERN,
-                                                                                    org.postgresql.Driver.class.getName(),
-                                                                                    PostgresConnection.class.getClassLoader());
-
-    private static final String SQL_NON_ARRAY_TYPES = "SELECT t.oid AS oid, t.typname AS name "
-            + "FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON (t.typnamespace = n.oid) "
-            + "WHERE n.nspname != 'pg_toast' AND t.typcategory <> 'A'";
-
-    private static final String SQL_ARRAY_TYPES = "SELECT t.oid AS oid, t.typname AS name, t.typelem AS element "
-            + "FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON (t.typnamespace = n.oid) "
-            + "WHERE n.nspname != 'pg_toast' AND t.typcategory = 'A'";
+            org.postgresql.Driver.class.getName(),
+            PostgresConnection.class.getClassLoader(), JdbcConfiguration.PORT.withDefault(PostgresConnectorConfig.PORT.defaultValueAsString()));
 
     /**
      * Obtaining a replication slot may fail if there's a pending transaction. We're retrying to get a slot for 30 min.
      */
-    private static final int MAX_ATTEMPTS_FOR_OBTAINING_REPLICATION_SLOT =  900;
+    private static final int MAX_ATTEMPTS_FOR_OBTAINING_REPLICATION_SLOT = 900;
 
     private static final Duration PAUSE_BETWEEN_REPLICATION_SLOT_RETRIEVAL_ATTEMPTS = Duration.ofSeconds(2);
 
     private final TypeRegistry typeRegistry;
 
-    private final Charset databaseCharset;
+    /**
+     * Creates a Postgres connection using the supplied configuration.
+     * If necessary this connection is able to resolve data type mappings.
+     * Usually only one such connection per connector is needed.
+     *
+     * @param config {@link Configuration} instance, may not be null.
+     * @param provideTypeRegistry {@code true} if type registry should be created
+     */
+    public PostgresConnection(Configuration config, boolean provideTypeRegistry) {
+        super(config, FACTORY, PostgresConnection::validateServerVersion, PostgresConnection::defaultSettings);
+        this.typeRegistry = provideTypeRegistry ? new TypeRegistry(this) : null;
+    }
 
     /**
      * Creates a Postgres connection using the supplied configuration.
+     * The connector is the regular one without datatype resolution capabilities.
      *
      * @param config {@link Configuration} instance, may not be null.
      */
     public PostgresConnection(Configuration config) {
-        super(config, FACTORY, PostgresConnection::validateServerVersion, PostgresConnection::defaultSettings);
-
-        try {
-            typeRegistry = initTypeRegistry(connection());
-        }
-        catch (SQLException e) {
-            throw new ConnectException("Could not initialize type registry", e);
-        }
-
-        databaseCharset = determineDatabaseCharset();
+        this(config, false);
     }
 
     /**
@@ -136,13 +130,20 @@ public class PostgresConnection extends JdbcConnection {
      * @return the {@link SlotState} or null, if no slot state is found
      * @throws SQLException
      */
-    public SlotState getReplicationSlotInfo(String slotName, String pluginName) throws SQLException {
-        ServerInfo.ReplicationSlot slot = fetchReplicationSlotInfo(slotName, pluginName);
-        if (slot.equals(ServerInfo.ReplicationSlot.INVALID)) {
-            return null;
+    public SlotState getReplicationSlotState(String slotName, String pluginName) throws SQLException {
+        ServerInfo.ReplicationSlot slot;
+        try {
+            slot = readReplicationSlotInfo(slotName, pluginName);
+            if (slot.equals(ServerInfo.ReplicationSlot.INVALID)) {
+                return null;
+            }
+            else {
+                return slot.asSlotState();
+            }
         }
-        else {
-            return slot.asSlotState();
+        catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ConnectException("Interrupted while waiting for valid replication slot info", e);
         }
     }
 
@@ -154,21 +155,21 @@ public class PostgresConnection extends JdbcConnection {
      *         the slot is not valid
      * @throws SQLException is thrown by the underlying JDBC
      */
-    protected ServerInfo.ReplicationSlot fetchReplicationSlotInfo(String slotName, String pluginName) throws SQLException {
+    private ServerInfo.ReplicationSlot fetchReplicationSlotInfo(String slotName, String pluginName) throws SQLException {
         final String database = database();
         final ServerInfo.ReplicationSlot slot = queryForSlot(slotName, database, pluginName,
                 rs -> {
                     if (rs.next()) {
                         boolean active = rs.getBoolean("active");
-                        Long confirmedFlushedLsn = parseConfirmedFlushLsn(slotName, pluginName, database, rs);
+                        final Lsn confirmedFlushedLsn = parseConfirmedFlushLsn(slotName, pluginName, database, rs);
                         if (confirmedFlushedLsn == null) {
                             return null;
                         }
-                        Long restartLsn = parseRestartLsn(slotName, pluginName, database, rs);
+                        Lsn restartLsn = parseRestartLsn(slotName, pluginName, database, rs);
                         if (restartLsn == null) {
                             return null;
                         }
-                        Long xmin = rs.getLong("catalog_xmin");
+                        final Long xmin = rs.getLong("catalog_xmin");
                         return new ServerInfo.ReplicationSlot(active, confirmedFlushedLsn, restartLsn, xmin);
                     }
                     else {
@@ -176,8 +177,7 @@ public class PostgresConnection extends JdbcConnection {
                                 pluginName, database);
                         return ServerInfo.ReplicationSlot.INVALID;
                     }
-                }
-        );
+                });
         return slot;
     }
 
@@ -185,7 +185,7 @@ public class PostgresConnection extends JdbcConnection {
      * Fetches a replication slot, repeating the query until either the slot is created or until
      * the max number of attempts has been reached
      *
-     * To fetch the slot without teh retries, use the {@link PostgresConnection#fetchReplicationSlotInfo} call
+     * To fetch the slot without the retries, use the {@link PostgresConnection#fetchReplicationSlotInfo} call
      * @param slotName the slot name
      * @param pluginName the name of the plugin
      * @return the {@link ServerInfo.ReplicationSlot} object or a {@link ServerInfo.ReplicationSlot#INVALID} if
@@ -193,7 +193,8 @@ public class PostgresConnection extends JdbcConnection {
      * @throws SQLException is thrown by the underyling jdbc driver
      * @throws InterruptedException is thrown if we don't return an answer within the set number of retries
      */
-    protected ServerInfo.ReplicationSlot readReplicationSlotInfo(String slotName, String pluginName) throws SQLException, InterruptedException {
+    @VisibleForTesting
+    ServerInfo.ReplicationSlot readReplicationSlotInfo(String slotName, String pluginName) throws SQLException, InterruptedException {
         final String database = database();
         final Metronome metronome = Metronome.parker(PAUSE_BETWEEN_REPLICATION_SLOT_RETRIEVAL_ATTEMPTS, Clock.SYSTEM);
 
@@ -203,7 +204,9 @@ public class PostgresConnection extends JdbcConnection {
                 LOGGER.info("Obtained valid replication slot {}", slot);
                 return slot;
             }
-            LOGGER.warn("Cannot obtain valid replication slot '{}' for plugin '{}' and database '{}' [during attempt {} out of {}, concurrent tx probably blocks taking snapshot.", slotName, pluginName, database, attempt, MAX_ATTEMPTS_FOR_OBTAINING_REPLICATION_SLOT);
+            LOGGER.warn(
+                    "Cannot obtain valid replication slot '{}' for plugin '{}' and database '{}' [during attempt {} out of {}, concurrent tx probably blocks taking snapshot.",
+                    slotName, pluginName, database, attempt, MAX_ATTEMPTS_FOR_OBTAINING_REPLICATION_SLOT);
             metronome.pause();
         }
 
@@ -212,7 +215,8 @@ public class PostgresConnection extends JdbcConnection {
     }
 
     protected ServerInfo.ReplicationSlot queryForSlot(String slotName, String database, String pluginName,
-                                                      ResultSetMapper<ServerInfo.ReplicationSlot> map) throws SQLException {
+                                                      ResultSetMapper<ServerInfo.ReplicationSlot> map)
+            throws SQLException {
         return prepareQueryAndMap("select * from pg_replication_slots where slot_name = ? and database = ? and plugin = ?", statement -> {
             statement.setString(1, slotName);
             statement.setString(2, database);
@@ -224,8 +228,8 @@ public class PostgresConnection extends JdbcConnection {
      * Obtains the LSN to resume streaming from. On PG 9.5 there is no confirmed_flushed_lsn yet, so restart_lsn will be
      * read instead. This may result in more records to be re-read after a restart.
      */
-    private Long parseConfirmedFlushLsn(String slotName, String pluginName, String database, ResultSet rs) {
-        Long confirmedFlushedLsn = null;
+    private Lsn parseConfirmedFlushLsn(String slotName, String pluginName, String database, ResultSet rs) {
+        Lsn confirmedFlushedLsn = null;
 
         try {
             confirmedFlushedLsn = tryParseLsn(slotName, pluginName, database, rs, "confirmed_flush_lsn");
@@ -243,8 +247,8 @@ public class PostgresConnection extends JdbcConnection {
         return confirmedFlushedLsn;
     }
 
-    private Long parseRestartLsn(String slotName, String pluginName, String database, ResultSet rs) {
-        Long restartLsn = null;
+    private Lsn parseRestartLsn(String slotName, String pluginName, String database, ResultSet rs) {
+        Lsn restartLsn = null;
         try {
             restartLsn = tryParseLsn(slotName, pluginName, database, rs, "restart_lsn");
         }
@@ -255,15 +259,15 @@ public class PostgresConnection extends JdbcConnection {
         return restartLsn;
     }
 
-    private Long tryParseLsn(String slotName, String pluginName, String database, ResultSet rs, String column) throws ConnectException, SQLException {
-        Long lsn = null;
+    private Lsn tryParseLsn(String slotName, String pluginName, String database, ResultSet rs, String column) throws ConnectException, SQLException {
+        Lsn lsn = null;
 
         String lsnStr = rs.getString(column);
         if (lsnStr == null) {
             return null;
         }
         try {
-            lsn = LogSequenceNumber.valueOf(lsnStr).asLong();
+            lsn = Lsn.valueOf(lsnStr);
         }
         catch (Exception e) {
             throw new ConnectException("Value " + column + " in the pg_replication_slots table for slot = '"
@@ -271,7 +275,7 @@ public class PostgresConnection extends JdbcConnection {
                     + pluginName + "', database = '"
                     + database + "' is not valid. This is an abnormal situation and the database status should be checked.");
         }
-        if (lsn == LogSequenceNumber.INVALID_LSN.asLong()) {
+        if (!lsn.isValid()) {
             throw new ConnectException("Invalid LSN returned from database");
         }
         return lsn;
@@ -284,22 +288,59 @@ public class PostgresConnection extends JdbcConnection {
      * @return {@code true} if the slot was dropped, {@code false} otherwise
      */
     public boolean dropReplicationSlot(String slotName) {
+        final int ATTEMPTS = 3;
+        for (int i = 0; i < ATTEMPTS; i++) {
+            try {
+                execute("select pg_drop_replication_slot('" + slotName + "')");
+                return true;
+            }
+            catch (SQLException e) {
+                // slot is active
+                if (PSQLState.OBJECT_IN_USE.getState().equals(e.getSQLState())) {
+                    if (i < ATTEMPTS - 1) {
+                        LOGGER.debug("Cannot drop replication slot '{}' because it's still in use", slotName);
+                    }
+                    else {
+                        LOGGER.warn("Cannot drop replication slot '{}' because it's still in use", slotName);
+                        return false;
+                    }
+                }
+                else if (PSQLState.UNDEFINED_OBJECT.getState().equals(e.getSQLState())) {
+                    LOGGER.debug("Replication slot {} has already been dropped", slotName);
+                    return false;
+                }
+                else {
+                    LOGGER.error("Unexpected error while attempting to drop replication slot", e);
+                    return false;
+                }
+            }
+            try {
+                Metronome.parker(Duration.ofSeconds(1), Clock.system()).pause();
+            }
+            catch (InterruptedException e) {
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Drops the debezium publication that was created.
+     *
+     * @param publicationName the publication name, may not be null
+     * @return {@code true} if the publication was dropped, {@code false} otherwise
+     */
+    public boolean dropPublication(String publicationName) {
         try {
-            execute("select pg_drop_replication_slot('" + slotName + "')");
+            LOGGER.debug("Dropping publication '{}'", publicationName);
+            execute("DROP PUBLICATION " + publicationName);
             return true;
         }
         catch (SQLException e) {
-            // slot is active
-            if (PSQLState.OBJECT_IN_USE.getState().equals(e.getSQLState())) {
-                LOGGER.warn("Cannot drop replication slot '{}' because it's still in use", slotName);
-                return false;
-            }
-            else if (PSQLState.UNDEFINED_OBJECT.getState().equals(e.getSQLState())) {
-                LOGGER.debug("Replication slot {} has already been dropped", slotName);
-                return false;
+            if (PSQLState.UNDEFINED_OBJECT.getState().equals(e.getSQLState())) {
+                LOGGER.debug("Publication {} has already been dropped", publicationName);
             }
             else {
-                LOGGER.error("Unexpected error while attempting to drop replication slot", e);
+                LOGGER.error("Unexpected error while attempting to drop publication", e);
             }
             return false;
         }
@@ -309,7 +350,8 @@ public class PostgresConnection extends JdbcConnection {
     public synchronized void close() {
         try {
             super.close();
-        } catch (SQLException e) {
+        }
+        catch (SQLException e) {
             LOGGER.error("Unexpected error while closing Postgres connection", e);
         }
     }
@@ -366,29 +408,25 @@ public class PostgresConnection extends JdbcConnection {
         if (username != null) {
             query("SELECT oid, rolname, rolsuper, rolinherit, rolcreaterole, rolcreatedb, rolcanlogin, rolreplication FROM pg_roles " +
                     "WHERE pg_has_role('" + username + "', oid, 'member')",
-                  rs -> {
-                      while (rs.next()) {
-                          String roleInfo = "superuser: " + rs.getBoolean(3) + ", replication: " + rs.getBoolean(8) +
-                                  ", inherit: " + rs.getBoolean(4) + ", create role: " + rs.getBoolean(5) +
-                                  ", create db: " + rs.getBoolean(6) + ", can log in: " + rs.getBoolean(7);
-                          String roleName = rs.getString(2);
-                          serverInfo.addRole(roleName, roleInfo);
-                      }
-                  });
+                    rs -> {
+                        while (rs.next()) {
+                            String roleInfo = "superuser: " + rs.getBoolean(3) + ", replication: " + rs.getBoolean(8) +
+                                    ", inherit: " + rs.getBoolean(4) + ", create role: " + rs.getBoolean(5) +
+                                    ", create db: " + rs.getBoolean(6) + ", can log in: " + rs.getBoolean(7);
+                            String roleName = rs.getString(2);
+                            serverInfo.addRole(roleName, roleInfo);
+                        }
+                    });
         }
         return serverInfo;
     }
 
     public Charset getDatabaseCharset() {
-        return databaseCharset;
-    }
-
-    private Charset determineDatabaseCharset() {
         try {
-            return Charset.forName(((PgConnection) connection()).getEncoding().name());
+            return Charset.forName(((BaseConnection) connection()).getEncoding().name());
         }
         catch (SQLException e) {
-            throw new RuntimeException("Couldn't obtain encoding for database " + database(), e);
+            throw new DebeziumException("Couldn't obtain encoding for database " + database(), e);
         }
     }
 
@@ -408,154 +446,67 @@ public class PostgresConnection extends JdbcConnection {
 
     @Override
     protected int resolveNativeType(String typeName) {
-        return getTypeRegistry().get(typeName).getOid();
+        return getTypeRegistry().get(typeName).getRootType().getOid();
     }
 
-    private static TypeRegistry initTypeRegistry(Connection db) {
-        final TypeInfo typeInfo = ((BaseConnection) db).getTypeInfo();
-        TypeRegistry.Builder typeRegistryBuilder = TypeRegistry.create(typeInfo);
+    @Override
+    protected int resolveJdbcType(int metadataJdbcType, int nativeType) {
+        // Special care needs to be taken for columns that use user-defined domain type data types
+        // where resolution of the column's JDBC type needs to be that of the root type instead of
+        // the actual column to properly influence schema building and value conversion.
+        return getTypeRegistry().get(nativeType).getRootType().getJdbcId();
+    }
 
-        try {
-            SqlTypeMapper sqlTypeMapper = new SqlTypeMapper(db, typeInfo);
+    @Override
+    protected Optional<ColumnEditor> readTableColumn(ResultSet columnMetadata, TableId tableId, Tables.ColumnNameFilter columnFilter) throws SQLException {
+        final String columnName = columnMetadata.getString(4);
+        if (columnFilter == null || columnFilter.matches(tableId.catalog(), tableId.schema(), tableId.table(), columnName)) {
+            final ColumnEditor column = Column.editor().name(columnName);
+            column.type(columnMetadata.getString(6));
 
-            try (final Statement statement = db.createStatement()) {
-                // Read non-array types
-                try (final ResultSet rs = statement.executeQuery(SQL_NON_ARRAY_TYPES)) {
-                    while (rs.next()) {
-                        // Coerce long to int so large unsigned values are represented as signed
-                        // Same technique is used in TypeInfoCache
-                        final int oid = (int) rs.getLong("oid");
-                        String typeName = rs.getString("name");
-                        typeRegistryBuilder.addType(new PostgresType(
-                                typeName,
-                                oid,
-                                sqlTypeMapper.getSqlType(typeName),
-                                typeInfo
-                        ));
-                    }
-                }
-
-                // Read array types
-                try (final ResultSet rs = statement.executeQuery(SQL_ARRAY_TYPES)) {
-                    while (rs.next()) {
-                        // int2vector and oidvector will not be treated as arrays
-                        final int oid = (int) rs.getLong("oid");
-                        String typeName = rs.getString("name");
-                        typeRegistryBuilder.addType(new PostgresType(
-                                typeName,
-                                oid,
-                                sqlTypeMapper.getSqlType(typeName),
-                                typeInfo, typeRegistryBuilder.get((int) rs.getLong("element"))
-                        ));
-                    }
-                }
+            // first source the length/scale from the column metadata provided by the driver
+            // this may be overridden below if the column type is a user-defined domain type
+            column.length(columnMetadata.getInt(7));
+            if (columnMetadata.getObject(9) != null) {
+                column.scale(columnMetadata.getInt(9));
             }
+
+            column.optional(isNullable(columnMetadata.getInt(11)));
+            column.position(columnMetadata.getInt(17));
+            column.autoIncremented("YES".equalsIgnoreCase(columnMetadata.getString(23)));
+
+            String autogenerated = null;
+            try {
+                autogenerated = columnMetadata.getString(24);
+            }
+            catch (SQLException e) {
+                // ignore, some drivers don't have this index - e.g. Postgres
+            }
+            column.generated("YES".equalsIgnoreCase(autogenerated));
+
+            // Lookup the column type from the TypeRegistry
+            // For all types, we need to set the Native and Jdbc types by using the root-type
+            final PostgresType nativeType = getTypeRegistry().get(column.typeName());
+            column.nativeType(nativeType.getRootType().getOid());
+            column.jdbcType(nativeType.getRootType().getJdbcId());
+
+            // For domain types, the postgres driver is unable to traverse a nested unbounded
+            // hierarchy of types and report the right length/scale of a given type. We use
+            // the TypeRegistry to accomplish this since it is capable of traversing the type
+            // hierarchy upward to resolve length/scale regardless of hierarchy depth.
+            if (TypeRegistry.DOMAIN_TYPE == nativeType.getJdbcId()) {
+                column.length(nativeType.getDefaultLength());
+                column.scale(nativeType.getDefaultScale());
+            }
+
+            return Optional.of(column);
         }
-        catch (SQLException e) {
-            throw new ConnectException("Could not intialize type registry", e);
-        }
-        return typeRegistryBuilder.build();
+
+        return Optional.empty();
     }
 
     public TypeRegistry getTypeRegistry() {
+        Objects.requireNonNull(typeRegistry, "Connection does not provide type registry");
         return typeRegistry;
-    }
-
-    /**
-     * Allows to obtain the SQL type corresponding to PG types. This uses a custom statement instead of going through
-     * {@link PgDatabaseMetaData#getTypeInfo()} as the latter causes N+1 SELECTs, making it very slow on installations
-     * with many custom types.
-     *
-     * @author Gunnar Morling
-     * @see DBZ-899
-     */
-    private static class SqlTypeMapper {
-
-        /**
-         * Based on org.postgresql.jdbc.TypeInfoCache.getSQLType(String). To emulate the original statement's behavior
-         * (which works for single types only), PG's DISTINCT ON extension is used to just return the first entry should a
-         * type exist in multiple schemas.
-         */
-        private static final String SQL_TYPE_DETAILS = "SELECT DISTINCT ON (typname) typname, typinput='array_in'::regproc, typtype, sp.r, pg_type.oid "
-                + "  FROM pg_catalog.pg_type "
-                + "  LEFT "
-                + "  JOIN (select ns.oid as nspoid, ns.nspname, r.r "
-                + "          from pg_namespace as ns "
-                // -- go with older way of unnesting array to be compatible with 8.0
-                + "          join ( select s.r, (current_schemas(false))[s.r] as nspname "
-                + "                   from generate_series(1, array_upper(current_schemas(false), 1)) as s(r) ) as r "
-                + "         using ( nspname ) "
-                + "       ) as sp "
-                + "    ON sp.nspoid = typnamespace "
-                + " ORDER BY typname, sp.r, pg_type.oid;";
-
-        private final TypeInfo typeInfo;
-        private final Set<String> preloadedSqlTypes;
-        private final Map<String, Integer> sqlTypesByPgTypeNames;
-
-        private SqlTypeMapper(Connection db, TypeInfo typeInfo) throws SQLException {
-            this.typeInfo = typeInfo;
-            this.preloadedSqlTypes = Collect.unmodifiableSet(typeInfo.getPGTypeNamesWithSQLTypes());
-            this.sqlTypesByPgTypeNames = getSqlTypes(db, typeInfo);
-        }
-
-        public int getSqlType(String typeName) throws SQLException {
-            boolean isCoreType = preloadedSqlTypes.contains(typeName);
-
-            // obtain core types such as bool, int2 etc. from the driver, as it correctly maps these types to the JDBC
-            // type codes. Also those values are cached in TypeInfoCache.
-            if (isCoreType) {
-                return typeInfo.getSQLType(typeName);
-            }
-            if (typeName.endsWith("[]")) {
-                return Types.ARRAY;
-            }
-            // get custom type mappings from the map which was built up with a single query
-            else {
-                try {
-                    return sqlTypesByPgTypeNames.get(typeName);
-                }
-                catch(Exception e) {
-                    LOGGER.warn("Failed to obtain SQL type information for type {} via custom statement, falling back to TypeInfo#getSQLType()", typeName, e);
-                    return typeInfo.getSQLType(typeName);
-                }
-            }
-        }
-
-        /**
-         * Builds up a map of SQL (JDBC) types by PG type name; contains only values for non-core types.
-         */
-        private static Map<String, Integer> getSqlTypes(Connection db, TypeInfo typeInfo) throws SQLException {
-            Map<String, Integer> sqlTypesByPgTypeNames = new HashMap<>();
-
-            try (final Statement statement = db.createStatement()) {
-                try (final ResultSet rs = statement.executeQuery(SQL_TYPE_DETAILS)) {
-                    while (rs.next()) {
-                        int type;
-                        boolean isArray = rs.getBoolean(2);
-                        String typtype = rs.getString(3);
-                        if (isArray) {
-                            type = Types.ARRAY;
-                        }
-                        else if ("c".equals(typtype)) {
-                            type = Types.STRUCT;
-                        }
-                        else if ("d".equals(typtype)) {
-                            type = Types.DISTINCT;
-                        }
-                        else if ("e".equals(typtype)) {
-                            type = Types.VARCHAR;
-                        }
-                        else {
-                            type = Types.OTHER;
-                        }
-
-                        sqlTypesByPgTypeNames.put(rs.getString(1), type);
-                    }
-                }
-            }
-
-            return sqlTypesByPgTypeNames;
-        }
     }
 }

@@ -57,7 +57,7 @@ import io.debezium.util.IoUtil;
  * An embeddable cluster of Kafka servers and a single Zookeeper server. This may be useful when creating a complete environment
  * within a single process, but doing so offers limited durability and fault tolerance compared to the normal approach of
  * using an external cluster of Kafka servers and Zookeeper servers with proper replication and fault tolerance.
- * 
+ *
  * @author Randall Hauch
  */
 @ThreadSafe
@@ -86,13 +86,13 @@ public class KafkaCluster {
 
     /**
      * Specify whether the data is to be deleted upon {@link #shutdown()}.
-     * 
+     *
      * @param delete true if the data is to be deleted upon shutdown, or false otherwise
      * @return this instance to allow chaining methods; never null
      * @throws IllegalStateException if the cluster is running
      */
     public KafkaCluster deleteDataUponShutdown(boolean delete) {
-        if (running){
+        if (running) {
             throw new IllegalStateException("Unable to change cluster settings when running");
         }
         this.deleteDataUponShutdown = delete;
@@ -101,13 +101,13 @@ public class KafkaCluster {
 
     /**
      * Specify whether the data is to be deleted prior to {@link #startup()}.
-     * 
+     *
      * @param delete true if the data is to be deleted upon shutdown, or false otherwise
      * @return this instance to allow chaining methods; never null
      * @throws IllegalStateException if the cluster is running
      */
     public KafkaCluster deleteDataPriorToStartup(boolean delete) {
-        if (running){
+        if (running) {
             throw new IllegalStateException("Unable to change cluster settings when running");
         }
         this.deleteDataPriorToStartup = delete;
@@ -116,13 +116,13 @@ public class KafkaCluster {
 
     /**
      * Add a number of new Kafka broker to the cluster. The broker IDs will be generated.
-     * 
+     *
      * @param count the number of new brokers to add
      * @return this instance to allow chaining methods; never null
      * @throws IllegalStateException if the cluster is running
      */
     public KafkaCluster addBrokers(int count) {
-        if (running){
+        if (running) {
             throw new IllegalStateException("Unable to add a broker when the cluster is already running");
         }
         AtomicLong added = new AtomicLong();
@@ -130,13 +130,13 @@ public class KafkaCluster {
             kafkaServers.computeIfAbsent(Integer.valueOf(added.intValue() + 1), id -> {
                 added.incrementAndGet();
                 KafkaServer server = new KafkaServer(zkServer::getConnection, id);
-                if (dataDir != null){
+                if (dataDir != null) {
                     server.setStateDirectory(dataDir);
                 }
-                if (kafkaConfig != null){
+                if (kafkaConfig != null) {
                     server.setProperties(kafkaConfig);
                 }
-                if (startingKafkaPort >= 0){
+                if (startingKafkaPort >= 0) {
                     server.setPort((int) this.nextKafkaPort.getAndIncrement());
                 }
                 return server;
@@ -147,14 +147,14 @@ public class KafkaCluster {
 
     /**
      * Set the parent directory where the brokers logs and server's logs and snapshots will be kept.
-     * 
+     *
      * @param dataDir the parent directory for the server's logs and snapshots; may be null if a temporary directory will be used
      * @return this instance to allow chaining methods; never null
      * @throws IllegalStateException if the cluster is running
      * @throws IllegalArgumentException if the supplied file is not a directory or not writable
      */
     public KafkaCluster usingDirectory(File dataDir) {
-        if (running){
+        if (running) {
             throw new IllegalStateException("Unable to add a broker when the cluster is already running");
         }
         if (dataDir != null && dataDir.exists() && !dataDir.isDirectory() && !dataDir.canWrite() && !dataDir.canRead()) {
@@ -167,13 +167,13 @@ public class KafkaCluster {
     /**
      * Set the configuration properties for each of the brokers. This method does nothing if the supplied properties are null or
      * empty.
-     * 
+     *
      * @param properties the Kafka configuration properties
      * @return this instance to allow chaining methods; never null
      * @throws IllegalStateException if the cluster is running
      */
     public KafkaCluster withKafkaConfiguration(Properties properties) {
-        if (running){
+        if (running) {
             throw new IllegalStateException("Unable to add a broker when the cluster is already running");
         }
         if (properties != null && !properties.isEmpty()) {
@@ -186,7 +186,7 @@ public class KafkaCluster {
 
     /**
      * Set the port numbers for Zookeeper and the Kafka brokers.
-     * 
+     *
      * @param zkPort the port number that Zookeeper should use; may be -1 if an available port should be discovered
      * @param firstKafkaPort the port number for the first Kafka broker (additional brokers will use subsequent port numbers);
      *            may be -1 if available ports should be discovered
@@ -194,7 +194,7 @@ public class KafkaCluster {
      * @throws IllegalStateException if the cluster is running
      */
     public KafkaCluster withPorts(int zkPort, int firstKafkaPort) {
-        if (running){
+        if (running) {
             throw new IllegalStateException("Unable to add a broker when the cluster is already running");
         }
         this.zkServer.setPort(zkPort);
@@ -208,7 +208,7 @@ public class KafkaCluster {
 
     /**
      * Determine if the cluster is running.
-     * 
+     *
      * @return true if the cluster is running, or false otherwise
      */
     public boolean isRunning() {
@@ -218,7 +218,7 @@ public class KafkaCluster {
     /**
      * Start the embedded Zookeeper server and the Kafka servers {@link #addBrokers(int) in the cluster}.
      * This method does nothing if the cluster is already running.
-     * 
+     *
      * @return this instance to allow chaining methods; never null
      * @throws IOException if there is an error during startup
      */
@@ -230,10 +230,12 @@ public class KafkaCluster {
                     dataDir = new File(temp.getParentFile(), "cluster");
                     dataDir.mkdirs();
                     temp.delete();
-                } catch (IOException e) {
+                }
+                catch (IOException e) {
                     throw new RuntimeException("Unable to create temporary directory", e);
                 }
-            } else if (deleteDataPriorToStartup) {
+            }
+            else if (deleteDataPriorToStartup) {
                 IoUtil.delete(dataDir);
                 dataDir.mkdirs();
             }
@@ -254,26 +256,31 @@ public class KafkaCluster {
     /**
      * Shutdown the embedded Zookeeper server and the Kafka servers {@link #addBrokers(int) in the cluster}.
      * This method does nothing if the cluster is not running.
-     * 
+     *
      * @return this instance to allow chaining methods; never null
      */
     public synchronized KafkaCluster shutdown() {
         if (running) {
             try {
                 kafkaServers.values().forEach(this::shutdownReliably);
-            } finally {
+            }
+            finally {
                 try {
                     zkServer.shutdown(deleteDataUponShutdown);
-                } catch (Throwable t) {
+                }
+                catch (Throwable t) {
                     LOGGER.error("Error while shutting down {}", zkServer, t);
-                } finally {
+                }
+                finally {
                     if (deleteDataUponShutdown) {
                         try {
                             kafkaServers.values().forEach(KafkaServer::deleteData);
-                        } finally {
+                        }
+                        finally {
                             try {
                                 IoUtil.delete(this.dataDir);
-                            } catch (IOException e) {
+                            }
+                            catch (IOException e) {
                                 LOGGER.error("Error while deleting cluster data", e);
                             }
                         }
@@ -287,7 +294,7 @@ public class KafkaCluster {
 
     /**
      * Create the specified topics.
-     * 
+     *
      * @param topics the names of the topics to create
      * @throws IllegalStateException if the cluster is not running
      */
@@ -295,7 +302,7 @@ public class KafkaCluster {
         if (LOGGER.isDebugEnabled()) {
             LOGGER.debug("Creating topics: {}", Arrays.toString(topics));
         }
-        if (!running){
+        if (!running) {
             throw new IllegalStateException("The cluster must be running to create topics");
         }
         kafkaServers.values().stream().findFirst().ifPresent(server -> server.createTopics(topics));
@@ -303,7 +310,7 @@ public class KafkaCluster {
 
     /**
      * Create the specified topics.
-     * 
+     *
      * @param topics the names of the topics to create
      * @throws IllegalStateException if the cluster is not running
      */
@@ -313,7 +320,7 @@ public class KafkaCluster {
 
     /**
      * Create the specified topics.
-     * 
+     *
      * @param numPartitions the number of partitions for each topic
      * @param replicationFactor the replication factor for each topic
      * @param topics the names of the topics to create
@@ -321,9 +328,9 @@ public class KafkaCluster {
     public void createTopics(int numPartitions, int replicationFactor, String... topics) {
         if (LOGGER.isDebugEnabled()) {
             LOGGER.debug("Creating topics with {} partitions and {} replicas each: {}", numPartitions, replicationFactor,
-                         Arrays.toString(topics));
+                    Arrays.toString(topics));
         }
-        if (!running){
+        if (!running) {
             throw new IllegalStateException("The cluster must be running to create topics");
         }
         kafkaServers.values().stream().findFirst().ifPresent(server -> server.createTopics(numPartitions, replicationFactor, topics));
@@ -331,7 +338,7 @@ public class KafkaCluster {
 
     /**
      * Create the specified topics.
-     * 
+     *
      * @param numPartitions the number of partitions for each topic
      * @param replicationFactor the replication factor for each topic
      * @param topics the names of the topics to create
@@ -342,14 +349,14 @@ public class KafkaCluster {
 
     /**
      * Create the specified topic.
-     * 
+     *
      * @param topic the name of the topic to create
      * @param numPartitions the number of partitions for the topic
      * @param replicationFactor the replication factor for the topic
      */
     public void createTopic(String topic, int numPartitions, int replicationFactor) {
         LOGGER.debug("Creating topic '{}' with {} partitions and {} replicas", topic, numPartitions, replicationFactor);
-        if (!running){
+        if (!running) {
             throw new IllegalStateException("The cluster must be running to create topics");
         }
         kafkaServers.values().stream().findFirst().ifPresent(server -> server.createTopic(topic, numPartitions, replicationFactor));
@@ -357,7 +364,7 @@ public class KafkaCluster {
 
     /**
      * Perform the supplied function on each directory used by this cluster.
-     * 
+     *
      * @param consumer the consumer function; may not be null
      */
     void onEachDirectory(java.util.function.Consumer<File> consumer) {
@@ -368,7 +375,7 @@ public class KafkaCluster {
 
     /**
      * Get the list of brokers.
-     * 
+     *
      * @return the broker list
      */
     public String brokerList() {
@@ -391,19 +398,20 @@ public class KafkaCluster {
     private void shutdownReliably(KafkaServer server) {
         try {
             server.shutdown(deleteDataUponShutdown);
-        } catch (Throwable t) {
+        }
+        catch (Throwable t) {
             LOGGER.error("Error while shutting down {}", server, t);
         }
     }
 
     /**
      * Obtain the interface for using this cluster.
-     * 
+     *
      * @return the usage interface; never null
      * @throws IllegalStateException if the cluster is not running
      */
     public Usage useTo() {
-        if (!running){
+        if (!running) {
             throw new IllegalStateException("Unable to use the cluster it is not running");
         }
         return new Usage();
@@ -418,7 +426,7 @@ public class KafkaCluster {
     public static interface InteractiveProducer<K, V> extends Closeable {
         /**
          * Write to the topic with the given name a record with the specified key and value. The message is flushed immediately.
-         * 
+         *
          * @param topic the name of the topic; may not be null
          * @param key the key; may not be null
          * @param value the value; may not be null
@@ -430,7 +438,7 @@ public class KafkaCluster {
 
         /**
          * Write the specified record to the topic with the given name. The message is flushed immediately.
-         * 
+         *
          * @param record the record; may not be null
          * @return this producer instance to allow chaining methods together
          */
@@ -452,7 +460,7 @@ public class KafkaCluster {
     public static interface InteractiveConsumer<K, V> extends Closeable {
         /**
          * Block until a record can be read from this consumer's topic, and return the value in that record.
-         * 
+         *
          * @return the value; never null
          * @throws InterruptedException if the thread is interrupted while blocking
          */
@@ -462,7 +470,7 @@ public class KafkaCluster {
 
         /**
          * Block until a record can be read from this consumer's topic, and return the record.
-         * 
+         *
          * @return the record; never null
          * @throws InterruptedException if the thread is interrupted while blocking
          */
@@ -471,7 +479,7 @@ public class KafkaCluster {
         /**
          * Block until a record can be read from this consumer's topic or until the timeout occurs, and if a record was read
          * return the value in that record.
-         * 
+         *
          * @param timeout the maximum amount of time to block to wait for a record
          * @param unit the unit of time for the {@code timeout}
          * @return the value, or null if the method timed out
@@ -485,7 +493,7 @@ public class KafkaCluster {
         /**
          * Block until a record can be read from this consumer's topic or until the timeout occurs, and if a record was read
          * return the record.
-         * 
+         *
          * @param timeout the maximum amount of time to block to wait for a record
          * @param unit the unit of time for the {@code timeout}
          * @return the record, or null if the method timed out
@@ -496,7 +504,7 @@ public class KafkaCluster {
         /**
          * Obtain a stream to consume the input messages. This method can be used in place of repeated calls to the
          * {@code next...()} methods.
-         * 
+         *
          * @return the stream of all messages.
          */
         Stream<ConsumerRecord<K, V>> stream();
@@ -506,7 +514,7 @@ public class KafkaCluster {
          * the resulting stream will operate over <em>all messages</em> that received by this consumer, and is completely
          * independent of the {@link #stream()}, {@link #nextRecord()}, {@link #nextRecord(long, TimeUnit)}, {@link #nextValue()}
          * and {@link #nextValue(long, TimeUnit)} methods.
-         * 
+         *
          * @return the stream of all messages.
          */
         Stream<ConsumerRecord<K, V>> streamAll();
@@ -525,7 +533,7 @@ public class KafkaCluster {
 
         /**
          * Get a new set of properties for consumers that want to talk to this server.
-         * 
+         *
          * @param groupId the group ID for the consumer; may not be null
          * @param clientId the optional identifier for the client; may be null if not needed
          * @param autoOffsetReset how to pick a starting offset when there is no initial offset in ZooKeeper or if an offset is
@@ -534,7 +542,7 @@ public class KafkaCluster {
          * @see #getProducerProperties(String)
          */
         public Properties getConsumerProperties(String groupId, String clientId, OffsetResetStrategy autoOffsetReset) {
-            if (groupId == null){
+            if (groupId == null) {
                 throw new IllegalArgumentException("The groupId is required");
             }
             Properties props = new Properties();
@@ -544,7 +552,7 @@ public class KafkaCluster {
             if (autoOffsetReset != null) {
                 props.setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, autoOffsetReset.toString().toLowerCase());
             }
-            if (clientId != null){
+            if (clientId != null) {
                 props.setProperty(ConsumerConfig.CLIENT_ID_CONFIG, clientId);
             }
             return props;
@@ -552,7 +560,7 @@ public class KafkaCluster {
 
         /**
          * Get a new set of properties for producers that want to talk to this server.
-         * 
+         *
          * @param clientId the optional identifier for the client; may be null if not needed
          * @return the mutable producer properties
          * @see #getConsumerProperties(String, String, OffsetResetStrategy)
@@ -561,7 +569,7 @@ public class KafkaCluster {
             Properties props = new Properties();
             props.setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, brokerList());
             props.setProperty(ProducerConfig.ACKS_CONFIG, Integer.toString(1));
-            if (clientId != null){
+            if (clientId != null) {
                 props.setProperty(ProducerConfig.CLIENT_ID_CONFIG, clientId);
             }
             return props;
@@ -569,7 +577,7 @@ public class KafkaCluster {
 
         /**
          * Create an {@link InteractiveProducer simple producer} that can be used to write messages to the cluster.
-         * 
+         *
          * @param producerName the name of the producer; may not be null
          * @param keySerializer the serializer for the keys; may not be null
          * @param valueSerializer the serializer for the values; may not be null
@@ -597,7 +605,7 @@ public class KafkaCluster {
         /**
          * Create an {@link InteractiveProducer simple producer} that can be used to write {@link Document} messages to the
          * cluster.
-         * 
+         *
          * @param producerName the name of the producer; may not be null
          * @return the object that can be used to produce messages; never null
          */
@@ -607,7 +615,7 @@ public class KafkaCluster {
 
         /**
          * Create an {@link InteractiveConsumer simple consumer} that can be used to read messages from the cluster.
-         * 
+         *
          * @param groupId the name of the group; may not be null
          * @param clientId the name of the client; may not be null
          * @param topicName the name of the topic to read; may not be null and may not be empty
@@ -625,7 +633,7 @@ public class KafkaCluster {
 
         /**
          * Create an {@link InteractiveConsumer simple consumer} that can be used to read messages from the cluster.
-         * 
+         *
          * @param groupId the name of the group; may not be null
          * @param clientId the name of the client; may not be null
          * @param topicNames the names of the topics to read; may not be null and may not be empty
@@ -676,7 +684,7 @@ public class KafkaCluster {
 
         /**
          * Create an {@link InteractiveConsumer simple consumer} that can be used to read messages from the cluster.
-         * 
+         *
          * @param groupId the name of the group; may not be null
          * @param clientId the name of the client; may not be null
          * @param topicName the name of the topic to read; may not be null and may not be empty
@@ -691,7 +699,7 @@ public class KafkaCluster {
 
         /**
          * Create an {@link InteractiveConsumer simple consumer} that can be used to read messages from the cluster.
-         * 
+         *
          * @param groupId the name of the group; may not be null
          * @param clientId the name of the client; may not be null
          * @param topicNames the names of the topics to read; may not be null and may not be empty
@@ -705,7 +713,7 @@ public class KafkaCluster {
 
         /**
          * Use the supplied function to asynchronously produce {@link Document} messages and write them to the cluster.
-         * 
+         *
          * @param producerName the name of the producer; may not be null
          * @param producer the function that will asynchronously
          */
@@ -715,7 +723,7 @@ public class KafkaCluster {
 
         /**
          * Use the supplied function to asynchronously produce messages and write them to the cluster.
-         * 
+         *
          * @param producerName the name of the producer; may not be null
          * @param keySerializer the serializer for the keys; may not be null
          * @param valueSerializer the serializer for the values; may not be null
@@ -741,7 +749,8 @@ public class KafkaCluster {
             Thread t = new Thread(() -> {
                 try {
                     producer.accept(interactive);
-                } finally {
+                }
+                finally {
                     interactive.close();
                 }
             });
@@ -751,7 +760,7 @@ public class KafkaCluster {
 
         /**
          * Use the supplied function to asynchronously produce messages and write them to the cluster.
-         * 
+         *
          * @param producerName the name of the producer; may not be null
          * @param messageCount the number of messages to produce; must be positive
          * @param keySerializer the serializer for the keys; may not be null
@@ -773,8 +782,9 @@ public class KafkaCluster {
                         producer.flush();
                         LOGGER.debug("Producer {}: sent message {}", producerName, record);
                     }
-                } finally {
-                    if (completionCallback != null){
+                }
+                finally {
+                    if (completionCallback != null) {
                         completionCallback.run();
                     }
                     LOGGER.debug("Stopping producer {}", producerName);
@@ -787,7 +797,7 @@ public class KafkaCluster {
         /**
          * Use the supplied function to asynchronously produce messages with String keys and values, and write them to the
          * cluster.
-         * 
+         *
          * @param messageCount the number of messages to produce; must be positive
          * @param completionCallback the function to be called when the producer is completed; may be null
          * @param messageSupplier the function to produce messages; may not be null
@@ -803,7 +813,7 @@ public class KafkaCluster {
         /**
          * Use the supplied function to asynchronously produce messages with String keys and {@link Document} values, and write
          * them to the cluster.
-         * 
+         *
          * @param messageCount the number of messages to produce; must be positive
          * @param completionCallback the function to be called when the producer is completed; may be null
          * @param messageSupplier the function to produce messages; may not be null
@@ -819,7 +829,7 @@ public class KafkaCluster {
         /**
          * Use the supplied function to asynchronously produce messages with String keys and Integer values, and write them to the
          * cluster.
-         * 
+         *
          * @param messageCount the number of messages to produce; must be positive
          * @param completionCallback the function to be called when the producer is completed; may be null
          * @param messageSupplier the function to produce messages; may not be null
@@ -834,7 +844,7 @@ public class KafkaCluster {
 
         /**
          * Asynchronously produce messages with String keys and sequential Integer values, and write them to the cluster.
-         * 
+         *
          * @param topic the name of the topic to which the messages should be written; may not be null
          * @param messageCount the number of messages to produce; must be positive
          * @param initialValue the first integer value to produce
@@ -853,7 +863,7 @@ public class KafkaCluster {
         /**
          * Asynchronously produce messages with monotonically increasing String keys and values obtained from the supplied
          * function, and write them to the cluster.
-         * 
+         *
          * @param topic the name of the topic to which the messages should be written; may not be null
          * @param messageCount the number of messages to produce; must be positive
          * @param completionCallback the function to be called when the producer is completed; may be null
@@ -872,7 +882,7 @@ public class KafkaCluster {
         /**
          * Asynchronously produce messages with monotonically increasing String keys and values obtained from the supplied
          * function, and write them to the cluster.
-         * 
+         *
          * @param topic the name of the topic to which the messages should be written; may not be null
          * @param messageCount the number of messages to produce; must be positive
          * @param completionCallback the function to be called when the producer is completed; may be null
@@ -890,7 +900,7 @@ public class KafkaCluster {
 
         /**
          * Use the supplied function to asynchronously consume messages from the cluster.
-         * 
+         *
          * @param groupId the name of the group; may not be null
          * @param clientId the name of the client; may not be null
          * @param autoOffsetReset how to pick a starting offset when there is no initial offset in ZooKeeper or if an offset is
@@ -923,8 +933,9 @@ public class KafkaCluster {
                             }
                         });
                     }
-                } finally {
-                    if (completion != null){
+                }
+                finally {
+                    if (completion != null) {
                         completion.run();
                     }
                     LOGGER.debug("Stopping consumer {}", clientId);
@@ -936,7 +947,7 @@ public class KafkaCluster {
 
         /**
          * Asynchronously consume all messages from the cluster.
-         * 
+         *
          * @param continuation the function that determines if the consumer should continue; may not be null
          * @param completion the function to call when all messages have been consumed; may be null
          * @param topics the set of topics to consume; may not be null or empty
@@ -954,7 +965,7 @@ public class KafkaCluster {
 
         /**
          * Asynchronously consume all messages from the cluster.
-         * 
+         *
          * @param continuation the function that determines if the consumer should continue; may not be null
          * @param completion the function to call when all messages have been consumed; may be null
          * @param topics the set of topics to consume; may not be null or empty
@@ -972,7 +983,7 @@ public class KafkaCluster {
 
         /**
          * Asynchronously consume all messages from the cluster.
-         * 
+         *
          * @param continuation the function that determines if the consumer should continue; may not be null
          * @param completion the function to call when all messages have been consumed; may be null
          * @param topics the set of topics to consume; may not be null or empty
@@ -990,7 +1001,7 @@ public class KafkaCluster {
 
         /**
          * Asynchronously consume all messages on the given topic from the cluster.
-         * 
+         *
          * @param topicName the name of the topic; may not be null
          * @param count the expected number of messages to read before terminating; may not be null
          * @param timeout the maximum time that this consumer should run before terminating; must be positive
@@ -1002,18 +1013,18 @@ public class KafkaCluster {
                                    BiPredicate<String, String> consumer) {
             AtomicLong readCounter = new AtomicLong();
             consumeStrings(continueIfNotExpired(() -> readCounter.get() < count, timeout, unit),
-                           completion,
-                           Collections.singleton(topicName),
-                           record -> {
-                               if (consumer.test(record.key(), record.value())){
-                                   readCounter.incrementAndGet();
-                               }
-                           });
+                    completion,
+                    Collections.singleton(topicName),
+                    record -> {
+                        if (consumer.test(record.key(), record.value())) {
+                            readCounter.incrementAndGet();
+                        }
+                    });
         }
 
         /**
          * Asynchronously consume all messages on the given topic from the cluster.
-         * 
+         *
          * @param topicName the name of the topic; may not be null
          * @param count the expected number of messages to read before terminating; may not be null
          * @param timeout the maximum time that this consumer should run before terminating; must be positive
@@ -1025,18 +1036,18 @@ public class KafkaCluster {
                                      BiPredicate<String, Document> consumer) {
             AtomicLong readCounter = new AtomicLong();
             consumeDocuments(continueIfNotExpired(() -> readCounter.get() < count, timeout, unit),
-                             completion,
-                             Collections.singleton(topicName),
-                             record -> {
-                                 if (consumer.test(record.key(), record.value())){
-                                     readCounter.incrementAndGet();
-                                 }
-                             });
+                    completion,
+                    Collections.singleton(topicName),
+                    record -> {
+                        if (consumer.test(record.key(), record.value())) {
+                            readCounter.incrementAndGet();
+                        }
+                    });
         }
 
         /**
          * Asynchronously consume all messages on the given topic from the cluster.
-         * 
+         *
          * @param topicName the name of the topic; may not be null
          * @param count the expected number of messages to read before terminating; may not be null
          * @param timeout the maximum time that this consumer should run before terminating; must be positive
@@ -1048,18 +1059,18 @@ public class KafkaCluster {
                                     BiPredicate<String, Integer> consumer) {
             AtomicLong readCounter = new AtomicLong();
             consumeIntegers(continueIfNotExpired(() -> readCounter.get() < count, timeout, unit),
-                            completion,
-                            Collections.singleton(topicName),
-                            record -> {
-                                if (consumer.test(record.key(), record.value())){
-                                    readCounter.incrementAndGet();
-                                }
-                            });
+                    completion,
+                    Collections.singleton(topicName),
+                    record -> {
+                        if (consumer.test(record.key(), record.value())) {
+                            readCounter.incrementAndGet();
+                        }
+                    });
         }
 
         /**
          * Asynchronously consume all messages on the given topic from the cluster.
-         * 
+         *
          * @param topicName the name of the topic; may not be null
          * @param count the expected number of messages to read before terminating; may not be null
          * @param timeout the maximum time that this consumer should run before terminating; must be positive
@@ -1072,7 +1083,7 @@ public class KafkaCluster {
 
         /**
          * Asynchronously consume all messages on the given topic from the cluster.
-         * 
+         *
          * @param topicName the name of the topic; may not be null
          * @param count the expected number of messages to read before terminating; may not be null
          * @param timeout the maximum time that this consumer should run before terminating; must be positive
@@ -1085,7 +1096,7 @@ public class KafkaCluster {
 
         /**
          * Asynchronously consume all messages on the given topic from the cluster.
-         * 
+         *
          * @param topicName the name of the topic; may not be null
          * @param count the expected number of messages to read before terminating; may not be null
          * @param timeout the maximum time that this consumer should run before terminating; must be positive
@@ -1102,7 +1113,7 @@ public class KafkaCluster {
 
                 @Override
                 public boolean getAsBoolean() {
-                    if (stopTime == 0L){
+                    if (stopTime == 0L) {
                         stopTime = System.currentTimeMillis() + unit.toMillis(timeout);
                     }
                     return continuation.getAsBoolean() && System.currentTimeMillis() <= stopTime;

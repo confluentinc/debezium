@@ -30,27 +30,33 @@ import io.debezium.text.ParsingException;
 public abstract class AbstractDatabaseHistory implements DatabaseHistory {
 
     protected final Logger logger = LoggerFactory.getLogger(getClass());
+
     protected Configuration config;
     private HistoryRecordComparator comparator = HistoryRecordComparator.INSTANCE;
     private boolean skipUnparseableDDL;
     private Function<String, Optional<Pattern>> ddlFilter = (x -> Optional.empty());
+    private DatabaseHistoryListener listener = DatabaseHistoryListener.NOOP;
+    private boolean useCatalogBeforeSchema;
+    private TableChanges.TableChangesSerializer<Array> tableChangesSerializer = new JsonTableChangeSerializer();
 
     protected AbstractDatabaseHistory() {
     }
 
     @Override
-    public void configure(Configuration config, HistoryRecordComparator comparator) {
+    public void configure(Configuration config, HistoryRecordComparator comparator, DatabaseHistoryListener listener, boolean useCatalogBeforeSchema) {
         this.config = config;
         this.comparator = comparator != null ? comparator : HistoryRecordComparator.INSTANCE;
         this.skipUnparseableDDL = config.getBoolean(DatabaseHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS);
 
         final String ddlFilter = config.getString(DatabaseHistory.DDL_FILTER);
         this.ddlFilter = (ddlFilter != null) ? Predicates.matchedBy(ddlFilter) : this.ddlFilter;
+        this.listener = listener;
+        this.useCatalogBeforeSchema = useCatalogBeforeSchema;
     }
 
     @Override
     public void start() {
-        // do nothing
+        listener.started();
     }
 
     @Override
@@ -63,20 +69,24 @@ public abstract class AbstractDatabaseHistory implements DatabaseHistory {
     @Override
     public final void record(Map<String, ?> source, Map<String, ?> position, String databaseName, String schemaName, String ddl, TableChanges changes)
             throws DatabaseHistoryException {
-            storeRecord(new HistoryRecord(source, position, databaseName, schemaName, ddl, changes));
+        final HistoryRecord record = new HistoryRecord(source, position, databaseName, schemaName, ddl, changes);
+        storeRecord(record);
+        listener.onChangeApplied(record);
     }
 
     @Override
     public final void recover(Map<String, ?> source, Map<String, ?> position, Tables schema, DdlParser ddlParser) {
         logger.debug("Recovering DDL history for source partition {} and offset {}", source, position);
+        listener.recoveryStarted();
         HistoryRecord stopPoint = new HistoryRecord(source, position, null, null, null, null);
         recoverRecords(recovered -> {
+            listener.onChangeFromHistory(recovered);
             if (comparator.isAtOrBefore(recovered, stopPoint)) {
                 Array tableChanges = recovered.tableChanges();
                 String ddl = recovered.ddl();
 
                 if (tableChanges != null) {
-                    TableChanges changes = TableChanges.fromArray(tableChanges);
+                    TableChanges changes = tableChangesSerializer.deserialize(tableChanges, useCatalogBeforeSchema);
                     for (TableChange entry : changes) {
                         if (entry.getType() == TableChangeType.CREATE || entry.getType() == TableChangeType.ALTER) {
                             schema.overwriteTable(entry.getTable());
@@ -86,6 +96,7 @@ public abstract class AbstractDatabaseHistory implements DatabaseHistory {
                             schema.removeTable(entry.getId());
                         }
                     }
+                    listener.onChangeApplied(recovered);
                 }
                 else if (ddl != null && ddlParser != null) {
                     if (recovered.databaseName() != null) {
@@ -102,18 +113,23 @@ public abstract class AbstractDatabaseHistory implements DatabaseHistory {
                     try {
                         logger.debug("Applying: {}", ddl);
                         ddlParser.parse(ddl, schema);
-                    } catch (final ParsingException e) {
+                        listener.onChangeApplied(recovered);
+                    }
+                    catch (final ParsingException e) {
                         if (skipUnparseableDDL) {
                             logger.warn("Ignoring unparseable statements '{}' stored in database history: {}", ddl, e);
-                        } else {
+                        }
+                        else {
                             throw e;
                         }
                     }
                 }
-            } else {
+            }
+            else {
                 logger.debug("Skipping: {}", recovered.ddl());
             }
         });
+        listener.recoveryStopped();
     }
 
     protected abstract void storeRecord(HistoryRecord record) throws DatabaseHistoryException;
@@ -122,7 +138,7 @@ public abstract class AbstractDatabaseHistory implements DatabaseHistory {
 
     @Override
     public void stop() {
-        // do nothing
+        listener.stopped();
     }
 
     @Override

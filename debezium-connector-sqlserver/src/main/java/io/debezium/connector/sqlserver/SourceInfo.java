@@ -7,11 +7,9 @@ package io.debezium.connector.sqlserver;
 
 import java.time.Instant;
 
-import org.apache.kafka.connect.data.Schema;
-import org.apache.kafka.connect.data.Struct;
-
 import io.debezium.annotation.NotThreadSafe;
-import io.debezium.connector.AbstractSourceInfo;
+import io.debezium.connector.common.BaseSourceInfo;
+import io.debezium.relational.TableId;
 
 /**
  * Coordinates from the database log to establish the relation between the change streamed and the source log position.
@@ -21,33 +19,20 @@ import io.debezium.connector.AbstractSourceInfo;
  *
  */
 @NotThreadSafe
-public class SourceInfo extends AbstractSourceInfo {
+public class SourceInfo extends BaseSourceInfo {
 
-    public static final String SERVER_NAME_KEY = "name";
-    public static final String LOG_TIMESTAMP_KEY = "ts_ms";
     public static final String CHANGE_LSN_KEY = "change_lsn";
     public static final String COMMIT_LSN_KEY = "commit_lsn";
-    public static final String SNAPSHOT_KEY = "snapshot";
-
-    public static final Schema SCHEMA = schemaBuilder()
-            .name("io.debezium.connector.sqlserver.Source")
-            .field(SERVER_NAME_KEY, Schema.STRING_SCHEMA)
-            .field(LOG_TIMESTAMP_KEY, Schema.OPTIONAL_INT64_SCHEMA)
-            .field(CHANGE_LSN_KEY, Schema.OPTIONAL_STRING_SCHEMA)
-            .field(COMMIT_LSN_KEY, Schema.OPTIONAL_STRING_SCHEMA)
-            .field(SNAPSHOT_KEY, Schema.OPTIONAL_BOOLEAN_SCHEMA)
-            .build();
-
-    private final String serverName;
+    public static final String EVENT_SERIAL_NO_KEY = "event_serial_no";
 
     private Lsn changeLsn;
     private Lsn commitLsn;
-    private boolean snapshot;
+    private Long eventSerialNo;
     private Instant sourceTime;
+    private TableId tableId;
 
-    protected SourceInfo(String serverName) {
-        super(Module.version());
-        this.serverName = serverName;
+    protected SourceInfo(SqlServerConnectorConfig connectorConfig) {
+        super(connectorConfig);
     }
 
     /**
@@ -65,11 +50,22 @@ public class SourceInfo extends AbstractSourceInfo {
         return commitLsn;
     }
 
+    public Long getEventSerialNo() {
+        return eventSerialNo;
+    }
+
     /**
      * @param commitLsn - LSN of the {@code COMMIT} of the transaction whose part the change is
      */
     public void setCommitLsn(Lsn commitLsn) {
         this.commitLsn = commitLsn;
+    }
+
+    /**
+     * @param eventSerialNo order of the change with the same value of commit and change LSN
+     */
+    public void setEventSerialNo(Long eventSerialNo) {
+        this.eventSerialNo = eventSerialNo;
     }
 
     /**
@@ -79,54 +75,39 @@ public class SourceInfo extends AbstractSourceInfo {
         sourceTime = instant;
     }
 
-    public boolean isSnapshot() {
-        return snapshot;
+    public TableId getTableId() {
+        return tableId;
     }
 
     /**
-     * @param snapshot - true if the source of even is snapshot phase, not the database log
+     * @param tableId - source table of the event
      */
-    public void setSnapshot(boolean snapshot) {
-        this.snapshot = snapshot;
-    }
-
-    @Override
-    protected Schema schema() {
-        return SCHEMA;
-    }
-
-    @Override
-    protected String connector() {
-        return Module.name();
-    }
-
-    /**
-     * @return the coordinates encoded as a {@code Struct}
-     */
-    @Override
-    public Struct struct() {
-        final Struct ret = super.struct()
-                .put(SERVER_NAME_KEY, serverName)
-                .put(LOG_TIMESTAMP_KEY, sourceTime == null ? null : sourceTime.toEpochMilli())
-                .put(SNAPSHOT_KEY, snapshot);
-
-        if (changeLsn != null && changeLsn.isAvailable()) {
-            ret.put(CHANGE_LSN_KEY, changeLsn.toString());
-        }
-        if (commitLsn != null && commitLsn.isAvailable()) {
-            ret.put(COMMIT_LSN_KEY, commitLsn.toString());
-        }
-        return ret;
+    public void setTableId(TableId tableId) {
+        this.tableId = tableId;
     }
 
     @Override
     public String toString() {
         return "SourceInfo [" +
-                "serverName=" + serverName +
+                "serverName=" + serverName() +
                 ", changeLsn=" + changeLsn +
                 ", commitLsn=" + commitLsn +
-                ", snapshot=" + snapshot +
+                ", eventSerialNo=" + eventSerialNo +
+                ", snapshot=" + snapshotRecord +
                 ", sourceTime=" + sourceTime +
                 "]";
+    }
+
+    @Override
+    protected Instant timestamp() {
+        return sourceTime;
+    }
+
+    @Override
+    protected String database() {
+        if (tableId == null) {
+            return null;
+        }
+        return tableId.catalog();
     }
 }

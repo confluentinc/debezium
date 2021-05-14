@@ -95,7 +95,8 @@ public interface SchemaNameAdjuster {
                     if (replacementsOriginal == null || original.equals(replacementsOriginal)) {
                         // We've not seen the replacement yet, so handle it ...
                         delegate.accept(original, replacement, null);
-                    } else {
+                    }
+                    else {
                         // We've already seen the replacement with a different original, so this is a conflict ...
                         delegate.accept(original, replacement, replacementsOriginal);
                     }
@@ -110,7 +111,7 @@ public interface SchemaNameAdjuster {
          * @return the new function; never null
          */
         default ReplacementOccurred andThen(ReplacementOccurred next) {
-            if (next == null){
+            if (next == null) {
                 return this;
             }
             return (original, replacement, conflictsWith) -> {
@@ -162,13 +163,14 @@ public interface SchemaNameAdjuster {
         ReplacementOccurred handler = (original, replacement, conflictsWith) -> {
             if (conflictsWith != null) {
                 logger.error("The Kafka Connect schema name '{}' is not a valid Avro schema name and its replacement '{}' conflicts with another different schema '{}'",
-                             original, replacement, conflictsWith);
+                        original, replacement, conflictsWith);
                 if (uponConflict != null) {
                     uponConflict.accept(original, replacement, conflictsWith);
                 }
-            } else {
+            }
+            else {
                 logger.warn("The Kafka Connect schema name '{}' is not a valid Avro schema name, so replacing with '{}'", original,
-                            replacement);
+                        replacement);
             }
         };
         return create(handler.firstTimeOnly());
@@ -234,7 +236,7 @@ public interface SchemaNameAdjuster {
             return true;
         }
         char c = fullname.charAt(0);
-        if (! isValidFullnameFirstCharacter(c)) {
+        if (!isValidFullnameFirstCharacter(c)) {
             return false;
         }
         for (int i = 1; i != fullname.length(); ++i) {
@@ -317,7 +319,8 @@ public interface SchemaNameAdjuster {
         boolean changed = false;
         if (isValidFullnameFirstCharacter(c)) {
             sb.append(c);
-        } else {
+        }
+        else {
             sb.append(replacement.replace(c));
             changed = true;
         }
@@ -325,7 +328,8 @@ public interface SchemaNameAdjuster {
             c = proposedName.charAt(i);
             if (isValidFullnameNonFirstCharacter(c)) {
                 sb.append(c);
-            } else {
+            }
+            else {
                 sb.append(replacement.replace(c));
                 changed = true;
             }

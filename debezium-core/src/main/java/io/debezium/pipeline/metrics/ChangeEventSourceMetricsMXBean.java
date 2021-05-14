@@ -13,18 +13,20 @@ package io.debezium.pipeline.metrics;
 public interface ChangeEventSourceMetricsMXBean {
 
     String getLastEvent();
-    long getMilliSecondsSinceLastEvent();
-    long getTotalNumberOfEventsSeen();
-    long getNumberOfEventsFiltered();
-    String[] getMonitoredTables();
-    int getQueueTotalCapacity();
-    int getQueueRemainingCapacity();
-    void reset();
 
-    /**
-     * @deprecated Renamed to getNumberOfEventsFiltered(). To be removed in next major release version.
-     * See DBZ-1206 and DBZ-1209 for more details.
-     */
-    @Deprecated
-    long getNumberOfEventsSkipped();
+    long getMilliSecondsSinceLastEvent();
+
+    long getTotalNumberOfEventsSeen();
+
+    long getNumberOfEventsFiltered();
+
+    long getNumberOfErroneousEvents();
+
+    String[] getMonitoredTables();
+
+    int getQueueTotalCapacity();
+
+    int getQueueRemainingCapacity();
+
+    void reset();
 }

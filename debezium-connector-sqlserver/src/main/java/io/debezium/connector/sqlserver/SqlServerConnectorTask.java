@@ -6,10 +6,7 @@
 package io.debezium.connector.sqlserver;
 
 import java.sql.SQLException;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import org.apache.kafka.connect.errors.ConnectException;
@@ -25,6 +22,7 @@ import io.debezium.pipeline.ChangeEventSourceCoordinator;
 import io.debezium.pipeline.DataChangeEvent;
 import io.debezium.pipeline.ErrorHandler;
 import io.debezium.pipeline.EventDispatcher;
+import io.debezium.pipeline.metrics.DefaultChangeEventSourceMetricsFactory;
 import io.debezium.pipeline.spi.OffsetContext;
 import io.debezium.relational.HistorizedRelationalDatabaseConnectorConfig;
 import io.debezium.relational.TableId;
@@ -45,19 +43,12 @@ public class SqlServerConnectorTask extends BaseSourceTask {
     private static final Logger LOGGER = LoggerFactory.getLogger(SqlServerConnectorTask.class);
     private static final String CONTEXT_NAME = "sql-server-connector-task";
 
-    private static enum State {
-        RUNNING, STOPPED;
-    }
-
-    private final AtomicReference<State> state = new AtomicReference<State>(State.STOPPED);
-
     private volatile SqlServerTaskContext taskContext;
     private volatile ChangeEventQueue<DataChangeEvent> queue;
-    private volatile SqlServerConnection jdbcConnection;
-    private volatile ChangeEventSourceCoordinator coordinator;
+    private volatile SqlServerConnection dataConnection;
+    private volatile SqlServerConnection metadataConnection;
     private volatile ErrorHandler errorHandler;
     private volatile SqlServerDatabaseSchema schema;
-    private volatile Map<String, ?> lastOffset;
 
     @Override
     public String version() {
@@ -65,15 +56,12 @@ public class SqlServerConnectorTask extends BaseSourceTask {
     }
 
     @Override
-    public void start(Configuration config) {
-        if (!state.compareAndSet(State.STOPPED, State.RUNNING)) {
-            LOGGER.info("Connector has already been started");
-            return;
-        }
-
+    public ChangeEventSourceCoordinator start(Configuration config) {
+        final Clock clock = Clock.system();
         final SqlServerConnectorConfig connectorConfig = new SqlServerConnectorConfig(config);
         final TopicSelector<TableId> topicSelector = SqlServerTopicSelector.defaultSelector(connectorConfig);
         final SchemaNameAdjuster schemaNameAdjuster = SchemaNameAdjuster.create(LOGGER);
+        final SqlServerValueConverters valueConverters = new SqlServerValueConverters(connectorConfig.getDecimalMode(), connectorConfig.getTemporalPrecisionMode());
 
         // By default do not load whole result sets into memory
         config = config.edit()
@@ -81,26 +69,26 @@ public class SqlServerConnectorTask extends BaseSourceTask {
                 .withDefault("database.fetchSize", 10_000)
                 .build();
 
-        final Configuration jdbcConfig = config.filter(x -> !(x.startsWith(DatabaseHistory.CONFIGURATION_FIELD_PREFIX_STRING) || x.equals(HistorizedRelationalDatabaseConnectorConfig.DATABASE_HISTORY.name())))
+        final Configuration jdbcConfig = config.filter(
+                x -> !(x.startsWith(DatabaseHistory.CONFIGURATION_FIELD_PREFIX_STRING) || x.equals(HistorizedRelationalDatabaseConnectorConfig.DATABASE_HISTORY.name())))
                 .subset("database.", true);
-        jdbcConnection = new SqlServerConnection(jdbcConfig);
+        dataConnection = new SqlServerConnection(jdbcConfig, clock, connectorConfig.getSourceTimestampMode(), valueConverters, () -> getClass().getClassLoader());
+        metadataConnection = new SqlServerConnection(jdbcConfig, clock, connectorConfig.getSourceTimestampMode(), valueConverters, () -> getClass().getClassLoader());
         try {
-            jdbcConnection.setAutoCommit(false);
+            dataConnection.setAutoCommit(false);
         }
         catch (SQLException e) {
             throw new ConnectException(e);
         }
-        this.schema = new SqlServerDatabaseSchema(connectorConfig, schemaNameAdjuster, topicSelector, jdbcConnection);
+        this.schema = new SqlServerDatabaseSchema(connectorConfig, valueConverters, topicSelector, schemaNameAdjuster);
         this.schema.initializeStorage();
 
-        final OffsetContext previousOffset = getPreviousOffset(new SqlServerOffsetContext.Loader(connectorConfig.getLogicalName()));
+        final OffsetContext previousOffset = getPreviousOffset(new SqlServerOffsetContext.Loader(connectorConfig));
         if (previousOffset != null) {
             schema.recover(previousOffset);
         }
 
         taskContext = new SqlServerTaskContext(connectorConfig, schema);
-
-        final Clock clock = Clock.system();
 
         // Set up the task record queue ...
         this.queue = new ChangeEventQueue.Builder<DataChangeEvent>()
@@ -110,7 +98,9 @@ public class SqlServerConnectorTask extends BaseSourceTask {
                 .loggingContextSupplier(() -> taskContext.configureLoggingContext(CONTEXT_NAME))
                 .build();
 
-        errorHandler = new ErrorHandler(SqlServerConnector.class, connectorConfig.getLogicalName(), queue, this::cleanupResources);
+        errorHandler = new SqlServerErrorHandler(connectorConfig.getLogicalName(), queue);
+
+        final SqlServerEventMetadataProvider metadataProvider = new SqlServerEventMetadataProvider();
 
         final EventDispatcher<TableId> dispatcher = new EventDispatcher<>(
                 connectorConfig,
@@ -118,102 +108,54 @@ public class SqlServerConnectorTask extends BaseSourceTask {
                 schema,
                 queue,
                 connectorConfig.getTableFilters().dataCollectionFilter(),
-                DataChangeEvent::new);
+                DataChangeEvent::new,
+                metadataProvider,
+                schemaNameAdjuster);
 
-        coordinator = new ChangeEventSourceCoordinator(
+        ChangeEventSourceCoordinator coordinator = new ChangeEventSourceCoordinator(
                 previousOffset,
                 errorHandler,
                 SqlServerConnector.class,
-                connectorConfig.getLogicalName(),
-                new SqlServerChangeEventSourceFactory(connectorConfig, jdbcConnection, errorHandler, dispatcher, clock, schema),
-                dispatcher
-        );
+                connectorConfig,
+                new SqlServerChangeEventSourceFactory(connectorConfig, dataConnection, metadataConnection, errorHandler, dispatcher, clock, schema),
+                new DefaultChangeEventSourceMetricsFactory(),
+                dispatcher,
+                schema);
 
-        coordinator.start(taskContext, this.queue, new SqlServerEventMetadataProvider());
-    }
+        coordinator.start(taskContext, this.queue, metadataProvider);
 
-    /**
-     * Loads the connector's persistent offset (if present) via the given loader.
-     */
-    @Override
-    protected OffsetContext getPreviousOffset(OffsetContext.Loader loader) {
-        Map<String, ?> partition = loader.getPartition();
-
-        Map<String, Object> previousOffset = context.offsetStorageReader()
-                .offsets(Collections.singleton(partition))
-                .get(partition);
-
-        if (previousOffset != null) {
-            OffsetContext offsetContext = loader.load(previousOffset);
-            LOGGER.info("Found previous offset {}", offsetContext);
-            return offsetContext;
-        }
-        else {
-            return null;
-        }
+        return coordinator;
     }
 
     @Override
-    public List<SourceRecord> poll() throws InterruptedException {
+    public List<SourceRecord> doPoll() throws InterruptedException {
         final List<DataChangeEvent> records = queue.poll();
 
         final List<SourceRecord> sourceRecords = records.stream()
-            .map(DataChangeEvent::getRecord)
-            .collect(Collectors.toList());
-
-        if (!sourceRecords.isEmpty()) {
-            this.lastOffset = sourceRecords.get(sourceRecords.size() - 1).sourceOffset();
-        }
+                .map(DataChangeEvent::getRecord)
+                .collect(Collectors.toList());
 
         return sourceRecords;
     }
 
     @Override
-    public void commit() throws InterruptedException {
-        if (coordinator != null) {
-            coordinator.commitOffset(lastOffset);
-        }
-    }
-
-    @Override
-    public void stop() {
-        cleanupResources();
-    }
-
-    private void cleanupResources() {
-        if (!state.compareAndSet(State.RUNNING, State.STOPPED)) {
-            LOGGER.info("Connector has already been stopped");
-            return;
-        }
-
+    protected void doStop() {
         try {
-            if (coordinator != null) {
-                coordinator.stop();
-            }
-        }
-        catch (InterruptedException e) {
-            Thread.interrupted();
-            LOGGER.error("Interrupted while stopping coordinator", e);
-            throw new ConnectException("Interrupted while stopping coordinator, failing the task");
-        }
-
-        try {
-            if (errorHandler != null) {
-                errorHandler.stop();
-            }
-        }
-        catch (InterruptedException e) {
-            Thread.interrupted();
-            LOGGER.error("Interrupted while stopping", e);
-        }
-
-        try {
-            if (jdbcConnection != null) {
-                jdbcConnection.close();
+            if (dataConnection != null) {
+                dataConnection.close();
             }
         }
         catch (SQLException e) {
             LOGGER.error("Exception while closing JDBC connection", e);
+        }
+
+        try {
+            if (metadataConnection != null) {
+                metadataConnection.close();
+            }
+        }
+        catch (SQLException e) {
+            LOGGER.error("Exception while closing JDBC metadata connection", e);
         }
 
         if (schema != null) {

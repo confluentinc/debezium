@@ -13,7 +13,7 @@ import io.debezium.util.Strings;
 
 /**
  * A specialization of {@link Value} that wraps another {@link Value} to allow conversion of types.
- * 
+ *
  * @author Randall Hauch
  */
 @Immutable
@@ -67,7 +67,7 @@ final class ConvertingValue implements Value {
             return value.asBoolean();
         }
         if (value.isNumber()) {
-            return value.asNumber().intValue() == 0?Boolean.FALSE:Boolean.TRUE;
+            return value.asNumber().intValue() == 0 ? Boolean.FALSE : Boolean.TRUE;
         }
         if (value.isString()) {
             return Boolean.valueOf(asString());
@@ -86,7 +86,8 @@ final class ConvertingValue implements Value {
         if (value.isString()) {
             try {
                 return Integer.valueOf(asString());
-            } catch (NumberFormatException e) {
+            }
+            catch (NumberFormatException e) {
             }
         }
         return null;
@@ -103,7 +104,8 @@ final class ConvertingValue implements Value {
         if (value.isString()) {
             try {
                 return Long.valueOf(asString());
-            } catch (NumberFormatException e) {
+            }
+            catch (NumberFormatException e) {
             }
         }
         return null;
@@ -120,7 +122,8 @@ final class ConvertingValue implements Value {
         if (value.isString()) {
             try {
                 return Float.valueOf(asString());
-            } catch (NumberFormatException e) {
+            }
+            catch (NumberFormatException e) {
             }
         }
         return null;
@@ -137,7 +140,8 @@ final class ConvertingValue implements Value {
         if (value.isString()) {
             try {
                 return Double.valueOf(asString());
-            } catch (NumberFormatException e) {
+            }
+            catch (NumberFormatException e) {
             }
         }
         return null;
@@ -151,7 +155,7 @@ final class ConvertingValue implements Value {
         if (value.isString()) {
             String str = value.asString();
             Number number = Strings.asNumber(str);
-            if ( number instanceof Short ) {
+            if (number instanceof Short) {
                 // Shorts aren't allowed, so just use an integer ...
                 number = Integer.valueOf(number.intValue());
             }
@@ -174,7 +178,8 @@ final class ConvertingValue implements Value {
         if (value.isString()) {
             try {
                 return new BigInteger(asString());
-            } catch (NumberFormatException e) {
+            }
+            catch (NumberFormatException e) {
             }
         }
         return null;
@@ -197,7 +202,8 @@ final class ConvertingValue implements Value {
         if (value.isString()) {
             try {
                 return new BigDecimal(asString());
-            } catch (NumberFormatException e) {
+            }
+            catch (NumberFormatException e) {
             }
         }
         return null;

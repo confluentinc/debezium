@@ -1,0 +1,28 @@
+[id="monitoring-debezium"]
+= Monitoring {prodname}
+
+:linkattrs:
+:icons: font
+:toc:
+:toc-placement: macro
+
+toc::[]
+
+You can use the JMX metrics provided by link:https://zookeeper.apache.org/doc/r3.1.2/zookeeperJMX.html[Zookeeper] and link:http://docs.confluent.io/3.0.0/kafka/monitoring.html[Kafka] to monitor {prodname}.
+To use these metrics, you must enable them when you start the Zookeeper, Kafka, and Kafka Connect services.
+Enabling JMX involves setting the correct environment variables.
+The environment variables that you must set depends on whether you are running Zookeeper, Kafka, and Kafka Connect in a local installation or in Docker containers.
+
+[NOTE]
+====
+If you are running multiple services on the same machine,
+be sure to use distinct JMX ports for each service.
+====
+
+include::{partialsdir}/modules/monitoring/con-metrics-monitoring-connectors.adoc[leveloffset=+1]
+
+include::{partialsdir}/assemblies/monitoring/assembly-enabling-jmx-local-installations.adoc[leveloffset=+1]
+
+include::{partialsdir}/assemblies/monitoring/assembly-enabling-jmx-docker.adoc[leveloffset=+1]
+
+include::{partialsdir}/modules/monitoring/con-using-prometheus-grafana.adoc[leveloffset=+1]

@@ -5,10 +5,14 @@
  */
 package io.debezium.pipeline.spi;
 
+import java.time.Instant;
 import java.util.Map;
 
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
+
+import io.debezium.pipeline.txmetadata.TransactionContext;
+import io.debezium.schema.DataCollectionId;
 
 /**
  * Keeps track of the current offset within the source DB's change stream. This reflects in the offset as committed to
@@ -24,12 +28,16 @@ public interface OffsetContext {
      */
     interface Loader {
         Map<String, ?> getPartition();
+
         OffsetContext load(Map<String, ?> offset);
     }
 
     Map<String, ?> getPartition();
+
     Map<String, ?> getOffset();
+
     Schema getSourceInfoSchema();
+
     Struct getSourceInfo();
 
     /**
@@ -37,6 +45,11 @@ public interface OffsetContext {
      * @return
      */
     boolean isSnapshotRunning();
+
+    /**
+     * mark current record as the last one in the snapshot
+     */
+    void markLastSnapshotRecord();
 
     /**
      * Signals that a snapshot will begin, which should reflect in an updated offset state.
@@ -52,4 +65,17 @@ public interface OffsetContext {
      * Signals that a snapshot has been completed, which should reflect in an updated offset state.
      */
     void postSnapshotCompletion();
+
+    /**
+     * Records the name of the collection and the timestamp of the last event
+     */
+    void event(DataCollectionId collectionId, Instant timestamp);
+
+    /**
+     * Provide a context used by {@link TransactionMonitor} so persist its internal state into offsets to survive
+     * between restarts.
+     *
+     * @return transaction context
+     */
+    TransactionContext getTransactionContext();
 }

@@ -17,14 +17,25 @@ import io.debezium.annotation.Immutable;
 /**
  * A value in a {@link Document} or {@link Array}. Note that {@link Value#compareTo} might perform literal comparisons;
  * to perform semantic comparisons, use {@link #comparable()} to obtain a wrapped value with semantic comparison capability.
- * 
+ *
  * @author Randall Hauch
  */
 @Immutable
 public interface Value extends Comparable<Value> {
 
     static enum Type {
-        NULL, STRING, BOOLEAN, BINARY, INTEGER, LONG, FLOAT, DOUBLE, BIG_INTEGER, DECIMAL, DOCUMENT, ARRAY;
+        NULL,
+        STRING,
+        BOOLEAN,
+        BINARY,
+        INTEGER,
+        LONG,
+        FLOAT,
+        DOUBLE,
+        BIG_INTEGER,
+        DECIMAL,
+        DOCUMENT,
+        ARRAY;
     }
 
     static boolean isNull(Value value) {
@@ -46,7 +57,7 @@ public interface Value extends Comparable<Value> {
 
     /**
      * Compare two {@link Value} objects, which may or may not be null.
-     * 
+     *
      * @param value1 the first value object, may be null
      * @param value2 the second value object, which may be null
      * @return a negative integer if the first value is less than the second, zero if the values are equivalent (including if both
@@ -140,7 +151,7 @@ public interface Value extends Comparable<Value> {
 
     /**
      * Get the raw value.
-     * 
+     *
      * @return the raw value; may be null
      */
     Object asObject();
@@ -201,7 +212,7 @@ public interface Value extends Comparable<Value> {
 
     /**
      * Get a Value representation that will convert attempt to convert values.
-     * 
+     *
      * @return a value that can convert actual values to the requested format
      */
     Value convert();
@@ -209,7 +220,7 @@ public interface Value extends Comparable<Value> {
     /**
      * Get a Value representation that will allow semantic comparison of values, rather than the literal comparison normally
      * performed by {@link #compareTo}.
-     * 
+     *
      * @return the Value that will perform semantic comparisons; never null
      */
     default Value comparable() {
@@ -221,7 +232,7 @@ public interface Value extends Comparable<Value> {
 
     /**
      * Obtain a clone of this value.
-     * 
+     *
      * @return the clone of this value; never null, but possibly the same instance if the underlying value is immutable
      *         and not a document or array
      */
@@ -229,7 +240,7 @@ public interface Value extends Comparable<Value> {
 
     /**
      * If a value is a document, invoke the specified consumer with the value, otherwise do nothing.
-     * 
+     *
      * @param consumer block to be executed if the value is a document
      * @return true if the block was called, or false otherwise
      */
@@ -243,7 +254,7 @@ public interface Value extends Comparable<Value> {
 
     /**
      * If a value is an array, invoke the specified consumer with the value, otherwise do nothing.
-     * 
+     *
      * @param consumer block to be executed if the value is an array
      * @return true if the block was called, or false otherwise
      */
@@ -257,7 +268,7 @@ public interface Value extends Comparable<Value> {
 
     /**
      * If a value is a string, invoke the specified consumer with the value, otherwise do nothing.
-     * 
+     *
      * @param consumer block to be executed if the value is a string
      * @return true if the block was called, or false otherwise
      */
@@ -271,7 +282,7 @@ public interface Value extends Comparable<Value> {
 
     /**
      * If a value is a boolean value, invoke the specified consumer with the value, otherwise do nothing.
-     * 
+     *
      * @param consumer block to be executed if the value is a boolean
      * @return true if the block was called, or false otherwise
      */
@@ -285,7 +296,7 @@ public interface Value extends Comparable<Value> {
 
     /**
      * If a value is a byte array, invoke the specified consumer with the value, otherwise do nothing.
-     * 
+     *
      * @param consumer block to be executed if the value is a byte array
      * @return true if the block was called, or false otherwise
      */
@@ -299,7 +310,7 @@ public interface Value extends Comparable<Value> {
 
     /**
      * If a value is an integer, invoke the specified consumer with the value, otherwise do nothing.
-     * 
+     *
      * @param consumer block to be executed if the value is an integer
      * @return true if the block was called, or false otherwise
      */
@@ -313,7 +324,7 @@ public interface Value extends Comparable<Value> {
 
     /**
      * If a value is a long, invoke the specified consumer with the value, otherwise do nothing.
-     * 
+     *
      * @param consumer block to be executed if the value is a long
      * @return true if the block was called, or false otherwise
      */
@@ -327,7 +338,7 @@ public interface Value extends Comparable<Value> {
 
     /**
      * If a value is a float, invoke the specified consumer with the value, otherwise do nothing.
-     * 
+     *
      * @param consumer block to be executed if the value is a float
      * @return true if the block was called, or false otherwise
      */
@@ -341,7 +352,7 @@ public interface Value extends Comparable<Value> {
 
     /**
      * If a value is a double, invoke the specified consumer with the value, otherwise do nothing.
-     * 
+     *
      * @param consumer block to be executed if the value is a double
      * @return true if the block was called, or false otherwise
      */
@@ -355,7 +366,7 @@ public interface Value extends Comparable<Value> {
 
     /**
      * If a value is a variable-sized integer, invoke the specified consumer with the value, otherwise do nothing.
-     * 
+     *
      * @param consumer block to be executed if the value is a big integer
      * @return true if the block was called, or false otherwise
      */
@@ -369,7 +380,7 @@ public interface Value extends Comparable<Value> {
 
     /**
      * If a value is a variable-sized decimal, invoke the specified consumer with the value, otherwise do nothing.
-     * 
+     *
      * @param consumer block to be executed if the value is a big decimal
      * @return true if the block was called, or false otherwise
      */
@@ -383,7 +394,7 @@ public interface Value extends Comparable<Value> {
 
     /**
      * If a value is a variable-sized integer, invoke the specified consumer with the value, otherwise do nothing.
-     * 
+     *
      * @param consumer block to be executed if the value is a big integer
      * @return true if the block was called, or false otherwise
      */

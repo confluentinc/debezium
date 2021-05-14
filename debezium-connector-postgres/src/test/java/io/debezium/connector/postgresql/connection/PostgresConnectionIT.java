@@ -8,8 +8,8 @@ package io.debezium.connector.postgresql.connection;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.lang.reflect.Field;
@@ -20,6 +20,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import org.junit.After;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.postgresql.jdbc.PgConnection;
 
@@ -91,8 +92,8 @@ public class PostgresConnectionIT {
     @Test
     public void shouldPrintReplicateIdentityInfo() throws Exception {
         String statement = "DROP SCHEMA IF EXISTS public CASCADE;" +
-                           "CREATE SCHEMA public;" +
-                           "CREATE TABLE test(pk serial, PRIMARY KEY (pk));";
+                "CREATE SCHEMA public;" +
+                "CREATE TABLE test(pk serial, PRIMARY KEY (pk));";
         TestHelper.execute(statement);
         try (PostgresConnection connection = TestHelper.create()) {
             assertEquals(ServerInfo.ReplicaIdentity.DEFAULT, connection.readReplicaIdentityInfo(TableId.parse("public.test")));
@@ -107,6 +108,7 @@ public class PostgresConnectionIT {
         }
         // create a new replication slot via a replication connection
         try (ReplicationConnection connection = TestHelper.createForReplication("test", false)) {
+            connection.initConnection();
             assertTrue(connection.isConnected());
         }
         // drop the slot from the previous connection
@@ -118,8 +120,11 @@ public class PostgresConnectionIT {
 
     @Test
     @FixFor("DBZ-934")
+    @Ignore
+    // Temporary slots no longer supported due to DBZ-2338
     public void temporaryReplicationSlotsShouldGetDroppedAutomatically() throws Exception {
-        try(ReplicationConnection replicationConnection = TestHelper.createForReplication("test", true)) {
+        try (ReplicationConnection replicationConnection = TestHelper.createForReplication("test", true)) {
+            replicationConnection.initConnection();
             PgConnection pgConnection = getUnderlyingConnection(replicationConnection);
 
             // temporary replication slots are not supported by Postgres < 10
@@ -154,8 +159,7 @@ public class PostgresConnectionIT {
             connection.execute(
                     "DROP SCHEMA IF EXISTS public CASCADE",
                     "CREATE SCHEMA public",
-                    "CREATE TABLE test(pk serial, PRIMARY KEY (pk))"
-            );
+                    "CREATE TABLE test(pk serial, PRIMARY KEY (pk))");
         }
 
         try (PostgresConnection blockingConnection = TestHelper.create("blocker")) {
@@ -163,14 +167,14 @@ public class PostgresConnectionIT {
             blockingConnection.connection().setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
             blockingConnection.connection().setAutoCommit(false);
             blockingConnection.executeWithoutCommitting(
-                    "INSERT INTO test VALUES(default)"
-            );
+                    "INSERT INTO test VALUES(default)");
             Testing.print("Blocking exception started");
 
             final Future<?> f1 = Executors.newSingleThreadExecutor().submit(() -> {
                 // Create a replication connection that is blocked till the concurrent TX is completed
                 try (ReplicationConnection replConnection = TestHelper.createForReplication(slotName, false)) {
                     Testing.print("Connecting with replication connection 1");
+                    replConnection.initConnection();
                     assertTrue(replConnection.isConnected());
                     Testing.print("Replication connection 1 - completed");
                 }
@@ -185,6 +189,7 @@ public class PostgresConnectionIT {
                 // Create a replication connection that receives confirmed_flush_lsn == null
                 try (ReplicationConnection replConnection = TestHelper.createForReplication(slotName, false)) {
                     Testing.print("Connecting with replication connection 2");
+                    replConnection.initConnection();
                     assertTrue(replConnection.isConnected());
                     Testing.print("Replication connection 2 - completed");
                 }
@@ -213,6 +218,7 @@ public class PostgresConnectionIT {
     public void shouldSupportPG95RestartLsn() throws Exception {
         String slotName = "pg95";
         try (ReplicationConnection replConnection = TestHelper.createForReplication(slotName, false)) {
+            replConnection.initConnection();
             assertTrue(replConnection.isConnected());
         }
         try (PostgresConnection conn = buildPG95PGConn("pg95")) {
@@ -229,7 +235,8 @@ public class PostgresConnectionIT {
         return new PostgresConnection(TestHelper.defaultJdbcConfig().edit().with("ApplicationName", name).build()) {
             @Override
             protected ServerInfo.ReplicationSlot queryForSlot(String slotName, String database, String pluginName,
-                                                              ResultSetMapper<ServerInfo.ReplicationSlot> map) throws SQLException {
+                                                              ResultSetMapper<ServerInfo.ReplicationSlot> map)
+                    throws SQLException {
 
                 String fields = "slot_name, plugin, slot_type, datoid, database, active, active_pid, xmin, catalog_xmin, restart_lsn";
                 return prepareQueryAndMap("select " + fields + " from pg_replication_slots where slot_name = ? and database = ? and plugin = ?", statement -> {

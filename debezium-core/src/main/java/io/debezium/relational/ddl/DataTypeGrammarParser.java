@@ -42,7 +42,7 @@ import io.debezium.text.TokenStream.Marker;
  * <li><code>ENUM(...)</code> will match {@code ENUM(a,b,c,d)} and {@code ENUM(a)}.
  * <li>
  * </ul>
- * 
+ *
  * @author Randall Hauch
  * @see DataTypeParser
  */
@@ -61,7 +61,7 @@ public class DataTypeGrammarParser {
 
         /**
          * Get the JDBC type associated with this data type.
-         * 
+         *
          * @return the JDBC {@link Types JDBC type} constant
          */
         public int jdbcType() {
@@ -70,7 +70,7 @@ public class DataTypeGrammarParser {
 
         /**
          * Look for a matching data type on the specified token stream.
-         * 
+         *
          * @param stream the stream of tokens containing the data type definition
          * @return the data type, or null if no data type could be found
          */
@@ -80,7 +80,7 @@ public class DataTypeGrammarParser {
 
         /**
          * Look for a matching data type on the specified token stream.
-         * 
+         *
          * @param stream the stream of tokens containing the data type definition
          * @param errors the function called for each parsing exception; may be null if not needed
          * @return the data type, or null if no data type could be found
@@ -88,7 +88,8 @@ public class DataTypeGrammarParser {
         public DataType match(TokenStream stream, Consumer<ParsingException> errors) {
             builder.reset();
             builder.jdbcType(jdbcType);
-            if (pattern.match(stream, builder, errors != null ? errors : (e) -> {})) {
+            if (pattern.match(stream, builder, errors != null ? errors : (e) -> {
+            })) {
                 return builder.create();
             }
             return null;
@@ -114,7 +115,7 @@ public class DataTypeGrammarParser {
 
     /**
      * Parse the supplied grammar for a data type.
-     * 
+     *
      * @param jdbcType the {@link Types JDBC data type}
      * @param dataTypeDefn the data type grammar
      * @return the data type pattern that can be used for pattern matching the data type; never null
@@ -134,7 +135,7 @@ public class DataTypeGrammarParser {
             if (inner == null) {
                 return pattern;
             }
-            if ( stream.canConsume('|')) {
+            if (stream.canConsume('|')) {
                 Pattern orPattern = parseMultiple(stream);
                 inner = new OrPattern(inner, orPattern);
             }
@@ -185,10 +186,12 @@ public class DataTypeGrammarParser {
         if (stream.canConsume(".", ".", ".")) {
             // This is a list pattern ...
             result = new AndPattern(result, new ListPattern());
-        } else if (stream.canConsumeAnyOf("L", "M", "P", "N")) {
+        }
+        else if (stream.canConsumeAnyOf("L", "M", "P", "N")) {
             // specifies length, mantissa, precision, or number ...
             result = new AndPattern(result, new LengthPattern());
-        } else {
+        }
+        else {
             // This should be at least one literal ...
             Pattern literal = parseLengthLiteral(stream);
             while (stream.canConsume('|')) {
@@ -201,7 +204,8 @@ public class DataTypeGrammarParser {
         Pattern scale = null;
         if (stream.matches(',')) {
             scale = parseScale(stream);
-        } else if (stream.matches('[')) {
+        }
+        else if (stream.matches('[')) {
             scale = parseOptional(stream, this::parseScale);
         }
         if (scale != null) {
@@ -218,7 +222,8 @@ public class DataTypeGrammarParser {
         if (stream.canConsume('S') || stream.canConsume('D')) { // "scale" or "decimal"
             // This is a length pattern ...
             result = new AndPattern(result, new ScalePattern());
-        } else {
+        }
+        else {
             // This should be at least one literal ...
             Pattern literal = parseScaleLiteral(stream);
             while (stream.canConsume('|')) {
@@ -270,7 +275,8 @@ public class DataTypeGrammarParser {
                 if (pattern1.match(stream, builder, error) && pattern2.match(stream, builder, error)) {
                     return true;
                 }
-            } catch (ParsingException e) {
+            }
+            catch (ParsingException e) {
                 stream.rewind(marker);
             }
             return false;
@@ -278,7 +284,7 @@ public class DataTypeGrammarParser {
 
         @Override
         public boolean determineFirstTokens(Consumer<String> tokens) {
-            if (!pattern1.determineFirstTokens(tokens)){
+            if (!pattern1.determineFirstTokens(tokens)) {
                 return false;
             }
             return pattern2.determineFirstTokens(tokens);
@@ -303,17 +309,20 @@ public class DataTypeGrammarParser {
         public boolean match(TokenStream stream, DataTypeBuilder builder, Consumer<ParsingException> error) {
             Marker marker = stream.mark();
             try {
-                if ( pattern1.match(stream, builder, error) ) {
+                if (pattern1.match(stream, builder, error)) {
                     return true;
                 }
-            } catch(ParsingException e){
+            }
+            catch (ParsingException e) {
             }
             stream.rewind(marker);
-            try{
-                if ( pattern2.match(stream, builder, error) ) {
+            try {
+                if (pattern2.match(stream, builder, error)) {
                     return true;
                 }
-            } catch (ParsingException e) {}
+            }
+            catch (ParsingException e) {
+            }
             stream.rewind(marker);
             return false;
         }
@@ -448,7 +457,8 @@ public class DataTypeGrammarParser {
                     if (!pattern.match(stream, builder, error)) {
                         stream.rewind(marker);
                     }
-                } catch (ParsingException e) {
+                }
+                catch (ParsingException e) {
                     error.accept(e);
                     stream.rewind(marker);
                 }

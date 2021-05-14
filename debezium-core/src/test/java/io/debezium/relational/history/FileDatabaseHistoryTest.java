@@ -31,12 +31,12 @@ public class FileDatabaseHistoryTest extends AbstractDatabaseHistoryTest {
     protected DatabaseHistory createHistory() {
         DatabaseHistory history = new FileDatabaseHistory();
         history.configure(Configuration.create()
-                                       .with(FileDatabaseHistory.FILE_PATH, TEST_FILE_PATH.toAbsolutePath().toString())
-                                       .build(), null);
+                .with(FileDatabaseHistory.FILE_PATH, TEST_FILE_PATH.toAbsolutePath().toString())
+                .build(), null, DatabaseHistoryMetrics.NOOP, true);
         history.start();
         return history;
     }
-    
+
     @Override
     @Test
     public void shouldRecordChangesAndRecoverToVariousPoints() {

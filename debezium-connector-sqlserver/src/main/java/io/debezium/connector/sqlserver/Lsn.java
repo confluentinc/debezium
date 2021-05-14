@@ -7,11 +7,12 @@ package io.debezium.connector.sqlserver;
 
 import java.util.Arrays;
 
+import io.debezium.connector.Nullable;
 import io.debezium.util.Strings;
 
 /**
  * A logical representation of SQL Server LSN (log sequence number) position. When LSN is not available
- * it is replaced with {@link Lsn.NULL} constant.
+ * it is replaced with {@link Lsn#NULL} constant.
  *
  * @author Jiri Pechanec
  *
@@ -19,7 +20,7 @@ import io.debezium.util.Strings;
 public class Lsn implements Comparable<Lsn>, Nullable {
     private static final String NULL_STRING = "NULL";
 
-    public static final Lsn NULL = new Lsn(null); 
+    public static final Lsn NULL = new Lsn(null);
 
     private final byte[] binary;
     private int[] unsignedBinary;
@@ -85,7 +86,7 @@ public class Lsn implements Comparable<Lsn>, Nullable {
 
     /**
      * @param lsnString - textual representation of Lsn
-     * @return LSN converted from its textual representation 
+     * @return LSN converted from its textual representation
      */
     public static Lsn valueOf(String lsnString) {
         return (lsnString == null || NULL_STRING.equals(lsnString)) ? NULL : new Lsn(Strings.hexStringToByteArray(lsnString.replace(":", "")));
@@ -93,10 +94,10 @@ public class Lsn implements Comparable<Lsn>, Nullable {
 
     /**
      * @param lsnBinary - binary representation of Lsn
-     * @return LSN converted from its binary representation 
+     * @return LSN converted from its binary representation
      */
     public static Lsn valueOf(byte[] lsnBinary) {
-        return (lsnBinary == null ) ? NULL : new Lsn(lsnBinary);
+        return (lsnBinary == null) ? NULL : new Lsn(lsnBinary);
     }
 
     @Override
@@ -108,7 +109,7 @@ public class Lsn implements Comparable<Lsn>, Nullable {
     }
 
     @Override
-    public boolean equals(Object obj){
+    public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
@@ -119,7 +120,7 @@ public class Lsn implements Comparable<Lsn>, Nullable {
             return false;
         }
         Lsn other = (Lsn) obj;
-        if ( ! Arrays.equals(binary, other.binary) ) {
+        if (!Arrays.equals(binary, other.binary)) {
             return false;
         }
         return true;
@@ -154,7 +155,7 @@ public class Lsn implements Comparable<Lsn>, Nullable {
     }
 
     /**
-     * Verifies whether the LSN falls into a LSN interval 
+     * Verifies whether the LSN falls into a LSN interval
      *
      * @param from start of the interval (included)
      * @param to end of the interval (excluded)

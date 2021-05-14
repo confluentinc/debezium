@@ -14,7 +14,7 @@ import io.debezium.annotation.Immutable;
 
 /**
  * A specialization of {@link Value} that wraps another {@link Value} that is not comparable.
- * 
+ *
  * @author Randall Hauch
  */
 @Immutable
@@ -166,17 +166,18 @@ final class ComparableValue implements Value {
             }
             return this.asBigInteger().compareTo(that.asBigInteger());
         }
-        if ( this.isDocument() && that.isDocument()) {
+        if (this.isDocument() && that.isDocument()) {
             return this.asDocument().compareTo(that.asDocument());
         }
-        if ( this.isArray() && that.isArray() ) {
+        if (this.isArray() && that.isArray()) {
             return this.asArray().compareTo(that.asArray());
         }
         Comparable<Object> thisValue = (Comparable<Object>) this.asObject();
         Comparable<Object> thatValue = (Comparable<Object>) ((ComparableValue) that.comparable()).asObject();
-        if ( thisValue.getClass().isAssignableFrom(thatValue.getClass())) {
+        if (thisValue.getClass().isAssignableFrom(thatValue.getClass())) {
             return thisValue.compareTo(thatValue);
-        } else if (thatValue.getClass().isAssignableFrom(thisValue.getClass())) {
+        }
+        else if (thatValue.getClass().isAssignableFrom(thisValue.getClass())) {
             return thatValue.compareTo(thisValue) * -1; // correct for the reversed comparison
         }
         return ((Comparable<Object>) this.value).compareTo(that.asObject());
@@ -218,7 +219,7 @@ final class ComparableValue implements Value {
         }
         if (value instanceof Long) {
             long raw = ((Long) value).longValue();
-            if (isValidInteger(raw)){
+            if (isValidInteger(raw)) {
                 return Integer.valueOf((int) raw);
             }
         }

@@ -6,12 +6,12 @@
 
 package io.debezium.connector.postgresql;
 
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 import org.apache.kafka.common.config.Config;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigValue;
@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 
 import io.debezium.config.Configuration;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
+import io.debezium.util.Strings;
 
 /**
  * A Kafka Connect source connector that creates tasks which use Postgresql streaming replication off a logical replication slot
@@ -29,11 +30,11 @@ import io.debezium.connector.postgresql.connection.PostgresConnection;
  * <h2>Configuration</h2>
  * <p>
  * This connector is configured with the set of properties described in {@link PostgresConnectorConfig}.
- * 
+ *
  * @author Horia Chiorean
  */
 public class PostgresConnector extends SourceConnector {
-    
+
     private Logger logger = LoggerFactory.getLogger(getClass());
     private Map<String, String> props;
 
@@ -77,37 +78,40 @@ public class PostgresConnector extends SourceConnector {
 
         // First, validate all of the individual fields, which is easy since don't make any of the fields invisible ...
         Map<String, ConfigValue> results = config.validate();
-        
+
         // Get the config values for each of the connection-related fields ...
         ConfigValue hostnameValue = results.get(PostgresConnectorConfig.HOSTNAME.name());
         ConfigValue portValue = results.get(PostgresConnectorConfig.PORT.name());
         ConfigValue databaseValue = results.get(PostgresConnectorConfig.DATABASE_NAME.name());
         ConfigValue userValue = results.get(PostgresConnectorConfig.USER.name());
         ConfigValue passwordValue = results.get(PostgresConnectorConfig.PASSWORD.name());
+        final String passwordStringValue = config.getConfig().getString(PostgresConnectorConfig.PASSWORD);
 
-        if ( passwordValue.value() == null || ((String) passwordValue.value()).isEmpty() ) {
+        if (Strings.isNullOrEmpty(passwordStringValue)) {
             logger.warn("The connection password is empty");
         }
 
         // If there are no errors on any of these ...
         if (hostnameValue.errorMessages().isEmpty()
-            && portValue.errorMessages().isEmpty()
-            && userValue.errorMessages().isEmpty()
-            && passwordValue.errorMessages().isEmpty()
-            && databaseValue.errorMessages().isEmpty()) {
+                && portValue.errorMessages().isEmpty()
+                && userValue.errorMessages().isEmpty()
+                && passwordValue.errorMessages().isEmpty()
+                && databaseValue.errorMessages().isEmpty()) {
             // Try to connect to the database ...
             try (PostgresConnection connection = new PostgresConnection(config.jdbcConfig())) {
-                try {
-                    connection.execute("SELECT version()");
-                    logger.info("Successfully tested connection for {} with user '{}'", connection.connectionString(),
-                                connection.username());
-                } catch (SQLException e) {
-                    logger.info("Failed testing connection for {} with user '{}'", connection.connectionString(),
-                                connection.username());
-                    hostnameValue.addErrorMessage("Unable to connect: " + e.getMessage());
-                }
+                connection.execute("SELECT version()");
+                logger.info("Successfully tested connection for {} with user '{}'", connection.connectionString(),
+                        connection.username());
+            }
+            catch (Throwable e) {
+                logger.info("Failed testing connection for {}", config.jdbcConfig(), e);
+                hostnameValue.addErrorMessage("Unable to connect: " + e.getMessage());
+                portValue.addErrorMessage("Unable to connect: " + e.getMessage());
+                databaseValue.addErrorMessage("Unable to connect: " + e.getMessage());
+                userValue.addErrorMessage("Unable to connect: " + e.getMessage());
+                passwordValue.addErrorMessage("Unable to connect: " + e.getMessage());
             }
         }
-        return new Config(new ArrayList<>(results.values())); 
+        return new Config(new ArrayList<>(results.values()));
     }
 }

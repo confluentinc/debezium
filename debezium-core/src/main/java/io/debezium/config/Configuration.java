@@ -60,7 +60,9 @@ import io.debezium.util.Strings;
 @Immutable
 public interface Configuration {
 
-    public static final Pattern PASSWORD_PATTERN = Pattern.compile(".*password$|.*sasl\\.jaas\\.config$|.*\\.api\\.(key|secret)$", Pattern.CASE_INSENSITIVE);
+    Logger CONFIGURATION_LOGGER = LoggerFactory.getLogger(Configuration.class);
+
+    Pattern PASSWORD_PATTERN = Pattern.compile(".*password$|.*sasl\\.jaas\\.config$|.*\\.api\\.(key|secret)$", Pattern.CASE_INSENSITIVE);
 
     /**
      * The basic interface for configuration builders.
@@ -889,7 +891,8 @@ public interface Configuration {
             Properties properties = new Properties();
             properties.load(stream);
             return from(properties);
-        } finally {
+        }
+        finally {
             stream.close();
         }
     }
@@ -906,7 +909,8 @@ public interface Configuration {
             Properties properties = new Properties();
             properties.load(reader);
             return from(properties);
-        } finally {
+        }
+        finally {
             reader.close();
         }
     }
@@ -1177,7 +1181,9 @@ public interface Configuration {
         if (value != null) {
             try {
                 return Integer.valueOf(value);
-            } catch (NumberFormatException e) {}
+            }
+            catch (NumberFormatException e) {
+            }
         }
         return defaultValueSupplier != null ? defaultValueSupplier.getAsInt() : null;
     }
@@ -1197,7 +1203,9 @@ public interface Configuration {
         if (value != null) {
             try {
                 return Long.valueOf(value);
-            } catch (NumberFormatException e) {}
+            }
+            catch (NumberFormatException e) {
+            }
         }
         return defaultValueSupplier != null ? defaultValueSupplier.getAsLong() : null;
     }
@@ -1423,7 +1431,7 @@ public interface Configuration {
      *
      * @param key the key for the configuration property
      * @param clazz the Class of which the resulting object is expected to be an instance of; may not be null
-     * @param the {@link Configuration} object that is passed as a parameter to the constructor
+     * @param configuration {@link Configuration} object that is passed as a parameter to the constructor
      * @return the new instance, or null if there is no such key-value pair in the configuration or if there is a key-value
      *         configuration but the value could not be converted to an existing class with a zero-argument constructor
      */
@@ -1463,7 +1471,7 @@ public interface Configuration {
      *
      * @param field the field for the configuration property
      * @param clazz the Class of which the resulting object is expected to be an instance of; may not be null
-     * @param the {@link Configuration} object that is passed as a parameter to the constructor
+     * @param configuration the {@link Configuration} object that is passed as a parameter to the constructor
      * @return the new instance, or null if there is no such key-value pair in the configuration or if there is a key-value
      *         configuration but the value could not be converted to an existing class with a zero-argument constructor
      */
@@ -1548,9 +1556,9 @@ public interface Configuration {
             @Override
             public Set<String> keys() {
                 return Collect.unmodifiableSet(Configuration.this.keys().stream()
-                                                                 .filter(k -> k != null)
-                                                                 .filter(matcher)
-                                                                 .collect(Collectors.toSet()));
+                        .filter(k -> k != null)
+                        .filter(matcher)
+                        .collect(Collectors.toSet()));
             }
 
             @Override
@@ -1839,12 +1847,14 @@ public interface Configuration {
         return validate(fields, (f, v, problem) -> {
             if (v == null) {
                 problems.accept("The '" + f.name() + "' value is invalid: " + problem);
-            } else {
+            }
+            else {
                 String valueStr = v.toString();
                 if (v instanceof CharSequence) {
                     if (PASSWORD_PATTERN.matcher((CharSequence) v).matches()) {
                         valueStr = "********"; // mask any fields that we know are passwords
-                    } else {
+                    }
+                    else {
                         valueStr = "'" + valueStr + "'";
                     }
                 }
@@ -1945,9 +1955,10 @@ public interface Configuration {
         BiFunction<String, String, Integer> extractor = (fieldName, strValue) -> {
             try {
                 return Integer.valueOf(strValue);
-            } catch (NumberFormatException e) {
+            }
+            catch (NumberFormatException e) {
                 LoggerFactory.getLogger(getClass()).error("Unexpected value {} extracted from configuration field '{}' using regex '{}'",
-                                                          strValue, fieldName, regex);
+                        strValue, fieldName, regex);
                 return null;
             }
         };
@@ -1992,9 +2003,10 @@ public interface Configuration {
         BiFunction<String, String, Boolean> extractor = (fieldName, strValue) -> {
             try {
                 return Boolean.parseBoolean(strValue);
-            } catch (NumberFormatException e) {
+            }
+            catch (NumberFormatException e) {
                 LoggerFactory.getLogger(getClass()).error("Unexpected value {} extracted from configuration field '{}' using regex '{}'",
-                                                          strValue, fieldName, regex);
+                        strValue, fieldName, regex);
                 return null;
             }
         };
@@ -2087,4 +2099,44 @@ public interface Configuration {
     default <T> void forEach(BiConsumer<String, String> function) {
         this.asMap().forEach(function);
     }
+
+    /**
+     * Returns the string config value from newProperty config field if it's set or its default value when it's not
+     * set/null.If both are null it returns the value of the oldProperty config field, or its default value when it's
+     * null.
+     * This fallback only works for newProperty fields that have a null / not-set default value!
+     *
+     * @param newProperty the new property config field
+     * @param oldProperty the old / fallback property config field
+     * @return the evaluated value
+     */
+    default String getFallbackStringProperty(Field newProperty, Field oldProperty) {
+        return Configuration.getFallbackStringProperty(this, newProperty, oldProperty);
+    }
+
+    /**
+     * Returns the string config value of the provided Configuration from newProperty config field if it's set or its
+     * default value when it's not set/null.If both are null it returns the value of the oldProperty config field, or
+     * its default value when it's null.
+     * This fallback only works for newProperty fields that have a null / not-set default value!
+     *
+     * @param newProperty the new property config field
+     * @param oldProperty the old / fallback property config field
+     * @return the evaluated value
+     */
+    static String getFallbackStringProperty(Configuration config, Field newProperty, Field oldProperty) {
+        if (null != config.getString(oldProperty.name()) && null != config.getString(newProperty.name())) { // both are set
+            CONFIGURATION_LOGGER.warn("Provided configuration has deprecated property \"" + oldProperty.name()
+                    + "\" and new property \"" + newProperty.name() + "\" set. Using value from \"" + newProperty.name() + "\"!");
+        }
+        return config.getString(
+                newProperty,
+                () -> {
+                    CONFIGURATION_LOGGER.warn("Using configuration property \"" + oldProperty.name()
+                            + "\" is deprecated and will be removed in future versions. Please use \"" + newProperty.name()
+                            + "\" instead.");
+                    return config.getString(oldProperty);
+                });
+    }
+
 }

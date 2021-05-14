@@ -30,12 +30,12 @@ import io.debezium.util.Strings;
  * <h2>Configuration</h2>
  * <p>
  * This connector is configured with the set of properties described in {@link MySqlConnectorConfig}.
- * 
- * 
+ *
+ *
  * @author Randall Hauch
  */
 public class MySqlConnector extends SourceConnector {
-    
+
     private Logger logger = LoggerFactory.getLogger(getClass());
     private Map<String, String> props;
 
@@ -94,16 +94,18 @@ public class MySqlConnector extends SourceConnector {
                 && portValue.errorMessages().isEmpty()
                 && userValue.errorMessages().isEmpty()) {
             // Try to connect to the database ...
-            try (MySqlJdbcContext jdbcContext = new MySqlJdbcContext(config)) {
+            try (MySqlJdbcContext jdbcContext = new MySqlJdbcContext(new MySqlConnectorConfig(config))) {
                 jdbcContext.start();
                 JdbcConnection mysql = jdbcContext.jdbc();
                 try {
                     mysql.execute("SELECT version()");
                     logger.info("Successfully tested connection for {} with user '{}'", jdbcContext.connectionString(), mysql.username());
-                } catch (SQLException e) {
+                }
+                catch (SQLException e) {
                     logger.info("Failed testing connection for {} with user '{}'", jdbcContext.connectionString(), mysql.username());
                     hostnameValue.addErrorMessage("Unable to connect: " + e.getMessage());
-                } finally {
+                }
+                finally {
                     jdbcContext.shutdown();
                 }
             }

@@ -159,6 +159,30 @@ to the database and use logical decoding to read the transaction log. Several ne
 integration test were added.
 ```
 
+### Code Formatting
+
+This project utilizes a set of code style rules that are automatically applied by the build process.  There are two ways in which you can apply these rules while contributing:
+
+1. If your IDE supports importing an Eclipse-based formatter file, navigate to your IDE's code format section and import the file `support/ide-configs/src/main/resources/eclipse/debezium-formatter.xml`.  It's recommended that when you import these styles, you may want to make sure these are only applicable only to the current project.
+
+2. If your IDE does not support importing the Eclipse-based formatter file or you'd rather tidy up the formatting after making your changes locally, you can run a project build to make sure that all code changes adhere to the project's desired style.  Instructions on how to run a build locally are provided below.
+
+3. With the command `mvn process-sources` the code style rules can be applied automatically.
+
+In the event that a pull request is submitted with code style violations, continuous integration will fail the pull request build.  
+
+To fix pull requests with code style violations, simply run the project's build locally and allow the automatic formatting happen.  Once the build completes, you will have some local repository files modified to fix the coding style which can be amended on your pull request.  Once the pull request is synchronized with the formatting changes, CI will rerun the build.
+
+To run the build, navigate to the project's root directory and run:
+
+    $ mvn clean install
+
+It might be useful to simply run a _validate_ check against the code instead of automatically applying code style changes.  If you want to simply run validation, navigate to the project's root directory and run:
+
+    $ mvn clean install -Dformat.formatter.goal=validate -Dformat.imports.goal=check     
+
+Please note that when running _validate_ checks, the build will stop as soon as it encounters its first violation.  This means it is necessary to run the build multiple times until no violations are detected.
+
 ### Rebasing
 
 If its been more than a day or so since you created your topic branch, we recommend *rebasing* your topic branch on the latest `master` branch. This requires switching to the `master` branch, pulling the latest changes, switching back to your topic branch, and rebasing:
@@ -169,6 +193,25 @@ If its been more than a day or so since you created your topic branch, we recomm
     $ git rebase master
 
 If your changes are compatible with the latest changes on `master`, this will complete and there's nothing else to do. However, if your changes affect the same files/lines as other changes have since been merged into the `master` branch, then your changes conflict with the other recent changes on `master`, and you will have to resolve them. The git output will actually tell you you need to do (e.g., fix a particular file, stage the file, and then run `git rebase --continue`), but if you have questions consult Git or GitHub documentation or spend some time reading about Git rebase conflicts on the Internet.
+
+### Documentation
+
+When adding new features such as e.g. a connector or configuration options, they must be documented accordingly in the Debezium [reference documentation](https://debezium.io/documentation/).
+The same applies when changing existing behaviors, e.g. type mappings, removing options etc.
+
+The documentation is written using AsciiDoc/Antora and can be found in the Debezium [source code repository](https://github.com/debezium/debezium/tree/master/documentation).
+Any documentation update should be part of the pull request you submit for the code change.
+
+Generally, two versions of documentation are published on the website at a given time:
+
+* The documentation for the current _stable_ release (e.g. 0.9.5.Final at the time of writing)
+* The documentation for the current _development_ release (e.g. 0.10.0.Beta4)
+
+Documentation changes applying to the development release will be published on the website when the release containing the documented features is done.
+In order to apply immediate changes to the documentation without awaiting the next release,
+submit a pull request targeting the [development_docs](https://github.com/debezium/debezium/tree/development_docs/documentation) branch.
+This should only be done for critical fixes such as correcting wrong documentation; minor changes such as typo fixes should simply be done on the `master` branch.
+Upon each release, the `development_docs` branch is rebased to `master`, resulting in the publication of all doc changes done on the `master` branch since the last release.
 
 ### Creating a pull request
 
@@ -224,5 +267,6 @@ Here's a quick check list for a good pull request (PR):
 * One commit per PR
 * One feature/change per PR
 * No changes to code not directly related to your change (e.g. no formatting changes or refactoring to existing code, if you want to refactor/improve existing code that's a separate discussion and separate JIRA issue)
+* New/changed features have been documented
 * A full build completes succesfully
 * Do a rebase on upstream `master`

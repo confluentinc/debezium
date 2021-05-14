@@ -5,6 +5,8 @@
  */
 package io.debezium.connector.mysql;
 
+import static io.debezium.junit.EqualityCheck.LESS_THAN;
+import static io.debezium.junit.EqualityCheck.LESS_THAN_OR_EQUAL;
 import static org.fest.assertions.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -17,6 +19,8 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -26,11 +30,13 @@ import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
+import io.debezium.config.CommonConnectorConfig.EventProcessingFailureHandlingMode;
 import io.debezium.config.Configuration;
 import io.debezium.connector.mysql.AbstractReader.AcceptAllPredicate;
-import io.debezium.connector.mysql.MySqlConnectorConfig.EventProcessingFailureHandlingMode;
+import io.debezium.connector.mysql.MySqlConnectorConfig.SecureConnectionMode;
 import io.debezium.data.Envelope;
 import io.debezium.data.KeyValueStore;
 import io.debezium.data.KeyValueStore.Collection;
@@ -38,6 +44,8 @@ import io.debezium.data.SchemaChangeHistory;
 import io.debezium.data.VerifyRecord;
 import io.debezium.doc.FixFor;
 import io.debezium.jdbc.JdbcConnection;
+import io.debezium.junit.SkipTestRule;
+import io.debezium.junit.SkipWhenDatabaseVersion;
 import io.debezium.time.ZonedTimestamp;
 import io.debezium.util.Testing;
 
@@ -45,17 +53,23 @@ import io.debezium.util.Testing;
  * @author Randall Hauch
  *
  */
+@SkipWhenDatabaseVersion(check = LESS_THAN, major = 5, minor = 6, reason = "DDL uses fractional second data types, not supported until MySQL 5.6")
 public class BinlogReaderIT {
 
     private static final Path DB_HISTORY_PATH = Testing.Files.createTestingPath("file-db-history-binlog.txt").toAbsolutePath();
     private final UniqueDatabase DATABASE = new UniqueDatabase("logical_server_name", "connector_test_ro")
             .withDbHistoryPath(DB_HISTORY_PATH);
 
+    private static final String SET_TLS_PROTOCOLS = "database.enabledTLSProtocols";
+
     private Configuration config;
     private MySqlTaskContext context;
     private BinlogReader reader;
     private KeyValueStore store;
     private SchemaChangeHistory schemaChanges;
+
+    @Rule
+    public SkipTestRule skipRule = new SkipTestRule();
 
     @Before
     public void beforeEach() {
@@ -70,11 +84,13 @@ public class BinlogReaderIT {
         if (reader != null) {
             try {
                 reader.stop();
-            } finally {
+            }
+            finally {
                 if (context != null) {
                     try {
                         context.shutdown();
-                    } finally {
+                    }
+                    finally {
                         context = null;
                         Testing.Files.delete(DB_HISTORY_PATH);
                     }
@@ -108,22 +124,21 @@ public class BinlogReaderIT {
 
     protected long filterAtLeast(final int minNumber, final long timeout, final TimeUnit unit) throws InterruptedException {
         final BinlogReaderMetrics metrics = reader.getMetrics();
-        final long initialFilterCount = metrics.getNumberOfEventsFiltered();
-        final long targetNumber = initialFilterCount + minNumber;
+        final long targetNumber = minNumber;
         long startTime = System.currentTimeMillis();
         while (metrics.getNumberOfEventsFiltered() < targetNumber && (System.currentTimeMillis() - startTime) < unit.toMillis(timeout)) {
             // Ignore the records polled.
             reader.poll();
         }
-        return reader.getMetrics().getNumberOfEventsFiltered() - initialFilterCount;
+        return reader.getMetrics().getNumberOfEventsFiltered();
     }
 
     protected Configuration.Builder simpleConfig() {
         return DATABASE.defaultConfig()
-                            .with(MySqlConnectorConfig.USER, "replicator")
-                            .with(MySqlConnectorConfig.PASSWORD, "replpass")
-                            .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, false)
-                            .with(MySqlConnectorConfig.INCLUDE_SQL_QUERY, false);
+                .with(MySqlConnectorConfig.USER, "replicator")
+                .with(MySqlConnectorConfig.PASSWORD, "replpass")
+                .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, false)
+                .with(MySqlConnectorConfig.INCLUDE_SQL_QUERY, false);
     }
 
     @Test
@@ -205,12 +220,27 @@ public class BinlogReaderIT {
         // Testing.Print.enable();
         int expectedSchemaChangeCount = 5 + 2; // 5 tables plus 2 alters
         int expected = (9 + 9 + 4 + 5 + 1) + expectedSchemaChangeCount; // only the inserts for our 4 tables in this database, plus
-                                                                    // schema changes
+        // schema changes
         int consumed = consumeAtLeast(expected);
         assertThat(consumed).isGreaterThanOrEqualTo(expected);
 
         // There should be no schema changes ...
         assertThat(schemaChanges.recordCount()).isEqualTo(expectedSchemaChangeCount);
+        final List<String> expectedAffectedTables = Arrays.asList(
+                null, // CREATE DATABASE
+                "Products", // CREATE TABLE
+                "Products", // ALTER TABLE
+                "products_on_hand", // CREATE TABLE
+                "customers", // CREATE TABLE
+                "orders", // CREATE TABLE
+                "dbz_342_timetest" // CREATE TABLE
+        );
+        final List<String> affectedTables = new ArrayList<>();
+        schemaChanges.forEach(record -> {
+            affectedTables.add(((Struct) record.value()).getStruct("source").getString("table"));
+            assertThat(((Struct) record.value()).getStruct("source").get("db")).isEqualTo(DATABASE.getDatabaseName());
+        });
+        assertThat(affectedTables).isEqualTo(expectedAffectedTables);
 
         // Check the records via the store ...
         assertThat(store.collectionCount()).isEqualTo(5);
@@ -257,12 +287,52 @@ public class BinlogReaderIT {
      * Verify numberOfFilteredEvents metric is incremented correctly.
      */
     @Test
-    @FixFor( "DBZ-1206" )
+    @FixFor("DBZ-1206")
     public void shouldFilterAllRecordsBasedOnDatabaseWhitelistFilter() throws Exception {
         // Define configuration that will ignore all events from MySQL source.
         config = simpleConfig()
-            .with(MySqlConnectorConfig.DATABASE_WHITELIST, "db-does-not-exist")
-            .build();
+                .with(MySqlConnectorConfig.DATABASE_WHITELIST, "db-does-not-exist")
+                .build();
+
+        final Filters filters = new Filters.Builder(config).build();
+        context = new MySqlTaskContext(config, filters);
+        context.start();
+        context.source().setBinlogStartPoint("", 0L); // start from beginning
+        context.initializeHistory();
+        reader = new BinlogReader("binlog", context, new AcceptAllPredicate());
+
+        // Start reading the binlog ...
+        reader.start();
+
+        // Lets wait for at least 35 events to be filtered.
+        final int expectedFilterCount = 35;
+        final long numberFiltered = filterAtLeast(expectedFilterCount, 20, TimeUnit.SECONDS);
+
+        // All events should have been filtered.
+        assertThat(numberFiltered).isGreaterThanOrEqualTo(expectedFilterCount);
+
+        // There should be no schema changes
+        assertThat(schemaChanges.recordCount()).isEqualTo(0);
+
+        // There should be no records
+        assertThat(store.collectionCount()).isEqualTo(0);
+
+        // There should be no skipped
+        assertThat(reader.getMetrics().getNumberOfSkippedEvents()).isEqualTo(0);
+    }
+
+    /**
+     * Setup a DATABASE_INCLUDE_LIST filter that filters all events.
+     * Verify all events are properly filtered.
+     * Verify numberOfFilteredEvents metric is incremented correctly.
+     */
+    @Test
+    @FixFor("DBZ-1206")
+    public void shouldFilterAllRecordsBasedOnDatabaseIncludeListFilter() throws Exception {
+        // Define configuration that will ignore all events from MySQL source.
+        config = simpleConfig()
+                .with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, "db-does-not-exist")
+                .build();
 
         final Filters filters = new Filters.Builder(config).build();
         context = new MySqlTaskContext(config, filters);
@@ -292,7 +362,7 @@ public class BinlogReaderIT {
     }
 
     @Test
-    @FixFor( "DBZ-183" )
+    @FixFor("DBZ-183")
     public void shouldHandleTimestampTimezones() throws Exception {
         final UniqueDatabase REGRESSION_DATABASE = new UniqueDatabase("logical_server_name", "regression_test")
                 .withDbHistoryPath(DB_HISTORY_PATH);
@@ -300,9 +370,9 @@ public class BinlogReaderIT {
 
         String tableName = "dbz_85_fractest";
         config = simpleConfig().with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, false)
-                               .with(MySqlConnectorConfig.DATABASE_WHITELIST, REGRESSION_DATABASE.getDatabaseName())
-                               .with(MySqlConnectorConfig.TABLE_WHITELIST, REGRESSION_DATABASE.qualifiedTableName(tableName))
-                               .build();
+                .with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, REGRESSION_DATABASE.getDatabaseName())
+                .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, REGRESSION_DATABASE.qualifiedTableName(tableName))
+                .build();
         Filters filters = new Filters.Builder(config).build();
         context = new MySqlTaskContext(config, filters);
         context.start();
@@ -323,9 +393,8 @@ public class BinlogReaderIT {
         // TIMESTAMP should be converted to UTC, using the DB's (or connection's) time zone
         ZonedDateTime expectedTimestamp = ZonedDateTime.of(
                 LocalDateTime.parse("2014-09-08T17:51:04.780"),
-                UniqueDatabase.TIMEZONE
-        )
-        .withZoneSameInstant(ZoneOffset.UTC);
+                UniqueDatabase.TIMEZONE)
+                .withZoneSameInstant(ZoneOffset.UTC);
 
         String expectedTimestampString = expectedTimestamp.format(ZonedTimestamp.FORMATTER);
         SourceRecord sourceRecord = sourceRecords.get(0);
@@ -336,7 +405,7 @@ public class BinlogReaderIT {
     }
 
     @Test
-    @FixFor( "DBZ-342" )
+    @FixFor("DBZ-342")
     public void shouldHandleMySQLTimeCorrectly() throws Exception {
         final UniqueDatabase REGRESSION_DATABASE = new UniqueDatabase("logical_server_name", "regression_test")
                 .withDbHistoryPath(DB_HISTORY_PATH);
@@ -344,9 +413,9 @@ public class BinlogReaderIT {
 
         String tableName = "dbz_342_timetest";
         config = simpleConfig().with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, false)
-                               .with(MySqlConnectorConfig.DATABASE_WHITELIST, REGRESSION_DATABASE.getDatabaseName())
-                               .with(MySqlConnectorConfig.TABLE_WHITELIST, REGRESSION_DATABASE.qualifiedTableName(tableName))
-                               .build();
+                .with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, REGRESSION_DATABASE.getDatabaseName())
+                .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, REGRESSION_DATABASE.qualifiedTableName(tableName))
+                .build();
         Filters filters = new Filters.Builder(config).build();
         context = new MySqlTaskContext(config, filters);
         context.start();
@@ -434,15 +503,63 @@ public class BinlogReaderIT {
 
     @Test
     public void shouldIgnoreOnSchemaInconsistency() throws Exception {
-        inconsistentSchema(EventProcessingFailureHandlingMode.IGNORE);
+        inconsistentSchema(EventProcessingFailureHandlingMode.SKIP);
         int consumed = consumeAtLeast(2, 2, TimeUnit.SECONDS);
         assertThat(consumed).isZero();
+    }
+
+    @Test(expected = ConnectException.class)
+    @FixFor("DBZ-1208")
+    public void shouldFailOnUnknownTlsProtocol() {
+        final UniqueDatabase REGRESSION_DATABASE = new UniqueDatabase("logical_server_name", "regression_test")
+                .withDbHistoryPath(DB_HISTORY_PATH);
+        REGRESSION_DATABASE.createAndInitialize();
+
+        config = simpleConfig()
+                .with(MySqlConnectorConfig.SSL_MODE, SecureConnectionMode.REQUIRED)
+                .with(SET_TLS_PROTOCOLS, "TLSv1.7")
+                .build();
+        Filters filters = new Filters.Builder(config).build();
+        context = new MySqlTaskContext(config, filters);
+        context.start();
+        context.source().setBinlogStartPoint("", 0L); // start from beginning
+        context.initializeHistory();
+        reader = new BinlogReader("binlog", context, null);
+
+        // Start reading the binlog ...
+        reader.start();
+    }
+
+    @Test
+    @FixFor("DBZ-1208")
+    @SkipWhenDatabaseVersion(check = LESS_THAN_OR_EQUAL, major = 5, minor = 6, reason = "MySQL 5.6 does not support SSL")
+    public void shouldAcceptTls12() {
+        final UniqueDatabase REGRESSION_DATABASE = new UniqueDatabase("logical_server_name", "regression_test")
+                .withDbHistoryPath(DB_HISTORY_PATH);
+        REGRESSION_DATABASE.createAndInitialize();
+
+        config = simpleConfig()
+                .with(MySqlConnectorConfig.SSL_MODE, SecureConnectionMode.REQUIRED)
+                .with(SET_TLS_PROTOCOLS, "TLSv1.2")
+                .build();
+        Filters filters = new Filters.Builder(config).build();
+        context = new MySqlTaskContext(config, filters);
+        context.start();
+        context.source().setBinlogStartPoint("", 0L); // start from beginning
+        context.initializeHistory();
+        reader = new BinlogReader("binlog", context, null);
+
+        // Start reading the binlog ...
+        reader.start();
+        String acceptedTlsVersion = context.getConnectionContext().getSessionVariableForSslVersion();
+        assertEquals("TLSv1.2", acceptedTlsVersion);
     }
 
     private void inconsistentSchema(EventProcessingFailureHandlingMode mode) throws InterruptedException, SQLException {
         if (mode == null) {
             config = simpleConfig().build();
-        } else {
+        }
+        else {
             config = simpleConfig()
                     .with(MySqlConnectorConfig.INCONSISTENT_SCHEMA_HANDLING_MODE, mode)
                     .build();

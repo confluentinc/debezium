@@ -53,19 +53,21 @@ public interface MessageDecoder {
     ChainedLogicalStreamBuilder optionsWithoutMetadata(ChainedLogicalStreamBuilder builder);
 
     /**
-     * Allows a message decoder to configure optional options that might or might not be present on the server-side LD
-     * plug-in. So these options will be tried once, and that causes an exception, the connection will be built without
-     * them.
-     *
-     * @param builder the builder to modify
-     * @return the amended builder instance
-     */
-    ChainedLogicalStreamBuilder tryOnceOptions(ChainedLogicalStreamBuilder builder);
-
-    /**
      * Signals to this decoder whether messages contain type metadata or not.
      */
     // TODO DBZ-508 Remove once we only support LD plug-ins always sending the metadata
     default void setContainsMetadata(boolean flag) {
     }
+
+    /**
+     * A callback into the decoder allowing it to decide whether the supplied message should be processed
+     * by the decoder or whether it can be skipped.
+     *
+     * @param buffer the replication stream buffer
+     * @param lastReceivedLsn the last LSN reported by the replication stream
+     * @param startLsn the starting LSN reported by the streaming producer
+     * @param walPosition wal position from which the streaming should resume
+     * @return {@code true} if the incoming message should be skipped, {@code false} otherwise
+     */
+    boolean shouldMessageBeSkipped(ByteBuffer buffer, Lsn lastReceivedLsn, Lsn startLsn, WalPositionLocator walPosition);
 }

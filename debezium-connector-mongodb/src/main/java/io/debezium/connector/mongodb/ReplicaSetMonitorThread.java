@@ -43,14 +43,16 @@ public final class ReplicaSetMonitorThread implements Runnable {
      * @param onChange the function to call when the set of replica set specifications has changed; may be null if not needed
      */
     public ReplicaSetMonitorThread(Supplier<ReplicaSets> monitor, Duration period, Clock clock, Runnable onStartup,
-            Consumer<ReplicaSets> onChange) {
+                                   Consumer<ReplicaSets> onChange) {
         if (clock == null) {
             clock = Clock.system();
         }
         this.monitor = monitor;
         this.metronome = Metronome.sleeper(period, clock);
-        this.onChange = onChange != null ? onChange : (rsSpecs) -> {};
-        this.onStartup = onStartup != null ? onStartup : () -> {};
+        this.onChange = onChange != null ? onChange : (rsSpecs) -> {
+        };
+        this.onStartup = onStartup != null ? onStartup : () -> {
+        };
     }
 
     @Override
@@ -90,7 +92,8 @@ public final class ReplicaSetMonitorThread implements Runnable {
             if (!Thread.currentThread().isInterrupted()) {
                 try {
                     metronome.pause();
-                } catch (InterruptedException e) {
+                }
+                catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
             }
@@ -109,8 +112,9 @@ public final class ReplicaSetMonitorThread implements Runnable {
             if (initialized.await(timeout, unit)) {
                 return replicaSets;
             }
-        } catch (InterruptedException e) {
-            Thread.interrupted(); // but do nothing else
+        }
+        catch (InterruptedException e) {
+            Thread.currentThread().interrupt(); // but do nothing else
         }
         return null;
     }

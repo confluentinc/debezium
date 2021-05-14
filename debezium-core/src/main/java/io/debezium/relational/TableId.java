@@ -6,6 +6,7 @@
 package io.debezium.relational;
 
 import io.debezium.annotation.Immutable;
+import io.debezium.relational.Selectors.TableIdToStringMapper;
 import io.debezium.schema.DataCollectionId;
 
 /**
@@ -60,7 +61,7 @@ public final class TableId implements DataCollectionId, Comparable<TableId> {
             return new TableId(null, null, parts[0]); // table only
         }
         if (numParts == 2) {
-            if (useCatalogBeforeSchema){
+            if (useCatalogBeforeSchema) {
                 return new TableId(parts[0], null, parts[1]); // catalog & table only
             }
             return new TableId(null, parts[0], parts[1]); // schema & table only
@@ -81,13 +82,27 @@ public final class TableId implements DataCollectionId, Comparable<TableId> {
      * @param schemaName the name of the database schema that contains the table; may be null if the JDBC driver does not
      *            show a schema for this table
      * @param tableName the name of the table; may not be null
+     * @param tableIdMapper the customization of fully quailified table name
      */
-    public TableId(String catalogName, String schemaName, String tableName) {
+    public TableId(String catalogName, String schemaName, String tableName, TableIdToStringMapper tableIdMapper) {
         this.catalogName = catalogName;
         this.schemaName = schemaName;
         this.tableName = tableName;
         assert this.tableName != null;
-        this.id = tableId(this.catalogName, this.schemaName, this.tableName);
+        this.id = tableIdMapper == null ? tableId(this.catalogName, this.schemaName, this.tableName) : tableIdMapper.toString(this);
+    }
+
+    /**
+     * Create a new table identifier.
+     *
+     * @param catalogName the name of the database catalog that contains the table; may be null if the JDBC driver does not
+     *            show a schema for this table
+     * @param schemaName the name of the database schema that contains the table; may be null if the JDBC driver does not
+     *            show a schema for this table
+     * @param tableName the name of the table; may not be null
+     */
+    public TableId(String catalogName, String schemaName, String tableName) {
+        this(catalogName, schemaName, tableName, null);
     }
 
     /**
@@ -115,6 +130,11 @@ public final class TableId implements DataCollectionId, Comparable<TableId> {
      */
     public String table() {
         return tableName;
+    }
+
+    @Override
+    public String identifier() {
+        return id;
     }
 
     @Override
@@ -147,7 +167,7 @@ public final class TableId implements DataCollectionId, Comparable<TableId> {
 
     @Override
     public String toString() {
-        return id;
+        return identifier();
     }
 
     /**
@@ -194,28 +214,28 @@ public final class TableId implements DataCollectionId, Comparable<TableId> {
     /**
      * Quotes the given identifier part, e.g. schema or table name.
      */
-   private static String quote(String identifierPart, char quotingChar) {
-       if (identifierPart == null) {
-           return null;
-       }
+    private static String quote(String identifierPart, char quotingChar) {
+        if (identifierPart == null) {
+            return null;
+        }
 
-       if (identifierPart.isEmpty()) {
-           return new StringBuilder().append(quotingChar).append(quotingChar).toString();
-       }
+        if (identifierPart.isEmpty()) {
+            return new StringBuilder().append(quotingChar).append(quotingChar).toString();
+        }
 
-       if (identifierPart.charAt(0) != quotingChar && identifierPart.charAt(identifierPart.length() - 1) != quotingChar) {
-           identifierPart = identifierPart.replace(quotingChar + "", repeat(quotingChar));
-           identifierPart = quotingChar + identifierPart + quotingChar;
-       }
+        if (identifierPart.charAt(0) != quotingChar && identifierPart.charAt(identifierPart.length() - 1) != quotingChar) {
+            identifierPart = identifierPart.replace(quotingChar + "", repeat(quotingChar));
+            identifierPart = quotingChar + identifierPart + quotingChar;
+        }
 
-       return identifierPart;
-   }
+        return identifierPart;
+    }
 
-   private static String repeat(char quotingChar) {
-       return new StringBuilder().append(quotingChar).append(quotingChar).toString();
-   }
+    private static String repeat(char quotingChar) {
+        return new StringBuilder().append(quotingChar).append(quotingChar).toString();
+    }
 
-   public TableId toLowercase() {
-       return new TableId(catalogName, schemaName, tableName.toLowerCase());
-   }
+    public TableId toLowercase() {
+        return new TableId(catalogName, schemaName, tableName.toLowerCase());
+    }
 }

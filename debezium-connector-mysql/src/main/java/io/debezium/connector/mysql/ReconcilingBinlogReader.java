@@ -89,27 +89,27 @@ public class ReconcilingBinlogReader implements Reader {
             determineLeadingReader();
 
             MySqlTaskContext laggingReaderContext = getLaggingReader().context;
-            OffsetLimitPredicate offsetLimitPredicate =
-                new OffsetLimitPredicate(getLeadingReader().getLastOffset(),
-                                         laggingReaderContext.gtidSourceFilter());
+            OffsetLimitPredicate offsetLimitPredicate = new OffsetLimitPredicate(getLeadingReader().getLastOffset(),
+                    laggingReaderContext.gtidSourceFilter());
 
             // create our actual reader
             reconcilingReader = new BinlogReader("innerReconcilingReader",
-                                                 laggingReaderContext,
-                                                 offsetLimitPredicate,
-                                                 serverId);
+                    laggingReaderContext,
+                    offsetLimitPredicate,
+                    serverId);
             reconcilingReader.start();
         }
     }
 
     @Override
     public void stop() {
-        if (running.compareAndSet(true, false)){
+        if (running.compareAndSet(true, false)) {
             try {
                 LOGGER.info("Stopping the {} reader", reconcilingReader.name());
                 reconcilingReader.stop();
                 reconcilingReader.context.shutdown();
-            } catch (Throwable t) {
+            }
+            catch (Throwable t) {
                 LOGGER.error("Unexpected error stopping the {} reader", reconcilingReader.name());
             }
         }
@@ -125,7 +125,7 @@ public class ReconcilingBinlogReader implements Reader {
     }
 
     private void completeSuccessfully() {
-        if (completed.compareAndSet(false, true)){
+        if (completed.compareAndSet(false, true)) {
             stop();
             setupUnifiedReader();
             LOGGER.info("Completed reconciliation of parallel readers.");
@@ -140,14 +140,11 @@ public class ReconcilingBinlogReader implements Reader {
     private void setupUnifiedReader() {
         unifiedReader.context.loadHistory(getLeadingReader().context.source());
         unifiedReader.context.source().setFilterDataFromConfig(unifiedReader.context.config());
-        Map<String, ?> keyedOffset =
-            reconcilingReader.getLastOffset() == null ?
-                getLeadingReader().getLastOffset() :
-                reconcilingReader.getLastOffset();
+        Map<String, ?> keyedOffset = reconcilingReader.getLastOffset() == null ? getLeadingReader().getLastOffset() : reconcilingReader.getLastOffset();
         unifiedReader.context.source().setCompletedGtidSet((String) keyedOffset.get(GTID_SET_KEY));
         unifiedReader.context.source()
-            .setBinlogStartPoint((String) keyedOffset.get(BINLOG_FILENAME_OFFSET_KEY),
-                                 (Long) keyedOffset.get(BINLOG_POSITION_OFFSET_KEY));
+                .setBinlogStartPoint((String) keyedOffset.get(BINLOG_FILENAME_OFFSET_KEY),
+                        (Long) keyedOffset.get(BINLOG_POSITION_OFFSET_KEY));
         // note: this seems to dupe -one- event in my tests.
         // I don't totally understand why that's happening (that is, I don't understand
         // why the lastOffset seems to be before the actual last record) but this seems
@@ -168,32 +165,35 @@ public class ReconcilingBinlogReader implements Reader {
         // in this case, it must the be the lagging reader.
         if (aOffset == null) {
             aReaderLeading = false;
-        } else if (bOffset == null) {
+        }
+        else if (bOffset == null) {
             aReaderLeading = true;
-        } else {
+        }
+        else {
             Document aDocument = SourceInfo.createDocumentFromOffset(aOffset);
             Document bDocument = SourceInfo.createDocumentFromOffset(bOffset);
 
             aReaderLeading = SourceInfo.isPositionAtOrBefore(bDocument,
-                                                             aDocument,
-                                                             binlogReaderA.context.gtidSourceFilter());
+                    aDocument,
+                    binlogReaderA.context.gtidSourceFilter());
         }
 
         if (aReaderLeading) {
             LOGGER.info("old tables leading; reading only from new tables");
-        } else {
+        }
+        else {
             LOGGER.info("new tables leading; reading only from old tables");
         }
     }
 
-    /*package private*/ BinlogReader getLeadingReader() {
+    /* package private */ BinlogReader getLeadingReader() {
         checkLaggingLeadingInfo();
-        return aReaderLeading? binlogReaderA : binlogReaderB;
+        return aReaderLeading ? binlogReaderA : binlogReaderB;
     }
 
-    /*package private*/ BinlogReader getLaggingReader() {
+    /* package private */ BinlogReader getLaggingReader() {
         checkLaggingLeadingInfo();
-        return aReaderLeading? binlogReaderB : binlogReaderA;
+        return aReaderLeading ? binlogReaderB : binlogReaderA;
     }
 
     private void checkLaggingLeadingInfo() {
@@ -206,13 +206,13 @@ public class ReconcilingBinlogReader implements Reader {
     /**
      * A Predicate that returns false for any record beyond a given offset.
      */
-    /*package private*/ static class OffsetLimitPredicate implements HaltingPredicate {
+    /* package private */ static class OffsetLimitPredicate implements HaltingPredicate {
 
         private final Document leadingReaderFinalOffsetDocument;
         private final Predicate<String> gtidFilter;
 
-        /*package private*/ OffsetLimitPredicate(Map<String, ?> leadingReaderFinalOffset,
-                                                 Predicate<String> gtidFilter) {
+        /* package private */ OffsetLimitPredicate(Map<String, ?> leadingReaderFinalOffset,
+                                                   Predicate<String> gtidFilter) {
             this.leadingReaderFinalOffsetDocument = SourceInfo.createDocumentFromOffset(leadingReaderFinalOffset);
             this.gtidFilter = gtidFilter;
 
@@ -223,10 +223,9 @@ public class ReconcilingBinlogReader implements Reader {
             Document offsetDocument = SourceInfo.createDocumentFromOffset(sourceRecord.sourceOffset());
             // .isPositionAtOrBefore is true IFF leadingReaderFinalOffsetDocument <= offsetDocument
             // we should stop (return false) IFF leadingReaderFinalOffsetDocument <= offsetDocument
-            return
-                ! SourceInfo.isPositionAtOrBefore(leadingReaderFinalOffsetDocument,
-                                                  offsetDocument,
-                                                  gtidFilter);
+            return !SourceInfo.isPositionAtOrBefore(leadingReaderFinalOffsetDocument,
+                    offsetDocument,
+                    gtidFilter);
         }
     }
 }

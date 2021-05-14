@@ -35,7 +35,7 @@ import io.debezium.util.SchemaNameAdjuster;
 /**
  * Component that records the schema information for the {@link PostgresConnector}. The schema information contains
  * the {@link Tables table definitions} and the Kafka Connect {@link #schemaFor(TableId) Schema}s for each table, where the
- * {@link Schema} excludes any columns that have been {@link PostgresConnectorConfig#COLUMN_BLACKLIST specified} in the
+ * {@link Schema} excludes any columns that have been {@link PostgresConnectorConfig#COLUMN_EXCLUDE_LIST specified} in the
  * configuration.
  *
  * @author Horia Chiorean
@@ -46,11 +46,10 @@ public class PostgresSchema extends RelationalDatabaseSchema {
     protected final static String PUBLIC_SCHEMA_NAME = "public";
     private final static Logger LOGGER = LoggerFactory.getLogger(PostgresSchema.class);
 
-    private final Filters filters;
-
     private final TypeRegistry typeRegistry;
 
     private final Map<TableId, List<String>> tableIdToToastableColumns;
+    private final Map<Integer, TableId> relationIdToTableId;
     private final boolean readToastableColumns;
 
     /**
@@ -59,21 +58,33 @@ public class PostgresSchema extends RelationalDatabaseSchema {
      * @param config the connector configuration, which is presumed to be valid
      */
     protected PostgresSchema(PostgresConnectorConfig config, TypeRegistry typeRegistry, Charset databaseCharset,
-            TopicSelector<TableId> topicSelector) {
+                             TopicSelector<TableId> topicSelector) {
         super(config, topicSelector, new Filters(config).tableFilter(),
-                new Filters(config).columnFilter(), getTableSchemaBuilder(config, typeRegistry, databaseCharset), false);
+                new Filters(config).columnFilter(), getTableSchemaBuilder(config, typeRegistry, databaseCharset), false,
+                config.getKeyMapper());
 
-        this.filters = new Filters(config);
         this.typeRegistry = typeRegistry;
         this.tableIdToToastableColumns = new HashMap<>();
+        this.relationIdToTableId = new HashMap<>();
         this.readToastableColumns = config.skipRefreshSchemaOnMissingToastableData();
     }
 
     private static TableSchemaBuilder getTableSchemaBuilder(PostgresConnectorConfig config, TypeRegistry typeRegistry, Charset databaseCharset) {
-        PostgresValueConverter valueConverter = new PostgresValueConverter(databaseCharset, config.getDecimalMode(), config.temporalPrecisionMode(),
-                ZoneOffset.UTC, null, config.includeUnknownDatatypes(), typeRegistry, config.hStoreHandlingMode());
+        PostgresValueConverter valueConverter = new PostgresValueConverter(
+                databaseCharset,
+                config.getDecimalMode(),
+                config.getTemporalPrecisionMode(),
+                ZoneOffset.UTC,
+                null,
+                config.includeUnknownDatatypes(),
+                typeRegistry,
+                config.hStoreHandlingMode(),
+                config.binaryHandlingMode(),
+                config.intervalHandlingMode(),
+                config.toastedValuePlaceholder());
 
-        return new TableSchemaBuilder(valueConverter, SchemaNameAdjuster.create(LOGGER), SourceInfo.SCHEMA);
+        return new TableSchemaBuilder(valueConverter, SchemaNameAdjuster.create(LOGGER), config.customConverterRegistry(), config.getSourceInfoStructMaker().schema(),
+                config.getSanitizeFieldNames());
     }
 
     /**
@@ -86,7 +97,7 @@ public class PostgresSchema extends RelationalDatabaseSchema {
      */
     protected PostgresSchema refresh(PostgresConnection connection, boolean printReplicaIdentityInfo) throws SQLException {
         // read all the information from the DB
-        connection.readSchema(tables(), null, null, filters.tableFilter(), null, true);
+        connection.readSchema(tables(), null, null, getTableFilter(), null, true);
         if (printReplicaIdentityInfo) {
             // print out all the replica identity info
             tableIds().forEach(tableId -> printReplicaIdentityInfo(connection, tableId));
@@ -103,7 +114,8 @@ public class PostgresSchema extends RelationalDatabaseSchema {
         try {
             ServerInfo.ReplicaIdentity replicaIdentity = connection.readReplicaIdentityInfo(tableId);
             LOGGER.info("REPLICA IDENTITY for '{}' is '{}'; {}", tableId, replicaIdentity, replicaIdentity.description());
-        } catch (SQLException e) {
+        }
+        catch (SQLException e) {
             LOGGER.warn("Cannot determine REPLICA IDENTITY info for '{}'", tableId);
         }
     }
@@ -149,7 +161,7 @@ public class PostgresSchema extends RelationalDatabaseSchema {
     }
 
     protected boolean isFilteredOut(TableId id) {
-        return !filters.tableFilter().isIncluded(id);
+        return !getTableFilter().isIncluded(id);
     }
 
     /**
@@ -211,6 +223,9 @@ public class PostgresSchema extends RelationalDatabaseSchema {
                     toastableColumns.add(rs.getString(1));
                 }
             });
+            if (!connection.connection().getAutoCommit()) {
+                connection.connection().commit();
+            }
         }
         catch (SQLException e) {
             throw new ConnectException("Unable to refresh toastable columns mapping", e);
@@ -233,5 +248,49 @@ public class PostgresSchema extends RelationalDatabaseSchema {
 
     public List<String> getToastableColumnsForTableId(TableId tableId) {
         return tableIdToToastableColumns.getOrDefault(tableId, Collections.emptyList());
+    }
+
+    /**
+     * Applies schema changes for the specified table.
+     *
+     * @param relationId the postgres relation unique identifier for the table
+     * @param table externally constructed table, typically from the decoder; must not be null
+     */
+    public void applySchemaChangesForTable(int relationId, Table table) {
+        assert table != null;
+
+        if (isFilteredOut(table.id())) {
+            LOGGER.trace("Skipping schema refresh for table '{}' with relation '{}' as table is filtered", table.id(), relationId);
+            return;
+        }
+
+        relationIdToTableId.put(relationId, table.id());
+        refresh(table);
+    }
+
+    /**
+     * Resolve a {@link Table} based on a supplied table relation unique identifier.
+     * <p>
+     * This implementation relies on a prior call to {@link #applySchemaChangesForTable(int, Table)} to have
+     * applied schema changes from a replication stream with the {@code relationId} for the relationship to exist
+     * and be capable of lookup.
+     *
+     * @param relationId the unique table relation identifier
+     * @return the resolved table or null
+     */
+    public Table tableFor(int relationId) {
+        TableId tableId = relationIdToTableId.get(relationId);
+        if (tableId == null) {
+            LOGGER.debug("Relation '{}' is unknown, cannot resolve to table", relationId);
+            return null;
+        }
+        LOGGER.debug("Relation '{}' resolved to table '{}'", relationId, tableId);
+        return tableFor(tableId);
+    }
+
+    @Override
+    public boolean tableInformationComplete() {
+        // PostgreSQL does not support HistorizedDatabaseSchema - so no tables are recovered
+        return false;
     }
 }

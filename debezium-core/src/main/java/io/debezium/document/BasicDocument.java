@@ -18,7 +18,7 @@ import io.debezium.util.MathOps;
 
 /**
  * Package-level implementation of {@link Document}.
- * 
+ *
  * @author Randall Hauch
  */
 @NotThreadSafe
@@ -101,9 +101,10 @@ final class BasicDocument implements Document {
                 return 1;
             }
             if (thatIter.hasNext()) {
-                return - 1;
+                return -1;
             }
-        } else {
+        }
+        else {
             // We don't care about order, so just go through by this Document's fields ...
             for (Map.Entry<CharSequence, Value> entry : fields.entrySet()) {
                 CharSequence key = entry.getKey();
@@ -122,7 +123,7 @@ final class BasicDocument implements Document {
     /**
      * Semantically compare two values. This includes comparing numeric values of different types (e.g., an integer and long),
      * and {@code null} and {@link Value#nullValue()} references.
-     * 
+     *
      * @param value1 the first value; may be null
      * @param value2 the second value; may be null
      * @return a negative integer, zero, or a positive integer as this object
@@ -138,14 +139,14 @@ final class BasicDocument implements Document {
     /**
      * Semantically compare two non-null values. This includes comparing numeric values of different types
      * (e.g., an integer and long), but excludes {@code null} and {@link Value#nullValue()} references.
-     * 
+     *
      * @param value1 the first value; may be null
      * @param value2 the second value; may be null
      * @return a negative integer, zero, or a positive integer as this object
      *         is less than, equal to, or greater than the specified object.
      */
     protected int compareNonNull(Value value1, Value value2) {
-        if (Value.isNull(value1) || Value.isNull(value2)){
+        if (Value.isNull(value1) || Value.isNull(value2)) {
             return 0;
         }
         return value1.comparable().compareTo(value2.comparable());
@@ -231,7 +232,8 @@ final class BasicDocument implements Document {
                 Value updated = Value.create(MathOps.add(current, increment.asNumber()));
                 setValue(name, Value.create(updated));
             }
-        } else {
+        }
+        else {
             setValue(name, increment);
         }
         return this;
@@ -264,7 +266,8 @@ final class BasicDocument implements Document {
     public String toString() {
         try {
             return DocumentWriter.prettyWriter().write(this);
-        } catch (IOException e) {
+        }
+        catch (IOException e) {
             throw new RuntimeException(e);
         }
     }

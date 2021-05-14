@@ -5,12 +5,13 @@
  */
 package io.debezium.connector.postgresql;
 
-import io.debezium.connector.postgresql.spi.Snapshotter;
-import io.debezium.connector.postgresql.spi.OffsetState;
-import io.debezium.connector.postgresql.spi.SlotState;
-import io.debezium.relational.TableId;
-
 import java.util.Optional;
+
+import io.debezium.connector.postgresql.spi.OffsetState;
+import io.debezium.connector.postgresql.spi.SlotCreationResult;
+import io.debezium.connector.postgresql.spi.SlotState;
+import io.debezium.connector.postgresql.spi.Snapshotter;
+import io.debezium.relational.TableId;
 
 /**
  * This is a small class used in PostgresConnectorIT to test a custom snapshot
@@ -19,7 +20,9 @@ import java.util.Optional;
  * to allow for class loading to work
  */
 public class CustomTestSnapshot implements Snapshotter {
+
     private boolean hasState;
+
     @Override
     public void init(PostgresConnectorConfig config, OffsetState sourceInfo, SlotState slotState) {
         hasState = (sourceInfo != null);
@@ -36,6 +39,11 @@ public class CustomTestSnapshot implements Snapshotter {
     }
 
     @Override
+    public boolean exportSnapshot() {
+        return true;
+    }
+
+    @Override
     public Optional<String> buildSnapshotQuery(TableId tableId) {
         // on an empty state, don't read from s2 schema, but afterwards, do
         if (!hasState && tableId.schema().equals("s2")) {
@@ -43,6 +51,17 @@ public class CustomTestSnapshot implements Snapshotter {
         }
         else {
             return Optional.of("select * from " + tableId.toDoubleQuotedString());
+        }
+    }
+
+    @Override
+    public String snapshotTransactionIsolationLevelStatement(SlotCreationResult newSlotInfo) {
+        if (newSlotInfo != null) {
+            String snapSet = String.format("SET TRANSACTION SNAPSHOT '%s';", newSlotInfo.snapshotName());
+            return "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ; \n" + snapSet;
+        }
+        else {
+            return "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE, READ ONLY, DEFERRABLE;";
         }
     }
 }

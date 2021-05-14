@@ -1,0 +1,29 @@
+[id="debezium-logging"]
+= {prodname} logging
+
+:linkattrs:
+:icons: font
+:source-highlighter: highlight.js
+:toc:
+:toc-placement: macro
+
+toc::[]
+
+{prodname} has extensive logging built into its connectors,
+and you can change the logging configuration to control which of these log statements appear in the logs
+and where those logs are sent.
+{prodname} (as well as Kafka, Kafka Connect, and Zookeeper) use the https://logging.apache.org/log4j/1.2/[Log4j] logging framework for Java.
+
+By default, the connectors produce a fair amount of useful information when they start up,
+but then produce very few logs when the connector is keeping up with the source databases.
+This is often sufficient when the connector is operating normally,
+but may not be enough when the connector is behaving unexpectedly.
+In such cases, you can change the logging level so that the connector generates much more verbose log messages describing what the connector is doing and what it is not doing.
+
+include::{partialsdir}/modules/logging/con-logging-concepts.adoc[leveloffset=+1]
+
+include::{partialsdir}/modules/logging/con-understanding-default-logging-configuration.adoc[leveloffset=+1]
+
+include::{partialsdir}/assemblies/logging/assembly-configuring-logging.adoc[leveloffset=+1]
+
+include::{partialsdir}/modules/logging/proc-configuring-log-level-docker.adoc[leveloffset=+1]

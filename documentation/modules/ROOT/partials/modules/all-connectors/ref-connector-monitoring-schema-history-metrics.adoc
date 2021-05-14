@@ -1,0 +1,37 @@
+[cols="45%a,25%a,30%a",options="header"]
+|===
+|Attributes |Type |Description
+
+|[[connectors-shist-metric-status]]<<connectors-shist-metric-status, `Status`>>
+|`string`
+|One of `STOPPED`, `RECOVERING` (recovering history from the storage), `RUNNING` describing the state of the database history.
+
+|[[connectors-shist-metric-recoverystarttime]]<<connectors-shist-metric-recoverystarttime, `RecoveryStartTime`>>
+|`long`
+|The time in epoch seconds at what recovery has started.
+
+|[[connectors-shist-metric-changesrecovered]]<<connectors-shist-metric-changesrecovered, `ChangesRecovered`>>
+|`long`
+|The number of changes that were read during recovery phase.
+
+|[[connectors-shist-metric-changesapplied]]<<connectors-shist-metric-changesapplied, `ChangesApplied`>>
+|`long`
+|the total number of schema changes applied during recovery and runtime.
+
+|[[connectors-shist-metric-millisecondssincelastrecoveredchange]]<<connectors-shist-metric-millisecondssincelastrecoveredchange, `MilliSecondsSinceLast{zwsp}RecoveredChange`>>
+|`long`
+|The number of milliseconds that elapsed since the last change was recovered from the history store.
+
+|[[connectors-shist-metric-millisecondssincelastappliedchange]]<<connectors-shist-metric-millisecondssincelastappliedchange, `MilliSecondsSinceLast{zwsp}AppliedChange`>>
+|`long`
+|The number of milliseconds that elapsed since the last change was applied.
+
+|[[connectors-shist-metric-lastrecoveredchange]]<<connectors-shist-metric-lastrecoveredchange, `LastRecoveredChange`>>
+|`string`
+|The string representation of the last change recovered from the history store.
+
+|[[connectors-shist-metric-lastappliedchange]]<<connectors-shist-metric-lastappliedchange, `LastAppliedChange`>>
+|`string`
+|The string representation of the last applied change.
+
+|===

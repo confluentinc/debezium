@@ -5,6 +5,7 @@
  */
 package io.debezium.connector.mysql;
 
+import static io.debezium.junit.EqualityCheck.LESS_THAN;
 import static org.fest.assertions.Assertions.assertThat;
 
 import java.nio.file.Path;
@@ -20,17 +21,18 @@ import org.junit.Before;
 import org.junit.Test;
 
 import io.debezium.config.Configuration;
-import io.debezium.connector.mysql.MySQLConnection.MySqlVersion;
 import io.debezium.connector.mysql.MySqlConnectorConfig.SecureConnectionMode;
 import io.debezium.doc.FixFor;
 import io.debezium.embedded.AbstractConnectorTest;
 import io.debezium.jdbc.JdbcConnection;
+import io.debezium.junit.SkipWhenDatabaseVersion;
 import io.debezium.relational.history.FileDatabaseHistory;
 import io.debezium.util.Testing;
 
 /**
  * @author Jiri Pechanec, Randall Hauch
  */
+@SkipWhenDatabaseVersion(check = LESS_THAN, major = 5, minor = 6, reason = "DDL uses fractional second data types, not supported until MySQL 5.6")
 public class BinlogReaderBufferIT extends AbstractConnectorTest {
 
     private static final Path DB_HISTORY_PATH = Testing.Files.createTestingPath("file-db-history-connect.txt").toAbsolutePath();
@@ -54,7 +56,8 @@ public class BinlogReaderBufferIT extends AbstractConnectorTest {
     public void afterEach() {
         try {
             stopConnector();
-        } finally {
+        }
+        finally {
             Testing.Files.delete(DB_HISTORY_PATH);
         }
     }
@@ -72,20 +75,20 @@ public class BinlogReaderBufferIT extends AbstractConnectorTest {
         // Use the DB configuration to define the connector's configuration to use the "replica"
         // which may be the same as the "master" ...
         config = Configuration.create()
-                              .with(MySqlConnectorConfig.HOSTNAME, System.getProperty("database.replica.hostname", "localhost"))
-                              .with(MySqlConnectorConfig.PORT, System.getProperty("database.replica.port", "3306"))
-                              .with(MySqlConnectorConfig.USER, "snapper")
-                              .with(MySqlConnectorConfig.PASSWORD, "snapperpass")
-                              .with(MySqlConnectorConfig.SERVER_ID, 18765)
-                              .with(MySqlConnectorConfig.SERVER_NAME, DATABASE.getServerName())
-                              .with(MySqlConnectorConfig.SSL_MODE, SecureConnectionMode.DISABLED)
-                              .with(MySqlConnectorConfig.POLL_INTERVAL_MS, 10)
-                              .with(MySqlConnectorConfig.DATABASE_WHITELIST, DATABASE.getDatabaseName())
-                              .with(MySqlConnectorConfig.DATABASE_HISTORY, FileDatabaseHistory.class)
-                              .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
-                              .with(MySqlConnectorConfig.BUFFER_SIZE_FOR_BINLOG_READER, 10_000)
-                              .with(FileDatabaseHistory.FILE_PATH, DB_HISTORY_PATH)
-                              .build();
+                .with(MySqlConnectorConfig.HOSTNAME, System.getProperty("database.replica.hostname", "localhost"))
+                .with(MySqlConnectorConfig.PORT, System.getProperty("database.replica.port", "3306"))
+                .with(MySqlConnectorConfig.USER, "snapper")
+                .with(MySqlConnectorConfig.PASSWORD, "snapperpass")
+                .with(MySqlConnectorConfig.SERVER_ID, 18765)
+                .with(MySqlConnectorConfig.SERVER_NAME, DATABASE.getServerName())
+                .with(MySqlConnectorConfig.SSL_MODE, SecureConnectionMode.DISABLED)
+                .with(MySqlConnectorConfig.POLL_INTERVAL_MS, 10)
+                .with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, DATABASE.getDatabaseName())
+                .with(MySqlConnectorConfig.DATABASE_HISTORY, FileDatabaseHistory.class)
+                .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
+                .with(MySqlConnectorConfig.BUFFER_SIZE_FOR_BINLOG_READER, 10_000)
+                .with(FileDatabaseHistory.FILE_PATH, DB_HISTORY_PATH)
+                .build();
 
         // Start the connector ...
         start(MySqlConnector.class, config);
@@ -141,19 +144,19 @@ public class BinlogReaderBufferIT extends AbstractConnectorTest {
         // Use the DB configuration to define the connector's configuration to use the "replica"
         // which may be the same as the "master" ...
         config = Configuration.create()
-                              .with(MySqlConnectorConfig.HOSTNAME, System.getProperty("database.replica.hostname", "localhost"))
-                              .with(MySqlConnectorConfig.PORT, System.getProperty("database.replica.port", "3306"))
-                              .with(MySqlConnectorConfig.USER, "snapper")
-                              .with(MySqlConnectorConfig.PASSWORD, "snapperpass")
-                              .with(MySqlConnectorConfig.SERVER_ID, 18765)
-                              .with(MySqlConnectorConfig.SERVER_NAME, DATABASE.getServerName())
-                              .with(MySqlConnectorConfig.SSL_MODE, SecureConnectionMode.DISABLED)
-                              .with(MySqlConnectorConfig.POLL_INTERVAL_MS, 10)
-                              .with(MySqlConnectorConfig.DATABASE_WHITELIST, DATABASE.getDatabaseName())
-                              .with(MySqlConnectorConfig.DATABASE_HISTORY, FileDatabaseHistory.class)
-                              .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
-                              .with(FileDatabaseHistory.FILE_PATH, DB_HISTORY_PATH)
-                              .build();
+                .with(MySqlConnectorConfig.HOSTNAME, System.getProperty("database.replica.hostname", "localhost"))
+                .with(MySqlConnectorConfig.PORT, System.getProperty("database.replica.port", "3306"))
+                .with(MySqlConnectorConfig.USER, "snapper")
+                .with(MySqlConnectorConfig.PASSWORD, "snapperpass")
+                .with(MySqlConnectorConfig.SERVER_ID, 18765)
+                .with(MySqlConnectorConfig.SERVER_NAME, DATABASE.getServerName())
+                .with(MySqlConnectorConfig.SSL_MODE, SecureConnectionMode.DISABLED)
+                .with(MySqlConnectorConfig.POLL_INTERVAL_MS, 10)
+                .with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, DATABASE.getDatabaseName())
+                .with(MySqlConnectorConfig.DATABASE_HISTORY, FileDatabaseHistory.class)
+                .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
+                .with(FileDatabaseHistory.FILE_PATH, DB_HISTORY_PATH)
+                .build();
 
         // Start the connector ...
         start(MySqlConnector.class, config);
@@ -182,11 +185,11 @@ public class BinlogReaderBufferIT extends AbstractConnectorTest {
             }
         }
 
-        // 2 INSERTS + SAVEPOINT
-        records = consumeRecordsByTopic(2 + 1);
-        assertThat(records.topics().size()).isEqualTo(1 + 1);
+        // 2 INSERTS, SAVEPOINT is filtered
+        records = consumeRecordsByTopic(2);
+        assertThat(records.topics().size()).isEqualTo(1);
         assertThat(records.recordsForTopic(DATABASE.topicForTable("customers"))).hasSize(2);
-        assertThat(records.allRecordsInOrder()).hasSize(3);
+        assertThat(records.allRecordsInOrder()).hasSize(2);
         Testing.print("*** Done with savepoint TX");
     }
 
@@ -203,20 +206,20 @@ public class BinlogReaderBufferIT extends AbstractConnectorTest {
         // Use the DB configuration to define the connector's configuration to use the "replica"
         // which may be the same as the "master" ...
         config = Configuration.create()
-                              .with(MySqlConnectorConfig.HOSTNAME, System.getProperty("database.replica.hostname", "localhost"))
-                              .with(MySqlConnectorConfig.PORT, System.getProperty("database.replica.port", "3306"))
-                              .with(MySqlConnectorConfig.USER, "snapper")
-                              .with(MySqlConnectorConfig.PASSWORD, "snapperpass")
-                              .with(MySqlConnectorConfig.SERVER_ID, 18765)
-                              .with(MySqlConnectorConfig.SERVER_NAME, DATABASE.getServerName())
-                              .with(MySqlConnectorConfig.SSL_MODE, SecureConnectionMode.DISABLED)
-                              .with(MySqlConnectorConfig.POLL_INTERVAL_MS, 10)
-                              .with(MySqlConnectorConfig.DATABASE_WHITELIST, DATABASE.getDatabaseName())
-                              .with(MySqlConnectorConfig.DATABASE_HISTORY, FileDatabaseHistory.class)
-                              .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
-                              .with(MySqlConnectorConfig.BUFFER_SIZE_FOR_BINLOG_READER, 9)
-                              .with(FileDatabaseHistory.FILE_PATH, DB_HISTORY_PATH)
-                              .build();
+                .with(MySqlConnectorConfig.HOSTNAME, System.getProperty("database.replica.hostname", "localhost"))
+                .with(MySqlConnectorConfig.PORT, System.getProperty("database.replica.port", "3306"))
+                .with(MySqlConnectorConfig.USER, "snapper")
+                .with(MySqlConnectorConfig.PASSWORD, "snapperpass")
+                .with(MySqlConnectorConfig.SERVER_ID, 18765)
+                .with(MySqlConnectorConfig.SERVER_NAME, DATABASE.getServerName())
+                .with(MySqlConnectorConfig.SSL_MODE, SecureConnectionMode.DISABLED)
+                .with(MySqlConnectorConfig.POLL_INTERVAL_MS, 10)
+                .with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, DATABASE.getDatabaseName())
+                .with(MySqlConnectorConfig.DATABASE_HISTORY, FileDatabaseHistory.class)
+                .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
+                .with(MySqlConnectorConfig.BUFFER_SIZE_FOR_BINLOG_READER, 9)
+                .with(FileDatabaseHistory.FILE_PATH, DB_HISTORY_PATH)
+                .build();
 
         // Start the connector ...
         start(MySqlConnector.class, config);
@@ -236,8 +239,7 @@ public class BinlogReaderBufferIT extends AbstractConnectorTest {
                 final Statement statement = jdbc.createStatement();
                 for (int i = 0; i < numRecords; i++) {
                     statement.executeUpdate(String.format(
-                            "INSERT INTO customers\n" + "VALUES (default,\"%s\",\"%s\",\"%s\")", i, i, i)
-                    );
+                            "INSERT INTO customers\n" + "VALUES (default,\"%s\",\"%s\",\"%s\")", i, i, i));
                 }
                 jdbc.commit();
                 connection.query("SELECT * FROM customers", rs -> {
@@ -251,7 +253,7 @@ public class BinlogReaderBufferIT extends AbstractConnectorTest {
             // All records should be present only once
             records = consumeRecordsByTopic(numRecords);
             int recordIndex = 0;
-            for (SourceRecord r: records.allRecordsInOrder()) {
+            for (SourceRecord r : records.allRecordsInOrder()) {
                 Struct envelope = (Struct) r.value();
                 assertThat(envelope.getString("op")).isEqualTo(("c"));
                 assertThat(envelope.getStruct("after").getString("email")).isEqualTo(Integer.toString(recordIndex++));
@@ -276,19 +278,19 @@ public class BinlogReaderBufferIT extends AbstractConnectorTest {
         // Use the DB configuration to define the connector's configuration to use the "replica"
         // which may be the same as the "master" ...
         config = Configuration.create()
-                              .with(MySqlConnectorConfig.HOSTNAME, System.getProperty("database.replica.hostname", "localhost"))
-                              .with(MySqlConnectorConfig.PORT, System.getProperty("database.replica.port", "3306"))
-                              .with(MySqlConnectorConfig.USER, "snapper")
-                              .with(MySqlConnectorConfig.PASSWORD, "snapperpass")
-                              .with(MySqlConnectorConfig.SERVER_ID, 18765)
-                              .with(MySqlConnectorConfig.SERVER_NAME, DATABASE.getServerName())
-                              .with(MySqlConnectorConfig.SSL_MODE, SecureConnectionMode.DISABLED)
-                              .with(MySqlConnectorConfig.POLL_INTERVAL_MS, 10)
-                              .with(MySqlConnectorConfig.DATABASE_WHITELIST, DATABASE.getDatabaseName())
-                              .with(MySqlConnectorConfig.DATABASE_HISTORY, FileDatabaseHistory.class)
-                              .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
-                              .with(FileDatabaseHistory.FILE_PATH, DB_HISTORY_PATH)
-                              .build();
+                .with(MySqlConnectorConfig.HOSTNAME, System.getProperty("database.replica.hostname", "localhost"))
+                .with(MySqlConnectorConfig.PORT, System.getProperty("database.replica.port", "3306"))
+                .with(MySqlConnectorConfig.USER, "snapper")
+                .with(MySqlConnectorConfig.PASSWORD, "snapperpass")
+                .with(MySqlConnectorConfig.SERVER_ID, 18765)
+                .with(MySqlConnectorConfig.SERVER_NAME, DATABASE.getServerName())
+                .with(MySqlConnectorConfig.SSL_MODE, SecureConnectionMode.DISABLED)
+                .with(MySqlConnectorConfig.POLL_INTERVAL_MS, 10)
+                .with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, DATABASE.getDatabaseName())
+                .with(MySqlConnectorConfig.DATABASE_HISTORY, FileDatabaseHistory.class)
+                .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
+                .with(FileDatabaseHistory.FILE_PATH, DB_HISTORY_PATH)
+                .build();
 
         // Start the connector ...
         start(MySqlConnector.class, config);
@@ -327,20 +329,23 @@ public class BinlogReaderBufferIT extends AbstractConnectorTest {
             // Bug DBZ-533
             int recordCount;
             int customerEventsCount;
-            if (MySQLConnection.forTestDatabase("emptydb").getMySqlVersion() == MySqlVersion.MYSQL_5) {
+            int topicCount;
+            if (MySQLConnection.isMySQL5() && !MySQLConnection.isPerconaServer()) {
                 // MySQL 5 contains events when the TX was effectively rolled-back
-                // INSERT + SAVEPOINT + INSERT + ROLLBACK
-                recordCount = 4;
+                // INSERT + INSERT + ROLLBACK, SAVEPOINT filtered
+                recordCount = 3;
                 customerEventsCount = 2;
+                topicCount = 2;
             }
             else {
                 // MySQL 8 does not propagate rolled back changes
-                // INSERT + SAVEPOINT
-                recordCount = 2;
+                // INSERT, SAVEPOINT filtered
+                recordCount = 1;
                 customerEventsCount = 1;
+                topicCount = 1;
             }
             records = consumeRecordsByTopic(recordCount);
-            assertThat(records.topics().size()).isEqualTo(1 + 1);
+            assertThat(records.topics().size()).isEqualTo(topicCount);
             assertThat(records.recordsForTopic(DATABASE.topicForTable("customers"))).hasSize(customerEventsCount);
             assertThat(records.allRecordsInOrder()).hasSize(recordCount);
             Testing.print("*** Done with savepoint TX");

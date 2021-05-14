@@ -7,10 +7,8 @@ package io.debezium.connector.mongodb;
 
 import java.util.Collections;
 
-import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.connector.common.CdcSourceTaskContext;
-import io.debezium.heartbeat.Heartbeat;
 import io.debezium.schema.TopicSelector;
 
 /**
@@ -21,7 +19,6 @@ public class MongoDbTaskContext extends CdcSourceTaskContext {
     private final Filters filters;
     private final SourceInfo source;
     private final TopicSelector<CollectionId> topicSelector;
-    private final boolean emitTombstoneOnDelete;
     private final String serverName;
     private final ConnectionContext connectionContext;
     private final MongoDbConnectorConfig connectorConfig;
@@ -30,16 +27,15 @@ public class MongoDbTaskContext extends CdcSourceTaskContext {
      * @param config the configuration
      */
     public MongoDbTaskContext(Configuration config) {
-        super("MongoDB", config.getString(MongoDbConnectorConfig.LOGICAL_NAME), Collections::emptySet);
+        super(Module.contextName(), config.getString(MongoDbConnectorConfig.LOGICAL_NAME), Collections::emptySet);
 
         final String serverName = config.getString(MongoDbConnectorConfig.LOGICAL_NAME);
         this.filters = new Filters(config);
-        this.source = new SourceInfo(serverName);
-        this.topicSelector = MongoDbTopicSelector.defaultSelector(serverName, config.getString(Heartbeat.HEARTBEAT_TOPICS_PREFIX));
-        this.emitTombstoneOnDelete = config.getBoolean(CommonConnectorConfig.TOMBSTONES_ON_DELETE);
+        this.connectorConfig = new MongoDbConnectorConfig(config);
+        this.source = new SourceInfo(connectorConfig);
+        this.topicSelector = MongoDbTopicSelector.defaultSelector(serverName, connectorConfig.getHeartbeatTopicsPrefix());
         this.serverName = config.getString(MongoDbConnectorConfig.LOGICAL_NAME);
         this.connectionContext = new ConnectionContext(config);
-        this.connectorConfig = new MongoDbConnectorConfig(config);
     }
 
     public TopicSelector<CollectionId> topicSelector() {
@@ -52,10 +48,6 @@ public class MongoDbTaskContext extends CdcSourceTaskContext {
 
     public SourceInfo source() {
         return source;
-    }
-
-    public boolean isEmitTombstoneOnDelete() {
-        return emitTombstoneOnDelete;
     }
 
     public String serverName() {

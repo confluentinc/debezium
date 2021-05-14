@@ -5,6 +5,8 @@
  */
 package io.debezium.connector.sqlserver;
 
+import io.debezium.connector.Nullable;
+
 /**
  * Defines a position of change in the transaction log. The position is defined as a combination of commit LSN
  * and sequence number of the change in the given transaction.
@@ -48,7 +50,7 @@ public class TxLogPosition implements Nullable, Comparable<TxLogPosition> {
     }
 
     @Override
-    public boolean equals(Object obj){
+    public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
@@ -65,8 +67,8 @@ public class TxLogPosition implements Nullable, Comparable<TxLogPosition> {
             }
         }
         else if (!commitLsn.equals(other.commitLsn)) {
-                return false;
-    }
+            return false;
+        }
         if (inTxLsn == null) {
             if (other.inTxLsn != null) {
                 return false;
@@ -88,8 +90,7 @@ public class TxLogPosition implements Nullable, Comparable<TxLogPosition> {
         return commitLsn == null && inTxLsn == null ? NULL
                 : new TxLogPosition(
                         commitLsn == null ? Lsn.NULL : commitLsn,
-                        inTxLsn == null ? Lsn.NULL : inTxLsn
-        );
+                        inTxLsn == null ? Lsn.NULL : inTxLsn);
     }
 
     public static TxLogPosition valueOf(Lsn commitLsn) {

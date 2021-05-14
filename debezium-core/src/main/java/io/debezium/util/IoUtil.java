@@ -52,7 +52,7 @@ public class IoUtil {
     /**
      * Read and return the entire contents of the supplied {@link InputStream stream}. This method always closes the stream when
      * finished reading.
-     * 
+     *
      * @param stream the stream to the contents; may be null
      * @return the contents, or an empty byte array if the supplied reader is null
      * @throws IOException if there is an error reading the content
@@ -74,7 +74,7 @@ public class IoUtil {
 
     /**
      * Read and return the entire contents of the supplied {@link File file}.
-     * 
+     *
      * @param file the file containing the contents; may be null
      * @return the contents, or an empty byte array if the supplied file is null
      * @throws IOException if there is an error reading the content
@@ -90,7 +90,7 @@ public class IoUtil {
 
     /**
      * Read the lines from the content of the resource file at the given path on the classpath.
-     * 
+     *
      * @param resourcePath the logical path to the classpath, file, or URL resource
      * @param classLoader the classloader that should be used to load the resource as a stream; may be null
      * @param clazz the class that should be used to load the resource as a stream; may be null
@@ -106,7 +106,7 @@ public class IoUtil {
 
     /**
      * Read the lines from the supplied stream. This function completely reads the stream and therefore closes the stream.
-     * 
+     *
      * @param stream the stream with the contents to be read; may not be null
      * @param lineProcessor the function that this method calls for each line read from the supplied stream; may not be null
      * @throws IOException if an I/O error occurs
@@ -119,10 +119,10 @@ public class IoUtil {
             }
         }
     }
-    
+
     /**
      * Read the lines from the supplied stream. This function completely reads the stream and therefore closes the stream.
-     * 
+     *
      * @param stream the stream with the contents to be read; may not be null
      * @param lineProcessor the function that this method calls for each line read from the supplied stream; may not be null
      * @param charset the character set used to interpret the stream content
@@ -139,7 +139,7 @@ public class IoUtil {
 
     /**
      * Read the lines from the supplied stream. This function completely reads the stream and therefore closes the stream.
-     * 
+     *
      * @param path path to the file with the contents to be read; may not be null
      * @param lineProcessor the function that this method calls for each line read from the supplied stream; may not be null
      * @throws IOException if an I/O error occurs
@@ -151,7 +151,7 @@ public class IoUtil {
     /**
      * Read and return the entire contents of the supplied {@link Reader}. This method always closes the reader when finished
      * reading.
-     * 
+     *
      * @param reader the reader of the contents; may be null
      * @return the contents, or an empty string if the supplied reader is null
      * @throws IOException if there is an error reading the content
@@ -174,7 +174,7 @@ public class IoUtil {
     /**
      * Read and return the entire contents of the supplied {@link InputStream}. This method always closes the stream when finished
      * reading.
-     * 
+     *
      * @param stream the streamed contents; may be null
      * @return the contents, or an empty string if the supplied stream is null
      * @throws IOException if there is an error reading the content
@@ -186,20 +186,21 @@ public class IoUtil {
     /**
      * Read and return the entire contents of the supplied {@link InputStream}. This method always closes the stream when finished
      * reading.
-     * 
+     *
      * @param stream the streamed contents; may be null
      * @param charset character set of the stream data; may not be null
      * @return the contents, or an empty string if the supplied stream is null
      * @throws IOException if there is an error reading the content
      */
     public static String read(InputStream stream,
-                              String charset) throws IOException {
+                              String charset)
+            throws IOException {
         return stream == null ? "" : read(new InputStreamReader(stream, charset));
     }
 
     /**
      * Read and return the entire contents of the supplied {@link File}.
-     * 
+     *
      * @param file the file containing the information to be read; may be null
      * @return the contents, or an empty string if the supplied reader is null
      * @throws IOException if there is an error reading the content
@@ -230,7 +231,7 @@ public class IoUtil {
      * <li>try to convert the path to a URL and obtain the referenced resource</li>
      * </ol>
      * If all of these fail, this method returns null.
-     * 
+     *
      * @param resourcePath the logical path to the classpath, file, or URL resource
      * @param classLoader the classloader that should be used to load the resource as a stream; may be null
      * @param clazz the class that should be used to load the resource as a stream; may be null
@@ -249,20 +250,20 @@ public class IoUtil {
             resourceDesc = resourcePath;
         }
         InputStream result = null;
-        if (result == null) {
-            try{
-                // Try absolute path ...
-                Path filePath = FileSystems.getDefault().getPath(resourcePath).toAbsolutePath();
-                File f        = filePath.toFile();
-                if (f.exists() && f.isFile() && f.canRead()) {
-                    result = new BufferedInputStream(new FileInputStream(f));
-                }
-                logMessage(result, logger, resourceDesc, "on filesystem at " + filePath);
-            } catch(InvalidPathException e) {
-                // just continue ...
-            } catch(FileNotFoundException e) {
-                // just continue ...
+        try {
+            // Try absolute path ...
+            Path filePath = FileSystems.getDefault().getPath(resourcePath).toAbsolutePath();
+            File f = filePath.toFile();
+            if (f.exists() && f.isFile() && f.canRead()) {
+                result = new BufferedInputStream(new FileInputStream(f));
             }
+            logMessage(result, logger, resourceDesc, "on filesystem at " + filePath);
+        }
+        catch (InvalidPathException e) {
+            // just continue ...
+        }
+        catch (FileNotFoundException e) {
+            // just continue ...
         }
         if (result == null) {
             try {
@@ -274,9 +275,11 @@ public class IoUtil {
                     result = new BufferedInputStream(new FileInputStream(f));
                 }
                 logMessage(result, logger, resourceDesc, "on filesystem relative to '" + current + "' at '" + absolute + "'");
-            } catch (InvalidPathException e) {
+            }
+            catch (InvalidPathException e) {
                 // just continue ...
-            } catch (FileNotFoundException e) {
+            }
+            catch (FileNotFoundException e) {
                 // just continue ...
             }
         }
@@ -300,9 +303,11 @@ public class IoUtil {
                 URL url = new URL(resourcePath);
                 result = url.openStream();
                 logMessage(result, logger, resourceDesc, "at URL " + url.toExternalForm());
-            } catch (MalformedURLException e) {
+            }
+            catch (MalformedURLException e) {
                 // just continue ...
-            } catch (IOException err) {
+            }
+            catch (IOException err) {
                 // just continue ...
             }
         }
@@ -312,14 +317,14 @@ public class IoUtil {
 
     /**
      * Create a directory at the given absolute or relative path.
-     * 
+     *
      * @param path the relative or absolute path of the directory; may not be null
      * @return the reference to the existing readable and writable directory
      */
     public static File createDirectory(Path path) {
         File dir = path.toAbsolutePath().toFile();
         if (dir.exists() && dir.canRead() && dir.canWrite()) {
-            if (dir.isDirectory()){
+            if (dir.isDirectory()) {
                 return dir;
             }
             throw new IllegalStateException("Expecting '" + path + "' to be a directory but found a file");
@@ -330,7 +335,7 @@ public class IoUtil {
 
     /**
      * Create a file at the given absolute or relative path.
-     * 
+     *
      * @param path the relative or absolute path of the file to create; may not be null
      * @return the reference to the existing readable and writable file
      */
@@ -345,7 +350,8 @@ public class IoUtil {
         file.getParentFile().mkdirs();
         try {
             Files.createFile(path);
-        } catch (IOException e) {
+        }
+        catch (IOException e) {
             throw new IllegalStateException("Unable to create the file '" + path + "': " + e.getMessage(), e);
         }
         return file;
@@ -353,7 +359,7 @@ public class IoUtil {
 
     /**
      * Create a directory at the given absolute or relative path, removing any existing content beforehand.
-     * 
+     *
      * @param path the relative or absolute path of the directory to recreate; may not be null
      * @param removeExistingContent true if any existing content should be removed
      * @return the reference to the existing readable and writable directory
@@ -363,7 +369,9 @@ public class IoUtil {
         File dir = path.toAbsolutePath().toFile();
         if (dir.exists() && dir.canRead() && dir.canWrite()) {
             if (dir.isDirectory()) {
-                delete(path);
+                if (removeExistingContent) {
+                    delete(path);
+                }
                 return dir;
             }
             throw new IllegalStateException("Expecting '" + path + "' to be a directory but found a file");
@@ -375,19 +383,19 @@ public class IoUtil {
     /**
      * A method that will delete a file or folder only if it is within the 'target' directory (for safety).
      * Folders are removed recursively.
-     * 
+     *
      * @param path the path to the file or folder in the target directory
      * @throws IOException if there is a problem deleting the file at the given path
      */
     public static void delete(String path) throws IOException {
-        if (path != null){
+        if (path != null) {
             delete(Paths.get(path));
         }
     }
 
     /**
      * A method that will delete a file or folder. Folders are removed recursively.
-     * 
+     *
      * @param fileOrFolder the file or folder to be deleted
      * @throws IOException if there is a problem deleting the file at the given path
      */
@@ -399,7 +407,7 @@ public class IoUtil {
 
     /**
      * A method that will delete multiple file and/or folders. Folders are removed recursively.
-     * 
+     *
      * @param filesOrFolder the files and folders to be deleted
      * @throws IOException if there is a problem deleting the file at the given path
      */
@@ -411,7 +419,7 @@ public class IoUtil {
 
     /**
      * A method that will recursively delete a file or folder.
-     * 
+     *
      * @param path the path to the file or folder in the target directory
      * @throws IOException if there is a problem deleting the file at the given path
      */
@@ -449,14 +457,15 @@ public class IoUtil {
     /**
      * Find a port that is available. This method starts a {@link ServerSocket} and obtains the port on which the socket is
      * listening, and then shuts down the socket so the port becomes available.
-     * 
+     *
      * @return the number of the now-available port
      * @throws IllegalStateException if it cannot find an available port
      */
     public static int getAvailablePort() {
         try (ServerSocket socket = new ServerSocket(0)) {
             return socket.getLocalPort();
-        } catch (IOException e) {
+        }
+        catch (IOException e) {
             throw new IllegalStateException("Cannot find available port: " + e.getMessage(), e);
         }
     }
@@ -469,7 +478,7 @@ public class IoUtil {
 
     /**
      * Atomically load the properties file at the given location within the designated class loader.
-     * 
+     *
      * @param classLoader the supplier for the class loader; may not be null or return null
      * @param classpathResource the path to the resource file; may not be null
      * @return the properties object; never null, but possibly empty
@@ -481,7 +490,8 @@ public class IoUtil {
             Properties props = new Properties();
             props.load(stream);
             return props;
-        } catch (IOException e) {
+        }
+        catch (IOException e) {
             throw new IllegalStateException("Unable to find or read the '" + classpathResource + "' file using the " +
                     classLoader + " class loader", e);
         }
@@ -489,7 +499,7 @@ public class IoUtil {
 
     /**
      * Atomically load the properties file at the given location within the designated class loader.
-     * 
+     *
      * @param classLoader the class loader; may not be null
      * @param classpathResource the path to the resource file; may not be null
      * @return the properties object; never null, but possibly empty
@@ -501,7 +511,7 @@ public class IoUtil {
 
     /**
      * Atomically load the properties file at the given location within the designated class' class loader.
-     * 
+     *
      * @param clazz the class whose class loader is to be used; may not be null
      * @param classpathResource the path to the resource file; may not be null
      * @return the properties object; never null, but possibly empty

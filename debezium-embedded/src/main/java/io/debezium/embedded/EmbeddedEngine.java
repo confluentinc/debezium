@@ -5,11 +5,13 @@
  */
 package io.debezium.embedded;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -19,10 +21,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import org.apache.kafka.common.config.ConfigDef;
+import org.apache.kafka.common.config.ConfigDef.Importance;
+import org.apache.kafka.common.config.ConfigDef.Type;
+import org.apache.kafka.common.config.ConfigDef.Width;
 import org.apache.kafka.connect.connector.ConnectorContext;
 import org.apache.kafka.connect.connector.Task;
+import org.apache.kafka.connect.errors.RetriableException;
 import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.runtime.WorkerConfig;
 import org.apache.kafka.connect.runtime.distributed.DistributedConfig;
@@ -44,7 +51,11 @@ import org.slf4j.LoggerFactory;
 import io.debezium.annotation.ThreadSafe;
 import io.debezium.config.Configuration;
 import io.debezium.config.Field;
-import io.debezium.embedded.spi.OffsetCommitPolicy;
+import io.debezium.config.Instantiator;
+import io.debezium.engine.DebeziumEngine;
+import io.debezium.engine.StopEngineException;
+import io.debezium.engine.spi.OffsetCommitPolicy;
+import io.debezium.pipeline.ChangeEventSourceCoordinator;
 import io.debezium.util.Clock;
 import io.debezium.util.VariableLatch;
 
@@ -66,31 +77,31 @@ import io.debezium.util.VariableLatch;
  * @author Randall Hauch
  */
 @ThreadSafe
-public final class EmbeddedEngine implements Runnable {
+public final class EmbeddedEngine implements DebeziumEngine<SourceRecord> {
 
     /**
      * A required field for an embedded connector that specifies the unique name for the connector instance.
      */
     public static final Field ENGINE_NAME = Field.create("name")
-                                                 .withDescription("Unique name for this connector instance.")
-                                                 .withValidation(Field::isRequired);
+            .withDescription("Unique name for this connector instance.")
+            .withValidation(Field::isRequired);
 
     /**
      * A required field for an embedded connector that specifies the name of the normal Debezium connector's Java class.
      */
     public static final Field CONNECTOR_CLASS = Field.create("connector.class")
-                                                     .withDescription("The Java class for the connector")
-                                                     .withValidation(Field::isRequired);
+            .withDescription("The Java class for the connector")
+            .withValidation(Field::isRequired);
 
     /**
      * An optional field that specifies the name of the class that implements the {@link OffsetBackingStore} interface,
      * and that will be used to store offsets recorded by the connector.
      */
     public static final Field OFFSET_STORAGE = Field.create("offset.storage")
-                                                    .withDescription("The Java class that implements the `OffsetBackingStore` "
-                                                            + "interface, used to periodically store offsets so that, upon "
-                                                            + "restart, the connector can resume where it last left off.")
-                                                    .withDefault(FileOffsetBackingStore.class.getName());
+            .withDescription("The Java class that implements the `OffsetBackingStore` "
+                    + "interface, used to periodically store offsets so that, upon "
+                    + "restart, the connector can resume where it last left off.")
+            .withDefault(FileOffsetBackingStore.class.getName());
 
     /**
      * An optional field that specifies the file location for the {@link FileOffsetBackingStore}.
@@ -98,10 +109,10 @@ public final class EmbeddedEngine implements Runnable {
      * @see #OFFSET_STORAGE
      */
     public static final Field OFFSET_STORAGE_FILE_FILENAME = Field.create(StandaloneConfig.OFFSET_STORAGE_FILE_FILENAME_CONFIG)
-                                                                  .withDescription("The file where offsets are to be stored. Required when "
-                                                                          + "'offset.storage' is set to the " +
-                                                                          FileOffsetBackingStore.class.getName() + " class.")
-                                                                  .withDefault("");
+            .withDescription("The file where offsets are to be stored. Required when "
+                    + "'offset.storage' is set to the " +
+                    FileOffsetBackingStore.class.getName() + " class.")
+            .withDefault("");
 
     /**
      * An optional field that specifies the topic name for the {@link KafkaOffsetBackingStore}.
@@ -109,10 +120,10 @@ public final class EmbeddedEngine implements Runnable {
      * @see #OFFSET_STORAGE
      */
     public static final Field OFFSET_STORAGE_KAFKA_TOPIC = Field.create(DistributedConfig.OFFSET_STORAGE_TOPIC_CONFIG)
-                                                                .withDescription("The name of the Kafka topic where offsets are to be stored. "
-                                                                        + "Required with other properties when 'offset.storage' is set to the "
-                                                                        + KafkaOffsetBackingStore.class.getName() + " class.")
-                                                                .withDefault("");
+            .withDescription("The name of the Kafka topic where offsets are to be stored. "
+                    + "Required with other properties when 'offset.storage' is set to the "
+                    + KafkaOffsetBackingStore.class.getName() + " class.")
+            .withDefault("");
 
     /**
      * An optional field that specifies the number of partitions for the {@link KafkaOffsetBackingStore}.
@@ -120,10 +131,10 @@ public final class EmbeddedEngine implements Runnable {
      * @see #OFFSET_STORAGE
      */
     public static final Field OFFSET_STORAGE_KAFKA_PARTITIONS = Field.create(DistributedConfig.OFFSET_STORAGE_PARTITIONS_CONFIG)
-                                                                     .withType(ConfigDef.Type.INT)
-                                                                     .withDescription("The number of partitions used when creating the offset storage topic. "
-                                                                             + "Required with other properties when 'offset.storage' is set to the "
-                                                                             + KafkaOffsetBackingStore.class.getName() + " class.");
+            .withType(ConfigDef.Type.INT)
+            .withDescription("The number of partitions used when creating the offset storage topic. "
+                    + "Required with other properties when 'offset.storage' is set to the "
+                    + KafkaOffsetBackingStore.class.getName() + " class.");
 
     /**
      * An optional field that specifies the replication factor for the {@link KafkaOffsetBackingStore}.
@@ -131,45 +142,56 @@ public final class EmbeddedEngine implements Runnable {
      * @see #OFFSET_STORAGE
      */
     public static final Field OFFSET_STORAGE_KAFKA_REPLICATION_FACTOR = Field.create(DistributedConfig.OFFSET_STORAGE_REPLICATION_FACTOR_CONFIG)
-                                                                             .withType(ConfigDef.Type.SHORT)
-                                                                             .withDescription("Replication factor used when creating the offset storage topic. "
-                                                                                     + "Required with other properties when 'offset.storage' is set to the "
-                                                                                     + KafkaOffsetBackingStore.class.getName() + " class.");
+            .withType(ConfigDef.Type.SHORT)
+            .withDescription("Replication factor used when creating the offset storage topic. "
+                    + "Required with other properties when 'offset.storage' is set to the "
+                    + KafkaOffsetBackingStore.class.getName() + " class.");
 
     /**
      * An optional advanced field that specifies the maximum amount of time that the embedded connector should wait
      * for an offset commit to complete.
      */
     public static final Field OFFSET_FLUSH_INTERVAL_MS = Field.create("offset.flush.interval.ms")
-                                                              .withDescription("Interval at which to try committing offsets. The default is 1 minute.")
-                                                              .withDefault(60000L)
-                                                              .withValidation(Field::isNonNegativeInteger);
+            .withDescription("Interval at which to try committing offsets. The default is 1 minute.")
+            .withDefault(60000L)
+            .withValidation(Field::isNonNegativeInteger);
 
     /**
      * An optional advanced field that specifies the maximum amount of time that the embedded connector should wait
      * for an offset commit to complete.
      */
     public static final Field OFFSET_COMMIT_TIMEOUT_MS = Field.create("offset.flush.timeout.ms")
-                                                              .withDescription("Maximum number of milliseconds to wait for records to flush and partition offset data to be"
-                                                                      + " committed to offset storage before cancelling the process and restoring the offset "
-                                                                      + "data to be committed in a future attempt.")
-                                                              .withDefault(5000L)
-                                                              .withValidation(Field::isPositiveInteger);
+            .withDescription("Maximum number of milliseconds to wait for records to flush and partition offset data to be"
+                    + " committed to offset storage before cancelling the process and restoring the offset "
+                    + "data to be committed in a future attempt.")
+            .withDefault(5000L)
+            .withValidation(Field::isPositiveInteger);
 
     public static final Field OFFSET_COMMIT_POLICY = Field.create("offset.commit.policy")
-                                                          .withDescription("The fully-qualified class name of the commit policy type. This class must implement the interface "
-                                                                      + OffsetCommitPolicy.class.getName()
-                                                                      + ". The default is a periodic commit policy based upon time intervals.")
-                                                          .withDefault(OffsetCommitPolicy.PeriodicCommitOffsetPolicy.class.getName())
-                                                          .withValidation(Field::isClassName);
+            .withDescription("The fully-qualified class name of the commit policy type. This class must implement the interface "
+                    + OffsetCommitPolicy.class.getName()
+                    + ". The default is a periodic commit policy based upon time intervals.")
+            .withDefault(io.debezium.embedded.spi.OffsetCommitPolicy.PeriodicCommitOffsetPolicy.class.getName())
+            .withValidation(Field::isClassName);
 
     protected static final Field INTERNAL_KEY_CONVERTER_CLASS = Field.create("internal.key.converter")
-                                                                     .withDescription("The Converter class that should be used to serialize and deserialize key data for offsets.")
-                                                                     .withDefault(JsonConverter.class.getName());
+            .withDescription("The Converter class that should be used to serialize and deserialize key data for offsets.")
+            .withDefault(JsonConverter.class.getName());
 
     protected static final Field INTERNAL_VALUE_CONVERTER_CLASS = Field.create("internal.value.converter")
-                                                                       .withDescription("The Converter class that should be used to serialize and deserialize value data for offsets.")
-                                                                       .withDefault(JsonConverter.class.getName());
+            .withDescription("The Converter class that should be used to serialize and deserialize value data for offsets.")
+            .withDefault(JsonConverter.class.getName());
+
+    /**
+     * A list of SMTs to be applied on the messages generated by the engine.
+     */
+    public static final Field TRANSFORMS = Field.create("transforms")
+            .withDisplayName("List of prefixes defining transformations.")
+            .withType(Type.STRING)
+            .withWidth(Width.MEDIUM)
+            .withImportance(Importance.LOW)
+            .withDescription("Optional list of single message transformations applied on the messages. "
+                    + "The transforms are defined using '<transform.prefix>.type' config option and configured using options '<transform.prefix>.<option>'");
 
     /**
      * The array of fields that are required by each connectors.
@@ -180,63 +202,130 @@ public final class EmbeddedEngine implements Runnable {
      * The array of all exposed fields.
      */
     protected static final Field.Set ALL_FIELDS = CONNECTOR_FIELDS.with(OFFSET_STORAGE, OFFSET_STORAGE_FILE_FILENAME,
-                                                                        OFFSET_FLUSH_INTERVAL_MS, OFFSET_COMMIT_TIMEOUT_MS,
-                                                                        INTERNAL_KEY_CONVERTER_CLASS, INTERNAL_VALUE_CONVERTER_CLASS);
+            OFFSET_FLUSH_INTERVAL_MS, OFFSET_COMMIT_TIMEOUT_MS,
+            INTERNAL_KEY_CONVERTER_CLASS, INTERNAL_VALUE_CONVERTER_CLASS);
 
-    private static final Duration WAIT_FOR_COMPLETION_BEFORE_INTERRUPT_DEFAULT = Duration.ofSeconds(2);
+    /**
+     * How long we wait before forcefully stopping the connector thread when
+     * shutting down. Must be longer than
+     * {@link ChangeEventSourceCoordinator#SHUTDOWN_WAIT_TIMEOUT} * 2.
+     */
+    private static final Duration WAIT_FOR_COMPLETION_BEFORE_INTERRUPT_DEFAULT = Duration.ofMinutes(5);
+
     private static final String WAIT_FOR_COMPLETION_BEFORE_INTERRUPT_PROP = "debezium.embedded.shutdown.pause.before.interrupt.ms";
+
+    public static final class BuilderImpl implements Builder {
+        private Configuration config;
+        private DebeziumEngine.ChangeConsumer<SourceRecord> handler;
+        private ClassLoader classLoader;
+        private Clock clock;
+        private DebeziumEngine.CompletionCallback completionCallback;
+        private DebeziumEngine.ConnectorCallback connectorCallback;
+        private OffsetCommitPolicy offsetCommitPolicy = null;
+
+        @Override
+        public Builder using(Configuration config) {
+            this.config = config;
+            return this;
+        }
+
+        @Override
+        public Builder using(Properties config) {
+            this.config = Configuration.from(config);
+            return this;
+        }
+
+        @Override
+        public Builder using(ClassLoader classLoader) {
+            this.classLoader = classLoader;
+            return this;
+        }
+
+        @Override
+        public Builder using(Clock clock) {
+            this.clock = clock;
+            return this;
+        }
+
+        @Override
+        public Builder using(DebeziumEngine.CompletionCallback completionCallback) {
+            this.completionCallback = completionCallback;
+            return this;
+        }
+
+        @Override
+        public Builder using(DebeziumEngine.ConnectorCallback connectorCallback) {
+            this.connectorCallback = connectorCallback;
+            return this;
+        }
+
+        @Override
+        public Builder using(OffsetCommitPolicy offsetCommitPolicy) {
+            this.offsetCommitPolicy = offsetCommitPolicy;
+            return this;
+        }
+
+        @Override
+        public Builder notifying(Consumer<SourceRecord> consumer) {
+            this.handler = buildDefaultChangeConsumer(consumer);
+            return this;
+        }
+
+        @Override
+        public Builder notifying(DebeziumEngine.ChangeConsumer<SourceRecord> handler) {
+            this.handler = handler;
+            return this;
+        }
+
+        @Override
+        public Builder using(java.time.Clock clock) {
+            return using(new Clock() {
+
+                @Override
+                public long currentTimeInMillis() {
+                    return clock.millis();
+                }
+            });
+        }
+
+        @Override
+        public EmbeddedEngine build() {
+            if (classLoader == null) {
+                classLoader = getClass().getClassLoader();
+            }
+            if (clock == null) {
+                clock = Clock.system();
+            }
+            Objects.requireNonNull(config, "A connector configuration must be specified.");
+            Objects.requireNonNull(handler, "A connector consumer or changeHandler must be specified.");
+            return new EmbeddedEngine(config, classLoader, clock,
+                    handler, completionCallback, connectorCallback, offsetCommitPolicy);
+        }
+
+        // backward compatibility methods
+        @Override
+        public Builder using(CompletionCallback completionCallback) {
+            return using((DebeziumEngine.CompletionCallback) completionCallback);
+        }
+
+        @Override
+        public Builder using(ConnectorCallback connectorCallback) {
+            return using((DebeziumEngine.ConnectorCallback) connectorCallback);
+        }
+    }
 
     /**
      * A callback function to be notified when the connector completes.
      */
-    public interface CompletionCallback {
-        /**
-         * Handle the completion of the embedded connector engine.
-         *
-         * @param success {@code true} if the connector completed normally, or {@code false} if the connector produced an error
-         *            that prevented startup or premature termination.
-         * @param message the completion message; never null
-         * @param error the error, or null if there was no exception
-         */
-        void handle(boolean success, String message, Throwable error);
+    @Deprecated
+    public interface CompletionCallback extends DebeziumEngine.CompletionCallback {
     }
 
     /**
      * Callback function which informs users about the various stages a connector goes through during startup
      */
-    public interface ConnectorCallback {
-
-        /**
-         * Called after a connector has been successfully started by the engine; i.e. {@link SourceConnector#start(Map)} has
-         * completed successfully
-         */
-        default void connectorStarted() {
-            // nothing by default
-        }
-
-        /**
-         * Called after a connector has been successfully stopped by the engine; i.e. {@link SourceConnector#stop()} has
-         * completed successfully
-         */
-        default void connectorStopped() {
-            // nothing by default
-        }
-
-        /**
-         * Called after a connector task has been successfully started by the engine; i.e. {@link SourceTask#start(Map)} has
-         * completed successfully
-         */
-        default void taskStarted() {
-            // nothing by default
-        }
-
-        /**
-         * Called after a connector task has been successfully stopped by the engine; i.e. {@link SourceTask#stop()} has
-         * completed successfully
-         */
-        default void taskStopped() {
-            // nothing by default
-        }
+    @Deprecated
+    public interface ConnectorCallback extends DebeziumEngine.ConnectorCallback {
     }
 
     /**
@@ -350,38 +439,16 @@ public final class EmbeddedEngine implements Runnable {
      * and to signal that offsets may be flushed eventually.
      */
     @ThreadSafe
-    public static interface RecordCommitter {
-
-        /**
-         * Marks a single record as processed, must be called for each
-         * record.
-         *
-         * @param record the record to commit
-         */
-        void markProcessed(SourceRecord record) throws InterruptedException;
-
-        /**
-         * Marks a batch as finished, this may result in committing offsets/flushing
-         * data.
-         * <p>
-         * Should be called when a batch of records is finished being processed.
-         */
-        void markBatchFinished();
+    @Deprecated
+    public static interface RecordCommitter extends DebeziumEngine.RecordCommitter<SourceRecord> {
     }
 
     /**
      * A contract invoked by the embedded engine when it has received a batch of change records to be processed. Allows
      * to process multiple records in one go, acknowledging their processing once that's done.
      */
-    public static interface ChangeConsumer {
-
-        /**
-         * Handles a batch of records, calling the {@link RecordCommitter#markProcessed(SourceRecord)}
-         * for each record and {@link RecordCommitter#markBatchFinished()} when this batch is finished.
-         * @param records the records to be processed
-         * @param committer the committer that indicates to the system that we are finished
-         */
-        void handleBatch(List<SourceRecord> records, RecordCommitter committer) throws InterruptedException;
+    @Deprecated
+    public static interface ChangeConsumer extends DebeziumEngine.ChangeConsumer<SourceRecord> {
     }
 
     private static ChangeConsumer buildDefaultChangeConsumer(Consumer<SourceRecord> consumer) {
@@ -399,24 +466,20 @@ public final class EmbeddedEngine implements Runnable {
              * @throws Exception
              */
             @Override
-            public void handleBatch(List<SourceRecord> records, RecordCommitter committer) throws InterruptedException {
-                try {
-                    for (SourceRecord record : records) {
-                        try {
-                            consumer.accept(record);
-                            committer.markProcessed(record);
-                        }
-                        catch (StopConnectorException ex) {
-                            // ensure that we mark the record as finished
-                            // in this case
-                            committer.markProcessed(record);
-                            throw ex;
-                        }
+            public void handleBatch(List<SourceRecord> records, DebeziumEngine.RecordCommitter<SourceRecord> committer) throws InterruptedException {
+                for (SourceRecord record : records) {
+                    try {
+                        consumer.accept(record);
+                        committer.markProcessed(record);
+                    }
+                    catch (StopConnectorException | StopEngineException ex) {
+                        // ensure that we mark the record as finished
+                        // in this case
+                        committer.markProcessed(record);
+                        throw ex;
                     }
                 }
-                finally {
-                    committer.markBatchFinished();
-                }
+                committer.markBatchFinished();
             }
         };
     }
@@ -424,25 +487,8 @@ public final class EmbeddedEngine implements Runnable {
     /**
      * A builder to set up and create {@link EmbeddedEngine} instances.
      */
-    public static interface Builder {
-
-        /**
-         * Call the specified function for every {@link SourceRecord data change event} read from the source database.
-         * This method must be called with a non-null consumer.
-         *
-         * @param consumer the consumer function
-         * @return this builder object so methods can be chained together; never null
-         */
-        Builder notifying(Consumer<SourceRecord> consumer);
-
-        /**
-         * Pass a custom ChangeConsumer override the default implementation,
-         * this allows for more complex handling of records for batch and async handling
-         *
-         * @param handler the consumer function
-         * @return this builder object so methods can be chained together; never null
-         */
-        Builder notifying(ChangeConsumer handler);
+    @Deprecated
+    public static interface Builder extends DebeziumEngine.Builder<SourceRecord> {
 
         /**
          * Use the specified configuration for the connector. The configuration is assumed to already be valid.
@@ -453,15 +499,6 @@ public final class EmbeddedEngine implements Runnable {
         Builder using(Configuration config);
 
         /**
-         * Use the specified class loader to find all necessary classes. Passing <code>null</code> or not calling this method
-         * results in the connector using this class's class loader.
-         *
-         * @param classLoader the class loader
-         * @return this builder object so methods can be chained together; never null
-         */
-        Builder using(ClassLoader classLoader);
-
-        /**
          * Use the specified clock when needing to determine the current time. Passing <code>null</code> or not calling this
          * method results in the connector using the {@link Clock#system() system clock}.
          *
@@ -470,38 +507,24 @@ public final class EmbeddedEngine implements Runnable {
          */
         Builder using(Clock clock);
 
-        /**
-         * When the engine's {@link EmbeddedEngine#run()} method completes, call the supplied function with the results.
-         *
-         * @param completionCallback the callback function; may be null if errors should be written to the log
-         * @return this builder object so methods can be chained together; never null
-         */
+        // backward compatibility methods
+        @Override
+        Builder notifying(Consumer<SourceRecord> consumer);
+
+        @Override
+        Builder notifying(DebeziumEngine.ChangeConsumer<SourceRecord> handler);
+
+        @Override
+        Builder using(ClassLoader classLoader);
+
         Builder using(CompletionCallback completionCallback);
 
-        /**
-         * During the engine's {@link EmbeddedEngine#run()} method, call the supplied the supplied function at different
-         * stages according to the completion state of each component running within the engine (connectors, tasks etc)
-         *
-         * @param connectorCallback the callback function; may be null
-         * @return this builder object so methods can be chained together; never null
-         */
         Builder using(ConnectorCallback connectorCallback);
 
-        /**
-         * During the engine's {@link EmbeddedEngine#run()} method, decide when the offsets
-         * should be committed into the {@link OffsetBackingStore}.
-         * @param policy
-         * @return this builder object so methods can be chained together; never null
-         */
+        @Override
         Builder using(OffsetCommitPolicy policy);
 
-        /**
-         * Build a new connector with the information previously supplied to this builder.
-         *
-         * @return the embedded connector; never null
-         * @throws IllegalArgumentException if a {@link #using(Configuration) configuration} or {@link #notifying(Consumer)
-         *             consumer function} were not supplied before this method is called
-         */
+        @Override
         EmbeddedEngine build();
     }
 
@@ -510,88 +533,19 @@ public final class EmbeddedEngine implements Runnable {
      *
      * @return the new builder; never null
      */
+    @Deprecated
     public static Builder create() {
-        return new Builder() {
-            private Configuration config;
-            private ChangeConsumer handler;
-            private ClassLoader classLoader;
-            private Clock clock;
-            private CompletionCallback completionCallback;
-            private ConnectorCallback connectorCallback;
-            private OffsetCommitPolicy offsetCommitPolicy = null;
-
-            @Override
-            public Builder using(Configuration config) {
-                this.config = config;
-                return this;
-            }
-
-            @Override
-            public Builder using(ClassLoader classLoader) {
-                this.classLoader = classLoader;
-                return this;
-            }
-
-            @Override
-            public Builder using(Clock clock) {
-                this.clock = clock;
-                return this;
-            }
-
-            @Override
-            public Builder using(CompletionCallback completionCallback) {
-                this.completionCallback = completionCallback;
-                return this;
-            }
-
-            @Override
-            public Builder using(ConnectorCallback connectorCallback) {
-                this.connectorCallback = connectorCallback;
-                return this;
-            }
-
-            @Override
-            public Builder using(OffsetCommitPolicy offsetCommitPolicy) {
-                this.offsetCommitPolicy = offsetCommitPolicy;
-                return this;
-            }
-
-            @Override
-            public Builder notifying(Consumer<SourceRecord> consumer) {
-                this.handler = buildDefaultChangeConsumer(consumer);
-                return this;
-            }
-
-            @Override
-            public Builder notifying(ChangeConsumer handler) {
-                this.handler = handler;
-                return this;
-            }
-
-            @Override
-            public EmbeddedEngine build() {
-                if (classLoader == null) {
-                    classLoader = getClass().getClassLoader();
-                }
-                if (clock == null) {
-                    clock = Clock.system();
-                }
-                Objects.requireNonNull(config, "A connector configuration must be specified.");
-                Objects.requireNonNull(handler, "A connector consumer or changeHandler must be specified.");
-                return new EmbeddedEngine(config, classLoader, clock,
-                        handler, completionCallback, connectorCallback, offsetCommitPolicy);
-            }
-
-        };
+        return new BuilderImpl();
     }
 
-    private final Logger logger = LoggerFactory.getLogger(getClass());
+    private static final Logger LOGGER = LoggerFactory.getLogger(EmbeddedEngine.class);
+
     private final Configuration config;
     private final Clock clock;
     private final ClassLoader classLoader;
-    private final ChangeConsumer handler;
-    private final CompletionCallback completionCallback;
-    private final ConnectorCallback connectorCallback;
+    private final DebeziumEngine.ChangeConsumer<SourceRecord> handler;
+    private final DebeziumEngine.CompletionCallback completionCallback;
+    private final DebeziumEngine.ConnectorCallback connectorCallback;
     private final AtomicReference<Thread> runningThread = new AtomicReference<>();
     private final VariableLatch latch = new VariableLatch(0);
     private final Converter keyConverter;
@@ -602,8 +556,11 @@ public final class EmbeddedEngine implements Runnable {
     private long timeOfLastCommitMillis = 0;
     private OffsetCommitPolicy offsetCommitPolicy;
 
-    private EmbeddedEngine(Configuration config, ClassLoader classLoader, Clock clock, ChangeConsumer handler,
-                           CompletionCallback completionCallback, ConnectorCallback connectorCallback,
+    private SourceTask task;
+    private final Transformations transformations;
+
+    private EmbeddedEngine(Configuration config, ClassLoader classLoader, Clock clock, DebeziumEngine.ChangeConsumer<SourceRecord> handler,
+                           DebeziumEngine.CompletionCallback completionCallback, DebeziumEngine.ConnectorCallback connectorCallback,
                            OffsetCommitPolicy offsetCommitPolicy) {
         this.config = config;
         this.handler = handler;
@@ -611,7 +568,7 @@ public final class EmbeddedEngine implements Runnable {
         this.clock = clock;
         this.completionCallback = completionCallback != null ? completionCallback : (success, msg, error) -> {
             if (!success) {
-                logger.error(msg, error);
+                LOGGER.error(msg, error);
             }
         };
         this.connectorCallback = connectorCallback;
@@ -631,6 +588,8 @@ public final class EmbeddedEngine implements Runnable {
             valueConverterConfig = config.edit().with(INTERNAL_VALUE_CONVERTER_CLASS + ".schemas.enable", false).build();
         }
         valueConverter.configure(valueConverterConfig.subset(INTERNAL_VALUE_CONVERTER_CLASS.name() + ".", true).asMap(), false);
+
+        transformations = new Transformations(config);
 
         // Create the worker config, adding extra fields that are required for validation of a worker config
         // but that are not used within the embedded engine (since the source records are never serialized) ...
@@ -656,7 +615,7 @@ public final class EmbeddedEngine implements Runnable {
     private void fail(String msg, Throwable error) {
         if (completionResult.hasError()) {
             // there's already a recorded failure, so keep the original one and simply log this one
-            logger.error(msg, error);
+            LOGGER.error(msg, error);
             return;
         }
         // don't use the completion callback here because we want to store the error and message only
@@ -691,11 +650,11 @@ public final class EmbeddedEngine implements Runnable {
 
             final String engineName = config.getString(ENGINE_NAME);
             final String connectorClassName = config.getString(CONNECTOR_CLASS);
-            final Optional<ConnectorCallback> connectorCallback = Optional.ofNullable(this.connectorCallback);
+            final Optional<DebeziumEngine.ConnectorCallback> connectorCallback = Optional.ofNullable(this.connectorCallback);
             // Only one thread can be in this part of the method at a time ...
             latch.countUp();
             try {
-                if (!config.validateAndRecord(CONNECTOR_FIELDS, logger::error)) {
+                if (!config.validateAndRecord(CONNECTOR_FIELDS, LOGGER::error)) {
                     fail("Failed to start connector with invalid configuration (see logs for actual errors)");
                     return;
                 }
@@ -705,7 +664,7 @@ public final class EmbeddedEngine implements Runnable {
                 try {
                     @SuppressWarnings("unchecked")
                     Class<? extends SourceConnector> connectorClass = (Class<SourceConnector>) classLoader.loadClass(connectorClassName);
-                    connector = connectorClass.newInstance();
+                    connector = connectorClass.getDeclaredConstructor().newInstance();
                 }
                 catch (Throwable t) {
                     fail("Unable to instantiate connector class '" + connectorClassName + "'", t);
@@ -718,7 +677,7 @@ public final class EmbeddedEngine implements Runnable {
                 try {
                     @SuppressWarnings("unchecked")
                     Class<? extends OffsetBackingStore> offsetStoreClass = (Class<OffsetBackingStore>) classLoader.loadClass(offsetStoreClassName);
-                    offsetStore = offsetStoreClass.newInstance();
+                    offsetStore = offsetStoreClass.getDeclaredConstructor().newInstance();
                 }
                 catch (Throwable t) {
                     fail("Unable to instantiate OffsetBackingStore class '" + offsetStoreClassName + "'", t);
@@ -737,7 +696,8 @@ public final class EmbeddedEngine implements Runnable {
 
                 // Set up the offset commit policy ...
                 if (offsetCommitPolicy == null) {
-                    offsetCommitPolicy = config.getInstance(EmbeddedEngine.OFFSET_COMMIT_POLICY, OffsetCommitPolicy.class, config);
+                    offsetCommitPolicy = Instantiator.getInstanceWithProperties(config.getString(EmbeddedEngine.OFFSET_COMMIT_POLICY),
+                            () -> getClass().getClassLoader(), config.asProperties());
                 }
 
                 // Initialize the connector using a context that does NOT respond to requests to reconfigure tasks ...
@@ -764,12 +724,17 @@ public final class EmbeddedEngine implements Runnable {
                 try {
                     // Start the connector with the given properties and get the task configurations ...
                     connector.start(config.asMap());
-                    connectorCallback.ifPresent(ConnectorCallback::connectorStarted);
+                    connectorCallback.ifPresent(DebeziumEngine.ConnectorCallback::connectorStarted);
                     List<Map<String, String>> taskConfigs = connector.taskConfigs(1);
                     Class<? extends Task> taskClass = connector.taskClass();
-                    SourceTask task = null;
+                    if (taskConfigs.isEmpty()) {
+                        String msg = "Unable to start connector's task class '" + taskClass.getName() + "' with no task configuration";
+                        fail(msg);
+                        return;
+                    }
+                    task = null;
                     try {
-                        task = (SourceTask) taskClass.newInstance();
+                        task = (SourceTask) taskClass.getDeclaredConstructor().newInstance();
                     }
                     catch (IllegalAccessException | InstantiationException t) {
                         fail("Unable to instantiate connector's task class '" + taskClass.getName() + "'", t);
@@ -782,7 +747,8 @@ public final class EmbeddedEngine implements Runnable {
                                 return offsetReader;
                             }
 
-                            @Override
+                            // Purposely not marking this method with @Override as it was introduced in Kafka 2.x
+                            // and otherwise would break builds based on Kafka 1.x
                             public Map<String, String> configs() {
                                 // TODO Auto-generated method stub
                                 return null;
@@ -790,7 +756,7 @@ public final class EmbeddedEngine implements Runnable {
                         };
                         task.initialize(taskContext);
                         task.start(taskConfigs.get(0));
-                        connectorCallback.ifPresent(ConnectorCallback::taskStarted);
+                        connectorCallback.ifPresent(DebeziumEngine.ConnectorCallback::taskStarted);
                     }
                     catch (Throwable t) {
                         // Mask the passwords ...
@@ -805,23 +771,42 @@ public final class EmbeddedEngine implements Runnable {
                     Throwable handlerError = null;
                     try {
                         timeOfLastCommitMillis = clock.currentTimeInMillis();
-                        List<SourceRecord> changeRecords = null;
                         RecordCommitter committer = buildRecordCommitter(offsetWriter, task, commitTimeout);
                         while (runningThread.get() != null) {
+                            List<SourceRecord> changeRecords = null;
                             try {
-                                logger.debug("Embedded engine is polling task for records on thread {}", runningThread.get());
+                                LOGGER.debug("Embedded engine is polling task for records on thread {}", runningThread.get());
                                 changeRecords = task.poll(); // blocks until there are values ...
-                                logger.debug("Embedded engine returned from polling task for records");
+                                LOGGER.debug("Embedded engine returned from polling task for records");
                             }
                             catch (InterruptedException e) {
                                 // Interrupted while polling ...
-                                logger.debug("Embedded engine interrupted on thread {} while polling the task for records", runningThread.get());
-                                Thread.interrupted();
+                                LOGGER.debug("Embedded engine interrupted on thread {} while polling the task for records", runningThread.get());
+                                if (this.runningThread.get() == Thread.currentThread()) {
+                                    // this thread is still set as the running thread -> we were not interrupted
+                                    // due the stop() call -> probably someone else called the interrupt on us ->
+                                    // -> we should raise the interrupt flag
+                                    Thread.currentThread().interrupt();
+                                }
                                 break;
+                            }
+                            catch (RetriableException e) {
+                                LOGGER.info("Retrieable exception thrown, connector will be restarted", e);
+                                // Retriable exception should be ignored by the engine
+                                // and no change records delivered.
+                                // The retry is handled in io.debezium.connector.common.BaseSourceTask.poll()
                             }
                             try {
                                 if (changeRecords != null && !changeRecords.isEmpty()) {
-                                    logger.debug("Received {} records from the task", changeRecords.size());
+                                    LOGGER.debug("Received {} records from the task", changeRecords.size());
+                                    changeRecords = changeRecords.stream()
+                                            .map(transformations::transform)
+                                            .filter(x -> x != null)
+                                            .collect(Collectors.toList());
+                                }
+
+                                if (changeRecords != null && !changeRecords.isEmpty()) {
+                                    LOGGER.debug("Received {} transformed records from the task", changeRecords.size());
 
                                     try {
                                         handler.handleBatch(changeRecords, committer);
@@ -831,7 +816,7 @@ public final class EmbeddedEngine implements Runnable {
                                     }
                                 }
                                 else {
-                                    logger.debug("Received no records from the task");
+                                    LOGGER.debug("Received no records from the task");
                                 }
                             }
                             catch (Throwable t) {
@@ -845,13 +830,13 @@ public final class EmbeddedEngine implements Runnable {
                         if (handlerError != null) {
                             // There was an error in the handler so make sure it's always captured...
                             fail("Stopping connector after error in the application's handler method: " + handlerError.getMessage(),
-                                 handlerError);
+                                    handlerError);
                         }
                         try {
                             // First stop the task ...
-                            logger.debug("Stopping the task and engine");
+                            LOGGER.debug("Stopping the task and engine");
                             task.stop();
-                            connectorCallback.ifPresent(ConnectorCallback::taskStopped);
+                            connectorCallback.ifPresent(DebeziumEngine.ConnectorCallback::taskStopped);
                             // Always commit offsets that were captured from the source records we actually processed ...
                             commitOffsets(offsetWriter, commitTimeout, task);
                             if (handlerError == null) {
@@ -878,7 +863,7 @@ public final class EmbeddedEngine implements Runnable {
                     finally {
                         try {
                             connector.stop();
-                            connectorCallback.ifPresent(ConnectorCallback::connectorStopped);
+                            connectorCallback.ifPresent(DebeziumEngine.ConnectorCallback::connectorStopped);
                         }
                         catch (Throwable t) {
                             fail("Error while trying to stop connector class '" + connectorClassName + "'", t);
@@ -964,25 +949,25 @@ public final class EmbeddedEngine implements Runnable {
             timeOfLastCommitMillis = clock.currentTimeInMillis();
         }
         catch (InterruptedException e) {
-            logger.warn("Flush of {} offsets interrupted, cancelling", this);
+            LOGGER.warn("Flush of {} offsets interrupted, cancelling", this);
             offsetWriter.cancelFlush();
         }
         catch (ExecutionException e) {
-            logger.error("Flush of {} offsets threw an unexpected exception: ", this, e);
+            LOGGER.error("Flush of {} offsets threw an unexpected exception: ", this, e);
             offsetWriter.cancelFlush();
         }
         catch (TimeoutException e) {
-            logger.error("Timed out waiting to flush {} offsets to storage", this);
+            LOGGER.error("Timed out waiting to flush {} offsets to storage", this);
             offsetWriter.cancelFlush();
         }
     }
 
     protected void completedFlush(Throwable error, Void result) {
         if (error != null) {
-            logger.error("Failed to flush {} offsets to storage: ", this, error);
+            LOGGER.error("Failed to flush {} offsets to storage: ", this, error);
         }
         else {
-            logger.trace("Finished flushing {} offsets to storage", this);
+            LOGGER.trace("Finished flushing {} offsets to storage", this);
         }
     }
 
@@ -995,21 +980,30 @@ public final class EmbeddedEngine implements Runnable {
      * @see #await(long, TimeUnit)
      */
     public boolean stop() {
-        logger.debug("Stopping the embedded engine");
+        LOGGER.info("Stopping the embedded engine");
         // Signal that the run() method should stop ...
         Thread thread = this.runningThread.getAndSet(null);
         if (thread != null) {
             try {
-                latch.await(Long.valueOf(System.getProperty(WAIT_FOR_COMPLETION_BEFORE_INTERRUPT_PROP, Long.toString(WAIT_FOR_COMPLETION_BEFORE_INTERRUPT_DEFAULT.toMillis()))), TimeUnit.MILLISECONDS);
+                // Making sure the event source coordinator has enough time to shut down before forcefully stopping it
+                Duration timeout = Duration.ofMillis(Long
+                        .valueOf(System.getProperty(WAIT_FOR_COMPLETION_BEFORE_INTERRUPT_PROP, Long.toString(WAIT_FOR_COMPLETION_BEFORE_INTERRUPT_DEFAULT.toMillis()))));
+                LOGGER.info("Waiting for {} for connector to stop", timeout);
+                latch.await(timeout.toMillis(), TimeUnit.MILLISECONDS);
             }
             catch (InterruptedException e) {
             }
-            logger.debug("Interrupting the embedded engine's thread {} (already interrupted: {})", thread, thread.isInterrupted());
+            LOGGER.debug("Interrupting the embedded engine's thread {} (already interrupted: {})", thread, thread.isInterrupted());
             // Interrupt the thread in case it is blocked while polling the task for records ...
             thread.interrupt();
             return true;
         }
         return false;
+    }
+
+    @Override
+    public void close() throws IOException {
+        stop();
     }
 
     /**
@@ -1032,6 +1026,10 @@ public final class EmbeddedEngine implements Runnable {
         return "EmbeddedEngine{id=" + config.getString(ENGINE_NAME) + '}';
     }
 
+    public void runWithTask(Consumer<SourceTask> consumer) {
+        consumer.accept(task);
+    }
+
     protected static class EmbeddedConfig extends WorkerConfig {
         private static final ConfigDef CONFIG;
 
@@ -1048,5 +1046,4 @@ public final class EmbeddedEngine implements Runnable {
             super(CONFIG, props);
         }
     }
-
 }

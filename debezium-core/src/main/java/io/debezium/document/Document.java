@@ -99,14 +99,14 @@ public interface Document extends Iterable<Document.Field>, Comparable<Document>
     static Document create(CharSequence fieldName1, Object value1, CharSequence fieldName2, Object value2, CharSequence fieldName3,
                            Object value3, CharSequence fieldName4, Object value4, CharSequence fieldName5, Object value5) {
         return new BasicDocument().set(fieldName1, value1).set(fieldName2, value2).set(fieldName3, value3).set(fieldName4, value4)
-                                  .set(fieldName5, value5);
+                .set(fieldName5, value5);
     }
 
     static Document create(CharSequence fieldName1, Object value1, CharSequence fieldName2, Object value2, CharSequence fieldName3,
                            Object value3, CharSequence fieldName4, Object value4, CharSequence fieldName5, Object value5,
                            CharSequence fieldName6, Object value6) {
         return new BasicDocument().set(fieldName1, value1).set(fieldName2, value2).set(fieldName3, value3).set(fieldName4, value4)
-                                  .set(fieldName5, value5).set(fieldName6, value6);
+                .set(fieldName5, value5).set(fieldName6, value6);
     }
 
     /**
@@ -179,14 +179,16 @@ public interface Document extends Iterable<Document.Field>, Comparable<Document>
                 invalid.accept(missingPath); // invoke the invalid handler
                 return Optional.empty();
             }, invalid);
-        } else {
+        }
+        else {
             // Create any missing intermediaries using the segment after the missing segment to determine which
             // type of intermediate value to add ...
             parent = find(parentPath, (missingPath, missingIndex) -> {
                 String nextSegment = path.segment(missingIndex + 1); // can always find next segment 'path' (not 'parentPath')...
                 if (Path.Segments.isArrayIndex(nextSegment)) {
                     return Optional.of(Value.create(Array.create()));
-                } else {
+                }
+                else {
                     return Optional.of(Value.create(Document.create()));
                 }
             }, invalid);
@@ -198,15 +200,18 @@ public interface Document extends Iterable<Document.Field>, Comparable<Document>
         Value parentValue = parent.get();
         if (parentValue.isDocument()) {
             parentValue.asDocument().set(lastSegment, value);
-        } else if (parentValue.isArray()) {
+        }
+        else if (parentValue.isArray()) {
             Array array = parentValue.asArray();
             if (Path.Segments.isAfterLastIndex(lastSegment)) {
                 array.add(value);
-            } else {
+            }
+            else {
                 int index = Path.Segments.asInteger(lastSegment).get();
                 array.setValue(index, value);
             }
-        } else {
+        }
+        else {
             // The parent is not a document or array ...
             invalid.accept(path);
             return Optional.empty();
@@ -223,7 +228,8 @@ public interface Document extends Iterable<Document.Field>, Comparable<Document>
      *         valid
      */
     default Optional<Value> find(Path path) {
-        return find(path, (missingPath, missingIndex) -> Optional.empty(), (invalidPath) -> {});
+        return find(path, (missingPath, missingIndex) -> Optional.empty(), (invalidPath) -> {
+        });
     }
 
     /**
@@ -259,13 +265,16 @@ public interface Document extends Iterable<Document.Field>, Comparable<Document>
                         Document doc = value.asDocument();
                         doc.set(segment, newValue.get());
                         value = doc.get(segment);
-                    } else {
+                    }
+                    else {
                         return Optional.empty();
                     }
-                } else {
+                }
+                else {
                     value = existingValue;
                 }
-            } else if (value.isArray()) {
+            }
+            else if (value.isArray()) {
                 Array array = value.asArray();
                 if (Path.Segments.isAfterLastIndex(segment)) {
                     // This means "after the last index", so call it as missing ...
@@ -274,36 +283,43 @@ public interface Document extends Iterable<Document.Field>, Comparable<Document>
                         // Add the new value (whatever it is) ...
                         value = newValue.get();
                         array.add(value);
-                    } else {
+                    }
+                    else {
                         return Optional.empty();
                     }
-                } else {
+                }
+                else {
                     Optional<Integer> index = Path.Segments.asInteger(segment);
                     if (index.isPresent()) {
                         // This is an index ...
                         if (array.has(index.get())) {
                             value = array.get(index.get());
-                        } else if (array.size() == index.get()) {
+                        }
+                        else if (array.size() == index.get()) {
                             // We can add at this index ...
                             Optional<Value> newValue = missingSegment.apply(path, i);
                             if (newValue.isPresent()) {
                                 // Add the new value (whatever it is) ...
                                 array.add(newValue.get());
-                            } else {
+                            }
+                            else {
                                 return Optional.empty();
                             }
-                        } else {
+                        }
+                        else {
                             // The index is not valid (it's too big to be an existing or the next index) ...
                             invalid.accept(path.subpath(i));
                             return Optional.empty();
                         }
-                    } else {
+                    }
+                    else {
                         // This is not an array index but we're expecting it to be, so this is a bad path
                         invalid.accept(path.subpath(i));
                         return Optional.empty();
                     }
                 }
-            } else {
+            }
+            else {
                 // We're supposed to find the segment within this value, but it's not a document or array ...
                 invalid.accept(path.subpath(i));
                 return Optional.empty();
@@ -326,7 +342,7 @@ public interface Document extends Iterable<Document.Field>, Comparable<Document>
      */
     default Stream<Field> children(Path path) {
         Value parent = find(path).orElse(Value.create(Document.create()));
-        if (!parent.isDocument()){
+        if (!parent.isDocument()) {
             return Stream.empty();
         }
         return parent.asDocument().stream();
@@ -825,11 +841,13 @@ public interface Document extends Iterable<Document.Field>, Comparable<Document>
                 value.asDocument().forEach((p, v) -> {
                     consumer.accept(path.append(p), v);
                 });
-            } else if (value.isArray()) {
+            }
+            else if (value.isArray()) {
                 value.asArray().forEach((entry) -> {
                     consumer.accept(path.append(Integer.toString(entry.getIndex())), entry.getValue());
                 });
-            } else {
+            }
+            else {
                 consumer.accept(path, value);
             }
         });
@@ -1105,7 +1123,7 @@ public interface Document extends Iterable<Document.Field>, Comparable<Document>
      */
     default Document setDocument(CharSequence name,
                                  Document document) {
-        if (document == null){
+        if (document == null) {
             document = Document.create();
         }
         setValue(name, Value.create(document));
@@ -1132,7 +1150,7 @@ public interface Document extends Iterable<Document.Field>, Comparable<Document>
      */
     default Array setArray(CharSequence name,
                            Array array) {
-        if (array == null){
+        if (array == null) {
             array = Array.create();
         }
         setValue(name, Value.create(array));

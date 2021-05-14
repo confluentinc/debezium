@@ -72,7 +72,7 @@ public abstract class AbstractReader implements Reader {
         this.maxBatchSize = context.getConnectorConfig().getMaxBatchSize();
         this.pollInterval = context.getConnectorConfig().getPollInterval();
         this.metronome = Metronome.parker(pollInterval, Clock.SYSTEM);
-        this.acceptAndContinue = acceptAndContinue == null? new AcceptAllPredicate() : acceptAndContinue;
+        this.acceptAndContinue = acceptAndContinue == null ? new AcceptAllPredicate() : acceptAndContinue;
         this.changeEventQueueMetrics = new ChangeEventQueueMetrics() {
 
             @Override
@@ -148,7 +148,6 @@ public abstract class AbstractReader implements Reader {
         // do nothing
     }
 
-
     /**
      * The reader has been requested to de-initialize resources after stopping. This should only be
      * called once after {@link #doStop()}.
@@ -223,7 +222,8 @@ public abstract class AbstractReader implements Reader {
         if (error instanceof ServerException) {
             ServerException e = (ServerException) error;
             msg = msg + " Error code: " + e.getErrorCode() + "; SQLSTATE: " + e.getSqlState() + ".";
-        } else if (error instanceof SQLException) {
+        }
+        else if (error instanceof SQLException) {
             SQLException e = (SQLException) error;
             msg = e.getMessage() + " Error code: " + e.getErrorCode() + "; SQLSTATE: " + e.getSQLState() + ".";
         }
@@ -262,12 +262,12 @@ public abstract class AbstractReader implements Reader {
         // this reader has been stopped before it reached the success or failed end state, so clean up and abort
         if (!running.get()) {
             cleanupResources();
-            throw new InterruptedException( "Reader was stopped while polling" );
+            throw new InterruptedException("Reader was stopped while polling");
         }
 
         logger.trace("Polling for next batch of records");
         List<SourceRecord> batch = new ArrayList<>(maxBatchSize);
-        final Timer timeout = Threads.timer(Clock.SYSTEM, Temporals.max(pollInterval, ConfigurationDefaults.RETURN_CONTROL_INTERVAL));
+        final Timer timeout = Threads.timer(Clock.SYSTEM, Temporals.min(pollInterval, ConfigurationDefaults.RETURN_CONTROL_INTERVAL));
         while (running.get() && (records.drainTo(batch, maxBatchSize) == 0) && !success.get()) {
             // No records are available even though the snapshot has not yet completed, so sleep for a bit ...
             metronome.pause();
@@ -302,7 +302,8 @@ public abstract class AbstractReader implements Reader {
     protected void cleanupResources() {
         try {
             doCleanup();
-        } finally {
+        }
+        finally {
             Runnable completionHandler = uponCompletion.getAndSet(null); // set to null so that we call it only once
             if (completionHandler != null) {
                 completionHandler.run();

@@ -1,16 +1,34 @@
 #begin
 -- Alter Table
-alter table ship_class add column ship_spec varchar(150) first, add somecol int after start_build;
+alter table ship_class add column ship_spec varchar(150) first, add somecol int after start_build, algorithm=instant;
 alter table t3 add column (c2 decimal(10, 2) comment 'comment`' null, c3 enum('abc', 'cba', 'aaa')), add index t3_i1 using btree (c2) comment 'some index';
+alter table t3 add column (c4 decimal(10, 2) comment 'comment`' null), add index t3_i2 using btree (c4) comment 'some index';
 alter table t2 add constraint t2_pk_constraint primary key (1c), alter column `_` set default 1;
 alter table ship_class change column somecol col_for_del tinyint first;
 alter table ship_class drop col_for_del;
 alter table t3 drop index t3_i1;
+alter table t3 drop index if exists t3_i2;
 alter table childtable drop index fk_idParent_parentTable;
 alter table t2 drop primary key;
 alter table t3 rename to table3column;
 alter table childtable add constraint `fk1` foreign key (idParent) references parenttable(id) on delete restrict on update cascade;
 alter table table3column default character set = cp1251;
+alter table table1 add primary key (id);
+alter table table1 add primary key table_pk (id);
+alter table table1 add primary key `table_pk` (id);
+alter table table1 add primary key `table_pk` (`id`);
+alter table add_test add column if not exists col1 varchar(255);
+alter table add_test add column if not exists col4 varchar(255);
+alter table add_test add index if not exists ix_add_test_col1 using btree (col1) comment 'test index';
+alter table add_test add index if not exists ix_add_test_col4 using btree (col4) comment 'test index';
+alter table add_test alter index ix_add_test_col1 invisible;
+alter table add_test alter index ix_add_test_col1 visible;
+alter table add_test change column if exists col8 col9 tinyint;
+alter table add_test change column if exists col3 col5 tinyint;
+alter table add_test modify column if exists col9 tinyint;
+alter table add_test modify column if exists col5 varchar(255);
+alter table add_test drop column if exists col99;
+alter table add_test drop column if exists col5;
 #end
 #begin
 -- Alter database
@@ -59,4 +77,27 @@ alter algorithm = merge view my_view2(col1, col2) as select * from t2 with check
 alter definer = 'ivan'@'%' view my_view3 as select count(*) from t3;
 alter definer = current_user sql security invoker view my_view4(c1, 1c, _, c1_2) 
 	as select * from  (t1 as tt1, t2 as tt2) inner join t1 on t1.col1 = tt1.col1;
+#end
+#begin
+-- Alter user
+alter user 'user'@'%' identified with 'mysql_native_password' as '*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19'
+    require none password expire default account unlock password history default;
+alter user 'user'@'%' identified with 'mysql_native_password' as '*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19'
+    require none password expire default account unlock password history 90;
+alter user 'user'@'%' identified with 'mysql_native_password' as '*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19'
+    require none password expire default account unlock password reuse interval default;
+alter user 'user'@'%' identified with 'mysql_native_password' as '*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19'
+    require none password expire default account unlock password reuse interval 360 DAY;
+alter user 'user'@'%' identified with 'mysql_native_password' as '*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19'
+    require none password expire default account unlock password require current;
+alter user 'user'@'%' identified with 'mysql_native_password' as '*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19'
+    require none password expire default account unlock password require current optional;
+alter user 'user'@'%' identified with 'mysql_native_password' as '*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19'
+    require none password expire default account unlock password require current default;
+alter user 'user'@'%' identified with 'mysql_native_password' as '*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19'
+    require none password expire default account unlock failed_login_attempts 5;
+alter user 'user'@'%' identified with 'mysql_native_password' as '*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19'
+    require none password expire default account unlock password_lock_time 2;
+alter user 'user'@'%' identified with 'mysql_native_password' as '*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19'
+    require none password expire default account unlock password_lock_time unbounded;
 #end

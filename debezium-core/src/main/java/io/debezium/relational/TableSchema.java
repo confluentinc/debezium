@@ -5,20 +5,18 @@
  */
 package io.debezium.relational;
 
+import java.util.Arrays;
 import java.util.Objects;
-import java.util.function.Function;
 
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.debezium.annotation.Immutable;
 import io.debezium.data.Envelope;
 import io.debezium.data.SchemaUtil;
 import io.debezium.schema.DataCollectionSchema;
-
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Defines the Kafka Connect {@link Schema} functionality associated with a given {@link Table table definition}, and which can
@@ -53,14 +51,14 @@ import org.slf4j.LoggerFactory;
 @Immutable
 public class TableSchema implements DataCollectionSchema {
 
-    private static final Logger logger = LoggerFactory.getLogger(TableSchema.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(TableSchema.class);
 
     private final TableId id;
     private final Schema keySchema;
     private final Envelope envelopeSchema;
     private final Schema valueSchema;
-    private final Function<Object[], Object> keyGenerator;
-    private final Function<Object[], Struct> valueGenerator;
+    private final StructGenerator keyGenerator;
+    private final StructGenerator valueGenerator;
 
     /**
      * Create an instance with the specified {@link Schema}s for the keys and values, and the functions that generate the
@@ -74,8 +72,7 @@ public class TableSchema implements DataCollectionSchema {
      * @param valueGenerator the function that converts a row into a single value object for Kafka Connect; may not be null but
      *            may return nulls
      */
-    public TableSchema(TableId id, Schema keySchema, Function<Object[], Object> keyGenerator,
-            Envelope envelopeSchema, Schema valueSchema, Function<Object[], Struct> valueGenerator) {
+    public TableSchema(TableId id, Schema keySchema, StructGenerator keyGenerator, Envelope envelopeSchema, Schema valueSchema, StructGenerator valueGenerator) {
         this.id = id;
         this.keySchema = keySchema;
         this.envelopeSchema = envelopeSchema;
@@ -126,12 +123,11 @@ public class TableSchema implements DataCollectionSchema {
      * @param columnData the column values for the table
      * @return the key, or null if the {@code columnData}
      */
-    public Object keyFromColumnData(Object[] columnData) {
-        if (logger.isTraceEnabled()) {
-            logger.trace("columnData from current stack: {}", columnData);
-            logger.trace("key from column data stack: ", new Throwable());
+    public Struct keyFromColumnData(Object[] columnData) {
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("columnData from current stack: {}", Arrays.toString(columnData));
         }
-        return columnData == null ? null : keyGenerator.apply(columnData);
+        return columnData == null ? null : keyGenerator.generateValue(columnData);
     }
 
     /**
@@ -142,7 +138,7 @@ public class TableSchema implements DataCollectionSchema {
      * @return the value, or null if the {@code columnData}
      */
     public Struct valueFromColumnData(Object[] columnData) {
-        return columnData == null ? null : valueGenerator.apply(columnData);
+        return columnData == null ? null : valueGenerator.generateValue(columnData);
     }
 
     @Override
@@ -152,10 +148,10 @@ public class TableSchema implements DataCollectionSchema {
 
     @Override
     public boolean equals(Object obj) {
-        if ( obj == this ) {
+        if (obj == this) {
             return true;
         }
-        if ( obj instanceof TableSchema ) {
+        if (obj instanceof TableSchema) {
             TableSchema that = (TableSchema) obj;
             return Objects.equals(this.keySchema(), that.keySchema()) && Objects.equals(this.valueSchema(), that.valueSchema());
         }

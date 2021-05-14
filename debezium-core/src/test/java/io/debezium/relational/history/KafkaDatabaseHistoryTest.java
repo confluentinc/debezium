@@ -16,16 +16,21 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.config.ConfigValue;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.fest.assertions.Assertions;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import io.debezium.config.Configuration;
+import io.debezium.doc.FixFor;
 import io.debezium.kafka.KafkaCluster;
 import io.debezium.relational.Tables;
-import io.debezium.relational.ddl.LegacyDdlParser;
 import io.debezium.relational.ddl.DdlParserSql2003;
+import io.debezium.relational.ddl.LegacyDdlParser;
 import io.debezium.text.ParsingException;
 import io.debezium.util.Collect;
 import io.debezium.util.Testing;
@@ -35,78 +40,86 @@ import io.debezium.util.Testing;
  */
 public class KafkaDatabaseHistoryTest {
 
+    private static KafkaCluster kafka;
+
     private KafkaDatabaseHistory history;
-    private KafkaCluster kafka;
     private Map<String, String> source;
     private Map<String, Object> position;
-    private String topicName;
-    private String ddl;
 
     private static final int PARTITION_NO = 0;
 
-    @Before
-    public void beforeEach() throws Exception {
-        source = Collect.hashMapOf("server", "my-server");
-        setLogPosition(0);
-        topicName = "schema-changes-topic";
-
+    @BeforeClass
+    public static void startKafka() throws Exception {
         File dataDir = Testing.Files.createTestingDirectory("history_cluster");
         Testing.Files.delete(dataDir);
 
         // Configure the extra properties to
         kafka = new KafkaCluster().usingDirectory(dataDir)
-                                  .deleteDataPriorToStartup(true)
-                                  .deleteDataUponShutdown(true)
-                                  .addBrokers(1)
-                                  .withKafkaConfiguration(Collect.propertiesOf("auto.create.topics.enable", "false"))
-                                  .startup();
+                .deleteDataPriorToStartup(true)
+                .deleteDataUponShutdown(true)
+                .addBrokers(1)
+                .withKafkaConfiguration(Collect.propertiesOf(
+                        "auto.create.topics.enable", "false",
+                        "zookeeper.session.timeout.ms", "20000"))
+                .startup();
+    }
+
+    @AfterClass
+    public static void stopKafka() {
+        if (kafka != null) {
+            kafka.shutdown();
+        }
+    }
+
+    @Before
+    public void beforeEach() throws Exception {
+        source = Collect.hashMapOf("server", "my-server");
+        setLogPosition(0);
         history = new KafkaDatabaseHistory();
     }
 
     @After
     public void afterEach() {
         try {
-            if (history != null){
+            if (history != null) {
                 history.stop();
             }
-        } finally {
+        }
+        finally {
             history = null;
-            try {
-                if (kafka != null){
-                    kafka.shutdown();
-                }
-            } finally {
-                kafka = null;
-            }
         }
     }
 
     @Test
     public void shouldStartWithEmptyTopicAndStoreDataAndRecoverAllState() throws Exception {
+        String topicName = "empty-and-recovery-schema-changes";
+
         // Create the empty topic ...
         kafka.createTopic(topicName, 1, 1);
-        testHistoryTopicContent(false);
+        testHistoryTopicContent(topicName, false);
     }
 
-    private void testHistoryTopicContent(boolean skipUnparseableDDL) {
+    private Configuration startHistory(String topicName, boolean skipUnparseableDDL) {
         // Start up the history ...
         Configuration config = Configuration.create()
-                                            .with(KafkaDatabaseHistory.BOOTSTRAP_SERVERS, kafka.brokerList())
-                                            .with(KafkaDatabaseHistory.TOPIC, topicName)
-                                            .with(DatabaseHistory.NAME, "my-db-history")
-                                            .with(KafkaDatabaseHistory.RECOVERY_POLL_INTERVAL_MS, 500)
-                                            // new since 0.10.1.0 - we want a low value because we're running everything locally
-                                            // in this test. However, it can't be so low that the broker returns the same
-                                            // messages more than once.
-                                            .with(KafkaDatabaseHistory.consumerConfigPropertyName(
-                                                  ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG),
-                                                  100)
-                                            .with(KafkaDatabaseHistory.consumerConfigPropertyName(
-                                                  ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG),
-                                                  50000)
-                                            .with(KafkaDatabaseHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, skipUnparseableDDL)
-                                            .build();
-        history.configure(config, null);
+                .with(KafkaDatabaseHistory.BOOTSTRAP_SERVERS, kafka.brokerList())
+                .with(KafkaDatabaseHistory.TOPIC, topicName)
+                .with(DatabaseHistory.NAME, "my-db-history")
+                .with(KafkaDatabaseHistory.RECOVERY_POLL_INTERVAL_MS, 500)
+                // new since 0.10.1.0 - we want a low value because we're running everything locally
+                // in this test. However, it can't be so low that the broker returns the same
+                // messages more than once.
+                .with(KafkaDatabaseHistory.consumerConfigPropertyName(
+                        ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG),
+                        100)
+                .with(KafkaDatabaseHistory.consumerConfigPropertyName(
+                        ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG),
+                        50000)
+                    .with(KafkaDatabaseHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, skipUnparseableDDL)
+                    .with(KafkaDatabaseHistory.INTERNAL_CONNECTOR_CLASS, "org.apache.kafka.connect.source.SourceConnector")
+                    .with(KafkaDatabaseHistory.INTERNAL_CONNECTOR_ID, "dbz-test")
+                    .build();
+        history.configure(config, null, DatabaseHistoryMetrics.NOOP, true);
         history.start();
 
         // Should be able to call start more than once ...
@@ -116,6 +129,12 @@ public class KafkaDatabaseHistoryTest {
 
         // Calling it another time to ensure we can work with the DB history topic already existing
         history.initializeStorage();
+
+        return config;
+    }
+
+    private void testHistoryTopicContent(String topicName, boolean skipUnparseableDDL) {
+        Configuration config = startHistory(topicName, skipUnparseableDDL);
 
         LegacyDdlParser recoveryParser = new DdlParserSql2003();
         LegacyDdlParser ddlParser = new DdlParserSql2003();
@@ -133,7 +152,7 @@ public class KafkaDatabaseHistoryTest {
 
         // Now record schema changes, which writes out to kafka but doesn't actually change the Tables ...
         setLogPosition(10);
-        ddl = "CREATE TABLE foo ( name VARCHAR(255) NOT NULL PRIMARY KEY); \n" +
+        String ddl = "CREATE TABLE foo ( name VARCHAR(255) NOT NULL PRIMARY KEY); \n" +
                 "CREATE TABLE customers ( id INTEGER NOT NULL PRIMARY KEY, name VARCHAR(100) NOT NULL ); \n" +
                 "CREATE TABLE products ( productId INTEGER NOT NULL PRIMARY KEY, desc VARCHAR(255) NOT NULL); \n";
         history.record(source, position, "db1", ddl);
@@ -165,7 +184,7 @@ public class KafkaDatabaseHistoryTest {
         // Stop the history (which should stop the producer) ...
         history.stop();
         history = new KafkaDatabaseHistory();
-        history.configure(config, null);
+        history.configure(config, null, DatabaseHistoryListener.NOOP, true);
         // no need to start
 
         // Recover from the very beginning to just past the first change ...
@@ -195,11 +214,13 @@ public class KafkaDatabaseHistoryTest {
 
     protected void setLogPosition(int index) {
         this.position = Collect.hashMapOf("filename", "my-txn-file.log",
-                                          "position", index);
+                "position", index);
     }
 
     @Test
     public void shouldIgnoreUnparseableMessages() throws Exception {
+        String topicName = "ignore-unparseable-schema-changes";
+
         // Create the empty topic ...
         kafka.createTopic(topicName, 1, 1);
 
@@ -233,11 +254,13 @@ public class KafkaDatabaseHistoryTest {
             producer.send(invalidSQL).get();
         }
 
-        testHistoryTopicContent(true);
+        testHistoryTopicContent(topicName, true);
     }
 
     @Test(expected = ParsingException.class)
     public void shouldStopOnUnparseableSQL() throws Exception {
+        String topicName = "stop-on-unparseable-schema-changes";
+
         // Create the empty topic ...
         kafka.createTopic(topicName, 1, 1);
 
@@ -255,13 +278,15 @@ public class KafkaDatabaseHistoryTest {
             producer.send(invalidSQL).get();
         }
 
-        testHistoryTopicContent(false);
+        testHistoryTopicContent(topicName, false);
     }
 
     @Test
     public void testExists() {
+        String topicName = "exists-schema-changes";
+
         // happy path
-        testHistoryTopicContent(true);
+        testHistoryTopicContent(topicName, true);
         assertTrue(history.exists());
 
         // Set history to use dummy topic
@@ -274,18 +299,79 @@ public class KafkaDatabaseHistoryTest {
                 // in this test. However, it can't be so low that the broker returns the same
                 // messages more than once.
                 .with(KafkaDatabaseHistory.consumerConfigPropertyName(
-                      ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG),
-                      100)
+                        ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG),
+                        100)
                 .with(KafkaDatabaseHistory.consumerConfigPropertyName(
-                      ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG),
-                      50000)
+                        ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG),
+                        50000)
                 .with(KafkaDatabaseHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, true)
+                .with(KafkaDatabaseHistory.INTERNAL_CONNECTOR_CLASS, "org.apache.kafka.connect.source.SourceConnector")
+                .with(KafkaDatabaseHistory.INTERNAL_CONNECTOR_ID, "dbz-test")
                 .build();
 
-        history.configure(config, null);
+        history.configure(config, null, DatabaseHistoryMetrics.NOOP, true);
         history.start();
 
         // dummytopic should not exist yet
         assertFalse(history.exists());
+    }
+
+    @Test
+    public void testEmptyHistoryExists() {
+        String topicName = "exists-schema-changes";
+        // Start up the history ...
+        startHistory(topicName, true);
+        assertTrue(history.exists());
+    }
+
+    @Test
+    @FixFor("DBZ-1886")
+    public void differentiateStorageExistsFromHistoryExists() {
+        String topicName = "differentiate-storage-exists-schema-changes";
+
+        Configuration config = Configuration.create()
+                .with(KafkaDatabaseHistory.BOOTSTRAP_SERVERS, kafka.brokerList())
+                .with(KafkaDatabaseHistory.TOPIC, topicName)
+                .with(DatabaseHistory.NAME, "my-db-history")
+                .with(KafkaDatabaseHistory.RECOVERY_POLL_INTERVAL_MS, 500)
+                .with(KafkaDatabaseHistory.consumerConfigPropertyName(
+                        ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG),
+                        100)
+                .with(KafkaDatabaseHistory.consumerConfigPropertyName(
+                        ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG),
+                        50000)
+                .build();
+
+        history.configure(config, null, DatabaseHistoryMetrics.NOOP, true);
+
+        assertFalse(history.storageExists());
+        history.initializeStorage();
+        assertTrue(history.storageExists());
+
+        history.start();
+        setLogPosition(0);
+        String ddl = "CREATE TABLE foo ( name VARCHAR(255) NOT NULL PRIMARY KEY); \n" +
+                "CREATE TABLE customers ( id INTEGER NOT NULL PRIMARY KEY, name VARCHAR(100) NOT NULL ); \n" +
+                "CREATE TABLE products ( productId INTEGER NOT NULL PRIMARY KEY, desc VARCHAR(255) NOT NULL); \n";
+        history.record(source, position, "db1", ddl);
+        assertTrue(history.exists());
+        assertTrue(history.storageExists());
+    }
+
+    @Test
+    @FixFor("DBZ-2144")
+    public void shouldValidateMandatoryValues() {
+        Configuration config = Configuration.create()
+                .build();
+
+        final Map<String, ConfigValue> issues = config.validate(KafkaDatabaseHistory.ALL_FIELDS);
+        Assertions.assertThat(issues.keySet()).isEqualTo(Collect.unmodifiableSet(
+                "database.history.name",
+                "database.history.connector.class",
+                "database.history.kafka.topic",
+                "database.history.kafka.bootstrap.servers",
+                "database.history.kafka.recovery.poll.interval.ms",
+                "database.history.connector.id",
+                "database.history.kafka.recovery.attempts"));
     }
 }

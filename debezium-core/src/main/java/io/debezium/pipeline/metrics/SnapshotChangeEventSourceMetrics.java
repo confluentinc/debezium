@@ -20,6 +20,7 @@ import io.debezium.connector.common.CdcSourceTaskContext;
 import io.debezium.pipeline.source.spi.EventMetadataProvider;
 import io.debezium.pipeline.source.spi.SnapshotProgressListener;
 import io.debezium.relational.TableId;
+import io.debezium.schema.DataCollectionId;
 
 /**
  * Metrics related to the initial snapshot of a connector.
@@ -27,7 +28,7 @@ import io.debezium.relational.TableId;
  * @author Randall Hauch, Jiri Pechanec
  */
 @ThreadSafe
-public class SnapshotChangeEventSourceMetrics extends Metrics implements SnapshotChangeEventSourceMetricsMXBean, SnapshotProgressListener {
+public class SnapshotChangeEventSourceMetrics extends PipelineMetrics implements SnapshotChangeEventSourceMetricsMXBean, SnapshotProgressListener {
 
     private final AtomicBoolean snapshotRunning = new AtomicBoolean();
     private final AtomicBoolean snapshotCompleted = new AtomicBoolean();
@@ -40,7 +41,8 @@ public class SnapshotChangeEventSourceMetrics extends Metrics implements Snapsho
 
     private final Set<String> monitoredTables = Collections.synchronizedSet(new HashSet<>());
 
-    public <T extends CdcSourceTaskContext> SnapshotChangeEventSourceMetrics(T taskContext, ChangeEventQueueMetrics changeEventQueueMetrics, EventMetadataProvider metadataProvider) {
+    public <T extends CdcSourceTaskContext> SnapshotChangeEventSourceMetrics(T taskContext, ChangeEventQueueMetrics changeEventQueueMetrics,
+                                                                             EventMetadataProvider metadataProvider) {
         super(taskContext, "snapshot", changeEventQueueMetrics, metadataProvider);
     }
 
@@ -88,20 +90,20 @@ public class SnapshotChangeEventSourceMetrics extends Metrics implements Snapsho
     }
 
     @Override
-    public void monitoredTablesDetermined(Iterable<TableId> tableIds) {
-        Iterator<TableId> it = tableIds.iterator();
+    public void monitoredDataCollectionsDetermined(Iterable<? extends DataCollectionId> dataCollectionIds) {
+        Iterator<? extends DataCollectionId> it = dataCollectionIds.iterator();
         while (it.hasNext()) {
-            TableId tableId = it.next();
+            DataCollectionId dataCollectionId = it.next();
 
-            this.remainingTables.put(tableId.toString(), "");
-            monitoredTables.add(tableId.toString());
+            this.remainingTables.put(dataCollectionId.identifier(), "");
+            monitoredTables.add(dataCollectionId.identifier());
         }
     }
 
     @Override
-    public void tableSnapshotCompleted(TableId tableId, long numRows) {
-        rowsScanned.put(tableId.toString(), numRows);
-        remainingTables.remove(tableId.toString());
+    public void dataCollectionSnapshotCompleted(DataCollectionId dataCollectionId, long numRows) {
+        rowsScanned.put(dataCollectionId.identifier(), numRows);
+        remainingTables.remove(dataCollectionId.identifier());
     }
 
     @Override

@@ -23,6 +23,14 @@ public class SnapshotResult {
         return new SnapshotResult(SnapshotResultStatus.ABORTED, null);
     }
 
+    public static SnapshotResult skipped(OffsetContext offset) {
+        return new SnapshotResult(SnapshotResultStatus.SKIPPED, offset);
+    }
+
+    public boolean isCompletedOrSkipped() {
+        return this.status == SnapshotResultStatus.SKIPPED || this.status == SnapshotResultStatus.COMPLETED;
+    }
+
     public SnapshotResultStatus getStatus() {
         return status;
     }
@@ -33,6 +41,12 @@ public class SnapshotResult {
 
     public static enum SnapshotResultStatus {
         COMPLETED,
-        ABORTED;
+        ABORTED,
+        SKIPPED
+    }
+
+    @Override
+    public String toString() {
+        return "SnapshotResult [status=" + status + ", offset=" + offset + "]";
     }
 }

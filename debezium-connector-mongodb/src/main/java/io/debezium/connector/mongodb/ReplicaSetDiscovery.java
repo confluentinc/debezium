@@ -74,11 +74,12 @@ public class ReplicaSetDiscovery {
         }
         catch (MongoInterruptedException e) {
             logger.error("Interrupted while reading the '{}' collection in the '{}' database: {}",
-                         shardsCollection, CONFIG_DATABASE_NAME, e.getMessage(), e);
+                    shardsCollection, CONFIG_DATABASE_NAME, e.getMessage(), e);
             Thread.currentThread().interrupt();
-        } catch (MongoException e) {
+        }
+        catch (MongoException e) {
             logger.error("Error while reading the '{}' collection in the '{}' database: {}",
-                         shardsCollection, CONFIG_DATABASE_NAME, e.getMessage(), e);
+                    shardsCollection, CONFIG_DATABASE_NAME, e.getMessage(), e);
         }
         if (replicaSetSpecs.isEmpty()) {
             // The addresses may be a replica set ...
@@ -89,7 +90,8 @@ public class ReplicaSetDiscovery {
                 String addressStr = Strings.join(",", client.getServerAddressList());
                 String replicaSetName = rsStatus.getName();
                 replicaSetSpecs.add(new ReplicaSet(addressStr, replicaSetName, null));
-            } else {
+            }
+            else {
                 logger.debug("Found standalone MongoDB replica set at {}", seedAddresses);
                 // We aren't connecting to it as a replica set (likely not using auto-discovery of members),
                 // but we can't monitor standalone servers unless they really are replica sets. We already know
@@ -105,8 +107,9 @@ public class ReplicaSetDiscovery {
         }
         if (replicaSetSpecs.isEmpty()) {
             // Without a replica set name, we can't do anything ...
-            logger.error("Found no replica sets at {}, so there is nothing to monitor and no connector tasks will be started. Check seed addresses in connector configuration.",
-                         seedAddresses);
+            logger.error(
+                    "Found no replica sets at {}, so there is nothing to monitor and no connector tasks will be started. Check seed addresses in connector configuration.",
+                    seedAddresses);
         }
         return new ReplicaSets(replicaSetSpecs);
     }

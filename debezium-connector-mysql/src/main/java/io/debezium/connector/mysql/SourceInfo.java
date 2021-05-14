@@ -5,18 +5,21 @@
  */
 package io.debezium.connector.mysql;
 
+import java.time.Instant;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
-import org.apache.kafka.connect.data.Schema;
-import org.apache.kafka.connect.data.SchemaBuilder;
-import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.ConnectException;
 
 import io.debezium.annotation.NotThreadSafe;
 import io.debezium.config.Configuration;
 import io.debezium.connector.AbstractSourceInfo;
+import io.debezium.connector.SnapshotRecord;
 import io.debezium.data.Envelope;
 import io.debezium.document.Document;
 import io.debezium.relational.TableId;
@@ -98,7 +101,6 @@ final class SourceInfo extends AbstractSourceInfo {
     // Ref https://issues.apache.org/jira/browse/AVRO-838.
     public static final String SERVER_ID_KEY = "server_id";
 
-    public static final String SERVER_NAME_KEY = "name";
     public static final String SERVER_PARTITION_KEY = "server";
     public static final String GTID_SET_KEY = "gtids";
     public static final String GTID_KEY = "gtid";
@@ -107,35 +109,17 @@ final class SourceInfo extends AbstractSourceInfo {
     public static final String BINLOG_POSITION_OFFSET_KEY = "pos";
     public static final String BINLOG_ROW_IN_EVENT_OFFSET_KEY = "row";
     public static final String TIMESTAMP_KEY = "ts_sec";
-    public static final String SNAPSHOT_KEY = "snapshot";
     public static final String THREAD_KEY = "thread";
-    public static final String DB_NAME_KEY = "db";
-    public static final String TABLE_NAME_KEY = "table";
     public static final String QUERY_KEY = "query";
     public static final String DATABASE_WHITELIST_KEY = "database_whitelist";
+    public static final String DATABASE_INCLUDE_LIST_KEY = "database_include_list";
     public static final String DATABASE_BLACKLIST_KEY = "database_blacklist";
+    public static final String DATABASE_EXCLUDE_LIST_KEY = "database_exclude_list";
     public static final String TABLE_WHITELIST_KEY = "table_whitelist";
+    public static final String TABLE_INCLUDE_LIST_KEY = "table_include_list";
     public static final String TABLE_BLACKLIST_KEY = "table_blacklist";
+    public static final String TABLE_EXCLUDE_LIST_KEY = "table_exclude_list";
     public static final String RESTART_PREFIX = "RESTART_";
-
-    /**
-     * A {@link Schema} definition for a {@link Struct} used to store the {@link #partition()} and {@link #offset()} information.
-     */
-    public static final Schema SCHEMA = schemaBuilder()
-                                                     .name("io.debezium.connector.mysql.Source")
-                                                     .field(SERVER_NAME_KEY, Schema.STRING_SCHEMA)
-                                                     .field(SERVER_ID_KEY, Schema.INT64_SCHEMA)
-                                                     .field(TIMESTAMP_KEY, Schema.INT64_SCHEMA)
-                                                     .field(GTID_KEY, Schema.OPTIONAL_STRING_SCHEMA)
-                                                     .field(BINLOG_FILENAME_OFFSET_KEY, Schema.STRING_SCHEMA)
-                                                     .field(BINLOG_POSITION_OFFSET_KEY, Schema.INT64_SCHEMA)
-                                                     .field(BINLOG_ROW_IN_EVENT_OFFSET_KEY, Schema.INT32_SCHEMA)
-                                                     .field(SNAPSHOT_KEY, SchemaBuilder.bool().optional().defaultValue(false).build())
-                                                     .field(THREAD_KEY, Schema.OPTIONAL_INT64_SCHEMA)
-                                                     .field(DB_NAME_KEY, Schema.OPTIONAL_STRING_SCHEMA)
-                                                     .field(TABLE_NAME_KEY, Schema.OPTIONAL_STRING_SCHEMA)
-                                                     .field(QUERY_KEY, Schema.OPTIONAL_STRING_SCHEMA)
-                                                     .build();
 
     private String currentGtidSet;
     private String currentGtid;
@@ -149,31 +133,25 @@ final class SourceInfo extends AbstractSourceInfo {
     private long restartEventsToSkip = 0;
     private int restartRowsToSkip = 0;
     private boolean inTransaction = false;
-    private String serverName;
     private long serverId = 0;
     private long binlogTimestampSeconds = 0;
     private long threadId = -1L;
-    private Map<String, String> sourcePartition;
+    private final Map<String, String> sourcePartition;
     private boolean lastSnapshot = true;
     private boolean nextSnapshot = false;
     private String currentQuery = null;
-    private String databaseWhitelist;
-    private String databaseBlacklist;
-    private String tableWhitelist;
-    private String tableBlacklist;
+    private String databaseIncludeList;
+    private String databaseExcludeList;
+    private String tableIncludeList;
+    private String tableExcludeList;
+    private Set<TableId> tableIds;
+    private String databaseName;
 
-    public SourceInfo() {
-        super(Module.version());
-    }
+    public SourceInfo(MySqlConnectorConfig connectorConfig) {
+        super(connectorConfig);
 
-    /**
-     * Set the database identifier. This is typically called once upon initialization.
-     *
-     * @param logicalId the logical identifier for the database; may not be null
-     */
-    public void setServerName(String logicalId) {
-        this.serverName = logicalId;
-        sourcePartition = Collect.hashMapOf(SERVER_PARTITION_KEY, serverName);
+        this.sourcePartition = Collect.hashMapOf(SERVER_PARTITION_KEY, connectorConfig.getLogicalName());
+        this.tableIds = new HashSet<>();
     }
 
     /**
@@ -300,83 +278,25 @@ final class SourceInfo extends AbstractSourceInfo {
         if (isSnapshotInEffect()) {
             map.put(SNAPSHOT_KEY, true);
         }
-        if(hasFilterInfo()) {
-            map.put(DATABASE_WHITELIST_KEY, databaseWhitelist);
-            map.put(DATABASE_BLACKLIST_KEY, databaseBlacklist);
-            map.put(TABLE_WHITELIST_KEY, tableWhitelist);
-            map.put(TABLE_BLACKLIST_KEY, tableBlacklist);
+        if (hasFilterInfo()) {
+            map.put(DATABASE_INCLUDE_LIST_KEY, databaseIncludeList);
+            map.put(DATABASE_EXCLUDE_LIST_KEY, databaseExcludeList);
+            map.put(TABLE_INCLUDE_LIST_KEY, tableIncludeList);
+            map.put(TABLE_EXCLUDE_LIST_KEY, tableExcludeList);
         }
         return map;
     }
 
-    /**
-     * Get a {@link Schema} representation of the source {@link #partition()} and {@link #offset()} information.
-     *
-     * @return the source partition and offset {@link Schema}; never null
-     * @see #struct()
-     */
-    @Override
-    public Schema schema() {
-        return SCHEMA;
+    public void databaseEvent(String databaseName) {
+        this.databaseName = databaseName;
     }
 
-    @Override
-    protected String connector() {
-        return Module.name();
+    public void tableEvent(Set<TableId> tableIds) {
+        this.tableIds = new HashSet<>(tableIds);
     }
 
-    /**
-     * Get a {@link Struct} representation of the source {@link #partition()} and {@link #offset()} information. The Struct
-     * complies with the {@link #SCHEMA} for the MySQL connector.
-     * <p>
-     * This method should always be called after {@link #offsetForRow(int, int)}.
-     *
-     * @return the source partition and offset {@link Struct}; never null
-     * @see #schema()
-     */
-    @Override
-    public Struct struct() {
-        return struct(null);
-    }
-
-    /**
-     * Get a {@link Struct} representation of the source {@link #partition()} and {@link #offset()} information. The Struct
-     * complies with the {@link #SCHEMA} for the MySQL connector.
-     * <p>
-     * This method should always be called after {@link #offsetForRow(int, int)}.
-     *
-     * @param tableId the table that should be included in the struct; may be null
-     * @return the source partition and offset {@link Struct}; never null
-     * @see #schema()
-     */
-    public Struct struct(TableId tableId) {
-        assert serverName != null;
-        Struct result = super.struct();
-        result.put(SERVER_NAME_KEY, serverName);
-        result.put(SERVER_ID_KEY, serverId);
-        if (currentGtid != null) {
-            // Don't put the GTID Set into the struct; only the current GTID is fine ...
-            result.put(GTID_KEY, currentGtid);
-        }
-        result.put(BINLOG_FILENAME_OFFSET_KEY, currentBinlogFilename);
-        result.put(BINLOG_POSITION_OFFSET_KEY, currentBinlogPosition);
-        result.put(BINLOG_ROW_IN_EVENT_OFFSET_KEY, currentRowNumber);
-        result.put(TIMESTAMP_KEY, binlogTimestampSeconds);
-        if (lastSnapshot) {
-            // if the snapshot is COMPLETED, then this will not happen.
-            result.put(SNAPSHOT_KEY, true);
-        }
-        if (threadId >= 0) {
-            result.put(THREAD_KEY, threadId);
-        }
-        if (tableId != null) {
-            result.put(DB_NAME_KEY, tableId.catalog());
-            result.put(TABLE_NAME_KEY, tableId.table());
-        }
-        if (currentQuery != null) {
-            result.put(QUERY_KEY, currentQuery);
-        }
-        return result;
+    public void tableEvent(TableId tableId) {
+        this.tableIds = Collections.singleton(tableId);
     }
 
     /**
@@ -518,10 +438,10 @@ final class SourceInfo extends AbstractSourceInfo {
      * @param config the configuration
      */
     public void setFilterDataFromConfig(Configuration config) {
-        this.databaseWhitelist = config.getString(MySqlConnectorConfig.DATABASE_WHITELIST);
-        this.databaseBlacklist = config.getString(MySqlConnectorConfig.DATABASE_BLACKLIST);
-        this.tableWhitelist = config.getString(MySqlConnectorConfig.TABLE_WHITELIST);
-        this.tableBlacklist = config.getString(MySqlConnectorConfig.TABLE_BLACKLIST);
+        this.databaseIncludeList = config.getFallbackStringProperty(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, MySqlConnectorConfig.DATABASE_WHITELIST);
+        this.databaseExcludeList = config.getFallbackStringProperty(MySqlConnectorConfig.DATABASE_EXCLUDE_LIST, MySqlConnectorConfig.DATABASE_BLACKLIST);
+        this.tableIncludeList = config.getFallbackStringProperty(MySqlConnectorConfig.TABLE_INCLUDE_LIST, MySqlConnectorConfig.TABLE_WHITELIST);
+        this.tableExcludeList = config.getFallbackStringProperty(MySqlConnectorConfig.TABLE_EXCLUDE_LIST, MySqlConnectorConfig.TABLE_BLACKLIST);
     }
 
     /**
@@ -530,7 +450,7 @@ final class SourceInfo extends AbstractSourceInfo {
      */
     public void maybeSetFilterDataFromConfig(Configuration config) {
         if (config.getString(MySqlConnectorConfig.SNAPSHOT_NEW_TABLES).equals(
-            MySqlConnectorConfig.SnapshotNewTables.PARALLEL.getValue())) {
+                MySqlConnectorConfig.SnapshotNewTables.PARALLEL.getValue())) {
             setFilterDataFromConfig(config);
         }
     }
@@ -543,26 +463,26 @@ final class SourceInfo extends AbstractSourceInfo {
          * There are 2 possible cases for us not having filter info.
          * 1. The connector does not use a filter. Creating a filter in such a connector could never add any tables.
          * 2. The initial snapshot occurred in a version of Debezium that did not store the filter information in the
-         *    offsets / the connector was not configured to store filter information.
+         * offsets / the connector was not configured to store filter information.
          */
-        return databaseWhitelist != null || databaseBlacklist != null ||
-               tableWhitelist != null || tableBlacklist != null;
+        return databaseIncludeList != null || databaseExcludeList != null ||
+                tableIncludeList != null || tableExcludeList != null;
     }
 
-    public String getDatabaseWhitelist() {
-        return databaseWhitelist;
+    public String getDatabaseIncludeList() {
+        return databaseIncludeList;
     }
 
-    public String getDatabaseBlacklist() {
-        return databaseBlacklist;
+    public String getDatabaseExcludeList() {
+        return databaseExcludeList;
     }
 
-    public String getTableWhitelist() {
-        return tableWhitelist;
+    public String getTableIncludeList() {
+        return tableIncludeList;
     }
 
-    public String getTableBlacklist() {
-        return tableBlacklist;
+    public String getTableExcludeList() {
+        return tableExcludeList;
     }
 
     /**
@@ -575,7 +495,6 @@ final class SourceInfo extends AbstractSourceInfo {
         if (sourceOffset != null) {
             // We have previously recorded an offset ...
             setCompletedGtidSet((String) sourceOffset.get(GTID_SET_KEY)); // may be null
-            restartEventsToSkip = longOffsetValue(sourceOffset, EVENTS_TO_SKIP_OFFSET_KEY);
             String binlogFilename = (String) sourceOffset.get(BINLOG_FILENAME_OFFSET_KEY);
             if (binlogFilename == null) {
                 throw new ConnectException("Source offset '" + BINLOG_FILENAME_OFFSET_KEY + "' parameter is missing");
@@ -583,21 +502,45 @@ final class SourceInfo extends AbstractSourceInfo {
             long binlogPosition = longOffsetValue(sourceOffset, BINLOG_POSITION_OFFSET_KEY);
             setBinlogStartPoint(binlogFilename, binlogPosition);
             this.restartRowsToSkip = (int) longOffsetValue(sourceOffset, BINLOG_ROW_IN_EVENT_OFFSET_KEY);
+            this.restartEventsToSkip = longOffsetValue(sourceOffset, EVENTS_TO_SKIP_OFFSET_KEY);
             nextSnapshot = booleanOffsetValue(sourceOffset, SNAPSHOT_KEY);
             lastSnapshot = nextSnapshot;
-            this.databaseWhitelist = (String) sourceOffset.get(DATABASE_WHITELIST_KEY);
-            this.databaseBlacklist = (String) sourceOffset.get(DATABASE_BLACKLIST_KEY);
-            this.tableWhitelist = (String) sourceOffset.get(TABLE_WHITELIST_KEY);
-            this.tableBlacklist = (String) sourceOffset.get(TABLE_BLACKLIST_KEY);
+            if (sourceOffset.containsKey(DATABASE_INCLUDE_LIST_KEY)) {
+                this.databaseIncludeList = (String) sourceOffset.get(DATABASE_INCLUDE_LIST_KEY);
+            }
+            else {
+                this.databaseIncludeList = (String) sourceOffset.get(DATABASE_WHITELIST_KEY);
+            }
+            if (sourceOffset.containsKey(DATABASE_EXCLUDE_LIST_KEY)) {
+                this.databaseExcludeList = (String) sourceOffset.get(DATABASE_EXCLUDE_LIST_KEY);
+            }
+            else {
+                this.databaseExcludeList = (String) sourceOffset.get(DATABASE_BLACKLIST_KEY);
+            }
+            if (sourceOffset.containsKey(TABLE_INCLUDE_LIST_KEY)) {
+                this.tableIncludeList = (String) sourceOffset.get(TABLE_INCLUDE_LIST_KEY);
+            }
+            else {
+                this.tableIncludeList = (String) sourceOffset.get(TABLE_WHITELIST_KEY);
+            }
+            if (sourceOffset.containsKey(TABLE_EXCLUDE_LIST_KEY)) {
+                this.tableExcludeList = (String) sourceOffset.get(TABLE_EXCLUDE_LIST_KEY);
+            }
+            else {
+                this.tableExcludeList = (String) sourceOffset.get(TABLE_BLACKLIST_KEY);
+            }
         }
     }
 
     public static boolean offsetsHaveFilterInfo(Map<String, ?> sourceOffset) {
-        return sourceOffset != null &&
-            sourceOffset.containsKey(DATABASE_BLACKLIST_KEY) ||
-            sourceOffset.containsKey(DATABASE_WHITELIST_KEY) ||
-            sourceOffset.containsKey(TABLE_BLACKLIST_KEY) ||
-            sourceOffset.containsKey(TABLE_WHITELIST_KEY);
+        return sourceOffset != null && (sourceOffset.containsKey(DATABASE_BLACKLIST_KEY) ||
+                sourceOffset.containsKey(DATABASE_EXCLUDE_LIST_KEY) ||
+                sourceOffset.containsKey(DATABASE_WHITELIST_KEY) ||
+                sourceOffset.containsKey(DATABASE_INCLUDE_LIST_KEY) ||
+                sourceOffset.containsKey(TABLE_BLACKLIST_KEY) ||
+                sourceOffset.containsKey(TABLE_EXCLUDE_LIST_KEY) ||
+                sourceOffset.containsKey(TABLE_WHITELIST_KEY) ||
+                sourceOffset.containsKey(TABLE_INCLUDE_LIST_KEY));
     }
 
     private long longOffsetValue(Map<String, ?> values, String key) {
@@ -610,7 +553,8 @@ final class SourceInfo extends AbstractSourceInfo {
         }
         try {
             return Long.parseLong(obj.toString());
-        } catch (NumberFormatException e) {
+        }
+        catch (NumberFormatException e) {
             throw new ConnectException("Source offset '" + key + "' parameter value " + obj + " could not be converted to a long");
         }
     }
@@ -672,13 +616,49 @@ final class SourceInfo extends AbstractSourceInfo {
         return restartRowsToSkip;
     }
 
+    long getServerId() {
+        return serverId;
+    }
+
+    long getThreadId() {
+        return threadId;
+    }
+
     /**
-     * Get the logical identifier of the database that is the source of the events.
-     *
-     * @return the database name; null if it has not been {@link #setServerName(String) set}
+     * Returns a string representation of the table(s) affected by the current
+     * event. Will only represent more than a single table for events in the
+     * user-facing schema history topic for certain types of DDL. Will be {@code null}
+     * for DDL events not applying to tables (CREATE DATABASE etc.).
      */
-    public String serverName() {
-        return serverName;
+    String table() {
+        return tableIds.isEmpty() ? null
+                : tableIds.stream()
+                        .map(TableId::table)
+                        .collect(Collectors.joining(","));
+    }
+
+    String getCurrentGtid() {
+        return currentGtid;
+    }
+
+    boolean isLastSnapshot() {
+        return lastSnapshot;
+    }
+
+    String getCurrentBinlogFilename() {
+        return currentBinlogFilename;
+    }
+
+    long getCurrentBinlogPosition() {
+        return currentBinlogPosition;
+    }
+
+    long getBinlogTimestampSeconds() {
+        return binlogTimestampSeconds;
+    }
+
+    int getCurrentRowNumber() {
+        return currentRowNumber;
     }
 
     @Override
@@ -692,13 +672,16 @@ final class SourceInfo extends AbstractSourceInfo {
             sb.append(", skipping ").append(restartEventsToSkip);
             sb.append(" events plus ").append(restartRowsToSkip);
             sb.append(" rows");
-        } else {
+        }
+        else {
             if (restartBinlogFilename == null) {
                 sb.append("<latest>");
-            } else {
+            }
+            else {
                 if ("".equals(restartBinlogFilename)) {
                     sb.append("earliest binlog file and position");
-                } else {
+                }
+                else {
                     sb.append("binlog file '").append(restartBinlogFilename).append("'");
                     sb.append(", pos=").append(restartBinlogPosition);
                     sb.append(", skipping ").append(restartEventsToSkip);
@@ -718,7 +701,7 @@ final class SourceInfo extends AbstractSourceInfo {
      */
     public static Document createDocumentFromOffset(Map<String, ?> offset) {
         Document offsetDocument = Document.create();
-        // all of the offset keys represent int, long, or string types, so we  don't need to worry about references
+        // all of the offset keys represent int, long, or string types, so we don't need to worry about references
         // and information changing underneath us.
 
         for (Map.Entry<String, ?> entry : offset.entrySet()) {
@@ -789,7 +772,8 @@ final class SourceInfo extends AbstractSourceInfo {
             // use GTIDs should always have the complete set of GTIDs copied from the master, in which case
             // again we know that recorded not having GTIDs is before the desired position ...
             return true;
-        } else if (recordedGtidSetStr != null) {
+        }
+        else if (recordedGtidSetStr != null) {
             // The recorded has a GTID but the desired does not, so per the previous paragraph we assume that previous
             // is not at or before ...
             return false;
@@ -851,5 +835,23 @@ final class SourceInfo extends AbstractSourceInfo {
 
         // The binlog coordinates are the same ...
         return true;
+    }
+
+    @Override
+    protected Instant timestamp() {
+        return Instant.ofEpochSecond(getBinlogTimestampSeconds());
+    }
+
+    @Override
+    protected SnapshotRecord snapshot() {
+        if (isSnapshotInEffect()) {
+            return SnapshotRecord.TRUE;
+        }
+        return SnapshotRecord.FALSE;
+    }
+
+    @Override
+    protected String database() {
+        return tableIds.isEmpty() ? databaseName : tableIds.iterator().next().catalog();
     }
 }

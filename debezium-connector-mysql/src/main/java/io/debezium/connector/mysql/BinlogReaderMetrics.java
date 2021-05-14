@@ -14,13 +14,13 @@ import com.github.shyiko.mysql.binlog.BinaryLogClient;
 import com.github.shyiko.mysql.binlog.jmx.BinaryLogClientStatistics;
 
 import io.debezium.connector.base.ChangeEventQueueMetrics;
-import io.debezium.pipeline.metrics.Metrics;
+import io.debezium.pipeline.metrics.PipelineMetrics;
 import io.debezium.util.Collect;
 
 /**
  * @author Randall Hauch
  */
-class BinlogReaderMetrics extends Metrics implements BinlogReaderMetricsMXBean {
+class BinlogReaderMetrics extends PipelineMetrics implements BinlogReaderMetricsMXBean {
 
     private final BinaryLogClient client;
     private final BinaryLogClientStatistics stats;
@@ -31,6 +31,7 @@ class BinlogReaderMetrics extends Metrics implements BinlogReaderMetricsMXBean {
     private final AtomicLong numberOfNotWellFormedTransactions = new AtomicLong();
     private final AtomicLong numberOfLargeTransactions = new AtomicLong();
     private final AtomicBoolean isGtidModeEnabled = new AtomicBoolean(false);
+    private final AtomicLong milliSecondsBehindMaster = new AtomicLong();
     private final AtomicReference<String> lastTransactionId = new AtomicReference<>();
 
     public BinlogReaderMetrics(BinaryLogClient client, MySqlTaskContext taskContext, String name, ChangeEventQueueMetrics changeEventQueueMetrics) {
@@ -38,6 +39,7 @@ class BinlogReaderMetrics extends Metrics implements BinlogReaderMetricsMXBean {
         this.client = client;
         this.stats = new BinaryLogClientStatistics(client);
         this.schema = taskContext.dbSchema();
+        this.milliSecondsBehindMaster.set(-1);
     }
 
     @Override
@@ -71,18 +73,8 @@ class BinlogReaderMetrics extends Metrics implements BinlogReaderMetricsMXBean {
     }
 
     @Override
-    public long getSecondsSinceLastEvent() {
-        return this.stats.getSecondsSinceLastEvent();
-    }
-
-    @Override
     public long getMilliSecondsSinceLastEvent() {
         return this.stats.getSecondsSinceLastEvent() * 1000;
-    }
-
-    @Override
-    public long getSecondsBehindMaster() {
-        return this.stats.getSecondsBehindMaster();
     }
 
     @Override
@@ -155,6 +147,10 @@ class BinlogReaderMetrics extends Metrics implements BinlogReaderMetricsMXBean {
         isGtidModeEnabled.set(enabled);
     }
 
+    public void setMilliSecondsBehindSource(long value) {
+        milliSecondsBehindMaster.set(value);
+    }
+
     @Override
     public String[] getMonitoredTables() {
         return schema.monitoredTablesAsStringArray();
@@ -162,7 +158,7 @@ class BinlogReaderMetrics extends Metrics implements BinlogReaderMetricsMXBean {
 
     @Override
     public long getMilliSecondsBehindSource() {
-        return getSecondsBehindMaster() * 1000;
+        return milliSecondsBehindMaster.get();
     }
 
     @Override
@@ -170,8 +166,7 @@ class BinlogReaderMetrics extends Metrics implements BinlogReaderMetricsMXBean {
         return Collect.hashMapOf(
                 "filename", getBinlogFilename(),
                 "position", Long.toString(getBinlogPosition()),
-                "gtid", getGtidSet()
-        );
+                "gtid", getGtidSet());
     }
 
     @Override

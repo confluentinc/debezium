@@ -3,7 +3,7 @@
  * Written by Doug Lea with assistance from members of JCP JSR-166
  * Expert Group and released to the public domain, as explained at
  * http://creativecommons.org/publicdomain/zero/1.0/
- * 
+ *
  * Any changes relative to CountDownLatch are also released to the
  * public domain, as explained at
  * http://creativecommons.org/publicdomain/zero/1.0/
@@ -24,7 +24,7 @@ public class VariableLatch {
 
     /**
      * Create a new variable latch.
-     * 
+     *
      * @return the variable latch; never null
      */
     public static VariableLatch create() {
@@ -33,12 +33,12 @@ public class VariableLatch {
 
     /**
      * Create a new variable latch.
-     * 
+     *
      * @param initialValue the initial number of latches
      * @return the variable latch; never null
      */
     public static VariableLatch create(int initialValue) {
-        return new VariableLatch(0);
+        return new VariableLatch(initialValue);
     }
 
     /**
@@ -70,11 +70,11 @@ public class VariableLatch {
                     return false;
                 }
                 int nextc = c - releases;
-                if (nextc < 0)  {
+                if (nextc < 0) {
                     nextc = 0;
                 }
                 if (compareAndSetState(c, nextc)) {
-                    return nextc==0;
+                    return nextc == 0;
                 }
             }
         }
@@ -192,7 +192,7 @@ public class VariableLatch {
      *
      * <p>
      * If the current count equals zero then nothing happens.
-     * 
+     *
      * @param count the number of counts to decrease
      */
     public void countDown(int count) {
@@ -208,7 +208,7 @@ public class VariableLatch {
 
     /**
      * Increments the count of the latch by a positive number.
-     * 
+     *
      * @param count the number of counts to increase
      */
     public void countUp(int count) {

@@ -12,7 +12,6 @@ import java.util.function.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.connector.common.CdcSourceTaskContext;
 import io.debezium.connector.mysql.MySqlConnectorConfig.GtidNewChannelPosition;
@@ -58,18 +57,17 @@ public final class MySqlTaskContext extends CdcSourceTaskContext {
     }
 
     public MySqlTaskContext(Configuration config, Filters filters, Boolean tableIdCaseInsensitive, Map<String, ?> restartOffset) {
-        super("MySQL", config.getString(MySqlConnectorConfig.SERVER_NAME), Collections::emptyList);
+        super(Module.contextName(), config.getString(MySqlConnectorConfig.SERVER_NAME), Collections::emptyList);
 
         this.config = config;
         this.connectorConfig = new MySqlConnectorConfig(config);
-        this.connectionContext = new MySqlJdbcContext(config);
+        this.connectionContext = new MySqlJdbcContext(connectorConfig);
 
         // Set up the topic selector ...
         this.topicSelector = MySqlTopicSelector.defaultSelector(connectorConfig.getLogicalName(), connectorConfig.getHeartbeatTopicsPrefix());
 
         // Set up the source information ...
-        this.source = new SourceInfo();
-        this.source.setServerName(connectorConfig.getLogicalName());
+        this.source = new SourceInfo(connectorConfig);
 
         // Set up the GTID filter ...
         String gtidSetIncludes = config.getString(MySqlConnectorConfig.GTID_SOURCE_INCLUDES);
@@ -79,7 +77,8 @@ public final class MySqlTaskContext extends CdcSourceTaskContext {
 
         if (tableIdCaseInsensitive == null) {
             this.tableIdCaseInsensitive = !"0".equals(connectionContext.readMySqlSystemVariables().get(MySqlSystemVariables.LOWER_CASE_TABLE_NAMES));
-        } else {
+        }
+        else {
             this.tableIdCaseInsensitive = tableIdCaseInsensitive;
         }
 
@@ -87,7 +86,7 @@ public final class MySqlTaskContext extends CdcSourceTaskContext {
         this.dbSchema = new MySqlSchema(connectorConfig, this.gtidSourceFilter, this.tableIdCaseInsensitive, topicSelector, filters);
 
         // Set up the record processor ...
-        this.recordProcessor = new RecordMakers(dbSchema, source, topicSelector, config.getBoolean(CommonConnectorConfig.TOMBSTONES_ON_DELETE), restartOffset);
+        this.recordProcessor = new RecordMakers(dbSchema, source, topicSelector, connectorConfig.isEmitTombstoneOnDelete(), restartOffset);
 
         // Set up the DDL filter
         final String ddlFilter = config.getString(DatabaseHistory.DDL_FILTER);
@@ -186,7 +185,7 @@ public final class MySqlTaskContext extends CdcSourceTaskContext {
         dbSchema.setSystemVariables(variables);
 
         // And then load the history ...
-       return dbSchema.historyExists();
+        return dbSchema.historyExists();
     }
 
     /**
@@ -198,10 +197,6 @@ public final class MySqlTaskContext extends CdcSourceTaskContext {
 
     public long serverId() {
         return config.getLong(MySqlConnectorConfig.SERVER_ID);
-    }
-
-    public long timeoutInMilliseconds() {
-        return config.getLong(MySqlConnectorConfig.CONNECTION_TIMEOUT_MS);
     }
 
     public long rowCountForLargeTable() {
@@ -245,10 +240,6 @@ public final class MySqlTaskContext extends CdcSourceTaskContext {
         return SnapshotMode.parse(value, MySqlConnectorConfig.SNAPSHOT_MODE.defaultValueAsString());
     }
 
-    public String getSnapshotSelectOverrides() {
-        return config.getString(MySqlConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE);
-    }
-
     public void start() {
         connectionContext.start();
         // Start the MySQL database history, which simply starts up resources but does not recover the history to a specific point
@@ -260,9 +251,11 @@ public final class MySqlTaskContext extends CdcSourceTaskContext {
             // Flush and stop the database history ...
             LOGGER.debug("Stopping database history");
             dbSchema.shutdown();
-        } catch (Throwable e) {
+        }
+        catch (Throwable e) {
             LOGGER.error("Unexpected error shutting down the database history", e);
-        } finally {
+        }
+        finally {
             connectionContext.shutdown();
         }
     }
@@ -318,9 +311,7 @@ public final class MySqlTaskContext extends CdcSourceTaskContext {
         if (connectorConfig.gtidNewChannelPosition() == GtidNewChannelPosition.EARLIEST) {
             final GtidSet knownGtidSet = filteredGtidSet;
             LOGGER.info("Using first available positions for new GTID channels");
-            final GtidSet relevantAvailableServerGtidSet = (gtidSourceFilter != null) ?
-                    availableServerGtidSet.retainAll(gtidSourceFilter) :
-                    availableServerGtidSet;
+            final GtidSet relevantAvailableServerGtidSet = (gtidSourceFilter != null) ? availableServerGtidSet.retainAll(gtidSourceFilter) : availableServerGtidSet;
             LOGGER.info("Relevant GTID set available on server: {}", relevantAvailableServerGtidSet);
 
             mergedGtidSet = relevantAvailableServerGtidSet

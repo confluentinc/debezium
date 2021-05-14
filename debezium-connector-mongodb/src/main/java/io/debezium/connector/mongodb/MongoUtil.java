@@ -8,6 +8,7 @@ package io.debezium.connector.mongodb;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
@@ -57,7 +58,7 @@ public class MongoUtil {
      * @return the replica set name, or {@code null} if no replica set name is in the string
      */
     public static String replicaSetUsedIn(String addresses) {
-        if ( addresses.startsWith("[")) {
+        if (addresses.startsWith("[")) {
             // Just an IPv6 address, so no replica set name ...
             return null;
         }
@@ -152,8 +153,9 @@ public class MongoUtil {
                 while (cursor.hasNext()) {
                     try {
                         documentOperation.accept(cursor.next());
-                    } catch (InterruptedException e) {
-                        Thread.interrupted();
+                    }
+                    catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
                         break;
                     }
                 }
@@ -219,6 +221,21 @@ public class MongoUtil {
     }
 
     /**
+     * Helper function to extract the session transaction-id from an oplog event.
+     *
+     * @param oplogEvent the oplog event
+     * @return the session transaction id from the oplog event
+     */
+    public static String getOplogSessionTransactionId(Document oplogEvent) {
+        if (!oplogEvent.containsKey("txnNumber")) {
+            return null;
+        }
+        final String lsid = oplogEvent.get("lsid", Document.class).get("id", UUID.class).toString();
+        final Long txnNumber = oplogEvent.getLong("txnNumber");
+        return lsid + ":" + txnNumber;
+    }
+
+    /**
      * Parse the comma-separated list of server addresses. The format of the supplied string is one of the following:
      *
      * <pre>
@@ -253,29 +270,34 @@ public class MongoUtil {
                 if (address.startsWith("[")) {
                     // Definitely an IPv6 address without a replica set name ...
                     hostAndPort = address;
-                } else {
+                }
+                else {
                     // May start with replica set name ...
                     int index = address.indexOf("/[");
                     if (index >= 0) {
                         if ((index + 2) < address.length()) {
                             // replica set name with IPv6, so use just the IPv6 address ...
                             hostAndPort = address.substring(index + 1);
-                        } else {
+                        }
+                        else {
                             // replica set name with just opening bracket; this is invalid, so we'll ignore ...
                             continue;
                         }
-                    } else {
+                    }
+                    else {
                         // possible replica set name with IPv4 only
                         index = address.indexOf("/");
                         if (index >= 0) {
                             if ((index + 1) < address.length()) {
                                 // replica set name with IPv4, so use just the IPv4 address ...
                                 hostAndPort = address.substring(index + 1);
-                            } else {
+                            }
+                            else {
                                 // replica set name with no address ...
                                 hostAndPort = ServerAddress.defaultHost();
                             }
-                        } else {
+                        }
+                        else {
                             // No replica set name with IPv4, so use the whole address ...
                             hostAndPort = address;
                         }
