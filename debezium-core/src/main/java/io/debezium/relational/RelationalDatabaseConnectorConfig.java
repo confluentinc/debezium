@@ -49,6 +49,8 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
     public static final String COLUMN_INCLUDE_LIST_ALREADY_SPECIFIED_ERROR_MSG = "\"column.include.list\" or \"column.whitelist\" is already specified";
     public static final String SCHEMA_INCLUDE_LIST_ALREADY_SPECIFIED_ERROR_MSG = "\"schema.include.list\" or \"schema.whitelist\" is already specified";
 
+    protected static final Pattern SERVER_NAME_PATTERN = Pattern.compile("^[a-zA-Z0-9_]+$");
+
     /**
      * The set of predefined DecimalHandlingMode options or aliases.
      */
@@ -134,7 +136,7 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
             .withType(Type.STRING)
             .withWidth(Width.MEDIUM)
             .withImportance(Importance.HIGH)
-            .withValidation(Field::isRequired)
+            .withValidation(Field::isRequired, RelationalDatabaseConnectorConfig::validateServerName)
             .withDescription("Unique name that identifies the database server and all "
                     + "recorded offsets, and that is used as a prefix for all schemas and topics. "
                     + "Each distinct installation should have a separate namespace and be monitored by "
@@ -591,6 +593,18 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
         if (msgKeyColumns != null && !MSG_KEY_COLUMNS_PATTERN.asPredicate().test(msgKeyColumns)) {
             problems.accept(MSG_KEY_COLUMNS, msgKeyColumns, MSG_KEY_COLUMNS.name() + " has an invalid format (expecting '" + MSG_KEY_COLUMNS_PATTERN.pattern() + "')");
             return 1;
+        }
+        return 0;
+    }
+
+    private static int validateServerName(Configuration config, Field field, Field.ValidationOutput problems) {
+        String serverName = config.getString(SERVER_NAME);
+
+        if (serverName != null) {
+            if (!SERVER_NAME_PATTERN.asPredicate().test(serverName)) {
+                problems.accept(SERVER_NAME, serverName, serverName + " has invalid format (only the underscore and alphanumeric characters are allowed)");
+                return 1;
+            }
         }
         return 0;
     }
