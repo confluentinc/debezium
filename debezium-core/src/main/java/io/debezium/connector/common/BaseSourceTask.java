@@ -97,10 +97,7 @@ public abstract class BaseSourceTask extends SourceTask {
             }
 
             if (LOGGER.isInfoEnabled()) {
-                LOGGER.info("Starting {} with configuration:", getClass().getSimpleName());
-                config.withMaskedPasswords().forEach((propName, propValue) -> {
-                    LOGGER.info("   {} = {}", propName, propValue);
-                });
+                LOGGER.info("Starting {}:", getClass().getSimpleName());
             }
 
             this.coordinator = start(config);
