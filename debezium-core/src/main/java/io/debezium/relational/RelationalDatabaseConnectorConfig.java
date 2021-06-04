@@ -49,7 +49,7 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
     public static final String COLUMN_INCLUDE_LIST_ALREADY_SPECIFIED_ERROR_MSG = "\"column.include.list\" or \"column.whitelist\" is already specified";
     public static final String SCHEMA_INCLUDE_LIST_ALREADY_SPECIFIED_ERROR_MSG = "\"schema.include.list\" or \"schema.whitelist\" is already specified";
 
-    protected static final Pattern SERVER_NAME_PATTERN = Pattern.compile("^[a-zA-Z0-9_]+$");
+    protected static final Pattern SERVER_NAME_PATTERN = Pattern.compile("^[a-zA-Z0-9_\\-]+$");
 
     /**
      * The set of predefined DecimalHandlingMode options or aliases.
