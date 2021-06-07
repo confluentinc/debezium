@@ -595,7 +595,7 @@ public abstract class CommonConnectorConfig {
                 || APICURIO_AVRO_CONVERTER.equals(keyConverter) || APICURIO_AVRO_CONVERTER.equals(valueConverter);
     }
 
-    public static int validateServerNameIsDifferentFromHistoryTopicName(Configuration config, Field field, ValidationOutput problems) {
+    protected static int validateServerNameIsDifferentFromHistoryTopicName(Configuration config, Field field, ValidationOutput problems) {
         String serverName = config.getString(field);
         String historyTopicName = config.getString(KafkaDatabaseHistory.TOPIC);
 
