@@ -266,6 +266,9 @@ public class ConfigurationTest {
         config = Configuration.create().with(SERVER_NAME, "server-12").build();
         assertThat(config.validate(Field.setOf(SERVER_NAME)).get(SERVER_NAME.name()).errorMessages()).isEmpty();
 
+        config = Configuration.create().with(SERVER_NAME, "server.13").build();
+        assertThat(config.validate(Field.setOf(SERVER_NAME)).get(SERVER_NAME.name()).errorMessages()).isEmpty();
+
         config = Configuration.create().with(SERVER_NAME, "server@X").build();
         errorList = config.validate(Field.setOf(SERVER_NAME)).get(SERVER_NAME.name()).errorMessages();
         assertThat(errorList.get(0)).isEqualTo("server@X has invalid format (only the underscore, hyphen and alphanumeric characters are allowed)");
