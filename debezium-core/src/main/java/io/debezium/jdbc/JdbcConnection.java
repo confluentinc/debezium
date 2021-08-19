@@ -15,6 +15,7 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -851,7 +852,9 @@ public class JdbcConnection implements AutoCloseable {
         if (conn == null) {
             return false;
         }
-        return !conn.isClosed();
+        int connectTimeout = (int) config.getDuration(JdbcConfiguration.CONNECTION_TIMEOUT_MS,
+            ChronoUnit.SECONDS).getSeconds();
+        return !conn.isClosed() && conn.isValid(connectTimeout);
     }
 
     public synchronized Connection connection() throws SQLException {
