@@ -5,6 +5,7 @@
  */
 package io.debezium.connector.sqlserver;
 
+import io.debezium.config.CommonConnectorConfig.EventProcessingFailureHandlingMode;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
@@ -21,6 +22,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import org.apache.kafka.connect.errors.ConnectException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -163,6 +165,13 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                     return false;
                 }
 
+                // Check for out-of-sync lsns
+                // lastProcessedPosition.getCommitLsn() -> @LastReadLSN
+                // table.getStartLsn() -> min_lsn (there can be multiple tables, but the out of
+                // sync may have happened only for one)
+                // if the min_lsn > @LastReadLSN
+                // depending on config -> skip, fail, or warn
+
                 // Reading interval is inclusive so we need to move LSN forward but not for first
                 // run as TX might not be streamed completely
                 final Lsn fromLsn = lastProcessedPosition.getCommitLsn().isAvailable() && streamingExecutionContext.getShouldIncreaseFromLsn()
@@ -171,11 +180,34 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                 streamingExecutionContext.setShouldIncreaseFromLsn(true);
 
                 while (!schemaChangeCheckpoints.isEmpty()) {
+                    // schemaChangeCheckpoints will be initially empty. Will be filled if
+                    // getNewChangeTables is not empty and the table start_lsn is in the range
+                    // fromLsn to toLsn.
                     migrateTable(partition, schemaChangeCheckpoints, offsetContext);
                 }
                 if (!dataConnection.getNewChangeTables(databaseName, fromLsn, toLsn).isEmpty()) {
+                    // get the cdc change_tables whose start_lsn is within range
+                    // the tables for which the CDC is reinitiated will be captured here
                     final SqlServerChangeTable[] tables = getChangeTablesToQuery(partition, offsetContext, toLsn);
                     tablesSlot.set(tables);
+
+                    // check for out of sync LSN issue if the eventProcessingFailureHandlingMode is
+                    // set to fail or warn
+                    EventProcessingFailureHandlingMode mode = connectorConfig.getEventProcessingFailureHandlingMode();
+                    LOGGER.trace("Event processing failure handling mode is set to {}", mode);
+                    if (!mode.equals(EventProcessingFailureHandlingMode.SKIP)) {
+                        for (SqlServerChangeTable table : tables) {
+                            if (table.getStartLsn().compareTo(lastProcessedPosition.getCommitLsn()) > 0) {
+                                // Take the respective action here
+                                LOGGER.warn("Found out of sync lsn for the table {}", table);
+                                if (mode.equals(EventProcessingFailureHandlingMode.FAIL)) {
+                                    // Fail the connector here
+                                    throw new ConnectException("Error: Found out of sync lsn");
+                                }
+                            }
+                        }
+                    }
+
                     for (SqlServerChangeTable table : tables) {
                         if (table.getStartLsn().isBetween(fromLsn, toLsn)) {
                             LOGGER.info("Schema will be changed for {}", table);
