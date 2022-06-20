@@ -165,6 +165,16 @@ public class PostgresConnectorIT extends AbstractConnectorTest {
     }
 
     @Test
+    public void shouldNotValidatePgoutputDecoder() throws Exception {
+        Configuration config = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.PLUGIN_NAME, "pgoutput")
+                .build();
+        Config validatedConfig = new PostgresConnector().validate(config.asMap());
+
+        assertConfigurationErrors(validatedConfig, PostgresConnectorConfig.HOSTNAME, 1);
+    }
+
+    @Test
     public void shouldNotStartWithInvalidSlotConfigAndUserRoles() throws Exception {
         // Start with a clean slate and create database objects
         TestHelper.dropAllSchemas();
