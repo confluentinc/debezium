@@ -137,7 +137,7 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
                 }
 
                 // check for DB version and LogicalDecoder compatibility
-                if (pluginNameValue.value().equals(LogicalDecoder.PGOUTPUT.getValue())) {
+                if (LogicalDecoder.PGOUTPUT.equals(postgresConfig.plugin())) {
                     final Version dbVersion = ServerVersion.from(
                         connection.queryAndMap(
                             "SHOW server_version",
@@ -152,6 +152,7 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
                                 + "postgres server version 10+";
                         LOGGER.error(errorMessage);
                         hostnameValue.addErrorMessage(errorMessage);
+                        pluginNameValue.addErrorMessage(errorMessage);
                     }
                 }
             }
