@@ -9,5 +9,4 @@ common {
   nodeLabel = 'docker-openjdk11'
   downStreamValidate = false
   timeoutHours = 3
-  mavenProfiles = 'oracle,oracle-ci,-xstream-dependency'
 }
