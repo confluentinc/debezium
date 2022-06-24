@@ -62,8 +62,30 @@ public class SqlServerDatabaseSchema extends HistorizedRelationalDatabaseSchema 
             tableChanges = new TableChanges();
             tableChanges.alter(table);
         }
-
         record(schemaChange, tableChanges);
+    }
+
+    @Override
+    public void applySchemaChange(SchemaChangeEvent schemaChange, Boolean isSchemaSynced) {
+        LOGGER.debug("Applying schema change event {}", schemaChange);
+
+        // just a single table per DDL event for SQL Server
+        Table table = schemaChange.getTables().iterator().next();
+        buildAndRegisterSchema(table);
+        storeSchemaSyncInfo(table, isSchemaSynced);
+        tables().overwriteTable(table);
+
+        TableChanges tableChanges = null;
+        if (schemaChange.getType() == SchemaChangeEventType.CREATE) {
+            tableChanges = new TableChanges();
+            tableChanges.create(table);
+        }
+        else if (schemaChange.getType() == SchemaChangeEventType.ALTER) {
+            tableChanges = new TableChanges();
+            tableChanges.alter(table);
+        }
+
+        record(schemaChange, tableChanges, isSchemaSynced);
     }
 
     @Override

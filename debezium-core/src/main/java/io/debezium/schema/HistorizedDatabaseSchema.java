@@ -34,6 +34,8 @@ public interface HistorizedDatabaseSchema<I extends DataCollectionId> extends Da
 
     void applySchemaChange(SchemaChangeEvent schemaChange);
 
+    void applySchemaChange(SchemaChangeEvent schemaChange, Boolean isSchemaSynced);
+
     default void recover(Partition partition, OffsetContext offset) {
         recover(Offsets.of(partition, offset));
     }

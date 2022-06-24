@@ -5,12 +5,14 @@
  */
 package io.debezium.connector.sqlserver;
 
+import io.debezium.DebeziumException;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Savepoint;
 import java.sql.Statement;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -289,6 +291,44 @@ public class SqlServerSnapshotChangeEventSource extends RelationalSnapshotChange
         // ChangeTable will be null if cdc has not been enabled for it yet.
         // Return true to allow columns to be captured.
         return true;
+    }
+
+    @Override
+    protected void createSchemaChangeEventsForTables(ChangeEventSourceContext sourceContext,
+                                                     RelationalSnapshotContext<SqlServerPartition, SqlServerOffsetContext> snapshotContext,
+                                                     SnapshottingTask snapshottingTask)
+        throws Exception {
+        tryStartingSnapshot(snapshotContext);
+        for (Iterator<TableId> iterator = snapshotContext.capturedTables.iterator(); iterator.hasNext();) {
+            final TableId tableId = iterator.next();
+            if (!sourceContext.isRunning()) {
+                throw new InterruptedException("Interrupted while capturing schema of table " + tableId);
+            }
+
+            LOGGER.debug("Capturing structure of table {}", tableId);
+
+            Table table = snapshotContext.tables.forTable(tableId);
+
+            if (sqlServerDatabaseSchema.isHistorized()) {
+                snapshotContext.offset.event(tableId, getClock().currentTime());
+
+                // If data are not snapshotted then the last schema change must set last snapshot flag
+                if (!snapshottingTask.snapshotData() && !iterator.hasNext()) {
+                    lastSnapshotRecord(snapshotContext);
+                }
+
+                dispatcher.dispatchSchemaChangeEvent(snapshotContext.partition, table.id(), (receiver) -> {
+                    try {
+                        SqlServerChangeTable changeTable = changeTablesByPartition.get(snapshotContext.partition).get(table.id());
+                        Boolean isSchemaSynced = changeTable.getStartLsn().compareTo(snapshotContext.offset.getChangePosition().getCommitLsn()) <= 0;
+                        receiver.schemaChangeEvent(getCreateTableEvent(snapshotContext, table), isSchemaSynced);
+                    }
+                    catch (Exception e) {
+                        throw new DebeziumException(e);
+                    }
+                });
+            }
+        }
     }
 
     /**

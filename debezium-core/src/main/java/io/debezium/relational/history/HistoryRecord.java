@@ -21,6 +21,7 @@ public class HistoryRecord {
         public static final String SCHEMA_NAME = "schemaName";
         public static final String DDL_STATEMENTS = "ddl";
         public static final String TABLE_CHANGES = "tableChanges";
+        public static final String IS_SCHEMA_SYNCED = "isSchemaSynced";
     }
 
     private final Document doc;
@@ -68,6 +69,48 @@ public class HistoryRecord {
 
     }
 
+    public HistoryRecord(Map<String, ?> source, Map<String, ?> position, String databaseName, String schemaName, String ddl, TableChanges changes, Boolean isSchemaSynced) {
+        this.doc = Document.create();
+
+        Document src = doc.setDocument(Fields.SOURCE);
+        if (source != null) {
+            source.forEach(src::set);
+        }
+
+        Document pos = doc.setDocument(Fields.POSITION);
+        if (position != null) {
+            for (Entry<String, ?> positionElement : position.entrySet()) {
+                if (positionElement.getValue() instanceof byte[]) {
+                    pos.setBinary(positionElement.getKey(), (byte[]) positionElement.getValue());
+                }
+                else {
+                    pos.set(positionElement.getKey(), positionElement.getValue());
+                }
+            }
+        }
+
+        if (databaseName != null) {
+            doc.setString(Fields.DATABASE_NAME, databaseName);
+        }
+
+        if (schemaName != null) {
+            doc.setString(Fields.SCHEMA_NAME, schemaName);
+        }
+
+        if (ddl != null) {
+            doc.setString(Fields.DDL_STATEMENTS, ddl);
+        }
+
+        if (changes != null) {
+            doc.setArray(Fields.TABLE_CHANGES, tableChangesSerializer.serialize(changes));
+        }
+
+        if (isSchemaSynced != null) {
+            doc.setBoolean(Fields.IS_SCHEMA_SYNCED, isSchemaSynced);
+        }
+
+    }
+
     public Document document() {
         return this.doc;
     }
@@ -94,6 +137,10 @@ public class HistoryRecord {
 
     protected Array tableChanges() {
         return doc.getArray(Fields.TABLE_CHANGES);
+    }
+
+    protected Boolean isSchemaSynced() {
+        return doc.getBoolean(Fields.IS_SCHEMA_SYNCED);
     }
 
     @Override

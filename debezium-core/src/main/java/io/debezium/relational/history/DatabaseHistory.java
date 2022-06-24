@@ -20,6 +20,7 @@ import io.debezium.pipeline.spi.OffsetContext;
 import io.debezium.pipeline.spi.Offsets;
 import io.debezium.pipeline.spi.Partition;
 import io.debezium.relational.HistorizedRelationalDatabaseSchema;
+import io.debezium.relational.Table;
 import io.debezium.relational.Tables;
 import io.debezium.relational.ddl.DdlParser;
 
@@ -131,6 +132,9 @@ public interface DatabaseHistory {
 
     void record(Map<String, ?> source, Map<String, ?> position, String databaseName, String schemaName, String ddl, TableChanges changes) throws DatabaseHistoryException;
 
+    void record(Map<String, ?> source, Map<String, ?> position, String databaseName, String schemaName, String ddl, TableChanges changes, Boolean schemaSynced)
+            throws DatabaseHistoryException;
+
     /**
      * @deprecated Use {@link #recover(Offsets, Tables, DdlParser)} instead.
      */
@@ -152,7 +156,7 @@ public interface DatabaseHistory {
      *            may not be null
      * @param ddlParser the DDL parser that can be used to apply DDL statements to the given {@code schema}; may not be null
      */
-    default void recover(Offsets<?, ?> offsets, Tables schema, DdlParser ddlParser) {
+    default void recover(Offsets<?, ?> offsets, Tables schema, DdlParser ddlParser, Map<Table, Boolean> tableToIsSchemaSyncedMap) {
         Map<Map<String, ?>, Map<String, ?>> offsetMap = new HashMap<>();
         for (Entry<? extends Partition, ? extends OffsetContext> entry : offsets) {
             if (entry.getValue() != null) {
@@ -160,7 +164,7 @@ public interface DatabaseHistory {
             }
         }
 
-        recover(offsetMap, schema, ddlParser);
+        recover(offsetMap, schema, ddlParser, tableToIsSchemaSyncedMap);
     }
 
     /**
@@ -168,6 +172,12 @@ public interface DatabaseHistory {
      */
     @Deprecated
     void recover(Map<Map<String, ?>, Map<String, ?>> offsets, Tables schema, DdlParser ddlParser);
+
+    /**
+     * @deprecated Use {@link #recover(Offsets, Tables, DdlParser, Map)} instead.
+     */
+    @Deprecated
+    void recover(Map<Map<String, ?>, Map<String, ?>> offsets, Tables schema, DdlParser ddlParser, Map<Table, Boolean> tableToIsSchemaSyncedMap);
 
     /**
      * Stop recording history and release any resources acquired since {@link #configure(Configuration, HistoryRecordComparator, DatabaseHistoryListener)}.

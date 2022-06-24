@@ -542,6 +542,17 @@ public class EventDispatcher<P extends Partition, T extends DataCollectionId> {
             return result;
         }
 
+        private Struct schemaChangeRecordValue(SchemaChangeEvent event, Boolean isSchemaSynced) {
+            Struct result = new Struct(schemaChangeValueSchema);
+            result.put(Fields.SOURCE, event.getSource());
+            result.put(Fields.DATABASE_NAME, event.getDatabase());
+            result.put(Fields.SCHEMA_NAME, event.getSchema());
+            result.put(Fields.DDL_STATEMENTS, event.getDdl());
+            result.put(Fields.TABLE_CHANGES, tableChangesSerializer.serialize(event.getTableChanges()));
+            result.put(Fields.IS_SCHEMA_SYNCED, isSchemaSynced);
+            return result;
+        }
+
         @Override
         public void schemaChangeEvent(SchemaChangeEvent event) throws InterruptedException {
             historizedSchema.applySchemaChange(event);
@@ -553,6 +564,21 @@ public class EventDispatcher<P extends Partition, T extends DataCollectionId> {
                 final Struct value = schemaChangeRecordValue(event);
                 final SourceRecord record = new SourceRecord(event.getPartition(), event.getOffset(), topicName, partition,
                         schemaChangeKeySchema, key, schemaChangeValueSchema, value);
+                enqueueSchemaChangeMessage(record);
+            }
+        }
+
+        @Override
+        public void schemaChangeEvent(SchemaChangeEvent event, Boolean isSchemaSynced) throws InterruptedException {
+            historizedSchema.applySchemaChange(event, isSchemaSynced);
+
+            if (connectorConfig.isSchemaChangesHistoryEnabled()) {
+                final String topicName = topicSelector.getPrimaryTopic();
+                final Integer partition = 0;
+                final Struct key = schemaChangeRecordKey(event);
+                final Struct value = schemaChangeRecordValue(event, isSchemaSynced);
+                final SourceRecord record = new SourceRecord(event.getPartition(), event.getOffset(), topicName, partition,
+                    schemaChangeKeySchema, key, schemaChangeValueSchema, value);
                 enqueueSchemaChangeMessage(record);
             }
         }

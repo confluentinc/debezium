@@ -22,14 +22,16 @@ public class SqlServerSchemaChangeEventEmitter implements SchemaChangeEventEmitt
     private final SqlServerChangeTable changeTable;
     private final Table tableSchema;
     private final SchemaChangeEventType eventType;
+    private final Boolean isSchemaSynced;
 
     public SqlServerSchemaChangeEventEmitter(SqlServerPartition partition, SqlServerOffsetContext offsetContext, SqlServerChangeTable changeTable, Table tableSchema,
-                                             SchemaChangeEventType eventType) {
+                                             SchemaChangeEventType eventType, Boolean isSchemaSynced) {
         this.partition = partition;
         this.offsetContext = offsetContext;
         this.changeTable = changeTable;
         this.tableSchema = tableSchema;
         this.eventType = eventType;
+        this.isSchemaSynced = isSchemaSynced;
     }
 
     @Override
@@ -45,6 +47,6 @@ public class SqlServerSchemaChangeEventEmitter implements SchemaChangeEventEmitt
                 eventType,
                 false);
 
-        receiver.schemaChangeEvent(event);
+        receiver.schemaChangeEvent(event, isSchemaSynced);
     }
 }

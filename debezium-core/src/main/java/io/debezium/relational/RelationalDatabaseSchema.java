@@ -5,6 +5,8 @@
  */
 package io.debezium.relational;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -39,7 +41,9 @@ public abstract class RelationalDatabaseSchema implements DatabaseSchema<TableId
 
     private final String schemaPrefix;
     private final SchemasByTableId schemasByTableId;
+    private final IsSchemaSyncedByTableId isSchemaSyncedByTableId;
     private final Tables tables;
+    private final Map<Table, Boolean> tableToIsSchemaSyncedMap;
 
     protected RelationalDatabaseSchema(RelationalDatabaseConnectorConfig config, TopicSelector<TableId> topicSelector,
                                        TableFilter tableFilter, ColumnNameFilter columnFilter, TableSchemaBuilder schemaBuilder,
@@ -54,7 +58,9 @@ public abstract class RelationalDatabaseSchema implements DatabaseSchema<TableId
 
         this.schemaPrefix = getSchemaPrefix(config.getLogicalName());
         this.schemasByTableId = new SchemasByTableId(tableIdCaseInsensitive);
+        this.isSchemaSyncedByTableId = new IsSchemaSyncedByTableId(tableIdCaseInsensitive);
         this.tables = new Tables(tableIdCaseInsensitive);
+        this.tableToIsSchemaSyncedMap = new HashMap<>();
     }
 
     private static String getSchemaPrefix(String serverName) {
@@ -102,6 +108,10 @@ public abstract class RelationalDatabaseSchema implements DatabaseSchema<TableId
         return schemasByTableId.get(id);
     }
 
+    public Boolean isSchemaSyncedFor(TableId id) {
+        return isSchemaSyncedByTableId.get(id);
+    }
+
     /**
      * Get the {@link Table} meta-data for the table with the given identifier, if that table exists and is
      * included by the filter configuration
@@ -123,6 +133,10 @@ public abstract class RelationalDatabaseSchema implements DatabaseSchema<TableId
         return tables;
     }
 
+    protected Map<Table, Boolean> getTableToIsSchemaSyncedMap() {
+        return tableToIsSchemaSyncedMap;
+    }
+
     protected void clearSchemas() {
         schemasByTableId.clear();
     }
@@ -134,6 +148,17 @@ public abstract class RelationalDatabaseSchema implements DatabaseSchema<TableId
         if (tableFilter.isIncluded(table.id())) {
             TableSchema schema = schemaBuilder.create(schemaPrefix, getEnvelopeSchemaName(table), table, columnFilter, columnMappers, customKeysMapper);
             schemasByTableId.put(table.id(), schema);
+        }
+    }
+
+    /**
+     * Stores the sync-information of the schema being saved.
+     * A schema is said to be synced when the min_lsn of the corresponding change table is
+     * smaller than the max processed LSN, otherwise it is not synced.
+     */
+    protected void storeSchemaSyncInfo(Table table, Boolean isSchemaSynced) {
+        if (tableFilter.isIncluded(table.id())) {
+            isSchemaSyncedByTableId.put(table.id(), isSchemaSynced);
         }
     }
 
@@ -172,6 +197,40 @@ public abstract class RelationalDatabaseSchema implements DatabaseSchema<TableId
 
         public TableSchema put(TableId tableId, TableSchema updated) {
             return values.put(toLowerCaseIfNeeded(tableId), updated);
+        }
+
+        private TableId toLowerCaseIfNeeded(TableId tableId) {
+            return tableIdCaseInsensitive ? tableId.toLowercase() : tableId;
+        }
+    }
+
+    /**
+     * A map of isSchemaSynced by table id. Table names are stored lower-case if required as per the config.
+     */
+    private static class IsSchemaSyncedByTableId {
+
+        private final boolean tableIdCaseInsensitive;
+        private final ConcurrentMap<TableId, Boolean> values;
+
+        public IsSchemaSyncedByTableId(boolean tableIdCaseInsensitive) {
+            this.tableIdCaseInsensitive = tableIdCaseInsensitive;
+            this.values = new ConcurrentHashMap<>();
+        }
+
+        public void clear() {
+            values.clear();
+        }
+
+        public Boolean remove(TableId tableId) {
+            return values.remove(toLowerCaseIfNeeded(tableId));
+        }
+
+        public Boolean get(TableId tableId) {
+            return values.get(toLowerCaseIfNeeded(tableId));
+        }
+
+        public Boolean put(TableId tableId, Boolean updatedIsSchemaSynced) {
+            return values.put(toLowerCaseIfNeeded(tableId), updatedIsSchemaSynced);
         }
 
         private TableId toLowerCaseIfNeeded(TableId tableId) {
