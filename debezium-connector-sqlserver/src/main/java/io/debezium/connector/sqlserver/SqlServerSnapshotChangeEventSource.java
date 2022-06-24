@@ -5,7 +5,6 @@
  */
 package io.debezium.connector.sqlserver;
 
-import io.debezium.DebeziumException;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -22,6 +21,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.debezium.DebeziumException;
 import io.debezium.connector.sqlserver.SqlServerConnectorConfig.SnapshotIsolationMode;
 import io.debezium.pipeline.EventDispatcher;
 import io.debezium.pipeline.source.spi.SnapshotProgressListener;
@@ -297,7 +297,7 @@ public class SqlServerSnapshotChangeEventSource extends RelationalSnapshotChange
     protected void createSchemaChangeEventsForTables(ChangeEventSourceContext sourceContext,
                                                      RelationalSnapshotContext<SqlServerPartition, SqlServerOffsetContext> snapshotContext,
                                                      SnapshottingTask snapshottingTask)
-        throws Exception {
+            throws Exception {
         tryStartingSnapshot(snapshotContext);
         for (Iterator<TableId> iterator = snapshotContext.capturedTables.iterator(); iterator.hasNext();) {
             final TableId tableId = iterator.next();

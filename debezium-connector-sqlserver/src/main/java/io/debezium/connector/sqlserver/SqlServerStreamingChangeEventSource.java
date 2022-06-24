@@ -5,7 +5,6 @@
  */
 package io.debezium.connector.sqlserver;
 
-import io.debezium.config.CommonConnectorConfig.EventProcessingFailureHandlingMode;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
@@ -26,6 +25,7 @@ import org.apache.kafka.connect.errors.ConnectException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.debezium.config.CommonConnectorConfig.EventProcessingFailureHandlingMode;
 import io.debezium.connector.sqlserver.SqlServerConnectorConfig.SnapshotMode;
 import io.debezium.pipeline.ErrorHandler;
 import io.debezium.pipeline.EventDispatcher;
@@ -189,15 +189,17 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                                     // Take the respective action here
                                     if (mode.equals(EventProcessingFailureHandlingMode.WARN)) {
                                         LOGGER.warn("Found out of sync lsn for table {} with capture instance {}", table.getSourceTableId(), table.getCaptureInstance());
-                                    } else if (mode.equals(EventProcessingFailureHandlingMode.FAIL)) {
-                                        throw new ConnectException(String.format("Error: Found out of sync lsn for table {} with capture instance {}",
-                                            table.getSourceTableId(), table.getCaptureInstance()));
                                     }
-                                } else {
+                                    else if (mode.equals(EventProcessingFailureHandlingMode.FAIL)) {
+                                        throw new ConnectException(String.format("Error: Found out of sync lsn for table {} with capture instance {}",
+                                                table.getSourceTableId(), table.getCaptureInstance()));
+                                    }
+                                }
+                                else {
                                     // generate schema change event with isSchemaSynced = true
                                     dispatcher.dispatchSchemaChangeEvent(partition, table.getSourceTableId(),
-                                        new SqlServerSchemaChangeEventEmitter(partition, offsetContext, table, schema.tableFor(table.getChangeTableId()),
-                                            SchemaChangeEventType.CREATE, true));
+                                            new SqlServerSchemaChangeEventEmitter(partition, offsetContext, table, schema.tableFor(table.getChangeTableId()),
+                                                    SchemaChangeEventType.CREATE, true));
                                 }
                             }
                         }

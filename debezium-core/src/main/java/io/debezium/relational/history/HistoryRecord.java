@@ -69,7 +69,8 @@ public class HistoryRecord {
 
     }
 
-    public HistoryRecord(Map<String, ?> source, Map<String, ?> position, String databaseName, String schemaName, String ddl, TableChanges changes, Boolean isSchemaSynced) {
+    public HistoryRecord(Map<String, ?> source, Map<String, ?> position, String databaseName, String schemaName, String ddl, TableChanges changes,
+                         Boolean isSchemaSynced) {
         this.doc = Document.create();
 
         Document src = doc.setDocument(Fields.SOURCE);

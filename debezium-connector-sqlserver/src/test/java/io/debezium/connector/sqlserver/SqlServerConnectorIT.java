@@ -57,6 +57,7 @@ import io.debezium.pipeline.spi.Offsets;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.relational.RelationalDatabaseSchema;
 import io.debezium.relational.RelationalSnapshotChangeEventSource;
+import io.debezium.relational.Table;
 import io.debezium.relational.TableId;
 import io.debezium.relational.Tables;
 import io.debezium.relational.ddl.DdlParser;
@@ -2731,8 +2732,20 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
         }
 
         @Override
-        public void recover(Offsets<?, ?> offsets, Tables schema, DdlParser ddlParser) {
-            delegate.recover(offsets, schema, ddlParser);
+        public void record(Map<String, ?> source, Map<String, ?> position, String databaseName, String schemaName, String ddl, TableChanges changes,
+                           Boolean isSchemaSynced)
+                throws DatabaseHistoryException {
+            delegate.record(source, position, databaseName, schemaName, ddl, changes, isSchemaSynced);
+        }
+
+        @Override
+        public void recover(Offsets<?, ?> offsets, Tables schema, DdlParser ddlParser, Map<Table, Boolean> tableToIsSchemaSyncedMap) {
+            delegate.recover(offsets, schema, ddlParser, tableToIsSchemaSyncedMap);
+        }
+
+        @Override
+        public void recover(Map<Map<String, ?>, Map<String, ?>> offsets, Tables schema, DdlParser ddlParser, Map<Table, Boolean> tableToIsSchemaSyncedMap) {
+            delegate.recover(offsets, schema, ddlParser, tableToIsSchemaSyncedMap);
         }
 
         @Override

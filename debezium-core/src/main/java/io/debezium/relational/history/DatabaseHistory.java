@@ -132,7 +132,7 @@ public interface DatabaseHistory {
 
     void record(Map<String, ?> source, Map<String, ?> position, String databaseName, String schemaName, String ddl, TableChanges changes) throws DatabaseHistoryException;
 
-    void record(Map<String, ?> source, Map<String, ?> position, String databaseName, String schemaName, String ddl, TableChanges changes, Boolean schemaSynced)
+    void record(Map<String, ?> source, Map<String, ?> position, String databaseName, String schemaName, String ddl, TableChanges changes, Boolean isSchemaSynced)
             throws DatabaseHistoryException;
 
     /**
