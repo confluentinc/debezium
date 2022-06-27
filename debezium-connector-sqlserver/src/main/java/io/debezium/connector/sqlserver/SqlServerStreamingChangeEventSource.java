@@ -183,8 +183,23 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                     LOGGER.trace("Event processing failure handling mode is set to {}", mode);
                     if (!mode.equals(EventProcessingFailureHandlingMode.SKIP)) {
                         for (SqlServerChangeTable table : tables) {
+                            LOGGER.info("table is: {}", table);
+                            LOGGER.info("table.getStartLsn(): {} and lastProcessedPosition.getCommitLsn(): {}", table.getStartLsn(),
+                                    lastProcessedPosition.getCommitLsn());
                             if (table.getStartLsn().compareTo(lastProcessedPosition.getCommitLsn()) > 0) {
-                                if (schema.isSchemaSyncedFor(table.getChangeTableId())) {
+                                LOGGER.info("Danger Zone: table.getStartLsn() is higher than lastProcessedPosition");
+                                LOGGER.info("table.getSourceTableId(): {}", table.getSourceTableId());
+                                LOGGER.info("table.getChangeTableId(): {}", table.getChangeTableId());
+                                try {
+                                    Boolean b = schema.isSchemaSyncedFor(table.getSourceTableId());
+                                    LOGGER.info("b is: {}", b);
+                                }
+                                catch (Exception e) {
+                                    LOGGER.error("errorMessage is: {}", e.getMessage());
+                                    LOGGER.error("exception stackTrace is: {}", e.getStackTrace().toString());
+                                }
+                                if (schema.isSchemaSyncedFor(table.getSourceTableId())) {
+                                    LOGGER.info("schema.isSchemaSyncedFor(..) returned true");
                                     // TODO: What if don't have this info for some table? (Check case where schema is altered)
                                     // Take the respective action here
                                     if (mode.equals(EventProcessingFailureHandlingMode.WARN)) {
@@ -197,10 +212,20 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                                 }
                                 else {
                                     // generate schema change event with isSchemaSynced = true
+                                    LOGGER.info("schema.isSchemaSyncedFor(..) returned false");
+                                    LOGGER.info("partition: {}", partition);
+                                    LOGGER.info("table.getSourceTableId(): {}", table.getSourceTableId());
+                                    LOGGER.info("offsetContext: {}", offsetContext);
+                                    LOGGER.info("table: {}", table);
+                                    LOGGER.info("schema.tableFor(table.getChangeTableId()): {}", schema.tableFor(table.getChangeTableId()));
+
                                     dispatcher.dispatchSchemaChangeEvent(partition, table.getSourceTableId(),
                                             new SqlServerSchemaChangeEventEmitter(partition, offsetContext, table, schema.tableFor(table.getChangeTableId()),
                                                     SchemaChangeEventType.CREATE, true));
                                 }
+                            }
+                            else {
+                                LOGGER.info("Safe zone: table.getStartLsn() is smaller than or equal to lastProcessedPosition");
                             }
                         }
                     }

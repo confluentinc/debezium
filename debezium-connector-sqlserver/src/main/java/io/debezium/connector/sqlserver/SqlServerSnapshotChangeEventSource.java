@@ -320,7 +320,18 @@ public class SqlServerSnapshotChangeEventSource extends RelationalSnapshotChange
                 dispatcher.dispatchSchemaChangeEvent(snapshotContext.partition, table.id(), (receiver) -> {
                     try {
                         SqlServerChangeTable changeTable = changeTablesByPartition.get(snapshotContext.partition).get(table.id());
-                        Boolean isSchemaSynced = changeTable.getStartLsn().compareTo(snapshotContext.offset.getChangePosition().getCommitLsn()) <= 0;
+                        // LOGGER.info("table: {}", table);
+                        // LOGGER.info("table.id(): {}", table.id());
+                        // LOGGER.info("changeTable: {}", changeTable);
+                        // if (changeTable != null) {
+                        // LOGGER.info("changeTable.getStartLsn(): {}", changeTable.getStartLsn());
+                        // }
+                        // else {
+                        // LOGGER.info("changeTable.getStartLsn(): changeTable is null");
+                        // }
+                        Boolean isSchemaSynced = changeTable != null ? changeTable.getStartLsn().compareTo(snapshotContext.offset.getChangePosition().getCommitLsn()) <= 0
+                                : false;
+                        LOGGER.info("isSchemaSynced for table {} : {}", table.id(), isSchemaSynced);
                         receiver.schemaChangeEvent(getCreateTableEvent(snapshotContext, table), isSchemaSynced);
                     }
                     catch (Exception e) {
