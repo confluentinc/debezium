@@ -21,6 +21,8 @@ import org.fest.assertions.Assertions;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.debezium.config.Configuration;
 import io.debezium.connector.sqlserver.SqlServerConnectorConfig.SnapshotMode;
@@ -42,6 +44,7 @@ import io.debezium.util.Testing;
 public class SchemaHistoryTopicIT extends AbstractConnectorTest {
 
     private SqlServerConnection connection;
+    private static final Logger LOGGER = LoggerFactory.getLogger(SchemaHistoryTopicIT.class);
 
     @Before
     public void before() throws SQLException {
@@ -100,6 +103,7 @@ public class SchemaHistoryTopicIT extends AbstractConnectorTest {
             Assertions.assertThat(record.topic()).isEqualTo("server1");
             Assertions.assertThat(((Struct) record.key()).getString("databaseName")).isEqualTo("testDB");
             Assertions.assertThat(record.sourceOffset().get("snapshot")).isEqualTo(true);
+            LOGGER.info("First three records: {}", record);
         });
         Assertions.assertThat(((Struct) schemaRecords.get(0).value()).getStruct("source").getString("snapshot")).isEqualTo("true");
         Assertions.assertThat(((Struct) schemaRecords.get(1).value()).getStruct("source").getString("snapshot")).isEqualTo("true");
@@ -159,6 +163,7 @@ public class SchemaHistoryTopicIT extends AbstractConnectorTest {
 
         tableChanges = ((Struct) schemaRecord.value()).getArray("tableChanges");
         Assertions.assertThat(tableChanges).hasSize(1);
+        LOGGER.info("Record is: {}", schemaRecord.value());
         Assertions.assertThat(tableChanges.get(0).get("type")).isEqualTo("ALTER");
         Assertions.assertThat(lastUpdate.sourceOffset()).isEqualTo(schemaRecord.sourceOffset());
 

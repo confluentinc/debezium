@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -2733,19 +2734,20 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
 
         @Override
         public void record(Map<String, ?> source, Map<String, ?> position, String databaseName, String schemaName, String ddl, TableChanges changes,
-                           Boolean isSchemaSynced)
+                           SimpleEntry<String, Boolean> changeTableSyncInfoPair)
                 throws DatabaseHistoryException {
-            delegate.record(source, position, databaseName, schemaName, ddl, changes, isSchemaSynced);
+            delegate.record(source, position, databaseName, schemaName, ddl, changes, changeTableSyncInfoPair);
         }
 
         @Override
-        public void recover(Offsets<?, ?> offsets, Tables schema, DdlParser ddlParser, Map<Table, Boolean> tableToIsSchemaSyncedMap) {
-            delegate.recover(offsets, schema, ddlParser, tableToIsSchemaSyncedMap);
+        public void recover(Offsets<?, ?> offsets, Tables schema, DdlParser ddlParser, Map<Table, SimpleEntry<String, Boolean>> tableToSchemaSyncInfoMap) {
+            delegate.recover(offsets, schema, ddlParser, tableToSchemaSyncInfoMap);
         }
 
         @Override
-        public void recover(Map<Map<String, ?>, Map<String, ?>> offsets, Tables schema, DdlParser ddlParser, Map<Table, Boolean> tableToIsSchemaSyncedMap) {
-            delegate.recover(offsets, schema, ddlParser, tableToIsSchemaSyncedMap);
+        public void recover(Map<Map<String, ?>, Map<String, ?>> offsets, Tables schema, DdlParser ddlParser,
+                            Map<Table, SimpleEntry<String, Boolean>> tableToSchemaSyncInfoMap) {
+            delegate.recover(offsets, schema, ddlParser, tableToSchemaSyncInfoMap);
         }
 
         @Override

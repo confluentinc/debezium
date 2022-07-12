@@ -5,6 +5,7 @@
  */
 package io.debezium.relational.history;
 
+import java.util.AbstractMap.SimpleEntry;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -21,6 +22,7 @@ public class HistoryRecord {
         public static final String SCHEMA_NAME = "schemaName";
         public static final String DDL_STATEMENTS = "ddl";
         public static final String TABLE_CHANGES = "tableChanges";
+        public static final String CHANGE_TABLE_NAME = "changeTableName";
         public static final String IS_SCHEMA_SYNCED = "isSchemaSynced";
     }
 
@@ -70,7 +72,7 @@ public class HistoryRecord {
     }
 
     public HistoryRecord(Map<String, ?> source, Map<String, ?> position, String databaseName, String schemaName, String ddl, TableChanges changes,
-                         Boolean isSchemaSynced) {
+                         SimpleEntry<String, Boolean> schemaSyncInfoPair) {
         this.doc = Document.create();
 
         Document src = doc.setDocument(Fields.SOURCE);
@@ -106,8 +108,14 @@ public class HistoryRecord {
             doc.setArray(Fields.TABLE_CHANGES, tableChangesSerializer.serialize(changes));
         }
 
-        if (isSchemaSynced != null) {
-            doc.setBoolean(Fields.IS_SCHEMA_SYNCED, isSchemaSynced);
+        if (schemaSyncInfoPair != null) {
+            if (schemaSyncInfoPair.getKey() != null) {
+                doc.setString(Fields.CHANGE_TABLE_NAME, schemaSyncInfoPair.getKey());
+            }
+
+            if (schemaSyncInfoPair.getValue() != null) {
+                doc.setBoolean(Fields.IS_SCHEMA_SYNCED, schemaSyncInfoPair.getValue());
+            }
         }
 
     }
@@ -138,6 +146,10 @@ public class HistoryRecord {
 
     protected Array tableChanges() {
         return doc.getArray(Fields.TABLE_CHANGES);
+    }
+
+    protected String changeTableName() {
+        return doc.getString(Fields.CHANGE_TABLE_NAME);
     }
 
     protected Boolean isSchemaSynced() {

@@ -5,6 +5,8 @@
  */
 package io.debezium.connector.sqlserver;
 
+import java.util.AbstractMap.SimpleEntry;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,18 +27,18 @@ public class SqlServerSchemaChangeEventEmitter implements SchemaChangeEventEmitt
     private final SqlServerChangeTable changeTable;
     private final Table tableSchema;
     private final SchemaChangeEventType eventType;
-    private final Boolean isSchemaSynced;
+    private final SimpleEntry<String, Boolean> changeTableSyncInfoPair;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SqlServerSchemaChangeEventEmitter.class);
 
     public SqlServerSchemaChangeEventEmitter(SqlServerPartition partition, SqlServerOffsetContext offsetContext, SqlServerChangeTable changeTable, Table tableSchema,
-                                             SchemaChangeEventType eventType, Boolean isSchemaSynced) {
+                                             SchemaChangeEventType eventType, SimpleEntry<String, Boolean> changeTableSyncInfoPair) {
         this.partition = partition;
         this.offsetContext = offsetContext;
         this.changeTable = changeTable;
         this.tableSchema = tableSchema;
         this.eventType = eventType;
-        this.isSchemaSynced = isSchemaSynced;
+        this.changeTableSyncInfoPair = changeTableSyncInfoPair;
     }
 
     @Override
@@ -52,6 +54,6 @@ public class SqlServerSchemaChangeEventEmitter implements SchemaChangeEventEmitt
                 eventType,
                 false);
         LOGGER.info("event is: {}", event);
-        receiver.schemaChangeEvent(event, isSchemaSynced);
+        receiver.schemaChangeEvent(event, changeTableSyncInfoPair);
     }
 }

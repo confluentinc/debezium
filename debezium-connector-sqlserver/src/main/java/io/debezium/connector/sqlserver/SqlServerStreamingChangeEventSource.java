@@ -8,6 +8,7 @@ package io.debezium.connector.sqlserver;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -191,16 +192,24 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                                 LOGGER.info("table.getSourceTableId(): {}", table.getSourceTableId());
                                 LOGGER.info("table.getChangeTableId(): {}", table.getChangeTableId());
                                 try {
-                                    Boolean b = schema.isSchemaSyncedFor(table.getSourceTableId());
-                                    LOGGER.info("b is: {}", b);
+                                    if (schema.schemaSyncInfoFor(table.getSourceTableId()) != null) {
+                                        String changeTableName = schema.schemaSyncInfoFor(table.getSourceTableId()).getKey();
+                                        Boolean isSynced = schema.schemaSyncInfoFor(table.getSourceTableId()).getValue();
+                                        LOGGER.info("Existing changeTableName is: {}", changeTableName);
+                                        LOGGER.info("Existing isSynced is: {}", isSynced);
+                                        // LOGGER.info("schema.schemaFor(table.getSourceTableId()): {}", schema.schemaFor(table.getSourceTableId()));
+                                        // LOGGER.info("schema.tableFor(table.getSourceTableId()): {}", schema.tableFor(table.getSourceTableId()));
+                                    }
                                 }
                                 catch (Exception e) {
                                     LOGGER.error("errorMessage is: {}", e.getMessage());
                                     LOGGER.error("exception stackTrace is: {}", e.getStackTrace().toString());
                                 }
-                                if (schema.isSchemaSyncedFor(table.getSourceTableId())) {
-                                    LOGGER.info("schema.isSchemaSyncedFor(..) returned true");
+                                if (schema.schemaSyncInfoFor(table.getSourceTableId()).getKey().equals(table.getChangeTableId().identifier())
+                                        && schema.schemaSyncInfoFor(table.getSourceTableId()).getValue()) {
+                                    LOGGER.info("schema.schemaSyncInfoFor(..) returned true");
                                     // TODO: What if don't have this info for some table? (Check case where schema is altered)
+                                    // TODO: Currently the info is saved corresponding to SourceTableId and not ChangeTableId
                                     // Take the respective action here
                                     if (mode.equals(EventProcessingFailureHandlingMode.WARN)) {
                                         LOGGER.warn("Found out of sync lsn for table {} with capture instance {}", table.getSourceTableId(), table.getCaptureInstance());
@@ -212,16 +221,15 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                                 }
                                 else {
                                     // generate schema change event with isSchemaSynced = true
-                                    LOGGER.info("schema.isSchemaSyncedFor(..) returned false");
+                                    LOGGER.info("schema.schemaSyncInfoFor(..) returned false");
                                     LOGGER.info("partition: {}", partition);
                                     LOGGER.info("table.getSourceTableId(): {}", table.getSourceTableId());
                                     LOGGER.info("offsetContext: {}", offsetContext);
                                     LOGGER.info("table: {}", table);
                                     LOGGER.info("schema.tableFor(table.getChangeTableId()): {}", schema.tableFor(table.getChangeTableId()));
-
                                     dispatcher.dispatchSchemaChangeEvent(partition, table.getSourceTableId(),
-                                            new SqlServerSchemaChangeEventEmitter(partition, offsetContext, table, schema.tableFor(table.getChangeTableId()),
-                                                    SchemaChangeEventType.CREATE, true));
+                                            new SqlServerSchemaChangeEventEmitter(partition, offsetContext, table, schema.tableFor(table.getSourceTableId()),
+                                                    SchemaChangeEventType.CREATE, new SimpleEntry(table.getChangeTableId().identifier(), true)));
                                 }
                             }
                             else {
@@ -386,14 +394,15 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
         LOGGER.info("Migrating schema to {}", newTable);
         Table oldTableSchema = schema.tableFor(newTable.getSourceTableId());
         Table tableSchema = metadataConnection.getTableSchemaFromTable(partition.getDatabaseName(), newTable);
-        Boolean oldIsSchemaSynced = schema.isSchemaSyncedFor(oldTableSchema.id());
+        String oldChangeTable = schema.schemaSyncInfoFor(oldTableSchema.id()).getKey();
+        Boolean oldIsSynced = schema.schemaSyncInfoFor(oldTableSchema.id()).getValue();
         if (oldTableSchema.equals(tableSchema)) {
             LOGGER.info("Migration skipped, no table schema changes detected.");
             return;
         }
         dispatcher.dispatchSchemaChangeEvent(partition, newTable.getSourceTableId(),
                 new SqlServerSchemaChangeEventEmitter(partition, offsetContext, newTable, tableSchema,
-                        SchemaChangeEventType.ALTER, oldIsSchemaSynced));
+                        SchemaChangeEventType.ALTER, new SimpleEntry(oldChangeTable, oldIsSynced)));
         newTable.setSourceTable(tableSchema);
     }
 
@@ -456,7 +465,8 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
             }
             if (schema.tableFor(currentTable.getSourceTableId()) == null) {
                 LOGGER.info("Table {} is new to be monitored by capture instance {}", currentTable.getSourceTableId(), currentTable.getCaptureInstance());
-                Boolean isSchemaSynced = currentTable.getStartLsn().compareTo(lastProcessedPosition.getCommitLsn()) <= 0;
+                String changeTable = currentTable.getChangeTableId().identifier();
+                Boolean isSynced = currentTable.getStartLsn().compareTo(lastProcessedPosition.getCommitLsn()) <= 0;
                 // We need to read the source table schema - nullability information cannot be obtained from change table
                 // There might be no start LSN in the new change table at this time so current timestamp is used
                 offsetContext.event(
@@ -470,7 +480,7 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                                 offsetContext,
                                 currentTable,
                                 dataConnection.getTableSchemaFromTable(databaseName, currentTable),
-                                SchemaChangeEventType.CREATE, isSchemaSynced));
+                                SchemaChangeEventType.CREATE, new SimpleEntry(changeTable, isSynced)));
             }
 
             // If a column was renamed, then the old capture instance had been dropped and a new one

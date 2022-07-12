@@ -5,6 +5,7 @@
  */
 package io.debezium.pipeline;
 
+import java.util.AbstractMap.SimpleEntry;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.Objects;
@@ -145,6 +146,8 @@ public class EventDispatcher<P extends Partition, T extends DataCollectionId> {
                 .field(Fields.SCHEMA_NAME, Schema.OPTIONAL_STRING_SCHEMA)
                 .field(Fields.DDL_STATEMENTS, Schema.OPTIONAL_STRING_SCHEMA)
                 .field(Fields.TABLE_CHANGES, SchemaBuilder.array(tableChangesSerializer.getChangeSchema()).build())
+                .field(Fields.CHANGE_TABLE_NAME, SchemaBuilder.OPTIONAL_STRING_SCHEMA)
+                .field(Fields.IS_SCHEMA_SYNCED, SchemaBuilder.OPTIONAL_BOOLEAN_SCHEMA)
                 .build();
     }
 
@@ -542,14 +545,15 @@ public class EventDispatcher<P extends Partition, T extends DataCollectionId> {
             return result;
         }
 
-        private Struct schemaChangeRecordValue(SchemaChangeEvent event, Boolean isSchemaSynced) {
+        private Struct schemaChangeRecordValue(SchemaChangeEvent event, SimpleEntry<String, Boolean> changeTableSyncInfo) {
             Struct result = new Struct(schemaChangeValueSchema);
             result.put(Fields.SOURCE, event.getSource());
             result.put(Fields.DATABASE_NAME, event.getDatabase());
             result.put(Fields.SCHEMA_NAME, event.getSchema());
             result.put(Fields.DDL_STATEMENTS, event.getDdl());
             result.put(Fields.TABLE_CHANGES, tableChangesSerializer.serialize(event.getTableChanges()));
-            result.put(Fields.IS_SCHEMA_SYNCED, isSchemaSynced);
+            result.put(Fields.CHANGE_TABLE_NAME, changeTableSyncInfo.getKey());
+            result.put(Fields.IS_SCHEMA_SYNCED, changeTableSyncInfo.getValue());
             return result;
         }
 
@@ -569,14 +573,14 @@ public class EventDispatcher<P extends Partition, T extends DataCollectionId> {
         }
 
         @Override
-        public void schemaChangeEvent(SchemaChangeEvent event, Boolean isSchemaSynced) throws InterruptedException {
-            historizedSchema.applySchemaChange(event, isSchemaSynced);
+        public void schemaChangeEvent(SchemaChangeEvent event, SimpleEntry<String, Boolean> changeTableSyncInfoPair) throws InterruptedException {
+            historizedSchema.applySchemaChange(event, changeTableSyncInfoPair);
 
             if (connectorConfig.isSchemaChangesHistoryEnabled()) {
                 final String topicName = topicSelector.getPrimaryTopic();
                 final Integer partition = 0;
                 final Struct key = schemaChangeRecordKey(event);
-                final Struct value = schemaChangeRecordValue(event, isSchemaSynced);
+                final Struct value = schemaChangeRecordValue(event, changeTableSyncInfoPair);
                 final SourceRecord record = new SourceRecord(event.getPartition(), event.getOffset(), topicName, partition,
                         schemaChangeKeySchema, key, schemaChangeValueSchema, value);
                 enqueueSchemaChangeMessage(record);

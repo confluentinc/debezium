@@ -5,6 +5,7 @@
  */
 package io.debezium.relational.history;
 
+import java.util.AbstractMap.SimpleEntry;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -100,9 +101,9 @@ public abstract class AbstractDatabaseHistory implements DatabaseHistory {
 
     @Override
     public final void record(Map<String, ?> source, Map<String, ?> position, String databaseName, String schemaName, String ddl, TableChanges changes,
-                             Boolean isSchemaSynced)
+                             SimpleEntry<String, Boolean> schemaSyncInfoPair)
             throws DatabaseHistoryException {
-        final HistoryRecord record = new HistoryRecord(source, position, databaseName, schemaName, ddl, changes, isSchemaSynced);
+        final HistoryRecord record = new HistoryRecord(source, position, databaseName, schemaName, ddl, changes, schemaSyncInfoPair);
         storeRecord(record);
         listener.onChangeApplied(record);
     }
@@ -174,7 +175,8 @@ public abstract class AbstractDatabaseHistory implements DatabaseHistory {
     }
 
     @Override
-    public void recover(Map<Map<String, ?>, Map<String, ?>> offsets, Tables schema, DdlParser ddlParser, Map<Table, Boolean> tableToIsSchemaSyncedMap) {
+    public void recover(Map<Map<String, ?>, Map<String, ?>> offsets, Tables schema, DdlParser ddlParser,
+                        Map<Table, SimpleEntry<String, Boolean>> tableToSchemaSyncInfoMap) {
         listener.recoveryStarted();
         Map<Document, HistoryRecord> stopPoints = new HashMap<>();
         offsets.forEach((Map<String, ?> source, Map<String, ?> position) -> {
@@ -191,6 +193,7 @@ public abstract class AbstractDatabaseHistory implements DatabaseHistory {
             if (stopPoints.containsKey(srcDocument) && comparator.isAtOrBefore(recovered, stopPoints.get(srcDocument))) {
                 Array tableChanges = recovered.tableChanges();
                 String ddl = recovered.ddl();
+                String changeTableName = recovered.changeTableName();
                 Boolean isSchemaSynced = recovered.isSchemaSynced();
 
                 if (!preferDdl && tableChanges != null && !tableChanges.isEmpty()) {
@@ -198,12 +201,12 @@ public abstract class AbstractDatabaseHistory implements DatabaseHistory {
                     for (TableChange entry : changes) {
                         if (entry.getType() == TableChangeType.CREATE || entry.getType() == TableChangeType.ALTER) {
                             schema.overwriteTable(entry.getTable());
-                            tableToIsSchemaSyncedMap.put(entry.getTable(), isSchemaSynced);
+                            tableToSchemaSyncInfoMap.put(entry.getTable(), new SimpleEntry(changeTableName, isSchemaSynced));
                         }
                         // DROP
                         else {
                             schema.removeTable(entry.getId());
-                            tableToIsSchemaSyncedMap.remove(entry.getTable());
+                            tableToSchemaSyncInfoMap.remove(entry.getTable());
                         }
                     }
                     listener.onChangeApplied(recovered);

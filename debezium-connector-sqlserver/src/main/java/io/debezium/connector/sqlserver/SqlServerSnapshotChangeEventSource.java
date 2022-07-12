@@ -10,6 +10,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Savepoint;
 import java.sql.Statement;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -329,10 +330,12 @@ public class SqlServerSnapshotChangeEventSource extends RelationalSnapshotChange
                         // else {
                         // LOGGER.info("changeTable.getStartLsn(): changeTable is null");
                         // }
-                        Boolean isSchemaSynced = changeTable != null ? changeTable.getStartLsn().compareTo(snapshotContext.offset.getChangePosition().getCommitLsn()) <= 0
+                        // TODO: better to check for the inclusion of table in CDC?
+                        String changeTableName = changeTable != null ? changeTable.getChangeTableId().identifier() : null;
+                        Boolean isSynced = changeTable != null ? changeTable.getStartLsn().compareTo(snapshotContext.offset.getChangePosition().getCommitLsn()) <= 0
                                 : false;
-                        LOGGER.info("isSchemaSynced for table {} : {}", table.id(), isSchemaSynced);
-                        receiver.schemaChangeEvent(getCreateTableEvent(snapshotContext, table), isSchemaSynced);
+                        LOGGER.info("isSynced for changeTable {} : {}", changeTableName, isSynced);
+                        receiver.schemaChangeEvent(getCreateTableEvent(snapshotContext, table), new SimpleEntry<>(changeTableName, isSynced));
                     }
                     catch (Exception e) {
                         throw new DebeziumException(e);

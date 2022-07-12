@@ -5,6 +5,7 @@
  */
 package io.debezium.relational;
 
+import java.util.AbstractMap.SimpleEntry;
 import java.util.Map.Entry;
 import java.util.Objects;
 
@@ -60,12 +61,12 @@ public abstract class HistorizedRelationalDatabaseSchema extends RelationalDatab
             throw new DebeziumException(msg);
         }
 
-        databaseHistory.recover(offsets, tables(), getDdlParser(), getTableToIsSchemaSyncedMap());
+        databaseHistory.recover(offsets, tables(), getDdlParser(), getTableToSchemaSyncInfoMap());
         recoveredTables = !tableIds().isEmpty();
         for (TableId tableId : tableIds()) {
             buildAndRegisterSchema(tableFor(tableId));
         }
-        for (Entry<Table, Boolean> entry : getTableToIsSchemaSyncedMap().entrySet()) {
+        for (Entry<Table, SimpleEntry<String, Boolean>> entry : getTableToSchemaSyncInfoMap().entrySet()) {
             storeSchemaSyncInfo(entry.getKey(), entry.getValue());
         }
     }
@@ -106,9 +107,9 @@ public abstract class HistorizedRelationalDatabaseSchema extends RelationalDatab
                 schemaChange.getSchema(), schemaChange.getDdl(), tableChanges);
     }
 
-    protected void record(SchemaChangeEvent schemaChange, TableChanges tableChanges, Boolean isSchemaSynced) {
+    protected void record(SchemaChangeEvent schemaChange, TableChanges tableChanges, SimpleEntry<String, Boolean> changeTableSyncInfoPair) {
         databaseHistory.record(schemaChange.getPartition(), schemaChange.getOffset(), schemaChange.getDatabase(),
-                schemaChange.getSchema(), schemaChange.getDdl(), tableChanges, isSchemaSynced);
+                schemaChange.getSchema(), schemaChange.getDdl(), tableChanges, changeTableSyncInfoPair);
     }
 
     @Override
