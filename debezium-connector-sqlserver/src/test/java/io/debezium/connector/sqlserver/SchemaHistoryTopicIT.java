@@ -152,9 +152,22 @@ public class SchemaHistoryTopicIT extends AbstractConnectorTest {
         }
 
         // DDL for 1 table
-        records = consumeRecordsByTopic(1);
-        Assertions.assertThat(records.allRecordsInOrder()).hasSize(1);
-        final SourceRecord schemaRecord = records.allRecordsInOrder().get(0);
+        records = consumeRecordsByTopic(2);
+        Assertions.assertThat(records.allRecordsInOrder()).hasSize(2);
+        SourceRecord schemaRecord = records.allRecordsInOrder().get(0);
+        Assertions.assertThat(schemaRecord.topic()).isEqualTo("server1");
+        Assertions.assertThat(((Struct) schemaRecord.key()).getString("databaseName")).isEqualTo("testDB");
+        Assertions.assertThat(schemaRecord.sourceOffset().get("snapshot")).isNull();
+
+        Assertions.assertThat(((Struct) schemaRecord.value()).getStruct("source").getString("snapshot")).isNull();
+
+        tableChanges = ((Struct) schemaRecord.value()).getArray("tableChanges");
+        Assertions.assertThat(tableChanges).hasSize(1);
+        LOGGER.info("Record is: {}", schemaRecord.value());
+        Assertions.assertThat(tableChanges.get(0).get("type")).isEqualTo("CREATE");
+        Assertions.assertThat(lastUpdate.sourceOffset()).isEqualTo(schemaRecord.sourceOffset());
+
+        schemaRecord = records.allRecordsInOrder().get(1);
         Assertions.assertThat(schemaRecord.topic()).isEqualTo("server1");
         Assertions.assertThat(((Struct) schemaRecord.key()).getString("databaseName")).isEqualTo("testDB");
         Assertions.assertThat(schemaRecord.sourceOffset().get("snapshot")).isNull();

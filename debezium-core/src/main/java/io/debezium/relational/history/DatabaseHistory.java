@@ -158,6 +158,18 @@ public interface DatabaseHistory {
      *            may not be null
      * @param ddlParser the DDL parser that can be used to apply DDL statements to the given {@code schema}; may not be null
      */
+
+    default void recover(Offsets<?, ?> offsets, Tables schema, DdlParser ddlParser) {
+        Map<Map<String, ?>, Map<String, ?>> offsetMap = new HashMap<>();
+        for (Entry<? extends Partition, ? extends OffsetContext> entry : offsets) {
+            if (entry.getValue() != null) {
+                offsetMap.put(entry.getKey().getSourcePartition(), entry.getValue().getOffset());
+            }
+        }
+
+        recover(offsetMap, schema, ddlParser);
+    }
+
     default void recover(Offsets<?, ?> offsets, Tables schema, DdlParser ddlParser, Map<Table, SimpleEntry<String, Boolean>> tableToSchemaSyncInfoMap) {
         Map<Map<String, ?>, Map<String, ?>> offsetMap = new HashMap<>();
         for (Entry<? extends Partition, ? extends OffsetContext> entry : offsets) {

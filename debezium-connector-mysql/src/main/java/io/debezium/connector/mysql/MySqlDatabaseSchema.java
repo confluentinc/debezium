@@ -6,6 +6,7 @@
 package io.debezium.connector.mysql;
 
 import java.time.Instant;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -196,6 +197,11 @@ public class MySqlDatabaseSchema extends HistorizedRelationalDatabaseSchema {
             LOGGER.debug("Recorded DDL statements for database '{}': {}", schemaChange.getDatabase(), schemaChange.getDdl());
             record(schemaChange, schemaChange.getTableChanges());
         }
+    }
+
+    @Override
+    public void applySchemaChange(SchemaChangeEvent schemaChange, SimpleEntry<String, Boolean> changeTableSyncInfoPair) {
+        applySchemaChange(schemaChange);
     }
 
     public List<SchemaChangeEvent> parseSnapshotDdl(MySqlPartition partition, String ddlStatements, String databaseName,
