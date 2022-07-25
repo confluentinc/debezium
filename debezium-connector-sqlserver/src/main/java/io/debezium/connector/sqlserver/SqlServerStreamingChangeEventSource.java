@@ -191,25 +191,28 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                                 LOGGER.info("Danger Zone: table.getStartLsn() is higher than lastProcessedPosition");
                                 LOGGER.info("table.getSourceTableId(): {}", table.getSourceTableId());
                                 LOGGER.info("table.getChangeTableId(): {}", table.getChangeTableId());
-                                try {
-                                    if (schema.schemaSyncInfoFor(table.getSourceTableId()) != null) {
-                                        String changeTableName = schema.schemaSyncInfoFor(table.getSourceTableId()).getKey();
-                                        Boolean isSynced = schema.schemaSyncInfoFor(table.getSourceTableId()).getValue();
-                                        LOGGER.info("Existing changeTableName is: {}", changeTableName);
-                                        LOGGER.info("Existing isSynced is: {}", isSynced);
-                                        // LOGGER.info("schema.schemaFor(table.getSourceTableId()): {}", schema.schemaFor(table.getSourceTableId()));
-                                        // LOGGER.info("schema.tableFor(table.getSourceTableId()): {}", schema.tableFor(table.getSourceTableId()));
-                                    }
-                                }
-                                catch (Exception e) {
-                                    LOGGER.error("errorMessage is: {}", e.getMessage());
-                                    LOGGER.error("exception stackTrace is: {}", e.getStackTrace().toString());
-                                }
-                                if (schema.schemaSyncInfoFor(table.getSourceTableId()).getKey().equals(table.getChangeTableId().identifier())
+                                // try {
+                                // if (schema.schemaSyncInfoFor(table.getSourceTableId()) != null) {
+                                // String changeTableName = schema.schemaSyncInfoFor(table.getSourceTableId()).getKey();
+                                // Boolean isSynced = schema.schemaSyncInfoFor(table.getSourceTableId()).getValue();
+                                // LOGGER.info("Existing changeTableName is: {}", changeTableName);
+                                // LOGGER.info("Existing isSynced is: {}", isSynced);
+                                // // LOGGER.info("schema.schemaFor(table.getSourceTableId()): {}", schema.schemaFor(table.getSourceTableId()));
+                                // // LOGGER.info("schema.tableFor(table.getSourceTableId()): {}", schema.tableFor(table.getSourceTableId()));
+                                // }
+                                // }
+                                // catch (Exception e) {
+                                // LOGGER.error("errorMessage is: {}", e.getMessage());
+                                // LOGGER.error("exception stackTrace is: {}", e.getStackTrace().toString());
+                                // }
+                                // the changeTableName can be null for the
+                                SimpleEntry<String, Boolean> schemaSyncInfo = schema.schemaSyncInfoFor(table.getSourceTableId());
+                                if (schemaSyncInfo != null
+                                        && schemaSyncInfo.getKey() != null
+                                        && schemaSyncInfo.getKey().equals(table.getChangeTableId().identifier())
                                         && schema.schemaSyncInfoFor(table.getSourceTableId()).getValue()) {
                                     LOGGER.info("schema.schemaSyncInfoFor(..) returned true");
                                     // TODO: What if don't have this info for some table? (Check case where schema is altered)
-                                    // TODO: Currently the info is saved corresponding to SourceTableId and not ChangeTableId
                                     // Take the respective action here
                                     if (mode.equals(EventProcessingFailureHandlingMode.WARN)) {
                                         LOGGER.warn("Found out of sync lsn for table {} with capture instance {}", table.getSourceTableId(), table.getCaptureInstance());
