@@ -44,6 +44,7 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.connector.sqlserver.SqlServerConnectorConfig.SnapshotMode;
 import io.debezium.connector.sqlserver.util.TestHelper;
@@ -2687,6 +2688,73 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .build();
         start(SqlServerConnector.class, config2);
         assertConnectorIsRunning();
+        stopConnector();
+    }
+
+    @Test
+    @FixFor("DBZ-4264")
+    public void shouldFailConnectorForOutOfSyncLsn() throws Exception {
+        final LogInterceptor logInterceptor = new LogInterceptor(SqlServerSnapshotChangeEventSource.class);
+        connection.execute("CREATE TABLE table_a (id int, name varchar(30), amount integer primary key(id))");
+        TestHelper.enableTableCdc(connection, "table_a");
+
+        final Configuration config = TestHelper.defaultConfig()
+                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
+                .with(SqlServerConnectorConfig.EVENT_PROCESSING_FAILURE_HANDLING_MODE, CommonConnectorConfig.EventProcessingFailureHandlingMode.FAIL)
+                .build();
+
+        start(SqlServerConnector.class, config);
+        assertConnectorIsRunning();
+
+        // Wait for snapshot completion
+        consumeRecordsByTopic(1);
+
+        connection.execute("INSERT INTO table_a VALUES(10, 'some_name', 120)");
+
+        SourceRecords records = consumeRecordsByTopic(1);
+        List<SourceRecord> tableA = records.recordsForTopic("server1.dbo.table_a");
+
+        Schema expectedSchemaA = SchemaBuilder.struct()
+                .optional()
+                .name("server1.dbo.table_a.Value")
+                .field("id", Schema.INT32_SCHEMA)
+                .field("name", Schema.OPTIONAL_STRING_SCHEMA)
+                .field("amount", Schema.OPTIONAL_INT32_SCHEMA)
+                .build();
+        Struct expectedValueA = new Struct(expectedSchemaA)
+                .put("id", 10)
+                .put("name", "some_name")
+                .put("amount", 120);
+
+        Assertions.assertThat(tableA).hasSize(1);
+        SourceRecordAssert.assertThat(tableA.get(0))
+                .valueAfterFieldIsEqualTo(expectedValueA)
+                .valueAfterFieldSchemaIsEqualTo(expectedSchemaA);
+
+        TestHelper.disableTableCdc(connection, "table_a");
+        connection.execute("INSERT INTO table_a VALUES(20, 'another_name', 220)");
+        consumeRecordsByTopic(1);
+
+        Thread.sleep(50000);
+
+        // expected that the record will not be consumed by the connector
+        assertNoRecordsToConsume();
+        Assertions.assertThat(TestHelper.isCdcEnabled(connection, "table_a")).isEqualTo(false);
+
+        Thread.sleep(50000);
+
+        TestHelper.enableTableCdc(connection, "table_a");
+
+        Thread.sleep(300000);
+
+        connection.execute("INSERT INTO table_a VALUES(30, 'yet_another_name', 320)");
+        consumeRecordsByTopic(1);
+
+        assertConnectorNotRunning();
+        assertThat(logInterceptor.containsStacktraceElement(
+                ""))
+                        .isTrue();
+
         stopConnector();
     }
 
