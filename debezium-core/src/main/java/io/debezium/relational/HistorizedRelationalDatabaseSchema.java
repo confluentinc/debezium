@@ -66,7 +66,7 @@ public abstract class HistorizedRelationalDatabaseSchema extends RelationalDatab
         for (TableId tableId : tableIds()) {
             buildAndRegisterSchema(tableFor(tableId));
         }
-        for (Entry<Table, SimpleEntry<String, Boolean>> entry : getTableToSchemaSyncInfoMap().entrySet()) {
+        for (Entry<Table, SimpleEntry<String, String>> entry : getTableToSchemaSyncInfoMap().entrySet()) {
             storeSchemaSyncInfo(entry.getKey(), entry.getValue());
         }
     }
@@ -107,7 +107,7 @@ public abstract class HistorizedRelationalDatabaseSchema extends RelationalDatab
                 schemaChange.getSchema(), schemaChange.getDdl(), tableChanges);
     }
 
-    protected void record(SchemaChangeEvent schemaChange, TableChanges tableChanges, SimpleEntry<String, Boolean> changeTableSyncInfoPair) {
+    protected void record(SchemaChangeEvent schemaChange, TableChanges tableChanges, SimpleEntry<String, String> changeTableSyncInfoPair) {
         databaseHistory.record(schemaChange.getPartition(), schemaChange.getOffset(), schemaChange.getDatabase(),
                 schemaChange.getSchema(), schemaChange.getDdl(), tableChanges, changeTableSyncInfoPair);
     }

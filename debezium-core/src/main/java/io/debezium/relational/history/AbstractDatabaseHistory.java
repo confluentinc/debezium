@@ -101,7 +101,7 @@ public abstract class AbstractDatabaseHistory implements DatabaseHistory {
 
     @Override
     public final void record(Map<String, ?> source, Map<String, ?> position, String databaseName, String schemaName, String ddl, TableChanges changes,
-                             SimpleEntry<String, Boolean> schemaSyncInfoPair)
+                             SimpleEntry<String, String> schemaSyncInfoPair)
             throws DatabaseHistoryException {
         final HistoryRecord record = new HistoryRecord(source, position, databaseName, schemaName, ddl, changes, schemaSyncInfoPair);
         storeRecord(record);
@@ -176,7 +176,7 @@ public abstract class AbstractDatabaseHistory implements DatabaseHistory {
 
     @Override
     public void recover(Map<Map<String, ?>, Map<String, ?>> offsets, Tables schema, DdlParser ddlParser,
-                        Map<Table, SimpleEntry<String, Boolean>> tableToSchemaSyncInfoMap) {
+                        Map<Table, SimpleEntry<String, String>> tableToSchemaSyncInfoMap) {
         listener.recoveryStarted();
         Map<Document, HistoryRecord> stopPoints = new HashMap<>();
         offsets.forEach((Map<String, ?> source, Map<String, ?> position) -> {
@@ -194,14 +194,14 @@ public abstract class AbstractDatabaseHistory implements DatabaseHistory {
                 Array tableChanges = recovered.tableChanges();
                 String ddl = recovered.ddl();
                 String changeTableName = recovered.changeTableName();
-                Boolean isSchemaSynced = recovered.isSchemaSynced();
+                String startLsn = recovered.startLsn();
 
                 if (!preferDdl && tableChanges != null && !tableChanges.isEmpty()) {
                     TableChanges changes = tableChangesSerializer.deserialize(tableChanges, useCatalogBeforeSchema);
                     for (TableChange entry : changes) {
                         if (entry.getType() == TableChangeType.CREATE || entry.getType() == TableChangeType.ALTER) {
                             schema.overwriteTable(entry.getTable());
-                            tableToSchemaSyncInfoMap.put(entry.getTable(), new SimpleEntry(changeTableName, isSchemaSynced));
+                            tableToSchemaSyncInfoMap.put(entry.getTable(), new SimpleEntry(changeTableName, startLsn));
                         }
                         // DROP
                         else {

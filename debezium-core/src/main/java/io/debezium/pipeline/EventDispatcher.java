@@ -147,7 +147,7 @@ public class EventDispatcher<P extends Partition, T extends DataCollectionId> {
                 .field(Fields.DDL_STATEMENTS, Schema.OPTIONAL_STRING_SCHEMA)
                 .field(Fields.TABLE_CHANGES, SchemaBuilder.array(tableChangesSerializer.getChangeSchema()).build())
                 .field(Fields.CHANGE_TABLE_NAME, SchemaBuilder.OPTIONAL_STRING_SCHEMA)
-                .field(Fields.IS_SCHEMA_SYNCED, SchemaBuilder.OPTIONAL_BOOLEAN_SCHEMA)
+                .field(Fields.START_LSN, SchemaBuilder.OPTIONAL_STRING_SCHEMA)
                 .build();
     }
 
@@ -545,7 +545,7 @@ public class EventDispatcher<P extends Partition, T extends DataCollectionId> {
             return result;
         }
 
-        private Struct schemaChangeRecordValue(SchemaChangeEvent event, SimpleEntry<String, Boolean> changeTableSyncInfo) {
+        private Struct schemaChangeRecordValue(SchemaChangeEvent event, SimpleEntry<String, String> changeTableSyncInfo) {
             Struct result = new Struct(schemaChangeValueSchema);
             result.put(Fields.SOURCE, event.getSource());
             result.put(Fields.DATABASE_NAME, event.getDatabase());
@@ -553,7 +553,7 @@ public class EventDispatcher<P extends Partition, T extends DataCollectionId> {
             result.put(Fields.DDL_STATEMENTS, event.getDdl());
             result.put(Fields.TABLE_CHANGES, tableChangesSerializer.serialize(event.getTableChanges()));
             result.put(Fields.CHANGE_TABLE_NAME, changeTableSyncInfo.getKey());
-            result.put(Fields.IS_SCHEMA_SYNCED, changeTableSyncInfo.getValue());
+            result.put(Fields.START_LSN, changeTableSyncInfo.getValue());
             return result;
         }
 
@@ -573,7 +573,7 @@ public class EventDispatcher<P extends Partition, T extends DataCollectionId> {
         }
 
         @Override
-        public void schemaChangeEvent(SchemaChangeEvent event, SimpleEntry<String, Boolean> changeTableSyncInfoPair) throws InterruptedException {
+        public void schemaChangeEvent(SchemaChangeEvent event, SimpleEntry<String, String> changeTableSyncInfoPair) throws InterruptedException {
             historizedSchema.applySchemaChange(event, changeTableSyncInfoPair);
 
             if (connectorConfig.isSchemaChangesHistoryEnabled()) {

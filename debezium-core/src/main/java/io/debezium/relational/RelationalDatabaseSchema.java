@@ -44,7 +44,7 @@ public abstract class RelationalDatabaseSchema implements DatabaseSchema<TableId
     private final SchemasByTableId schemasByTableId;
     private final SchemaSyncInfoByTableId schemaSyncInfoByTableId;
     private final Tables tables;
-    private final Map<Table, SimpleEntry<String, Boolean>> tableToSchemaSyncInfoMap;
+    private final Map<Table, SimpleEntry<String, String>> tableToSchemaSyncInfoMap;
 
     protected RelationalDatabaseSchema(RelationalDatabaseConnectorConfig config, TopicSelector<TableId> topicSelector,
                                        TableFilter tableFilter, ColumnNameFilter columnFilter, TableSchemaBuilder schemaBuilder,
@@ -109,7 +109,7 @@ public abstract class RelationalDatabaseSchema implements DatabaseSchema<TableId
         return schemasByTableId.get(id);
     }
 
-    public SimpleEntry<String, Boolean> schemaSyncInfoFor(TableId id) {
+    public SimpleEntry<String, String> schemaSyncInfoFor(TableId id) {
         return schemaSyncInfoByTableId.get(id);
     }
 
@@ -134,7 +134,7 @@ public abstract class RelationalDatabaseSchema implements DatabaseSchema<TableId
         return tables;
     }
 
-    protected Map<Table, SimpleEntry<String, Boolean>> getTableToSchemaSyncInfoMap() {
+    protected Map<Table, SimpleEntry<String, String>> getTableToSchemaSyncInfoMap() {
         return tableToSchemaSyncInfoMap;
     }
 
@@ -157,7 +157,7 @@ public abstract class RelationalDatabaseSchema implements DatabaseSchema<TableId
      * A schema is said to be synced when the min_lsn of the corresponding change table is
      * smaller than the max processed LSN, otherwise it is not synced.
      */
-    protected void storeSchemaSyncInfo(Table table, SimpleEntry<String, Boolean> changeTableSyncInfoPair) {
+    protected void storeSchemaSyncInfo(Table table, SimpleEntry<String, String> changeTableSyncInfoPair) {
         if (tableFilter.isIncluded(table.id())) {
             schemaSyncInfoByTableId.put(table.id(), changeTableSyncInfoPair);
         }
@@ -211,7 +211,7 @@ public abstract class RelationalDatabaseSchema implements DatabaseSchema<TableId
     private static class SchemaSyncInfoByTableId {
 
         private final boolean tableIdCaseInsensitive;
-        private final ConcurrentMap<TableId, SimpleEntry<String, Boolean>> values;
+        private final ConcurrentMap<TableId, SimpleEntry<String, String>> values;
 
         public SchemaSyncInfoByTableId(boolean tableIdCaseInsensitive) {
             this.tableIdCaseInsensitive = tableIdCaseInsensitive;
@@ -222,15 +222,15 @@ public abstract class RelationalDatabaseSchema implements DatabaseSchema<TableId
             values.clear();
         }
 
-        public SimpleEntry<String, Boolean> remove(TableId tableId) {
+        public SimpleEntry<String, String> remove(TableId tableId) {
             return values.remove(toLowerCaseIfNeeded(tableId));
         }
 
-        public SimpleEntry<String, Boolean> get(TableId tableId) {
+        public SimpleEntry<String, String> get(TableId tableId) {
             return values.get(toLowerCaseIfNeeded(tableId));
         }
 
-        public SimpleEntry<String, Boolean> put(TableId tableId, SimpleEntry<String, Boolean> changeTableSyncInfoPair) {
+        public SimpleEntry<String, String> put(TableId tableId, SimpleEntry<String, String> changeTableSyncInfoPair) {
             return values.put(toLowerCaseIfNeeded(tableId), changeTableSyncInfoPair);
         }
 

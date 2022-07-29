@@ -23,7 +23,7 @@ public class HistoryRecord {
         public static final String DDL_STATEMENTS = "ddl";
         public static final String TABLE_CHANGES = "tableChanges";
         public static final String CHANGE_TABLE_NAME = "changeTableName";
-        public static final String IS_SCHEMA_SYNCED = "isSchemaSynced";
+        public static final String START_LSN = "startLsn";
     }
 
     private final Document doc;
@@ -72,7 +72,7 @@ public class HistoryRecord {
     }
 
     public HistoryRecord(Map<String, ?> source, Map<String, ?> position, String databaseName, String schemaName, String ddl, TableChanges changes,
-                         SimpleEntry<String, Boolean> schemaSyncInfoPair) {
+                         SimpleEntry<String, String> schemaSyncInfoPair) {
         this.doc = Document.create();
 
         Document src = doc.setDocument(Fields.SOURCE);
@@ -114,7 +114,7 @@ public class HistoryRecord {
             }
 
             if (schemaSyncInfoPair.getValue() != null) {
-                doc.setBoolean(Fields.IS_SCHEMA_SYNCED, schemaSyncInfoPair.getValue());
+                doc.setString(Fields.START_LSN, schemaSyncInfoPair.getValue());
             }
         }
 
@@ -152,8 +152,8 @@ public class HistoryRecord {
         return doc.getString(Fields.CHANGE_TABLE_NAME);
     }
 
-    protected Boolean isSchemaSynced() {
-        return doc.getBoolean(Fields.IS_SCHEMA_SYNCED);
+    protected String startLsn() {
+        return doc.getString(Fields.START_LSN);
     }
 
     @Override

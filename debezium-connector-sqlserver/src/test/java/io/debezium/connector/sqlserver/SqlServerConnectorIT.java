@@ -2694,7 +2694,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
     @Test
     @FixFor("DBZ-4264")
     public void shouldFailConnectorForOutOfSyncLsn() throws Exception {
-        final LogInterceptor logInterceptor = new LogInterceptor(SqlServerSnapshotChangeEventSource.class);
+        final LogInterceptor logInterceptor = new LogInterceptor(SqlServerConnectorIT.class);
         connection.execute("CREATE TABLE table_a (id int, name varchar(30), amount integer primary key(id))");
         TestHelper.enableTableCdc(connection, "table_a");
 
@@ -2735,24 +2735,18 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
         connection.execute("INSERT INTO table_a VALUES(20, 'another_name', 220)");
         consumeRecordsByTopic(1);
 
-        Thread.sleep(50000);
-
         // expected that the record will not be consumed by the connector
         assertNoRecordsToConsume();
         Assertions.assertThat(TestHelper.isCdcEnabled(connection, "table_a")).isEqualTo(false);
 
-        Thread.sleep(50000);
-
         TestHelper.enableTableCdc(connection, "table_a");
-
-        Thread.sleep(300000);
 
         connection.execute("INSERT INTO table_a VALUES(30, 'yet_another_name', 320)");
         consumeRecordsByTopic(1);
 
         assertConnectorNotRunning();
         assertThat(logInterceptor.containsStacktraceElement(
-                ""))
+                "Error: Found out of sync lsn for table"))
                         .isTrue();
 
         stopConnector();
@@ -2802,19 +2796,19 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
 
         @Override
         public void record(Map<String, ?> source, Map<String, ?> position, String databaseName, String schemaName, String ddl, TableChanges changes,
-                           SimpleEntry<String, Boolean> changeTableSyncInfoPair)
+                           SimpleEntry<String, String> changeTableSyncInfoPair)
                 throws DatabaseHistoryException {
             delegate.record(source, position, databaseName, schemaName, ddl, changes, changeTableSyncInfoPair);
         }
 
         @Override
-        public void recover(Offsets<?, ?> offsets, Tables schema, DdlParser ddlParser, Map<Table, SimpleEntry<String, Boolean>> tableToSchemaSyncInfoMap) {
+        public void recover(Offsets<?, ?> offsets, Tables schema, DdlParser ddlParser, Map<Table, SimpleEntry<String, String>> tableToSchemaSyncInfoMap) {
             delegate.recover(offsets, schema, ddlParser, tableToSchemaSyncInfoMap);
         }
 
         @Override
         public void recover(Map<Map<String, ?>, Map<String, ?>> offsets, Tables schema, DdlParser ddlParser,
-                            Map<Table, SimpleEntry<String, Boolean>> tableToSchemaSyncInfoMap) {
+                            Map<Table, SimpleEntry<String, String>> tableToSchemaSyncInfoMap) {
             delegate.recover(offsets, schema, ddlParser, tableToSchemaSyncInfoMap);
         }
 

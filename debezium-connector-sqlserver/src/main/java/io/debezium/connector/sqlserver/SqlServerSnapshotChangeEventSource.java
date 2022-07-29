@@ -333,11 +333,12 @@ public class SqlServerSnapshotChangeEventSource extends RelationalSnapshotChange
                         // TODO: better to check for the inclusion of table in CDC? No, what if cdc is not enabled for
                         // TODO: the table
                         String changeTableName = changeTable != null ? changeTable.getChangeTableId().identifier() : null;
-                        Boolean isSynced = changeTable != null ? changeTable.getStartLsn().compareTo(snapshotContext.offset.getChangePosition().getCommitLsn()) <= 0
-                                : false;
+                        String startLsn = changeTable != null ? changeTable.getStartLsn().toString() : Lsn.NULL.toString();
+                        // Boolean isSynced = changeTable != null ? changeTable.getStartLsn().compareTo(snapshotContext.offset.getChangePosition().getCommitLsn()) <= 0
+                        // : false;
                         // changeTable is null for tables for which CDC is not enabled, storing false for syncInfo for such tables
-                        LOGGER.info("isSynced for changeTable {} : {}", changeTableName, isSynced);
-                        receiver.schemaChangeEvent(getCreateTableEvent(snapshotContext, table), new SimpleEntry<>(changeTableName, isSynced));
+                        LOGGER.info("isSynced for changeTable {} : {}", changeTableName, startLsn);
+                        receiver.schemaChangeEvent(getCreateTableEvent(snapshotContext, table), new SimpleEntry<>(changeTableName, startLsn));
                     }
                     catch (Exception e) {
                         throw new DebeziumException(e);

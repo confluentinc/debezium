@@ -27,12 +27,12 @@ public class SqlServerSchemaChangeEventEmitter implements SchemaChangeEventEmitt
     private final SqlServerChangeTable changeTable;
     private final Table tableSchema;
     private final SchemaChangeEventType eventType;
-    private final SimpleEntry<String, Boolean> changeTableSyncInfoPair;
+    private final SimpleEntry<String, String> changeTableSyncInfoPair;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SqlServerSchemaChangeEventEmitter.class);
 
     public SqlServerSchemaChangeEventEmitter(SqlServerPartition partition, SqlServerOffsetContext offsetContext, SqlServerChangeTable changeTable, Table tableSchema,
-                                             SchemaChangeEventType eventType, SimpleEntry<String, Boolean> changeTableSyncInfoPair) {
+                                             SchemaChangeEventType eventType, SimpleEntry<String, String> changeTableSyncInfoPair) {
         this.partition = partition;
         this.offsetContext = offsetContext;
         this.changeTable = changeTable;

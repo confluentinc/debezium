@@ -200,7 +200,7 @@ public class MySqlDatabaseSchema extends HistorizedRelationalDatabaseSchema {
     }
 
     @Override
-    public void applySchemaChange(SchemaChangeEvent schemaChange, SimpleEntry<String, Boolean> changeTableSyncInfoPair) {
+    public void applySchemaChange(SchemaChangeEvent schemaChange, SimpleEntry<String, String> changeTableSyncInfoPair) {
         applySchemaChange(schemaChange);
     }
 

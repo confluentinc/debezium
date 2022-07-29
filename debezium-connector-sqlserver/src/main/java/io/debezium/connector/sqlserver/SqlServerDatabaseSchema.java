@@ -69,7 +69,7 @@ public class SqlServerDatabaseSchema extends HistorizedRelationalDatabaseSchema 
     }
 
     @Override
-    public void applySchemaChange(SchemaChangeEvent schemaChange, SimpleEntry<String, Boolean> changeTableSyncInfoPair) {
+    public void applySchemaChange(SchemaChangeEvent schemaChange, SimpleEntry<String, String> changeTableSyncInfoPair) {
         LOGGER.debug("Applying schema change event {}", schemaChange);
 
         // just a single table per DDL event for SQL Server

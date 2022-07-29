@@ -22,6 +22,8 @@ import ch.qos.logback.core.AppenderBase;
  * @author Chris Cranford, Jiri Pechanec
  */
 public class LogInterceptor extends AppenderBase<ILoggingEvent> {
+
+    private static final org.slf4j.Logger LOGGER = LoggerFactory.getLogger(LogInterceptor.class);
     private List<ILoggingEvent> events = new CopyOnWriteArrayList<>();
 
     /**

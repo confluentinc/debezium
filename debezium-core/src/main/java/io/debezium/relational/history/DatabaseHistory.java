@@ -134,7 +134,7 @@ public interface DatabaseHistory {
     void record(Map<String, ?> source, Map<String, ?> position, String databaseName, String schemaName, String ddl, TableChanges changes) throws DatabaseHistoryException;
 
     void record(Map<String, ?> source, Map<String, ?> position, String databaseName, String schemaName, String ddl, TableChanges changes,
-                SimpleEntry<String, Boolean> changeTableSyncInfoPair)
+                SimpleEntry<String, String> changeTableSyncInfoPair)
             throws DatabaseHistoryException;
 
     /**
@@ -158,7 +158,6 @@ public interface DatabaseHistory {
      *            may not be null
      * @param ddlParser the DDL parser that can be used to apply DDL statements to the given {@code schema}; may not be null
      */
-
     default void recover(Offsets<?, ?> offsets, Tables schema, DdlParser ddlParser) {
         Map<Map<String, ?>, Map<String, ?>> offsetMap = new HashMap<>();
         for (Entry<? extends Partition, ? extends OffsetContext> entry : offsets) {
@@ -170,7 +169,7 @@ public interface DatabaseHistory {
         recover(offsetMap, schema, ddlParser);
     }
 
-    default void recover(Offsets<?, ?> offsets, Tables schema, DdlParser ddlParser, Map<Table, SimpleEntry<String, Boolean>> tableToSchemaSyncInfoMap) {
+    default void recover(Offsets<?, ?> offsets, Tables schema, DdlParser ddlParser, Map<Table, SimpleEntry<String, String>> tableToSchemaSyncInfoMap) {
         Map<Map<String, ?>, Map<String, ?>> offsetMap = new HashMap<>();
         for (Entry<? extends Partition, ? extends OffsetContext> entry : offsets) {
             if (entry.getValue() != null) {
@@ -191,7 +190,7 @@ public interface DatabaseHistory {
      * @deprecated Use {@link #recover(Offsets, Tables, DdlParser, Map)} instead.
      */
     @Deprecated
-    void recover(Map<Map<String, ?>, Map<String, ?>> offsets, Tables schema, DdlParser ddlParser, Map<Table, SimpleEntry<String, Boolean>> tableToSchemaSyncInfoMap);
+    void recover(Map<Map<String, ?>, Map<String, ?>> offsets, Tables schema, DdlParser ddlParser, Map<Table, SimpleEntry<String, String>> tableToSchemaSyncInfoMap);
 
     /**
      * Stop recording history and release any resources acquired since {@link #configure(Configuration, HistoryRecordComparator, DatabaseHistoryListener)}.
