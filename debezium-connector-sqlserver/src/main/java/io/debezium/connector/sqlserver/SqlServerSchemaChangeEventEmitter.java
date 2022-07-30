@@ -7,9 +7,6 @@ package io.debezium.connector.sqlserver;
 
 import java.util.AbstractMap.SimpleEntry;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import io.debezium.pipeline.spi.SchemaChangeEventEmitter;
 import io.debezium.relational.Table;
 import io.debezium.schema.SchemaChangeEvent;
@@ -28,8 +25,6 @@ public class SqlServerSchemaChangeEventEmitter implements SchemaChangeEventEmitt
     private final Table tableSchema;
     private final SchemaChangeEventType eventType;
     private final SimpleEntry<String, String> changeTableSyncInfoPair;
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(SqlServerSchemaChangeEventEmitter.class);
 
     public SqlServerSchemaChangeEventEmitter(SqlServerPartition partition, SqlServerOffsetContext offsetContext, SqlServerChangeTable changeTable, Table tableSchema,
                                              SchemaChangeEventType eventType, SimpleEntry<String, String> changeTableSyncInfoPair) {
@@ -53,7 +48,7 @@ public class SqlServerSchemaChangeEventEmitter implements SchemaChangeEventEmitt
                 tableSchema,
                 eventType,
                 false);
-        LOGGER.info("event is: {}", event);
+
         receiver.schemaChangeEvent(event, changeTableSyncInfoPair);
     }
 }

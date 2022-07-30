@@ -615,7 +615,7 @@ public class SqlServerChangeTableSetIT extends AbstractConnectorTest {
                 throw new IllegalStateException(e);
             }
         });
-        // 3 tables from snapshot + 1 Schema sync + 1 ALTER
+        // 3 tables from snapshot + 1 SyncInfo + 1 ALTER
         Assertions.assertThat(changes).hasSize(3 + 1 + 1);
         changes.subList(0, 4).forEach(change -> {
             final Array changeArray = change.getArray("tableChanges");

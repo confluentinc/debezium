@@ -181,39 +181,17 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                     tablesSlot.set(tables);
 
                     EventProcessingFailureHandlingMode mode = connectorConfig.getEventProcessingFailureHandlingMode();
-                    LOGGER.trace("Event processing failure handling mode is set to {}", mode);
+                    LOGGER.debug("Event processing failure handling mode is set to {}", mode);
                     if (!mode.equals(EventProcessingFailureHandlingMode.SKIP)) {
                         for (SqlServerChangeTable table : tables) {
-                            LOGGER.info("table is: {}", table);
-                            LOGGER.info("table.getStartLsn(): {} and lastProcessedPosition.getCommitLsn(): {}", table.getStartLsn(),
-                                    lastProcessedPosition.getCommitLsn());
                             if (table.getStartLsn().compareTo(lastProcessedPosition.getCommitLsn()) > 0) {
-                                LOGGER.info("Danger Zone: table.getStartLsn() is higher than lastProcessedPosition");
-                                LOGGER.info("table.getSourceTableId(): {}", table.getSourceTableId());
-                                LOGGER.info("table.getChangeTableId(): {}", table.getChangeTableId());
-                                // try {
-                                // if (schema.schemaSyncInfoFor(table.getSourceTableId()) != null) {
-                                // String changeTableName = schema.schemaSyncInfoFor(table.getSourceTableId()).getKey();
-                                // Boolean isSynced = schema.schemaSyncInfoFor(table.getSourceTableId()).getValue();
-                                // LOGGER.info("Existing changeTableName is: {}", changeTableName);
-                                // LOGGER.info("Existing isSynced is: {}", isSynced);
-                                // // LOGGER.info("schema.schemaFor(table.getSourceTableId()): {}", schema.schemaFor(table.getSourceTableId()));
-                                // // LOGGER.info("schema.tableFor(table.getSourceTableId()): {}", schema.tableFor(table.getSourceTableId()));
-                                // }
-                                // }
-                                // catch (Exception e) {
-                                // LOGGER.error("errorMessage is: {}", e.getMessage());
-                                // LOGGER.error("exception stackTrace is: {}", e.getStackTrace().toString());
-                                // }
-                                // the changeTableName can be null for the
+                                LOGGER.debug("startLsn for table {} is higher than lastProcessedPosition", table.getSourceTableId());
                                 SimpleEntry<String, String> schemaSyncInfo = schema.schemaSyncInfoFor(table.getSourceTableId());
                                 if (schemaSyncInfo != null
                                         && schemaSyncInfo.getKey() != null
                                         && schemaSyncInfo.getKey().equals(table.getChangeTableId().identifier())) {
                                     if (!schemaSyncInfo.getValue().equals(table.getStartLsn().toString())) {
-                                        LOGGER.info("schema.schemaSyncInfoFor(..) conflicts");
                                         // TODO: What if don't have this info for some table? (Check case where schema is altered)
-                                        // Take the respective action here
                                         if (mode.equals(EventProcessingFailureHandlingMode.WARN)) {
                                             LOGGER.warn("Found out of sync lsn for table {} with capture instance {}", table.getSourceTableId(),
                                                     table.getCaptureInstance());
@@ -226,20 +204,11 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                                 }
                                 else {
                                     // TODO: when is this case applicable? When new table is created and enabled for cdc?
-                                    LOGGER.info("schema.schemaSyncInfoFor(..) is synced");
-                                    LOGGER.info("partition: {}", partition);
-                                    LOGGER.info("table.getSourceTableId(): {}", table.getSourceTableId());
-                                    LOGGER.info("offsetContext: {}", offsetContext);
-                                    LOGGER.info("table: {}", table);
-                                    LOGGER.info("schema.tableFor(table.getChangeTableId()): {}", schema.tableFor(table.getChangeTableId()));
                                     dispatcher.dispatchSchemaChangeEvent(partition, table.getSourceTableId(),
                                             new SqlServerSchemaChangeEventEmitter(partition, offsetContext, table, schema.tableFor(table.getSourceTableId()),
                                                     SchemaChangeEventType.CREATE,
                                                     new SimpleEntry(table.getChangeTableId().identifier(), table.getStartLsn().toString())));
                                 }
-                            }
-                            else {
-                                LOGGER.info("Safe zone: table.getStartLsn() is smaller than or equal to lastProcessedPosition");
                             }
                         }
                     }
@@ -400,6 +369,7 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
         LOGGER.info("Migrating schema to {}", newTable);
         Table oldTableSchema = schema.tableFor(newTable.getSourceTableId());
         Table tableSchema = metadataConnection.getTableSchemaFromTable(partition.getDatabaseName(), newTable);
+	//TODO: why do we need to pass this info?
         String oldChangeTable = schema.schemaSyncInfoFor(oldTableSchema.id()).getKey();
         String oldStartLsn = schema.schemaSyncInfoFor(oldTableSchema.id()).getValue();
         if (oldTableSchema.equals(tableSchema)) {

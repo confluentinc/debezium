@@ -306,8 +306,6 @@ public class SqlServerSnapshotChangeEventSource extends RelationalSnapshotChange
                 throw new InterruptedException("Interrupted while capturing schema of table " + tableId);
             }
 
-            LOGGER.debug("Capturing structure of table {}", tableId);
-
             Table table = snapshotContext.tables.forTable(tableId);
 
             if (sqlServerDatabaseSchema.isHistorized()) {
@@ -321,23 +319,9 @@ public class SqlServerSnapshotChangeEventSource extends RelationalSnapshotChange
                 dispatcher.dispatchSchemaChangeEvent(snapshotContext.partition, table.id(), (receiver) -> {
                     try {
                         SqlServerChangeTable changeTable = changeTablesByPartition.get(snapshotContext.partition).get(table.id());
-                        // LOGGER.info("table: {}", table);
-                        // LOGGER.info("table.id(): {}", table.id());
-                        // LOGGER.info("changeTable: {}", changeTable);
-                        // if (changeTable != null) {
-                        // LOGGER.info("changeTable.getStartLsn(): {}", changeTable.getStartLsn());
-                        // }
-                        // else {
-                        // LOGGER.info("changeTable.getStartLsn(): changeTable is null");
-                        // }
-                        // TODO: better to check for the inclusion of table in CDC? No, what if cdc is not enabled for
-                        // TODO: the table
+			// if CDC is not enabled changeTable is null, store <null,"NULL"> in syncInfo in such case
                         String changeTableName = changeTable != null ? changeTable.getChangeTableId().identifier() : null;
                         String startLsn = changeTable != null ? changeTable.getStartLsn().toString() : Lsn.NULL.toString();
-                        // Boolean isSynced = changeTable != null ? changeTable.getStartLsn().compareTo(snapshotContext.offset.getChangePosition().getCommitLsn()) <= 0
-                        // : false;
-                        // changeTable is null for tables for which CDC is not enabled, storing false for syncInfo for such tables
-                        LOGGER.info("isSynced for changeTable {} : {}", changeTableName, startLsn);
                         receiver.schemaChangeEvent(getCreateTableEvent(snapshotContext, table), new SimpleEntry<>(changeTableName, startLsn));
                     }
                     catch (Exception e) {

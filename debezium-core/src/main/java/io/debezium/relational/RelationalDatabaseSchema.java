@@ -154,7 +154,7 @@ public abstract class RelationalDatabaseSchema implements DatabaseSchema<TableId
 
     /**
      * Stores the pair of change-table and sync-information of the schema being saved.
-     * A schema is said to be synced when the min_lsn of the corresponding change table is
+     * A capture instance is said to be synced when the min_lsn of the corresponding change table is
      * smaller than the max processed LSN, otherwise it is not synced.
      */
     protected void storeSchemaSyncInfo(Table table, SimpleEntry<String, String> changeTableSyncInfoPair) {
