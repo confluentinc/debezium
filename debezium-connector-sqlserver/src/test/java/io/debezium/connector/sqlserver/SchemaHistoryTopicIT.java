@@ -371,184 +371,75 @@ public class SchemaHistoryTopicIT extends AbstractConnectorTest {
         assertThat(change.sourcePartition()).isEqualTo(expectedPartition);
     }
 
-//    @Test
-//    public void historyRecordShouldContainChangeTableSyncInfo() throws Exception {
-//        final int RECORDS_PER_TABLE = 5;
-//        final int TABLES = 2;
-//        final int ID_START_1 = 10;
-//        final Configuration config = TestHelper.defaultConfig()
-//                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
-//                .with(RelationalDatabaseConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
-//                .build();
-//
-//        for (int i = 0; i < RECORDS_PER_TABLE; i++) {
-//            final int id = ID_START_1 + i;
-//            connection.execute(
-//                    "INSERT INTO tablea VALUES(" + id + ", 'a')");
-//            connection.execute(
-//                    "INSERT INTO tableb VALUES(" + id + ", 'b')");
-//        }
-//
-//        start(SqlServerConnector.class, config);
-//        assertConnectorIsRunning();
-//        TestHelper.waitForSnapshotToBeCompleted();
-//
-//        // DDL for 3 tables
-//        SourceRecords records = consumeRecordsByTopic(3);
-//        List<SourceRecord> schemaRecords = records.recordsForTopic("server1");
-//        Assertions.assertThat(schemaRecords).hasSize(3);
-//
-//        schemaRecords.forEach(record -> {
-//            List<Struct> tableChanges = ((Struct) record.value()).getArray("tableChanges");
-//            Assertions.assertThat(tableChanges).hasSize(1);
-//            Assertions.assertThat(tableChanges.get(0).get("type")).isEqualTo("CREATE");
-//            // field startLsn exists for all source tables, for non-CDC table it is "NULL"
-//            Assertions.assertThat(((Struct) record.value()).getString("startLsn")).isNotEmpty();
-//
-//            if (!((Struct) record.value()).getStruct("source").getString("table").equals("tablec")) {
-//                // CDC enabled tables will have changeTableName field
-//                Assertions.assertThat(((Struct) record.value()).getString("changeTableName")).isNotEmpty();
-//            }
-//            else {
-//                try {
-//                    ((Struct) record.value()).getString("changeTableName");
-//                }
-//                catch (Exception e) {
-//                    // CDC is not enabled for tablec, it will not have changeTableName field
-//                    Assertions.assertThat(e instanceof NullPointerException).isTrue();
-//                }
-//            }
-//        });
-//
-//        // consume records in data topics
-//        // records = consumeRecordsByTopic(RECORDS_PER_TABLE * TABLES);
-//        // Assertions.assertThat(records.recordsForTopic("server1.dbo.tablea")).hasSize(RECORDS_PER_TABLE);
-//        // Assertions.assertThat(records.recordsForTopic("server1.dbo.tableb")).hasSize(RECORDS_PER_TABLE);
-//
-//        // enable CDC for tablec and insert records
-//        TestHelper.enableTableCdc(connection, "tablec");
-//        // // Make sure table's capture instance exists first
-//        // TestHelper.waitForEnabledCdc(connection, "tablec");
-//        for (int i = 0; i < RECORDS_PER_TABLE; i++) {
-//            final int id = ID_START_1 + i;
-//            connection.execute("INSERT INTO tablec VALUES(" + id + ", 'c')");
-//        }
-//
-//        Testing.Print.enable();
-//
-//        records = consumeRecordsByTopic(26);
-//        Assertions.assertThat(records.recordsForTopic("server1")).hasSize(1);
-//        Assertions.assertThat(records.recordsForTopic("server1.dbo.tablec")).hasSize(RECORDS_PER_TABLE);
-//
-//        LOGGER.info("num records in server1.dbo.tablea: {}", records.recordsForTopic("server1.dbo.tablea").size());
-//        LOGGER.info("num records in server1.dbo.tableb: {}", records.recordsForTopic("server1.dbo.tableb").size());
-//
-//        schemaRecords = records.recordsForTopic("server1");
-//        schemaRecords.forEach(record -> {
-//            LOGGER.info("record is: {}", record);
-//        });
-//
-//        // 1 record in history topic for tablec containing changeTableSyncInfo
-//        List<Struct> tableChanges = ((Struct) schemaRecords.get(0).value()).getArray("tableChanges");
-//        Assertions.assertThat(tableChanges).hasSize(1);
-//        Assertions.assertThat(tableChanges.get(0).get("type")).isEqualTo("CREATE");
-//        Assertions.assertThat(((Struct) schemaRecords.get(0).value()).getStruct("source")
-//                .getString("table")).isEqualTo("tablec");
-//        Assertions.assertThat(((Struct) schemaRecords.get(0).value())
-//                .getString("changeTableName")).isNotEmpty();
-//        Assertions.assertThat(((Struct) schemaRecords.get(0).value())
-//                .getString("startLsn")).isNotEmpty();
-//    }
-//
-//    @Test
-//    public void historyRecordShouldContainChangeTableSyncInfo2() throws Exception {
-//        final int RECORDS_PER_TABLE = 5;
-//        final int TABLES = 2;
-//        final int ID_START_1 = 10;
-//        final Configuration config = TestHelper.defaultConfig()
-//                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
-//                .with(RelationalDatabaseConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
-//                .build();
-//
-//        for (int i = 0; i < RECORDS_PER_TABLE; i++) {
-//            final int id = ID_START_1 + i;
-//            connection.execute(
-//                    "INSERT INTO tablea VALUES(" + id + ", 'a')");
-//            connection.execute(
-//                    "INSERT INTO tableb VALUES(" + id + ", 'b')");
-//        }
-//
-//        start(SqlServerConnector.class, config);
-//        assertConnectorIsRunning();
-//        TestHelper.waitForSnapshotToBeCompleted();
-//
-//        // DDL for 3 tables
-//        SourceRecords records = consumeRecordsByTopic(3);
-//        List<SourceRecord> schemaRecords = records.recordsForTopic("server1");
-//        Assertions.assertThat(schemaRecords).hasSize(3);
-//
-//        schemaRecords.forEach(record -> {
-//            List<Struct> tableChanges = ((Struct) record.value()).getArray("tableChanges");
-//            Assertions.assertThat(tableChanges).hasSize(1);
-//            Assertions.assertThat(tableChanges.get(0).get("type")).isEqualTo("CREATE");
-//            // field startLsn exists for all source tables, for non-CDC table it is "NULL"
-//            Assertions.assertThat(((Struct) record.value()).getString("startLsn")).isNotEmpty();
-//
-//            if (!((Struct) record.value()).getStruct("source").getString("table").equals("tablec")) {
-//                // CDC enabled tables will have changeTableName field
-//                Assertions.assertThat(((Struct) record.value()).getString("changeTableName")).isNotEmpty();
-//            }
-//            else {
-//                try {
-//                    ((Struct) record.value()).getString("changeTableName");
-//                }
-//                catch (Exception e) {
-//                    // CDC is not enabled for tablec, it will not have changeTableName field
-//                    Assertions.assertThat(e instanceof NullPointerException).isTrue();
-//                }
-//            }
-//        });
-//
-//        // consume records in data topics
-//        // records = consumeRecordsByTopic(RECORDS_PER_TABLE * TABLES);
-//        // Assertions.assertThat(records.recordsForTopic("server1.dbo.tablea")).hasSize(RECORDS_PER_TABLE);
-//        // Assertions.assertThat(records.recordsForTopic("server1.dbo.tableb")).hasSize(RECORDS_PER_TABLE);
-//
-//        connection.execute("CREATE TABLE tabled (id int primary key, cold varchar(30))");
-//        // enable CDC for tabled and insert records
-//        TestHelper.enableTableCdc(connection, "tabled");
-//        // // Make sure table's capture instance exists first
-//        // TestHelper.waitForEnabledCdc(connection, "tabled");
-//        for (int i = 0; i < RECORDS_PER_TABLE; i++) {
-//            final int id = ID_START_1 + i;
-//            connection.execute("INSERT INTO tabled VALUES(" + id + ", 'd')");
-//        }
-//
-//        Testing.Print.enable();
-//
-//        records = consumeRecordsByTopic(26);
-//        Assertions.assertThat(records.recordsForTopic("server1")).hasSize(1);
-//        Assertions.assertThat(records.recordsForTopic("server1.dbo.tabled")).hasSize(RECORDS_PER_TABLE);
-//
-//        LOGGER.info("num records in server1.dbo.tablea: {}", records.recordsForTopic("server1.dbo.tablea").size());
-//        LOGGER.info("num records in server1.dbo.tableb: {}", records.recordsForTopic("server1.dbo.tableb").size());
-//
-//        schemaRecords = records.recordsForTopic("server1");
-//        schemaRecords.forEach(record -> {
-//            LOGGER.info("record is: {}", record);
-//        });
-//
-//        // 1 record in history topic for tablec containing changeTableSyncInfo
-//        List<Struct> tableChanges = ((Struct) schemaRecords.get(0).value()).getArray("tableChanges");
-//        Assertions.assertThat(tableChanges).hasSize(1);
-//        Assertions.assertThat(tableChanges.get(0).get("type")).isEqualTo("CREATE");
-//        Assertions.assertThat(((Struct) schemaRecords.get(0).value()).getStruct("source")
-//                .getString("table")).isEqualTo("tabled");
-//        Assertions.assertThat(((Struct) schemaRecords.get(0).value())
-//                .getString("changeTableName")).isNotEmpty();
-//        Assertions.assertThat(((Struct) schemaRecords.get(0).value())
-//                .getString("startLsn")).isNotEmpty();
-//    }
+    @Test
+    public void historyRecordShouldContainChangeTableSyncInfo() throws Exception {
+        int RECORDS_PER_TABLE = 5;
+        int ID_START_1 = 10;
+        final Configuration config = TestHelper.defaultConfig()
+                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
+                .with(RelationalDatabaseConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
+                .build();
+
+        start(SqlServerConnector.class, config);
+        assertConnectorIsRunning();
+        TestHelper.waitForSnapshotToBeCompleted();
+
+        // DDL for 3 tables
+        SourceRecords records = consumeRecordsByTopic(3);
+        List<SourceRecord> schemaRecords = records.recordsForTopic("server1");
+        Assertions.assertThat(schemaRecords).hasSize(3);
+
+        schemaRecords.forEach(record -> {
+            List<Struct> tableChanges = ((Struct) record.value()).getArray("tableChanges");
+            Assertions.assertThat(tableChanges).hasSize(1);
+            Assertions.assertThat(tableChanges.get(0).get("type")).isEqualTo("CREATE");
+
+            // field 'startLsn' exists for all source tables, for non-CDC table it is "NULL"
+            Assertions.assertThat(((Struct) record.value()).getString("startLsn")).isNotEmpty();
+            // field 'changeTableName' only exists for CDC tables
+            if (!((Struct) record.value()).getStruct("source").getString("table").equals("tablec")) {
+                Assertions.assertThat(((Struct) record.value()).getString("changeTableName")).isNotEmpty();
+            }
+            else {
+                try {
+                    ((Struct) record.value()).getString("changeTableName");
+                }
+                catch (Exception e) {
+                    // CDC is not enabled for tablec, it will not have changeTableName field
+                    Assertions.assertThat(e instanceof NullPointerException).isTrue();
+                }
+            }
+        });
+
+        // enable CDC for tablec and insert records
+        TestHelper.enableTableCdc(connection, "tablec");
+        // // Make sure table's capture instance exists first
+        TestHelper.waitForEnabledCdc(connection, "tablec");
+
+        for (int i = 0; i < RECORDS_PER_TABLE; i++) {
+            final int id = ID_START_1 + i;
+            connection.execute("INSERT INTO tablec VALUES(" + id + ", 'c')");
+        }
+
+        // Testing.Print.enable();
+
+        records = consumeRecordsByTopic(1 + 5);
+        Assertions.assertThat(records.recordsForTopic("server1")).hasSize(1);
+        Assertions.assertThat(records.recordsForTopic("server1.dbo.tablec")).hasSize(RECORDS_PER_TABLE);
+
+        schemaRecords = records.recordsForTopic("server1");
+
+        // 1 record in history topic for tablec containing changeTableSyncInfo
+        List<Struct> tableChanges = ((Struct) schemaRecords.get(0).value()).getArray("tableChanges");
+        Assertions.assertThat(tableChanges).hasSize(1);
+        Assertions.assertThat(tableChanges.get(0).get("type")).isEqualTo("CREATE");
+        Assertions.assertThat(((Struct) schemaRecords.get(0).value()).getStruct("source")
+                .getString("table")).isEqualTo("tablec");
+        Assertions.assertThat(((Struct) schemaRecords.get(0).value())
+                .getString("changeTableName")).isNotEmpty();
+        Assertions.assertThat(((Struct) schemaRecords.get(0).value())
+                .getString("startLsn")).isNotEmpty();
+    }
 
     @Test
     public void historyRecordShouldContainChangeTableSyncInfoForNewlyCreatedTable() throws Exception {
