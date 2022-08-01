@@ -319,7 +319,7 @@ public class SqlServerSnapshotChangeEventSource extends RelationalSnapshotChange
                 dispatcher.dispatchSchemaChangeEvent(snapshotContext.partition, table.id(), (receiver) -> {
                     try {
                         SqlServerChangeTable changeTable = changeTablesByPartition.get(snapshotContext.partition).get(table.id());
-			// if CDC is not enabled changeTable is null, store <null,"NULL"> in syncInfo in such case
+                        // if CDC is not enabled changeTable is null, store <null,"NULL"> in syncInfo in such case
                         String changeTableName = changeTable != null ? changeTable.getChangeTableId().identifier() : null;
                         String startLsn = changeTable != null ? changeTable.getStartLsn().toString() : Lsn.NULL.toString();
                         receiver.schemaChangeEvent(getCreateTableEvent(snapshotContext, table), new SimpleEntry<>(changeTableName, startLsn));

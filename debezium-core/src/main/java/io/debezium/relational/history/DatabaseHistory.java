@@ -169,7 +169,7 @@ public interface DatabaseHistory {
         recover(offsetMap, schema, ddlParser);
     }
 
-    default void recover(Offsets<?, ?> offsets, Tables schema, DdlParser ddlParser, Map<Table, SimpleEntry<String, String>> tableToSchemaSyncInfoMap) {
+    default void recover(Offsets<?, ?> offsets, Tables schema, DdlParser ddlParser, Map<Table, SimpleEntry<String, String>> tableToChangeTableSyncInfoMap) {
         Map<Map<String, ?>, Map<String, ?>> offsetMap = new HashMap<>();
         for (Entry<? extends Partition, ? extends OffsetContext> entry : offsets) {
             if (entry.getValue() != null) {
@@ -177,7 +177,7 @@ public interface DatabaseHistory {
             }
         }
 
-        recover(offsetMap, schema, ddlParser, tableToSchemaSyncInfoMap);
+        recover(offsetMap, schema, ddlParser, tableToChangeTableSyncInfoMap);
     }
 
     /**
@@ -190,7 +190,7 @@ public interface DatabaseHistory {
      * @deprecated Use {@link #recover(Offsets, Tables, DdlParser, Map)} instead.
      */
     @Deprecated
-    void recover(Map<Map<String, ?>, Map<String, ?>> offsets, Tables schema, DdlParser ddlParser, Map<Table, SimpleEntry<String, String>> tableToSchemaSyncInfoMap);
+    void recover(Map<Map<String, ?>, Map<String, ?>> offsets, Tables schema, DdlParser ddlParser, Map<Table, SimpleEntry<String, String>> tableToChangeTableSyncInfoMap);
 
     /**
      * Stop recording history and release any resources acquired since {@link #configure(Configuration, HistoryRecordComparator, DatabaseHistoryListener)}.

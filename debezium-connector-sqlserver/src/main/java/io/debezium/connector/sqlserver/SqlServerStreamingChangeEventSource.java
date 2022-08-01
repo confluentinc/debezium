@@ -186,11 +186,11 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                         for (SqlServerChangeTable table : tables) {
                             if (table.getStartLsn().compareTo(lastProcessedPosition.getCommitLsn()) > 0) {
                                 LOGGER.debug("startLsn for table {} is higher than lastProcessedPosition", table.getSourceTableId());
-                                SimpleEntry<String, String> schemaSyncInfo = schema.schemaSyncInfoFor(table.getSourceTableId());
-                                if (schemaSyncInfo != null
-                                        && schemaSyncInfo.getKey() != null
-                                        && schemaSyncInfo.getKey().equals(table.getChangeTableId().identifier())) {
-                                    if (!schemaSyncInfo.getValue().equals(table.getStartLsn().toString())) {
+                                SimpleEntry<String, String> changeTableSyncInfo = schema.changeTableSyncInfoFor(table.getSourceTableId());
+                                if (changeTableSyncInfo != null
+                                        && changeTableSyncInfo.getKey() != null
+                                        && changeTableSyncInfo.getKey().equals(table.getChangeTableId().identifier())) {
+                                    if (!changeTableSyncInfo.getValue().equals(table.getStartLsn().toString())) {
                                         // TODO: What if don't have this info for some table? (Check case where schema is altered)
                                         if (mode.equals(EventProcessingFailureHandlingMode.WARN)) {
                                             LOGGER.warn("Found out of sync lsn for table {} with capture instance {}", table.getSourceTableId(),
@@ -203,7 +203,8 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                                     }
                                 }
                                 else {
-                                    // TODO: when is this case applicable? When new table is created and enabled for cdc?
+                                    // TODO: when is this case applicable? When existing table is enabled for cdc?
+                                    offsetContext.event(table.getSourceTableId(), Instant.now());
                                     dispatcher.dispatchSchemaChangeEvent(partition, table.getSourceTableId(),
                                             new SqlServerSchemaChangeEventEmitter(partition, offsetContext, table, schema.tableFor(table.getSourceTableId()),
                                                     SchemaChangeEventType.CREATE,
@@ -369,9 +370,9 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
         LOGGER.info("Migrating schema to {}", newTable);
         Table oldTableSchema = schema.tableFor(newTable.getSourceTableId());
         Table tableSchema = metadataConnection.getTableSchemaFromTable(partition.getDatabaseName(), newTable);
-	//TODO: why do we need to pass this info?
-        String oldChangeTable = schema.schemaSyncInfoFor(oldTableSchema.id()).getKey();
-        String oldStartLsn = schema.schemaSyncInfoFor(oldTableSchema.id()).getValue();
+        // TODO: why do we need to pass this info?
+        String oldChangeTable = schema.changeTableSyncInfoFor(oldTableSchema.id()).getKey();
+        String oldStartLsn = schema.changeTableSyncInfoFor(oldTableSchema.id()).getValue();
         if (oldTableSchema.equals(tableSchema)) {
             LOGGER.info("Migration skipped, no table schema changes detected.");
             return;

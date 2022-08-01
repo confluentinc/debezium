@@ -42,9 +42,9 @@ public abstract class RelationalDatabaseSchema implements DatabaseSchema<TableId
 
     private final String schemaPrefix;
     private final SchemasByTableId schemasByTableId;
-    private final SchemaSyncInfoByTableId schemaSyncInfoByTableId;
+    private final ChangeTableSyncInfoByTableId changeTableSyncInfoByTableId;
     private final Tables tables;
-    private final Map<Table, SimpleEntry<String, String>> tableToSchemaSyncInfoMap;
+    private final Map<Table, SimpleEntry<String, String>> tableToChangeTableSyncInfoMap;
 
     protected RelationalDatabaseSchema(RelationalDatabaseConnectorConfig config, TopicSelector<TableId> topicSelector,
                                        TableFilter tableFilter, ColumnNameFilter columnFilter, TableSchemaBuilder schemaBuilder,
@@ -59,9 +59,9 @@ public abstract class RelationalDatabaseSchema implements DatabaseSchema<TableId
 
         this.schemaPrefix = getSchemaPrefix(config.getLogicalName());
         this.schemasByTableId = new SchemasByTableId(tableIdCaseInsensitive);
-        this.schemaSyncInfoByTableId = new SchemaSyncInfoByTableId(tableIdCaseInsensitive);
+        this.changeTableSyncInfoByTableId = new ChangeTableSyncInfoByTableId(tableIdCaseInsensitive);
         this.tables = new Tables(tableIdCaseInsensitive);
-        this.tableToSchemaSyncInfoMap = new HashMap<>();
+        this.tableToChangeTableSyncInfoMap = new HashMap<>();
     }
 
     private static String getSchemaPrefix(String serverName) {
@@ -109,8 +109,8 @@ public abstract class RelationalDatabaseSchema implements DatabaseSchema<TableId
         return schemasByTableId.get(id);
     }
 
-    public SimpleEntry<String, String> schemaSyncInfoFor(TableId id) {
-        return schemaSyncInfoByTableId.get(id);
+    public SimpleEntry<String, String> changeTableSyncInfoFor(TableId id) {
+        return changeTableSyncInfoByTableId.get(id);
     }
 
     /**
@@ -134,8 +134,8 @@ public abstract class RelationalDatabaseSchema implements DatabaseSchema<TableId
         return tables;
     }
 
-    protected Map<Table, SimpleEntry<String, String>> getTableToSchemaSyncInfoMap() {
-        return tableToSchemaSyncInfoMap;
+    protected Map<Table, SimpleEntry<String, String>> getTableToChangeTableSyncInfoMap() {
+        return tableToChangeTableSyncInfoMap;
     }
 
     protected void clearSchemas() {
@@ -157,9 +157,9 @@ public abstract class RelationalDatabaseSchema implements DatabaseSchema<TableId
      * A capture instance is said to be synced when the min_lsn of the corresponding change table is
      * smaller than the max processed LSN, otherwise it is not synced.
      */
-    protected void storeSchemaSyncInfo(Table table, SimpleEntry<String, String> changeTableSyncInfoPair) {
+    protected void storeChangeTableSyncInfo(Table table, SimpleEntry<String, String> changeTableSyncInfoPair) {
         if (tableFilter.isIncluded(table.id())) {
-            schemaSyncInfoByTableId.put(table.id(), changeTableSyncInfoPair);
+            changeTableSyncInfoByTableId.put(table.id(), changeTableSyncInfoPair);
         }
     }
 
@@ -208,12 +208,12 @@ public abstract class RelationalDatabaseSchema implements DatabaseSchema<TableId
     /**
      * A map of schema sync-info by table id. Table names are stored lower-case if required as per the config.
      */
-    private static class SchemaSyncInfoByTableId {
+    private static class ChangeTableSyncInfoByTableId {
 
         private final boolean tableIdCaseInsensitive;
         private final ConcurrentMap<TableId, SimpleEntry<String, String>> values;
 
-        public SchemaSyncInfoByTableId(boolean tableIdCaseInsensitive) {
+        public ChangeTableSyncInfoByTableId(boolean tableIdCaseInsensitive) {
             this.tableIdCaseInsensitive = tableIdCaseInsensitive;
             this.values = new ConcurrentHashMap<>();
         }

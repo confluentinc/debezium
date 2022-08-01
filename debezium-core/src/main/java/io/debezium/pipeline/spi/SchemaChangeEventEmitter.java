@@ -22,7 +22,7 @@ public interface SchemaChangeEventEmitter {
     public interface Receiver {
         void schemaChangeEvent(SchemaChangeEvent event) throws InterruptedException;
 
-        void schemaChangeEvent(SchemaChangeEvent event, SimpleEntry<String, String> changeTableSchemaSyncInfoPair) throws InterruptedException;
+        void schemaChangeEvent(SchemaChangeEvent event, SimpleEntry<String, String> changeTableSyncInfoPair) throws InterruptedException;
 
     }
 }

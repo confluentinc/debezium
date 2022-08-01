@@ -61,13 +61,13 @@ public abstract class HistorizedRelationalDatabaseSchema extends RelationalDatab
             throw new DebeziumException(msg);
         }
 
-        databaseHistory.recover(offsets, tables(), getDdlParser(), getTableToSchemaSyncInfoMap());
+        databaseHistory.recover(offsets, tables(), getDdlParser(), getTableToChangeTableSyncInfoMap());
         recoveredTables = !tableIds().isEmpty();
         for (TableId tableId : tableIds()) {
             buildAndRegisterSchema(tableFor(tableId));
         }
-        for (Entry<Table, SimpleEntry<String, String>> entry : getTableToSchemaSyncInfoMap().entrySet()) {
-            storeSchemaSyncInfo(entry.getKey(), entry.getValue());
+        for (Entry<Table, SimpleEntry<String, String>> entry : getTableToChangeTableSyncInfoMap().entrySet()) {
+            storeChangeTableSyncInfo(entry.getKey(), entry.getValue());
         }
     }
 

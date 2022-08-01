@@ -72,7 +72,7 @@ public class HistoryRecord {
     }
 
     public HistoryRecord(Map<String, ?> source, Map<String, ?> position, String databaseName, String schemaName, String ddl, TableChanges changes,
-                         SimpleEntry<String, String> schemaSyncInfoPair) {
+                         SimpleEntry<String, String> changeTableSyncInfoPair) {
         this.doc = Document.create();
 
         Document src = doc.setDocument(Fields.SOURCE);
@@ -108,13 +108,13 @@ public class HistoryRecord {
             doc.setArray(Fields.TABLE_CHANGES, tableChangesSerializer.serialize(changes));
         }
 
-        if (schemaSyncInfoPair != null) {
-            if (schemaSyncInfoPair.getKey() != null) {
-                doc.setString(Fields.CHANGE_TABLE_NAME, schemaSyncInfoPair.getKey());
+        if (changeTableSyncInfoPair != null) {
+            if (changeTableSyncInfoPair.getKey() != null) {
+                doc.setString(Fields.CHANGE_TABLE_NAME, changeTableSyncInfoPair.getKey());
             }
 
-            if (schemaSyncInfoPair.getValue() != null) {
-                doc.setString(Fields.START_LSN, schemaSyncInfoPair.getValue());
+            if (changeTableSyncInfoPair.getValue() != null) {
+                doc.setString(Fields.START_LSN, changeTableSyncInfoPair.getValue());
             }
         }
 

@@ -73,7 +73,7 @@ public class SqlServerDatabaseSchema extends HistorizedRelationalDatabaseSchema 
         // just a single table per DDL event for SQL Server
         Table table = schemaChange.getTables().iterator().next();
         buildAndRegisterSchema(table);
-        storeSchemaSyncInfo(table, changeTableSyncInfoPair);
+        storeChangeTableSyncInfo(table, changeTableSyncInfoPair);
         tables().overwriteTable(table);
 
         TableChanges tableChanges = null;

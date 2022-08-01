@@ -101,9 +101,9 @@ public abstract class AbstractDatabaseHistory implements DatabaseHistory {
 
     @Override
     public final void record(Map<String, ?> source, Map<String, ?> position, String databaseName, String schemaName, String ddl, TableChanges changes,
-                             SimpleEntry<String, String> schemaSyncInfoPair)
+                             SimpleEntry<String, String> changeTableSyncInfoPair)
             throws DatabaseHistoryException {
-        final HistoryRecord record = new HistoryRecord(source, position, databaseName, schemaName, ddl, changes, schemaSyncInfoPair);
+        final HistoryRecord record = new HistoryRecord(source, position, databaseName, schemaName, ddl, changes, changeTableSyncInfoPair);
         storeRecord(record);
         listener.onChangeApplied(record);
     }
@@ -176,7 +176,7 @@ public abstract class AbstractDatabaseHistory implements DatabaseHistory {
 
     @Override
     public void recover(Map<Map<String, ?>, Map<String, ?>> offsets, Tables schema, DdlParser ddlParser,
-                        Map<Table, SimpleEntry<String, String>> tableToSchemaSyncInfoMap) {
+                        Map<Table, SimpleEntry<String, String>> tableToChangeTableSyncInfoMap) {
         listener.recoveryStarted();
         Map<Document, HistoryRecord> stopPoints = new HashMap<>();
         offsets.forEach((Map<String, ?> source, Map<String, ?> position) -> {
@@ -201,12 +201,12 @@ public abstract class AbstractDatabaseHistory implements DatabaseHistory {
                     for (TableChange entry : changes) {
                         if (entry.getType() == TableChangeType.CREATE || entry.getType() == TableChangeType.ALTER) {
                             schema.overwriteTable(entry.getTable());
-                            tableToSchemaSyncInfoMap.put(entry.getTable(), new SimpleEntry(changeTableName, startLsn));
+                            tableToChangeTableSyncInfoMap.put(entry.getTable(), new SimpleEntry(changeTableName, startLsn));
                         }
                         // DROP
                         else {
                             schema.removeTable(entry.getId());
-                            tableToSchemaSyncInfoMap.remove(entry.getTable());
+                            tableToChangeTableSyncInfoMap.remove(entry.getTable());
                         }
                     }
                     listener.onChangeApplied(recovered);
