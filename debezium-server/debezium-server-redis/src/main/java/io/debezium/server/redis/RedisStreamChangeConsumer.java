@@ -117,7 +117,7 @@ public class RedisStreamChangeConsumer extends BaseChangeConsumer
         for (ChangeEvent<Object, Object> record : records) {
             try {
 
-                LOGGER.trace("Received event '{}'", record);
+                LOGGER.trace("Received event");
 
                 String destination = streamNameMapper.map(record.destination());
                 String key = (record.key() != null) ? getString(record.key()) : nullKey;
