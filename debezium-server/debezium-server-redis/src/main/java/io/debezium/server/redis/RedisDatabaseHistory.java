@@ -147,7 +147,7 @@ public final class RedisDatabaseHistory extends AbstractDatabaseHistory {
             line = writer.write(record.document());
         }
         catch (IOException e) {
-            LOGGER.error("Failed to convert record to string: {}", record, e);
+            LOGGER.error("Failed to convert record to string", e);
             throw new DatabaseHistoryException("Unable to write database history record");
         }
 

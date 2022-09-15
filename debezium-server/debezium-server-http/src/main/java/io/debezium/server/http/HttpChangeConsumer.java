@@ -96,7 +96,7 @@ public class HttpChangeConsumer extends BaseChangeConsumer implements DebeziumEn
     public void handleBatch(List<ChangeEvent<Object, Object>> records, DebeziumEngine.RecordCommitter<ChangeEvent<Object, Object>> committer)
             throws InterruptedException {
         for (ChangeEvent<Object, Object> record : records) {
-            LOGGER.trace("Received event '{}'", record);
+            LOGGER.trace("Received event");
 
             if (record.value() != null) {
                 String value = (String) record.value();

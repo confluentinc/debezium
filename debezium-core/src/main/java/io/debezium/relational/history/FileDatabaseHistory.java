@@ -117,7 +117,7 @@ public final class FileDatabaseHistory extends AbstractDatabaseHistory {
                         historyWriter.newLine();
                     }
                     catch (IOException e) {
-                        logger.error("Failed to add record to history at {}: {}", path, record, e);
+                        logger.error("Failed to add record to history at {}", path, e);
                         return;
                     }
                 }

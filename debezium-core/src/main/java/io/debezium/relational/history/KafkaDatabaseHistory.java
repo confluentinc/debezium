@@ -278,7 +278,7 @@ public class KafkaDatabaseHistory extends AbstractDatabaseHistory {
             }
         }
         catch (InterruptedException e) {
-            LOGGER.trace("Interrupted before record was written into database history: {}", record);
+            LOGGER.trace("Interrupted before record was written into database history");
             Thread.currentThread().interrupt();
             throw new DatabaseHistoryException(e);
         }
@@ -321,7 +321,7 @@ public class KafkaDatabaseHistory extends AbstractDatabaseHistory {
                             }
                             else {
                                 HistoryRecord recordObj = new HistoryRecord(reader.read(record.value()));
-                                LOGGER.trace("Recovering database history: {}", recordObj);
+                                LOGGER.trace("Recovering database history");
                                 if (recordObj == null || !recordObj.isValid()) {
                                     LOGGER.warn("Skipping invalid database history record '{}'. " +
                                             "This is often not an issue, but if it happens repeatedly please check the '{}' topic.",
@@ -329,7 +329,7 @@ public class KafkaDatabaseHistory extends AbstractDatabaseHistory {
                                 }
                                 else {
                                     records.accept(recordObj);
-                                    LOGGER.trace("Recovered database history: {}", recordObj);
+                                    LOGGER.trace("Recovered database history");
                                 }
                             }
                             lastProcessedOffset = record.offset();
@@ -337,10 +337,10 @@ public class KafkaDatabaseHistory extends AbstractDatabaseHistory {
                         }
                     }
                     catch (final IOException e) {
-                        LOGGER.error("Error while deserializing history record '{}'", record, e);
+                        LOGGER.error("Error while deserializing history record", e);
                     }
                     catch (final Exception e) {
-                        LOGGER.error("Unexpected exception while processing record '{}'", record, e);
+                        LOGGER.error("Unexpected exception while processing record", e);
                         throw e;
                     }
                 }
