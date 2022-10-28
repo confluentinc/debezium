@@ -200,6 +200,7 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                             changeTables[i].next();
                         }
 
+                        int changesPerIterations = 0;
                         for (;;) {
                             SqlServerChangeTablePointer tableWithSmallestLsn = null;
                             for (SqlServerChangeTablePointer changeTable : changeTables) {
@@ -211,8 +212,12 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                                 }
                             }
                             if (tableWithSmallestLsn == null) {
+                                // TODO: Remove this log line after finding the default for max.iteration.transactions
+                                LOGGER.info("Changes processed in the iteration: {}", changesPerIterations);
                                 // No more LSNs available
                                 break;
+                            } else {
+                                changesPerIterations++;
                             }
 
                             if (!(tableWithSmallestLsn.getChangePosition().isAvailable() && tableWithSmallestLsn.getChangePosition().getInTxLsn().isAvailable())) {
