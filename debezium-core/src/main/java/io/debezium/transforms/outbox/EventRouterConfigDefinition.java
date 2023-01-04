@@ -5,6 +5,9 @@
  */
 package io.debezium.transforms.outbox;
 
+import com.google.re2j.Pattern;
+import com.google.re2j.PatternSyntaxException;
+import io.debezium.config.Field.ValidationOutput;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -13,6 +16,8 @@ import org.apache.kafka.common.config.ConfigDef;
 import io.debezium.config.Configuration;
 import io.debezium.config.EnumeratedValue;
 import io.debezium.config.Field;
+import org.apache.kafka.common.config.ConfigDef.Validator;
+import org.apache.kafka.common.config.ConfigException;
 
 /**
  * Debezium Outbox Transform configuration definition
@@ -92,6 +97,21 @@ public class EventRouterConfigDefinition {
         }
     }
 
+    private static int re2jRegexValidator(Configuration config, Field field, ValidationOutput problems) {
+        String value = config.getString(field);
+        int errors = 0;
+        if (value != null) {
+            try {
+                Pattern.compile(value, Pattern.CASE_INSENSITIVE);
+            }
+            catch (PatternSyntaxException e) {
+                problems.accept(field, value, "A valid regular expressions is expected, but " + e.getMessage());
+                ++errors;
+            }
+        }
+        return errors;
+    }
+
     public static class AdditionalField {
         private final AdditionalFieldPlacement placement;
         private final String field;
@@ -115,6 +135,14 @@ public class EventRouterConfigDefinition {
             return alias;
         }
     }
+
+    private static final Validator VALIDATOR_REGEX = (name, value) -> {
+        try {
+            Pattern.compile((String)value);
+        } catch (Exception e) {
+            throw new ConfigException(name, value, "Invalid regex: " + e.getMessage());
+        }
+    };
 
     static final Field FIELD_EVENT_ID = Field.create("table.field.event.id")
             .withDisplayName("Event ID Field")
@@ -192,8 +220,8 @@ public class EventRouterConfigDefinition {
     static final Field ROUTE_TOPIC_REGEX = Field.create("route.topic.regex")
             .withDisplayName("The name of the routed topic")
             .withType(ConfigDef.Type.STRING)
-            .withValidation(Field::isRegex)
-            .withDefault("(?<routedByValue>.*)")
+            .withValidation(EventRouterConfigDefinition::re2jRegexValidator)
+            .withDefault("(?P<routedByValue>.*)")
             .withWidth(ConfigDef.Width.MEDIUM)
             .withImportance(ConfigDef.Importance.LOW)
             .withDescription("The default regex to use within the RegexRouter, the default capture will allow" +

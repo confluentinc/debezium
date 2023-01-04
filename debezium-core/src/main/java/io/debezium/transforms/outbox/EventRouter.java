@@ -8,6 +8,8 @@ package io.debezium.transforms.outbox;
 import static io.debezium.transforms.outbox.EventRouterConfigDefinition.parseAdditionalFieldsConfig;
 import static org.apache.kafka.connect.transforms.util.Requirements.requireStruct;
 
+import com.google.re2j.Matcher;
+import com.google.re2j.Pattern;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,7 +23,6 @@ import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.header.Headers;
 import org.apache.kafka.connect.transforms.ExtractField;
-import org.apache.kafka.connect.transforms.RegexRouter;
 import org.apache.kafka.connect.transforms.Transformation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,7 +49,6 @@ public class EventRouter<R extends ConnectRecord<R>> implements Transformation<R
     private static final String ENVELOPE_PAYLOAD = "payload";
 
     private final ExtractField<R> afterExtractor = new ExtractField.Value<>();
-    private final RegexRouter<R> regexRouter = new RegexRouter<>();
     private EventRouterConfigDefinition.InvalidOperationBehavior invalidOperationBehavior;
 
     private String fieldEventId;
@@ -57,6 +57,9 @@ public class EventRouter<R extends ConnectRecord<R>> implements Transformation<R
     private String fieldPayload;
     private String fieldPayloadId;
     private String fieldSchemaVersion;
+
+    private Pattern routeTopicRegex;
+    private String routeTopicReplacement;
 
     private String routeByField;
     private boolean routeTombstoneOnEmptyPayload;
@@ -174,7 +177,19 @@ public class EventRouter<R extends ConnectRecord<R>> implements Transformation<R
                 timestamp,
                 headers);
 
-        return regexRouter.apply(newRecord);
+        final Matcher matcher = routeTopicRegex.matcher(newRecord.topic());
+        if (matcher.matches()) {
+            final String topic = matcher.replaceFirst(routeTopicReplacement);
+            return newRecord.newRecord(topic,
+                newRecord.kafkaPartition(),
+                newRecord.keySchema(),
+                newRecord.key(),
+                newRecord.valueSchema(),
+                newRecord.value(),
+                newRecord.timestamp());
+        }
+
+        return newRecord;
     }
 
     /**
@@ -282,10 +297,13 @@ public class EventRouter<R extends ConnectRecord<R>> implements Transformation<R
         routeTombstoneOnEmptyPayload = config.getBoolean(EventRouterConfigDefinition.ROUTE_TOMBSTONE_ON_EMPTY_PAYLOAD);
 
         final Map<String, String> regexRouterConfig = new HashMap<>();
-        regexRouterConfig.put("regex", config.getString(EventRouterConfigDefinition.ROUTE_TOPIC_REGEX));
-        regexRouterConfig.put("replacement", config.getString(EventRouterConfigDefinition.ROUTE_TOPIC_REPLACEMENT));
+        routeTopicRegex = Pattern.compile(config.getString(EventRouterConfigDefinition.ROUTE_TOPIC_REGEX));
+        routeTopicReplacement = config.getString(EventRouterConfigDefinition.ROUTE_TOPIC_REPLACEMENT);
+//        regexRouterConfig.put("regex", config.getString(EventRouterConfigDefinition.ROUTE_TOPIC_REGEX));
+//        regexRouterConfig.put("replacement", config.getString(EventRouterConfigDefinition.ROUTE_TOPIC_REPLACEMENT));
+//
+//        regexRouter.configure(regexRouterConfig);
 
-        regexRouter.configure(regexRouterConfig);
 
         final Map<String, String> afterExtractorConfig = new HashMap<>();
         afterExtractorConfig.put("field", Envelope.FieldName.AFTER);
