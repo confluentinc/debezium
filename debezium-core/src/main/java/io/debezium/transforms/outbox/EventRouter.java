@@ -296,14 +296,8 @@ public class EventRouter<R extends ConnectRecord<R>> implements Transformation<R
         routeByField = config.getString(EventRouterConfigDefinition.ROUTE_BY_FIELD);
         routeTombstoneOnEmptyPayload = config.getBoolean(EventRouterConfigDefinition.ROUTE_TOMBSTONE_ON_EMPTY_PAYLOAD);
 
-        final Map<String, String> regexRouterConfig = new HashMap<>();
         routeTopicRegex = Pattern.compile(config.getString(EventRouterConfigDefinition.ROUTE_TOPIC_REGEX));
         routeTopicReplacement = config.getString(EventRouterConfigDefinition.ROUTE_TOPIC_REPLACEMENT);
-//        regexRouterConfig.put("regex", config.getString(EventRouterConfigDefinition.ROUTE_TOPIC_REGEX));
-//        regexRouterConfig.put("replacement", config.getString(EventRouterConfigDefinition.ROUTE_TOPIC_REPLACEMENT));
-//
-//        regexRouter.configure(regexRouterConfig);
-
 
         final Map<String, String> afterExtractorConfig = new HashMap<>();
         afterExtractorConfig.put("field", Envelope.FieldName.AFTER);
