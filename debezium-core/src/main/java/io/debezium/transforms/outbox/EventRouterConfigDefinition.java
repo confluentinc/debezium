@@ -136,14 +136,6 @@ public class EventRouterConfigDefinition {
         }
     }
 
-    private static final Validator VALIDATOR_REGEX = (name, value) -> {
-        try {
-            Pattern.compile((String)value);
-        } catch (Exception e) {
-            throw new ConfigException(name, value, "Invalid regex: " + e.getMessage());
-        }
-    };
-
     static final Field FIELD_EVENT_ID = Field.create("table.field.event.id")
             .withDisplayName("Event ID Field")
             .withType(ConfigDef.Type.STRING)

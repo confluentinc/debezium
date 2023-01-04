@@ -128,6 +128,7 @@
         <version.revapi-java.plugin>0.21.0</version.revapi-java.plugin>
         <version.build-helper.plugin>1.9.1</version.build-helper.plugin>
 
+        <re2j.version>1.6</re2j.version>
         <!-- Dockerfiles -->
         <docker.maintainer>Debezium community</docker.maintainer>
 
@@ -518,7 +519,7 @@
             <dependency>
                 <groupId>com.google.re2j</groupId>
                 <artifactId>re2j</artifactId>
-                <version>1.6</version>
+                <version>${re2j.version}</version>
             </dependency>
 
             <!-- Debezium test artifacts -->
