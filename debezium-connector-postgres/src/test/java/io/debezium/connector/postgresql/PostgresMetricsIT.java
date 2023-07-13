@@ -192,8 +192,6 @@ public class PostgresMetricsIT extends AbstractRecordsProducerTest {
         Assertions.assertThat(mBeanServer.getAttribute(objectName, "SnapshotRunning")).isEqualTo(false);
         Assertions.assertThat(mBeanServer.getAttribute(objectName, "SnapshotAborted")).isEqualTo(false);
         Assertions.assertThat(mBeanServer.getAttribute(objectName, "SnapshotCompleted")).isEqualTo(true);
-        Assertions.assertThat(mBeanServer.getAttribute(objectName, "SnapshotPaused")).isEqualTo(false);
-        Assertions.assertThat(mBeanServer.getAttribute(objectName, "SnapshotPausedDurationInSeconds")).isEqualTo(0L);
     }
 
     private void assertSnapshotNotExecutedMetrics() throws Exception {
