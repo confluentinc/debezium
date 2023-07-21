@@ -23,7 +23,7 @@ import org.slf4j.LoggerFactory;
 
 import io.debezium.config.Configuration;
 import io.debezium.connector.common.RelationalBaseSourceConnector;
-import io.debezium.connector.postgresql.PostgresConnectorConfig.LogicalDecoder;
+import io.debezium.connector.postgresql.PostgresConnectorConfig_V2.LogicalDecoder;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 
@@ -32,16 +32,16 @@ import io.debezium.relational.RelationalDatabaseConnectorConfig;
  * to receive incoming changes for a database and publish them to Kafka.
  * <h2>Configuration</h2>
  * <p>
- * This connector is configured with the set of properties described in {@link PostgresConnectorConfig}.
+ * This connector is configured with the set of properties described in {@link PostgresConnectorConfig_V2}.
  *
  * @author Horia Chiorean
  */
-public class PostgresConnector extends RelationalBaseSourceConnector {
+public class PostgresConnector_V2 extends RelationalBaseSourceConnector {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(PostgresConnector.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(PostgresConnector_V2.class);
     private Map<String, String> props;
 
-    public PostgresConnector() {
+    public PostgresConnector_V2() {
     }
 
     @Override
@@ -51,7 +51,7 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
 
     @Override
     public Class<? extends Task> taskClass() {
-        return PostgresConnectorTask.class;
+        return PostgresConnectorTask_V2.class;
     }
 
     @Override
@@ -72,24 +72,24 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
 
     @Override
     public ConfigDef config() {
-        return PostgresConnectorConfig.configDef();
+        return PostgresConnectorConfig_V2.configDef();
     }
 
     @Override
     protected void validateConnection(Map<String, ConfigValue> configValues, Configuration config) {
         final ConfigValue databaseValue = configValues.get(RelationalDatabaseConnectorConfig.DATABASE_NAME.name());
-        final ConfigValue slotNameValue = configValues.get(PostgresConnectorConfig.SLOT_NAME.name());
-        final ConfigValue pluginNameValue = configValues.get(PostgresConnectorConfig.PLUGIN_NAME.name());
+        final ConfigValue slotNameValue = configValues.get(PostgresConnectorConfig_V2.SLOT_NAME.name());
+        final ConfigValue pluginNameValue = configValues.get(PostgresConnectorConfig_V2.PLUGIN_NAME.name());
         if (!databaseValue.errorMessages().isEmpty() || !slotNameValue.errorMessages().isEmpty()
                 || !pluginNameValue.errorMessages().isEmpty()) {
             return;
         }
 
-        final PostgresConnectorConfig postgresConfig = new PostgresConnectorConfig(config);
+        final PostgresConnectorConfig_V2 postgresConfig = new PostgresConnectorConfig_V2(config);
         final ConfigValue hostnameValue = configValues.get(RelationalDatabaseConnectorConfig.HOSTNAME.name());
-        final ConfigValue portValue = configValues.get(PostgresConnectorConfig.PORT.name());
-        final ConfigValue userValue = configValues.get(PostgresConnectorConfig.USER.name());
-        final ConfigValue passwordValue = configValues.get(PostgresConnectorConfig.PASSWORD.name());
+        final ConfigValue portValue = configValues.get(PostgresConnectorConfig_V2.PORT.name());
+        final ConfigValue userValue = configValues.get(PostgresConnectorConfig_V2.USER.name());
+        final ConfigValue passwordValue = configValues.get(PostgresConnectorConfig_V2.PASSWORD.name());
         // Try to connect to the database ...
         try (PostgresConnection connection = new PostgresConnection(postgresConfig.getJdbcConfig(), PostgresConnection.CONNECTION_VALIDATE_CONNECTION)) {
             try {
@@ -159,7 +159,7 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         }
     }
 
-    private static void checkWalLevel(PostgresConnection connection, PostgresConnectorConfig config) throws SQLException {
+    private static void checkWalLevel(PostgresConnection connection, PostgresConnectorConfig_V2 config) throws SQLException {
         final String walLevel = connection.queryAndMap(
                 "SHOW wal_level",
                 connection.singleResultMapper(rs -> rs.getString("wal_level"), "Could not fetch wal_level"));
@@ -180,7 +180,7 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
                 connection.username());
     }
 
-    private static int checkPostgresVersionForPgoutputSupport(PostgresConnection connection, PostgresConnectorConfig postgresConfig) throws SQLException {
+    private static int checkPostgresVersionForPgoutputSupport(PostgresConnection connection, PostgresConnectorConfig_V2 postgresConfig) throws SQLException {
         // check for DB version and LogicalDecoder compatibility
         final Version dbVersion = ServerVersion.from(
                 connection.queryAndMap(
@@ -193,6 +193,6 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
 
     @Override
     protected Map<String, ConfigValue> validateAllFields(Configuration config) {
-        return config.validate(PostgresConnectorConfig.ALL_FIELDS);
+        return config.validate(PostgresConnectorConfig_V2.ALL_FIELDS);
     }
 }

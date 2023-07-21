@@ -33,7 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.debezium.DebeziumException;
-import io.debezium.connector.postgresql.PostgresConnectorConfig;
+import io.debezium.connector.postgresql.PostgresConnectorConfig_V2;
 import io.debezium.connector.postgresql.TestHelper;
 import io.debezium.connector.postgresql.junit.SkipTestDependingOnDecoderPluginNameRule;
 import io.debezium.connector.postgresql.junit.SkipWhenDecoderPluginNameIs;
@@ -108,8 +108,8 @@ public class ReplicationConnectionIT {
         try (ReplicationConnection conn1 = TestHelper.createForReplication("test1", true)) {
             conn1.startStreaming(new WalPositionLocator());
             try (ReplicationConnection conn2 = TestHelper.createForReplication("test1", false,
-                    new PostgresConnectorConfig(TestHelper.defaultConfig()
-                            .with(PostgresConnectorConfig.MAX_RETRIES, 0)
+                    new PostgresConnectorConfig_V2(TestHelper.defaultConfig()
+                            .with(PostgresConnectorConfig_V2.MAX_RETRIES, 0)
                             .build()))) {
                 conn2.startStreaming(new WalPositionLocator());
                 fail("Should not be able to create 2 replication connections on the same db, plugin and slot");

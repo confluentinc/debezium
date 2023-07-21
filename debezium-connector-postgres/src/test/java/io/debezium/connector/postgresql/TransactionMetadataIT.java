@@ -28,7 +28,7 @@ import org.junit.Test;
 import org.junit.rules.TestRule;
 
 import io.debezium.config.Configuration;
-import io.debezium.connector.postgresql.PostgresConnectorConfig.SnapshotMode;
+import io.debezium.connector.postgresql.PostgresConnectorConfig_V2.SnapshotMode;
 import io.debezium.connector.postgresql.junit.SkipTestDependingOnDecoderPluginNameRule;
 import io.debezium.embedded.AbstractConnectorTest;
 import io.debezium.junit.EqualityCheck;
@@ -76,11 +76,11 @@ public class TransactionMetadataIT extends AbstractConnectorTest {
         TestHelper.dropDefaultReplicationSlot();
         TestHelper.execute(SETUP_TABLES_STMT);
         Configuration config = TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER.getValue())
-                .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.TRUE)
-                .with(PostgresConnectorConfig.PROVIDE_TRANSACTION_METADATA, true)
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.NEVER.getValue())
+                .with(PostgresConnectorConfig_V2.DROP_SLOT_ON_STOP, Boolean.TRUE)
+                .with(PostgresConnectorConfig_V2.PROVIDE_TRANSACTION_METADATA, true)
                 .build();
-        start(PostgresConnector.class, config);
+        start(PostgresConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForDefaultReplicationSlotBeActive();
 

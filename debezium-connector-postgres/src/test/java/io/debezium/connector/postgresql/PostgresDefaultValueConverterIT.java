@@ -19,7 +19,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import io.debezium.config.Configuration;
-import io.debezium.connector.postgresql.PostgresConnectorConfig.SnapshotMode;
+import io.debezium.connector.postgresql.PostgresConnectorConfig_V2.SnapshotMode;
 import io.debezium.connector.postgresql.connection.PostgresDefaultValueConverter;
 import io.debezium.data.Envelope;
 import io.debezium.doc.FixFor;
@@ -50,9 +50,9 @@ public class PostgresDefaultValueConverterIT extends AbstractConnectorTest {
         createTableAndInsertData();
 
         Configuration.Builder configBuilder = TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL.getValue())
-                .with(PostgresConnectorConfig.SCHEMA_INCLUDE_LIST, "s1");
-        start(PostgresConnector.class, configBuilder.build());
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.INITIAL.getValue())
+                .with(PostgresConnectorConfig_V2.SCHEMA_INCLUDE_LIST, "s1");
+        start(PostgresConnector_V2.class, configBuilder.build());
         assertConnectorIsRunning();
 
         waitForSnapshotToBeCompleted("postgres", TestHelper.TEST_SERVER);
@@ -67,9 +67,9 @@ public class PostgresDefaultValueConverterIT extends AbstractConnectorTest {
     @FixFor({ "DBZ-4736", "DBZ-5384" })
     public void shouldSetTheNullValueInStreaming() throws Exception {
         Configuration.Builder configBuilder = TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL.getValue())
-                .with(PostgresConnectorConfig.SCHEMA_INCLUDE_LIST, "s1");
-        start(PostgresConnector.class, configBuilder.build());
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.INITIAL.getValue())
+                .with(PostgresConnectorConfig_V2.SCHEMA_INCLUDE_LIST, "s1");
+        start(PostgresConnector_V2.class, configBuilder.build());
         assertConnectorIsRunning();
 
         waitForSnapshotToBeCompleted("postgres", TestHelper.TEST_SERVER);
@@ -99,7 +99,7 @@ public class PostgresDefaultValueConverterIT extends AbstractConnectorTest {
         TestHelper.execute(ddl);
 
         Configuration config = TestHelper.defaultConfig().build();
-        start(PostgresConnector.class, config);
+        start(PostgresConnector_V2.class, config);
 
         waitForStreamingRunning("postgres", TestHelper.TEST_SERVER);
 

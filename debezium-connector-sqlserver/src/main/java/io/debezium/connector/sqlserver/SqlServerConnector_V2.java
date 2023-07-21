@@ -6,7 +6,7 @@
 package io.debezium.connector.sqlserver;
 
 import static io.debezium.config.CommonConnectorConfig.TASK_ID;
-import static io.debezium.connector.sqlserver.SqlServerConnectorConfig.DATABASE_NAMES;
+import static io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.DATABASE_NAMES;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -31,9 +31,9 @@ import io.debezium.relational.RelationalDatabaseConnectorConfig;
  * @author Jiri Pechanec
  *
  */
-public class SqlServerConnector extends RelationalBaseSourceConnector {
+public class SqlServerConnector_V2 extends RelationalBaseSourceConnector {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(SqlServerConnector.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(SqlServerConnector_V2.class);
 
     private Map<String, String> properties;
 
@@ -49,7 +49,7 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
 
     @Override
     public Class<? extends Task> taskClass() {
-        return SqlServerConnectorTask.class;
+        return SqlServerConnectorTask_V2.class;
     }
 
     @Override
@@ -58,7 +58,7 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
             throw new IllegalArgumentException("Only a single connector task may be started in single-partition mode");
         }
 
-        final SqlServerConnectorConfig config = new SqlServerConnectorConfig(Configuration.from(properties));
+        final SqlServerConnectorConfig_V2 config = new SqlServerConnectorConfig_V2(Configuration.from(properties));
 
         try (SqlServerConnection connection = connect(config)) {
             return buildTaskConfigs(connection, config, maxTasks);
@@ -68,7 +68,7 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
         }
     }
 
-    private List<Map<String, String>> buildTaskConfigs(SqlServerConnection connection, SqlServerConnectorConfig config,
+    private List<Map<String, String>> buildTaskConfigs(SqlServerConnection connection, SqlServerConnectorConfig_V2 config,
                                                        int maxTasks) {
         List<String> databaseNames = config.getDatabaseNames();
 
@@ -91,7 +91,7 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
         for (int taskIndex = 0; taskIndex < numTasks; taskIndex++) {
             String taskDatabases = String.join(",", databasesByTask.get(taskIndex));
             Map<String, String> taskProperties = new HashMap<>(properties);
-            taskProperties.put(SqlServerConnectorConfig.DATABASE_NAMES.name(), taskDatabases);
+            taskProperties.put(SqlServerConnectorConfig_V2.DATABASE_NAMES.name(), taskDatabases);
             taskProperties.put(TASK_ID, String.valueOf(taskIndex));
             taskConfigs.add(Collections.unmodifiableMap(taskProperties));
         }
@@ -105,7 +105,7 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
 
     @Override
     public ConfigDef config() {
-        return SqlServerConnectorConfig.configDef();
+        return SqlServerConnectorConfig_V2.configDef();
     }
 
     @Override
@@ -114,7 +114,7 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
             return;
         }
 
-        final SqlServerConnectorConfig sqlServerConfig = new SqlServerConnectorConfig(config);
+        final SqlServerConnectorConfig_V2 sqlServerConfig = new SqlServerConnectorConfig_V2(config);
         final ConfigValue hostnameValue = configValues.get(RelationalDatabaseConnectorConfig.HOSTNAME.name());
         final ConfigValue userValue = configValues.get(RelationalDatabaseConnectorConfig.USER.name());
         // Try to connect to the database ...
@@ -123,7 +123,7 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
             LOGGER.debug("Successfully tested connection for {} with user '{}'", connection.connectionString(),
                     connection.username());
             LOGGER.info("Checking if user has access to CDC table");
-            if (sqlServerConfig.getSnapshotMode() != SqlServerConnectorConfig.SnapshotMode.INITIAL_ONLY) {
+            if (sqlServerConfig.getSnapshotMode() != io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.INITIAL_ONLY) {
                 final List<String> noAccessDatabaseNames = new ArrayList<>();
                 for (String databaseName : sqlServerConfig.getDatabaseNames()) {
                     if (!connection.checkIfConnectedUserHasAccessToCDCTable(databaseName)) {
@@ -149,10 +149,10 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
 
     @Override
     protected Map<String, ConfigValue> validateAllFields(Configuration config) {
-        return config.validate(SqlServerConnectorConfig.ALL_FIELDS);
+        return config.validate(SqlServerConnectorConfig_V2.ALL_FIELDS);
     }
 
-    private SqlServerConnection connect(SqlServerConnectorConfig sqlServerConfig) {
+    private SqlServerConnection connect(SqlServerConnectorConfig_V2 sqlServerConfig) {
         return new SqlServerConnection(sqlServerConfig.getJdbcConfig(), null, Collections.emptySet(),
                 sqlServerConfig.useSingleDatabase());
     }

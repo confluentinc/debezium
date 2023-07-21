@@ -40,7 +40,7 @@ Further down, you should see output like the following from the connector:
 2021-11-30 01:38:44,499 INFO   ||  Metrics scheduler closed   [org.apache.kafka.common.metrics.Metrics]
 2021-11-30 01:38:44,499 INFO   ||  Closing reporter org.apache.kafka.common.metrics.JmxReporter   [org.apache.kafka.common.metrics.Metrics]
 2021-11-30 01:38:44,499 INFO   ||  Metrics reporters closed   [org.apache.kafka.common.metrics.Metrics]
-2021-11-30 01:38:44,499 INFO   ||  Reconnecting after finishing schema recovery   [io.debezium.connector.mysql.MySqlConnectorTask]
+2021-11-30 01:38:44,499 INFO   ||  Reconnecting after finishing schema recovery   [io.debezium.connector.mysql.MySqlConnectorTask_V2]
 2021-11-30 01:38:44,524 INFO   ||  Requested thread factory for connector MySqlConnector, id = dbserver1 named = change-event-source-coordinator   [io.debezium.util.Threads]
 2021-11-30 01:38:44,525 INFO   ||  Creating thread debezium-mysqlconnector-dbserver1-change-event-source-coordinator   [io.debezium.util.Threads]
 2021-11-30 01:38:44,526 INFO   ||  WorkerSourceTask{id=inventory-connector-0} Source task finished initialization and start   [org.apache.kafka.connect.runtime.WorkerSourceTask]

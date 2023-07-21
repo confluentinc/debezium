@@ -26,7 +26,7 @@ public class CustomTestSnapshot implements Snapshotter {
     private boolean hasState;
 
     @Override
-    public void init(PostgresConnectorConfig config, OffsetState sourceInfo, SlotState slotState) {
+    public void init(PostgresConnectorConfig_V2 config, OffsetState sourceInfo, SlotState slotState) {
         hasState = (sourceInfo != null);
     }
 

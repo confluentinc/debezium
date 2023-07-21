@@ -13,7 +13,7 @@ import java.util.Optional;
 import org.postgresql.replication.PGReplicationStream;
 
 import io.debezium.annotation.NotThreadSafe;
-import io.debezium.connector.postgresql.PostgresConnectorConfig;
+import io.debezium.connector.postgresql.PostgresConnectorConfig_V2;
 import io.debezium.connector.postgresql.PostgresSchema;
 import io.debezium.connector.postgresql.TypeRegistry;
 import io.debezium.connector.postgresql.spi.SlotCreationResult;
@@ -84,10 +84,10 @@ public interface ReplicationConnection extends AutoCloseable {
     /**
      * Creates a new {@link Builder} instance which can be used for creating replication connections.
      *
-     * @param config a {@link PostgresConnectorConfig} instance; may not be null
+     * @param config a {@link PostgresConnectorConfig_V2} instance; may not be null
      * @return a builder, never null
      */
-    static Builder builder(PostgresConnectorConfig config) {
+    static Builder builder(PostgresConnectorConfig_V2 config) {
         return new PostgresReplicationConnection.ReplicationConnectionBuilder(config);
     }
 
@@ -139,7 +139,7 @@ public interface ReplicationConnection extends AutoCloseable {
          * @return this instance
          * @see #PostgresConnectorConfig.PublicationAutocreateMode.ALL_TABLES
          */
-        Builder withPublicationAutocreateMode(PostgresConnectorConfig.AutoCreateMode publicationAutocreateMode);
+        Builder withPublicationAutocreateMode(PostgresConnectorConfig_V2.AutoCreateMode publicationAutocreateMode);
 
         /**
          * Sets the instance for the PG logical decoding plugin
@@ -148,7 +148,7 @@ public interface ReplicationConnection extends AutoCloseable {
          * @return this instance
          * @see #PROTOBUF_PLUGIN_NAME
          */
-        Builder withPlugin(PostgresConnectorConfig.LogicalDecoder plugin);
+        Builder withPlugin(PostgresConnectorConfig_V2.LogicalDecoder plugin);
 
         /**
          * Whether or not to drop the replication slot once the replication connection closes

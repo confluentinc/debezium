@@ -45,7 +45,7 @@ public class SourceInfoTest {
 
     @Before
     public void beforeEach() {
-        offsetContext = MySqlOffsetContext.initial(new MySqlConnectorConfig(Configuration.create()
+        offsetContext = MySqlOffsetContext.initial(new MySqlConnectorConfig_V2(Configuration.create()
                 .with(CommonConnectorConfig.TOPIC_PREFIX, "server")
                 .build()));
         source = offsetContext.getSource();
@@ -445,7 +445,7 @@ public class SourceInfoTest {
     }
 
     protected SourceInfo sourceWith(Map<String, String> offset) {
-        offsetContext = (MySqlOffsetContext) new MySqlOffsetContext.Loader(new MySqlConnectorConfig(Configuration.create()
+        offsetContext = (MySqlOffsetContext) new MySqlOffsetContext.Loader(new MySqlConnectorConfig_V2(Configuration.create()
                 .with(CommonConnectorConfig.TOPIC_PREFIX, SERVER_NAME)
                 .build())).load(offset);
         source = offsetContext.getSource();

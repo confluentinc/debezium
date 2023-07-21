@@ -26,7 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.debezium.config.Configuration;
-import io.debezium.connector.postgresql.PostgresConnectorConfig.SnapshotMode;
+import io.debezium.connector.postgresql.PostgresConnectorConfig_V2.SnapshotMode;
 import io.debezium.junit.EqualityCheck;
 import io.debezium.junit.SkipWhenJavaVersion;
 import io.debezium.util.Testing;
@@ -57,10 +57,10 @@ public class PostgresMetricsIT extends AbstractRecordsProducerTest {
     @Test
     public void testLifecycle() throws Exception {
         // start connector
-        start(PostgresConnector.class,
+        start(PostgresConnector_V2.class,
                 TestHelper.defaultConfig()
-                        .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.ALWAYS)
-                        .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.TRUE)
+                        .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.ALWAYS)
+                        .with(PostgresConnectorConfig_V2.DROP_SLOT_ON_STOP, Boolean.TRUE)
                         .build());
 
         assertConnectorIsRunning();
@@ -98,10 +98,10 @@ public class PostgresMetricsIT extends AbstractRecordsProducerTest {
         TestHelper.execute(INIT_STATEMENTS, INSERT_STATEMENTS);
 
         // start connector
-        start(PostgresConnector.class,
+        start(PostgresConnector_V2.class,
                 TestHelper.defaultConfig()
-                        .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL_ONLY)
-                        .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.TRUE)
+                        .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.INITIAL_ONLY)
+                        .with(PostgresConnectorConfig_V2.DROP_SLOT_ON_STOP, Boolean.TRUE)
                         .build());
 
         assertSnapshotMetrics();
@@ -113,10 +113,10 @@ public class PostgresMetricsIT extends AbstractRecordsProducerTest {
         TestHelper.execute(INIT_STATEMENTS, INSERT_STATEMENTS);
 
         // start connector
-        start(PostgresConnector.class,
+        start(PostgresConnector_V2.class,
                 TestHelper.defaultConfig()
-                        .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.ALWAYS)
-                        .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.TRUE)
+                        .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.ALWAYS)
+                        .with(PostgresConnectorConfig_V2.DROP_SLOT_ON_STOP, Boolean.TRUE)
                         .build());
 
         assertSnapshotMetrics();
@@ -131,10 +131,10 @@ public class PostgresMetricsIT extends AbstractRecordsProducerTest {
         TestHelper.execute(INIT_STATEMENTS);
 
         // start connector
-        start(PostgresConnector.class,
+        start(PostgresConnector_V2.class,
                 TestHelper.defaultConfig()
-                        .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER)
-                        .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.TRUE)
+                        .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.NEVER)
+                        .with(PostgresConnectorConfig_V2.DROP_SLOT_ON_STOP, Boolean.TRUE)
                         .build());
 
         assertSnapshotNotExecutedMetrics();
@@ -212,13 +212,13 @@ public class PostgresMetricsIT extends AbstractRecordsProducerTest {
         final CountDownLatch step2 = new CountDownLatch(1);
 
         Configuration.Builder configBuilder = TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER)
-                .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.TRUE)
-                .with(PostgresConnectorConfig.MAX_QUEUE_SIZE, 10)
-                .with(PostgresConnectorConfig.MAX_BATCH_SIZE, 1)
-                .with(PostgresConnectorConfig.POLL_INTERVAL_MS, 100L)
-                .with(PostgresConnectorConfig.MAX_QUEUE_SIZE_IN_BYTES, 10000L);
-        start(PostgresConnector.class, configBuilder.build(), loggingCompletion(), null, x -> {
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.NEVER)
+                .with(PostgresConnectorConfig_V2.DROP_SLOT_ON_STOP, Boolean.TRUE)
+                .with(PostgresConnectorConfig_V2.MAX_QUEUE_SIZE, 10)
+                .with(PostgresConnectorConfig_V2.MAX_BATCH_SIZE, 1)
+                .with(PostgresConnectorConfig_V2.POLL_INTERVAL_MS, 100L)
+                .with(PostgresConnectorConfig_V2.MAX_QUEUE_SIZE_IN_BYTES, 10000L);
+        start(PostgresConnector_V2.class, configBuilder.build(), loggingCompletion(), null, x -> {
             LOGGER.info("Record '{}' arrived", x);
             step1.countDown();
             try {

@@ -28,7 +28,7 @@ import io.debezium.util.Strings;
 
 public class PostgresChangeEventSourceFactory implements ChangeEventSourceFactory<PostgresPartition, PostgresOffsetContext> {
 
-    private final PostgresConnectorConfig configuration;
+    private final PostgresConnectorConfig_V2 configuration;
     private final MainConnectionProvidingConnectionFactory<PostgresConnection> connectionFactory;
     private final ErrorHandler errorHandler;
     private final PostgresEventDispatcher<TableId> dispatcher;
@@ -40,7 +40,7 @@ public class PostgresChangeEventSourceFactory implements ChangeEventSourceFactor
     private final SlotCreationResult slotCreatedInfo;
     private final SlotState startingSlotInfo;
 
-    public PostgresChangeEventSourceFactory(PostgresConnectorConfig configuration, Snapshotter snapshotter,
+    public PostgresChangeEventSourceFactory(PostgresConnectorConfig_V2 configuration, Snapshotter snapshotter,
                                             MainConnectionProvidingConnectionFactory<PostgresConnection> connectionFactory,
                                             ErrorHandler errorHandler, PostgresEventDispatcher<TableId> dispatcher, Clock clock, PostgresSchema schema,
                                             PostgresTaskContext taskContext, ReplicationConnection replicationConnection, SlotCreationResult slotCreatedInfo,

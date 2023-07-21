@@ -49,7 +49,7 @@ public class MySqlDatabaseSchemaTest {
     private static final String SERVER_NAME = "testServer";
 
     private MySqlDatabaseSchema mysql;
-    private MySqlConnectorConfig connectorConfig;
+    private MySqlConnectorConfig_V2 connectorConfig;
 
     @Before
     public void beforeEach() {
@@ -58,7 +58,7 @@ public class MySqlDatabaseSchemaTest {
 
     private MySqlDatabaseSchema getSchema(Configuration config) {
         config = config.edit().with(AbstractSchemaHistory.INTERNAL_PREFER_DDL, true).build();
-        connectorConfig = new MySqlConnectorConfig(config);
+        connectorConfig = new MySqlConnectorConfig_V2(config);
         final MySqlValueConverters mySqlValueConverters = new MySqlValueConverters(
                 DecimalMode.PRECISE,
                 TemporalPrecisionMode.ADAPTIVE,
@@ -197,7 +197,7 @@ public class MySqlDatabaseSchemaTest {
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfigWithoutDatabaseFilter()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, true)
-                .with(MySqlConnectorConfig.TABLE_IGNORE_BUILTIN, false)
+                .with(MySqlConnectorConfig_V2.TABLE_IGNORE_BUILTIN, false)
                 .build();
         mysql = getSchema(config);
         mysql.initializeStorage();
@@ -254,7 +254,7 @@ public class MySqlDatabaseSchemaTest {
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfig()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
-                .with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, "captured")
+                .with(MySqlConnectorConfig_V2.DATABASE_INCLUDE_LIST, "captured")
                 .build();
         mysql = getSchema(config);
         mysql.initializeStorage();
@@ -286,7 +286,7 @@ public class MySqlDatabaseSchemaTest {
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfig()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
-                .with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, "captured")
+                .with(MySqlConnectorConfig_V2.DATABASE_INCLUDE_LIST, "captured")
                 .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, true)
                 .build();
         mysql = getSchema(config);
@@ -319,7 +319,7 @@ public class MySqlDatabaseSchemaTest {
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfigWithoutDatabaseFilter()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
-                .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, "captured.ct")
+                .with(MySqlConnectorConfig_V2.TABLE_INCLUDE_LIST, "captured.ct")
                 .build();
         mysql = getSchema(config);
         mysql.initializeStorage();
@@ -352,7 +352,7 @@ public class MySqlDatabaseSchemaTest {
         final Configuration config = DATABASE.defaultConfigWithoutDatabaseFilter()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
                 .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, true)
-                .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, "captured.ct")
+                .with(MySqlConnectorConfig_V2.TABLE_INCLUDE_LIST, "captured.ct")
                 .build();
         mysql = getSchema(config);
         mysql.initializeStorage();
@@ -382,9 +382,9 @@ public class MySqlDatabaseSchemaTest {
     public void addCommentToSchemaTest() {
         final Configuration config = DATABASE.defaultConfig()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
-                .with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, "captured")
+                .with(MySqlConnectorConfig_V2.DATABASE_INCLUDE_LIST, "captured")
                 .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, true)
-                .with(MySqlConnectorConfig.INCLUDE_SCHEMA_COMMENTS, true)
+                .with(MySqlConnectorConfig_V2.INCLUDE_SCHEMA_COMMENTS, true)
                 .build();
 
         mysql = getSchema(config);
@@ -463,14 +463,14 @@ public class MySqlDatabaseSchemaTest {
         Testing.print("Running DDL for '" + dbName + "': " + ddlStatements + " changing tables '" + tables + "'");
     }
 
-    private MySqlPartition initializePartition(MySqlConnectorConfig connectorConfig, Configuration taskConfig) {
+    private MySqlPartition initializePartition(MySqlConnectorConfig_V2 connectorConfig, Configuration taskConfig) {
         Set<MySqlPartition> partitions = (new MySqlPartition.Provider(connectorConfig, taskConfig)).getPartitions();
         assertThat(partitions.size()).isEqualTo(1);
 
         return partitions.iterator().next();
     }
 
-    private MySqlOffsetContext initializeOffset(MySqlConnectorConfig connectorConfig) {
+    private MySqlOffsetContext initializeOffset(MySqlConnectorConfig_V2 connectorConfig) {
         return MySqlOffsetContext.initial(connectorConfig);
     }
 }

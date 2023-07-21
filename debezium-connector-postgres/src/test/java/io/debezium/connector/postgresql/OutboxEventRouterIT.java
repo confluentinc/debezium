@@ -12,18 +12,18 @@ import org.apache.kafka.connect.data.Schema;
 import org.junit.Before;
 
 import io.debezium.config.Configuration;
-import io.debezium.connector.postgresql.PostgresConnectorConfig.SnapshotMode;
+import io.debezium.connector.postgresql.PostgresConnectorConfig_V2.SnapshotMode;
 import io.debezium.data.Json;
 import io.debezium.data.Uuid;
 import io.debezium.jdbc.JdbcConnection;
 import io.debezium.transforms.outbox.AbstractEventRouterTest;
 
 /**
- * Integration test for {@link io.debezium.transforms.outbox.EventRouter} with {@link PostgresConnector}
+ * Integration test for {@link io.debezium.transforms.outbox.EventRouter} with {@link PostgresConnector_V2}
  *
  * @author Renato Mefi (gh@mefi.in)
  */
-public class OutboxEventRouterIT extends AbstractEventRouterTest<PostgresConnector> {
+public class OutboxEventRouterIT extends AbstractEventRouterTest<PostgresConnector_V2> {
 
     private static final String SETUP_OUTBOX_SCHEMA = "DROP SCHEMA IF EXISTS outboxsmtit CASCADE;" +
             "CREATE SCHEMA outboxsmtit;";
@@ -47,8 +47,8 @@ public class OutboxEventRouterIT extends AbstractEventRouterTest<PostgresConnect
     }
 
     @Override
-    protected Class<PostgresConnector> getConnectorClass() {
-        return PostgresConnector.class;
+    protected Class<PostgresConnector_V2> getConnectorClass() {
+        return PostgresConnector_V2.class;
     }
 
     @Override
@@ -60,10 +60,10 @@ public class OutboxEventRouterIT extends AbstractEventRouterTest<PostgresConnect
     protected Configuration.Builder getConfigurationBuilder(boolean initialSnapshot) {
         SnapshotMode snapshotMode = initialSnapshot ? SnapshotMode.INITIAL : SnapshotMode.NEVER;
         return TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, snapshotMode.getValue())
-                .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.TRUE)
-                .with(PostgresConnectorConfig.SCHEMA_INCLUDE_LIST, "outboxsmtit")
-                .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "outboxsmtit\\.outbox");
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, snapshotMode.getValue())
+                .with(PostgresConnectorConfig_V2.DROP_SLOT_ON_STOP, Boolean.TRUE)
+                .with(PostgresConnectorConfig_V2.SCHEMA_INCLUDE_LIST, "outboxsmtit")
+                .with(PostgresConnectorConfig_V2.TABLE_INCLUDE_LIST, "outboxsmtit\\.outbox");
     }
 
     @Override

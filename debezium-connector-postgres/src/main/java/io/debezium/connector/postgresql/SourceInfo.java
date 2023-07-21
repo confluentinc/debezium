@@ -96,7 +96,7 @@ public final class SourceInfo extends BaseSourceInfo {
     private String schemaName;
     private String tableName;
 
-    protected SourceInfo(PostgresConnectorConfig connectorConfig) {
+    protected SourceInfo(PostgresConnectorConfig_V2 connectorConfig) {
         super(connectorConfig);
         this.dbName = connectorConfig.databaseName();
     }

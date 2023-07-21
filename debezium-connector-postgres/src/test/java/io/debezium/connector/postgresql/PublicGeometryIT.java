@@ -22,7 +22,7 @@ import org.junit.rules.TestRule;
 
 import io.debezium.config.Configuration;
 import io.debezium.connector.SnapshotRecord;
-import io.debezium.connector.postgresql.PostgresConnectorConfig.SnapshotMode;
+import io.debezium.connector.postgresql.PostgresConnectorConfig_V2.SnapshotMode;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.connector.postgresql.connection.ReplicationConnection;
 import io.debezium.connector.postgresql.junit.SkipTestDependingOnDecoderPluginNameRule;
@@ -90,8 +90,8 @@ public class PublicGeometryIT extends AbstractRecordsProducerTest {
     }
 
     private void setupRecordsProducer(Configuration.Builder config) {
-        start(PostgresConnector.class, config
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER)
+        start(PostgresConnector_V2.class, config
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.NEVER)
                 .build());
         assertConnectorIsRunning();
     }

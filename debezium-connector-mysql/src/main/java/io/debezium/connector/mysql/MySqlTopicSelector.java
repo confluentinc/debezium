@@ -33,7 +33,7 @@ public class MySqlTopicSelector {
                 (t, pref, delimiter) -> String.join(delimiter, pref, t.catalog(), t.table()));
     }
 
-    public static TopicSelector<TableId> defaultSelector(MySqlConnectorConfig connectorConfig) {
+    public static TopicSelector<TableId> defaultSelector(MySqlConnectorConfig_V2 connectorConfig) {
         return TopicSelector.defaultSelector(connectorConfig,
                 (tableId, prefix, delimiter) -> String.join(delimiter, prefix, tableId.catalog(), tableId.table()));
     }

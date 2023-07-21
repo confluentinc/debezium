@@ -53,12 +53,12 @@ public class PostgresChangeRecordEmitter extends RelationalChangeRecordEmitter<P
 
     private final ReplicationMessage message;
     private final PostgresSchema schema;
-    private final PostgresConnectorConfig connectorConfig;
+    private final PostgresConnectorConfig_V2 connectorConfig;
     private final PostgresConnection connection;
     private final TableId tableId;
     private final Map<String, Object> cachedOldToastedValues = new HashMap<>();
 
-    public PostgresChangeRecordEmitter(PostgresPartition partition, OffsetContext offset, Clock clock, PostgresConnectorConfig connectorConfig, PostgresSchema schema,
+    public PostgresChangeRecordEmitter(PostgresPartition partition, OffsetContext offset, Clock clock, PostgresConnectorConfig_V2 connectorConfig, PostgresSchema schema,
                                        PostgresConnection connection, TableId tableId,
                                        ReplicationMessage message) {
         super(partition, offset, clock, connectorConfig);

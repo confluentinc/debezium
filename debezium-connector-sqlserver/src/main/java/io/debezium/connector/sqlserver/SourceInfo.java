@@ -31,7 +31,7 @@ public class SourceInfo extends BaseSourceInfo {
     private Instant sourceTime;
     private TableId tableId;
 
-    protected SourceInfo(SqlServerConnectorConfig connectorConfig) {
+    protected SourceInfo(SqlServerConnectorConfig_V2 connectorConfig) {
         super(connectorConfig);
     }
 

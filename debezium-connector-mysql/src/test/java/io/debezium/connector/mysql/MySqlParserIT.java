@@ -33,9 +33,9 @@ import io.debezium.util.ContainerImageVersions;
 import io.debezium.util.Testing;
 
 /**
- * Integration test for {@link MySqlConnector} using Testcontainers infrastructure for testing column constraints supported in MySQL 8.0.x.
+ * Integration test for {@link MySqlConnector_V2} using Testcontainers infrastructure for testing column constraints supported in MySQL 8.0.x.
  */
-@SkipWhenSslModeIsNot(value = MySqlConnectorConfig.SecureConnectionMode.DISABLED, reason = "Only running with ssl disabled mode")
+@SkipWhenSslModeIsNot(value = MySqlConnectorConfig_V2.SecureConnectionMode.DISABLED, reason = "Only running with ssl disabled mode")
 public class MySqlParserIT extends AbstractConnectorTest {
 
     @Rule
@@ -77,17 +77,17 @@ public class MySqlParserIT extends AbstractConnectorTest {
     public Configuration.Builder defaultConfig() {
         return Configuration.create()
                 .with(CommonConnectorConfig.TOPIC_PREFIX, "myServer1")
-                .with(MySqlConnectorConfig.HOSTNAME, System.getProperty("database.hostname", "localhost"))
+                .with(MySqlConnectorConfig_V2.HOSTNAME, System.getProperty("database.hostname", "localhost"))
                 .with(CommonConnectorConfig.DATABASE_CONFIG_PREFIX + JdbcConfiguration.PORT, mySQLContainer.getMappedPort(3306))
-                .with(MySqlConnectorConfig.USER, "debezium")
-                .with(MySqlConnectorConfig.PASSWORD, "dbz")
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
-                .with(MySqlConnectorConfig.SSL_MODE, MySqlConnectorConfig.SecureConnectionMode.DISABLED)
-                .with(MySqlConnectorConfig.SERVER_ID, 18765)
-                .with(MySqlConnectorConfig.POLL_INTERVAL_MS, 10)
-                .with(MySqlConnectorConfig.SCHEMA_HISTORY, "io.debezium.relational.history.MemorySchemaHistory")
-                .with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, DB_NAME)
-                .with(MySqlConnectorConfig.BUFFER_SIZE_FOR_BINLOG_READER, 10_000);
+                .with(MySqlConnectorConfig_V2.USER, "debezium")
+                .with(MySqlConnectorConfig_V2.PASSWORD, "dbz")
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(MySqlConnectorConfig_V2.SSL_MODE, MySqlConnectorConfig_V2.SecureConnectionMode.DISABLED)
+                .with(MySqlConnectorConfig_V2.SERVER_ID, 18765)
+                .with(MySqlConnectorConfig_V2.POLL_INTERVAL_MS, 10)
+                .with(MySqlConnectorConfig_V2.SCHEMA_HISTORY, "io.debezium.relational.history.MemorySchemaHistory")
+                .with(MySqlConnectorConfig_V2.DATABASE_INCLUDE_LIST, DB_NAME)
+                .with(MySqlConnectorConfig_V2.BUFFER_SIZE_FOR_BINLOG_READER, 10_000);
     }
 
     @Test
@@ -109,7 +109,7 @@ public class MySqlParserIT extends AbstractConnectorTest {
         }
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         SourceRecords records = consumeRecordsByTopic(30);
         boolean statementFound = records.ddlRecordsForDatabase(DB_NAME)
@@ -143,7 +143,7 @@ public class MySqlParserIT extends AbstractConnectorTest {
         }
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         SourceRecords records = consumeRecordsByTopic(30);
         boolean statementFound = records.ddlRecordsForDatabase(DB_NAME)
@@ -179,7 +179,7 @@ public class MySqlParserIT extends AbstractConnectorTest {
         }
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         SourceRecords records = consumeRecordsByTopic(30);
         boolean statementFound = records.ddlRecordsForDatabase(DB_NAME)

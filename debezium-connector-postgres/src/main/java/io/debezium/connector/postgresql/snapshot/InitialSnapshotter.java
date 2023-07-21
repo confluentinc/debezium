@@ -8,7 +8,7 @@ package io.debezium.connector.postgresql.snapshot;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.debezium.connector.postgresql.PostgresConnectorConfig;
+import io.debezium.connector.postgresql.PostgresConnectorConfig_V2;
 import io.debezium.connector.postgresql.spi.OffsetState;
 import io.debezium.connector.postgresql.spi.SlotState;
 
@@ -18,7 +18,7 @@ public class InitialSnapshotter extends QueryingSnapshotter {
     private OffsetState sourceInfo;
 
     @Override
-    public void init(PostgresConnectorConfig config, OffsetState sourceInfo, SlotState slotState) {
+    public void init(PostgresConnectorConfig_V2 config, OffsetState sourceInfo, SlotState slotState) {
         super.init(config, sourceInfo, slotState);
         this.sourceInfo = sourceInfo;
     }

@@ -39,7 +39,7 @@ import io.debezium.config.CommonConnectorConfig.BinaryHandlingMode;
 import io.debezium.config.Configuration;
 import io.debezium.config.Configuration.Builder;
 import io.debezium.connector.SnapshotRecord;
-import io.debezium.connector.postgresql.PostgresConnectorConfig.SnapshotMode;
+import io.debezium.connector.postgresql.PostgresConnectorConfig_V2.SnapshotMode;
 import io.debezium.data.Bits;
 import io.debezium.data.Enum;
 import io.debezium.data.Envelope;
@@ -128,7 +128,7 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
 
         // then start the producer and validate all records are there
         buildNoStreamProducer(TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true)
+                .with(PostgresConnectorConfig_V2.INCLUDE_UNKNOWN_DATATYPES, true)
                 .with("converters", "first")
                 .with("first.type", CustomDatatypeConverter.class.getName())
                 .with("first.schema.name", "io.debezium.postgresql.type.Isbn"));
@@ -166,7 +166,7 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
 
         // then start the producer and validate all records are there
         buildNoStreamProducer(TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true));
+                .with(PostgresConnectorConfig_V2.INCLUDE_UNKNOWN_DATATYPES, true));
 
         final TestConsumer consumer = testConsumer(1, "public");
         consumer.await(TestHelper.waitTimeForRecords() * 30, TimeUnit.SECONDS);
@@ -181,7 +181,7 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
 
         // then start the producer and validate all records are there
         buildNoStreamProducer(TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, false));
+                .with(PostgresConnectorConfig_V2.INCLUDE_UNKNOWN_DATATYPES, false));
 
         final TestConsumer consumer = testConsumer(1, "public");
         consumer.await(TestHelper.waitTimeForRecords() * 30, TimeUnit.SECONDS);
@@ -317,8 +317,8 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
         TestHelper.execute("CREATE TABLE t1 (pk SERIAL, aa integer, PRIMARY KEY(pk)); INSERT INTO t1 VALUES (default, 11)");
 
         buildWithStreamProducer(TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, PostgresConnectorConfig.SnapshotMode.INITIAL)
-                .with(PostgresConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, PostgresConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(PostgresConnectorConfig_V2.INCLUDE_SCHEMA_CHANGES, true)
                 .with(Heartbeat.HEARTBEAT_INTERVAL, 300_000));
 
         TestConsumer consumer = testConsumer(2);
@@ -351,7 +351,7 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
 
         // then start the producer and validate all records are there
         buildNoStreamProducer(TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.TIME_PRECISION_MODE, TemporalPrecisionMode.ADAPTIVE_TIME_MICROSECONDS));
+                .with(PostgresConnectorConfig_V2.TIME_PRECISION_MODE, TemporalPrecisionMode.ADAPTIVE_TIME_MICROSECONDS));
 
         TestConsumer consumer = testConsumer(ALL_STMTS.size(), "public", "Quoted__");
         consumer.await(TestHelper.waitTimeForRecords() * 30, TimeUnit.SECONDS);
@@ -381,7 +381,7 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
 
         // then start the producer and validate all records are there
         buildNoStreamProducer(TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.STRING));
+                .with(PostgresConnectorConfig_V2.DECIMAL_HANDLING_MODE, DecimalHandlingMode.STRING));
 
         TestConsumer consumer = testConsumer(1, "public", "Quoted__");
         consumer.await(TestHelper.waitTimeForRecords() * 30, TimeUnit.SECONDS);
@@ -429,7 +429,7 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
 
         // then start the producer and validate all records are there
         Configuration.Builder config = TestHelper.defaultConfig();
-        config.with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "public.first_table, public.partitioned_1_100, public.partitioned_101_200");
+        config.with(PostgresConnectorConfig_V2.TABLE_INCLUDE_LIST, "public.first_table, public.partitioned_1_100, public.partitioned_101_200");
         buildNoStreamProducer(config);
 
         Set<Integer> ids = new HashSet<>();
@@ -500,7 +500,7 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
         TestHelper.execute(INSERT_HSTORE_TYPE_STMT);
 
         // then start the producer and validate all records are there
-        buildNoStreamProducer(TestHelper.defaultConfig().with(PostgresConnectorConfig.HSTORE_HANDLING_MODE, PostgresConnectorConfig.HStoreHandlingMode.MAP));
+        buildNoStreamProducer(TestHelper.defaultConfig().with(PostgresConnectorConfig_V2.HSTORE_HANDLING_MODE, PostgresConnectorConfig_V2.HStoreHandlingMode.MAP));
 
         TestConsumer consumer = testConsumer(1, "public", "Quoted__");
         consumer.await(TestHelper.waitTimeForRecords() * 30, TimeUnit.SECONDS);
@@ -620,7 +620,7 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
         // insert money
         TestHelper.execute(INSERT_NEGATIVE_CASH_TYPES_STMT);
 
-        buildNoStreamProducer(TestHelper.defaultConfig().with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "public.cash_table"));
+        buildNoStreamProducer(TestHelper.defaultConfig().with(PostgresConnectorConfig_V2.TABLE_INCLUDE_LIST, "public.cash_table"));
 
         TestConsumer consumer = testConsumer(1, "public");
         consumer.await(TestHelper.waitTimeForRecords() * 30, TimeUnit.SECONDS);
@@ -638,7 +638,7 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
         // insert money
         TestHelper.execute(INSERT_NULL_CASH_TYPES_STMT);
 
-        buildNoStreamProducer(TestHelper.defaultConfig().with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "public.cash_table"));
+        buildNoStreamProducer(TestHelper.defaultConfig().with(PostgresConnectorConfig_V2.TABLE_INCLUDE_LIST, "public.cash_table"));
 
         TestConsumer consumer = testConsumer(1, "public");
         consumer.await(TestHelper.waitTimeForRecords() * 30, TimeUnit.SECONDS);
@@ -657,8 +657,8 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
         TestHelper.execute("INSERT INTO alias_table (salary, salary2, a, area) values (7.25, 8.25, 12345.123, 12345.123);");
 
         buildNoStreamProducer(TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.DOUBLE)
-                .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true)
+                .with(PostgresConnectorConfig_V2.DECIMAL_HANDLING_MODE, DecimalHandlingMode.DOUBLE)
+                .with(PostgresConnectorConfig_V2.INCLUDE_UNKNOWN_DATATYPES, true)
                 .with("column.propagate.source.type", "public.alias_table.*"));
 
         final TestConsumer consumer = testConsumer(1, "public");
@@ -698,8 +698,8 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
         TestHelper.execute("INSERT INTO alias_table (value) values (B'101');");
 
         buildNoStreamProducer(TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.DOUBLE)
-                .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true)
+                .with(PostgresConnectorConfig_V2.DECIMAL_HANDLING_MODE, DecimalHandlingMode.DOUBLE)
+                .with(PostgresConnectorConfig_V2.INCLUDE_UNKNOWN_DATATYPES, true)
                 .with("column.propagate.source.type", "public.alias_table.value"));
 
         final TestConsumer consumer = testConsumer(1, "public");
@@ -861,9 +861,9 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
                 ");");
 
         buildNoStreamProducer(TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.DOUBLE)
-                .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true)
-                .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "public.alias_table"));
+                .with(PostgresConnectorConfig_V2.DECIMAL_HANDLING_MODE, DecimalHandlingMode.DOUBLE)
+                .with(PostgresConnectorConfig_V2.INCLUDE_UNKNOWN_DATATYPES, true)
+                .with(PostgresConnectorConfig_V2.TABLE_INCLUDE_LIST, "public.alias_table"));
 
         final TestConsumer consumer = testConsumer(1, "public");
         consumer.await(TestHelper.waitTimeForRecords() * 30, TimeUnit.SECONDS);
@@ -880,8 +880,8 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
         TestHelper.execute("INSERT INTO alias_table (value) values (B'101');");
 
         buildNoStreamProducer(TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.DOUBLE)
-                .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true));
+                .with(PostgresConnectorConfig_V2.DECIMAL_HANDLING_MODE, DecimalHandlingMode.DOUBLE)
+                .with(PostgresConnectorConfig_V2.INCLUDE_UNKNOWN_DATATYPES, true));
 
         final TestConsumer consumer = testConsumer(1, "public");
         consumer.await(TestHelper.waitTimeForRecords() * 30, TimeUnit.SECONDS);
@@ -902,8 +902,8 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
         // Specifically enable `column.propagate.source.type` here to validate later that the actual
         // type, length, and scale values are resolved correctly when paired with Enum types.
         buildNoStreamProducer(TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true)
-                .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "public.enum_table")
+                .with(PostgresConnectorConfig_V2.INCLUDE_UNKNOWN_DATATYPES, true)
+                .with(PostgresConnectorConfig_V2.TABLE_INCLUDE_LIST, "public.enum_table")
                 .with("column.propagate.source.type", "public.enum_table.value"));
 
         final TestConsumer consumer = testConsumer(1, "public");
@@ -929,8 +929,8 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
         // Specifically enable `column.propagate.source.type` here to validate later that the actual
         // type, length, and scale values are resolved correctly when paired with Enum types.
         buildNoStreamProducer(TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, false)
-                .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "public.enum_array_table")
+                .with(PostgresConnectorConfig_V2.INCLUDE_UNKNOWN_DATATYPES, false)
+                .with(PostgresConnectorConfig_V2.TABLE_INCLUDE_LIST, "public.enum_array_table")
                 .with("column.propagate.source.type", "public.enum_array_table.value"));
 
         final TestConsumer consumer = testConsumer(1, "public");
@@ -962,8 +962,8 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
                 + "'{2020-04-01 13:51:02+0200,2020-04-01 14:51:03+0200}')");
 
         buildNoStreamProducer(TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, false)
-                .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "public.time_array_table"));
+                .with(PostgresConnectorConfig_V2.INCLUDE_UNKNOWN_DATATYPES, false)
+                .with(PostgresConnectorConfig_V2.TABLE_INCLUDE_LIST, "public.time_array_table"));
 
         final TestConsumer consumer = testConsumer(1, "public");
         consumer.await(TestHelper.waitTimeForRecords() * 30, TimeUnit.SECONDS);
@@ -1013,7 +1013,7 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
         TestHelper.execute(INSERT_BYTEA_BINMODE_STMT);
 
         buildNoStreamProducer(TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.BINARY_HANDLING_MODE, BinaryHandlingMode.BASE64));
+                .with(PostgresConnectorConfig_V2.BINARY_HANDLING_MODE, BinaryHandlingMode.BASE64));
 
         TestConsumer consumer = testConsumer(1, "public");
         consumer.await(TestHelper.waitTimeForRecords() * 30, TimeUnit.SECONDS);
@@ -1031,7 +1031,7 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
         TestHelper.execute(INSERT_BYTEA_BINMODE_STMT);
 
         buildNoStreamProducer(TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.BINARY_HANDLING_MODE, BinaryHandlingMode.BASE64_URL_SAFE));
+                .with(PostgresConnectorConfig_V2.BINARY_HANDLING_MODE, BinaryHandlingMode.BASE64_URL_SAFE));
 
         TestConsumer consumer = testConsumer(1, "public");
         consumer.await(TestHelper.waitTimeForRecords() * 30, TimeUnit.SECONDS);
@@ -1049,7 +1049,7 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
         TestHelper.execute(INSERT_BYTEA_BINMODE_STMT);
 
         buildNoStreamProducer(TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.BINARY_HANDLING_MODE, BinaryHandlingMode.HEX));
+                .with(PostgresConnectorConfig_V2.BINARY_HANDLING_MODE, BinaryHandlingMode.HEX));
 
         TestConsumer consumer = testConsumer(1, "public");
         consumer.await(TestHelper.waitTimeForRecords() * 30, TimeUnit.SECONDS);
@@ -1067,7 +1067,7 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
         TestHelper.execute(INSERT_BYTEA_BINMODE_STMT);
 
         buildNoStreamProducer(TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.BINARY_HANDLING_MODE, PostgresConnectorConfig.BinaryHandlingMode.BASE64));
+                .with(PostgresConnectorConfig_V2.BINARY_HANDLING_MODE, PostgresConnectorConfig_V2.BinaryHandlingMode.BASE64));
 
         TestConsumer consumer = testConsumer(1, "public");
         consumer.await(TestHelper.waitTimeForRecords() * 30, TimeUnit.SECONDS);
@@ -1085,7 +1085,7 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
         TestHelper.execute(INSERT_BYTEA_BINMODE_STMT);
 
         buildNoStreamProducer(TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.BINARY_HANDLING_MODE, PostgresConnectorConfig.BinaryHandlingMode.BASE64_URL_SAFE));
+                .with(PostgresConnectorConfig_V2.BINARY_HANDLING_MODE, PostgresConnectorConfig_V2.BinaryHandlingMode.BASE64_URL_SAFE));
 
         TestConsumer consumer = testConsumer(1, "public");
         consumer.await(TestHelper.waitTimeForRecords() * 30, TimeUnit.SECONDS);
@@ -1103,7 +1103,7 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
         TestHelper.execute(INSERT_BYTEA_BINMODE_STMT);
 
         buildNoStreamProducer(TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.BINARY_HANDLING_MODE, PostgresConnectorConfig.BinaryHandlingMode.HEX));
+                .with(PostgresConnectorConfig_V2.BINARY_HANDLING_MODE, PostgresConnectorConfig_V2.BinaryHandlingMode.HEX));
 
         TestConsumer consumer = testConsumer(1, "public");
         consumer.await(TestHelper.waitTimeForRecords() * 30, TimeUnit.SECONDS);
@@ -1121,7 +1121,7 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
         TestHelper.execute(INSERT_CIRCLE_STMT);
 
         buildNoStreamProducer(TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true));
+                .with(PostgresConnectorConfig_V2.INCLUDE_UNKNOWN_DATATYPES, true));
 
         TestConsumer consumer = testConsumer(1, "public");
         consumer.await(TestHelper.waitTimeForRecords() * 30, TimeUnit.SECONDS);
@@ -1139,8 +1139,8 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
         TestHelper.execute(INSERT_CIRCLE_STMT);
 
         buildNoStreamProducer(TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true)
-                .with(PostgresConnectorConfig.BINARY_HANDLING_MODE, BinaryHandlingMode.BASE64));
+                .with(PostgresConnectorConfig_V2.INCLUDE_UNKNOWN_DATATYPES, true)
+                .with(PostgresConnectorConfig_V2.BINARY_HANDLING_MODE, BinaryHandlingMode.BASE64));
 
         TestConsumer consumer = testConsumer(1, "public");
         consumer.await(TestHelper.waitTimeForRecords() * 30, TimeUnit.SECONDS);
@@ -1158,8 +1158,8 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
         TestHelper.execute(INSERT_CIRCLE_STMT);
 
         buildNoStreamProducer(TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true)
-                .with(PostgresConnectorConfig.BINARY_HANDLING_MODE, BinaryHandlingMode.BASE64_URL_SAFE));
+                .with(PostgresConnectorConfig_V2.INCLUDE_UNKNOWN_DATATYPES, true)
+                .with(PostgresConnectorConfig_V2.BINARY_HANDLING_MODE, BinaryHandlingMode.BASE64_URL_SAFE));
 
         TestConsumer consumer = testConsumer(1, "public");
         consumer.await(TestHelper.waitTimeForRecords() * 30, TimeUnit.SECONDS);
@@ -1177,8 +1177,8 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
         TestHelper.execute(INSERT_CIRCLE_STMT);
 
         buildNoStreamProducer(TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true)
-                .with(PostgresConnectorConfig.BINARY_HANDLING_MODE, BinaryHandlingMode.HEX));
+                .with(PostgresConnectorConfig_V2.INCLUDE_UNKNOWN_DATATYPES, true)
+                .with(PostgresConnectorConfig_V2.BINARY_HANDLING_MODE, BinaryHandlingMode.HEX));
 
         TestConsumer consumer = testConsumer(1, "public");
         consumer.await(TestHelper.waitTimeForRecords() * 30, TimeUnit.SECONDS);
@@ -1209,9 +1209,9 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
 
         // start connector
         Configuration.Builder configBuilder = TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL_ONLY.getValue())
-                .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "s1.part");
-        start(PostgresConnector.class, configBuilder.build());
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.INITIAL_ONLY.getValue())
+                .with(PostgresConnectorConfig_V2.TABLE_INCLUDE_LIST, "s1.part");
+        start(PostgresConnector_V2.class, configBuilder.build());
         assertConnectorIsRunning();
         waitForSnapshotToBeCompleted();
 
@@ -1228,20 +1228,20 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
 
     private void buildNoStreamProducer(Configuration.Builder config) {
         alterConfig(config);
-        start(PostgresConnector.class, config
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL_ONLY)
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE_CLASS, CustomTestSnapshot.class.getName())
-                .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.FALSE)
+        start(PostgresConnector_V2.class, config
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.INITIAL_ONLY)
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE_CLASS, CustomTestSnapshot.class.getName())
+                .with(PostgresConnectorConfig_V2.DROP_SLOT_ON_STOP, Boolean.FALSE)
                 .build());
         assertConnectorIsRunning();
     }
 
     private void buildWithStreamProducer(Configuration.Builder config) {
         alterConfig(config);
-        start(PostgresConnector.class, config
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.ALWAYS)
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE_CLASS, CustomTestSnapshot.class.getName())
-                .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.FALSE)
+        start(PostgresConnector_V2.class, config
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.ALWAYS)
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE_CLASS, CustomTestSnapshot.class.getName())
+                .with(PostgresConnectorConfig_V2.DROP_SLOT_ON_STOP, Boolean.FALSE)
                 .build());
         assertConnectorIsRunning();
     }

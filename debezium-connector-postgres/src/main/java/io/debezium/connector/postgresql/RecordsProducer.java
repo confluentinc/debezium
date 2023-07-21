@@ -36,7 +36,7 @@ public abstract class RecordsProducer {
     }
 
     /**
-     * Starts up this producer. This is normally done by a {@link PostgresConnectorTask} instance. Subclasses should start
+     * Starts up this producer. This is normally done by a {@link PostgresConnectorTask_V2} instance. Subclasses should start
      * enqueuing records via a separate thread at the end of this method.
      *
      * @param recordsConsumer a consumer of {@link ChangeEvent} instances, may not be null
@@ -49,7 +49,7 @@ public abstract class RecordsProducer {
     protected abstract void commit(long lsn);
 
     /**
-     * Requests that this producer be stopped. This is normally a request coming from a {@link PostgresConnectorTask} instance
+     * Requests that this producer be stopped. This is normally a request coming from a {@link PostgresConnectorTask_V2} instance
      */
     protected abstract void stop();
 

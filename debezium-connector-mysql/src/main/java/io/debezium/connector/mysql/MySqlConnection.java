@@ -30,7 +30,7 @@ import io.debezium.config.CommonConnectorConfig.EventProcessingFailureHandlingMo
 import io.debezium.config.Configuration;
 import io.debezium.config.Configuration.Builder;
 import io.debezium.config.Field;
-import io.debezium.connector.mysql.MySqlConnectorConfig.SecureConnectionMode;
+import io.debezium.connector.mysql.MySqlConnectorConfig_V2.SecureConnectionMode;
 import io.debezium.jdbc.JdbcConfiguration;
 import io.debezium.jdbc.JdbcConnection;
 import io.debezium.relational.Column;
@@ -497,7 +497,7 @@ public class MySqlConnection extends JdbcConnection {
             final boolean useSSL = sslModeEnabled();
             final Configuration dbConfig = config
                     .edit()
-                    .withDefault(MySqlConnectorConfig.PORT, MySqlConnectorConfig.PORT.defaultValue())
+                    .withDefault(MySqlConnectorConfig_V2.PORT, MySqlConnectorConfig_V2.PORT.defaultValue())
                     .build()
                     .subset(DATABASE_CONFIG_PREFIX, true)
                     .merge(config.subset(DRIVER_CONFIG_PREFIX, true));
@@ -532,7 +532,7 @@ public class MySqlConnection extends JdbcConnection {
                     .without("queryInterceptors");
 
             this.jdbcConfig = JdbcConfiguration.adapt(jdbcConfigBuilder.build());
-            String driverClassName = this.jdbcConfig.getString(MySqlConnectorConfig.JDBC_DRIVER);
+            String driverClassName = this.jdbcConfig.getString(MySqlConnectorConfig_V2.JDBC_DRIVER);
             factory = JdbcConnection.patternBasedFactory(MySqlConnection.URL_PATTERN, driverClassName, getClass().getClassLoader());
         }
 
@@ -560,23 +560,23 @@ public class MySqlConnection extends JdbcConnection {
         }
 
         public String username() {
-            return config.getString(MySqlConnectorConfig.USER);
+            return config.getString(MySqlConnectorConfig_V2.USER);
         }
 
         public String password() {
-            return config.getString(MySqlConnectorConfig.PASSWORD);
+            return config.getString(MySqlConnectorConfig_V2.PASSWORD);
         }
 
         public String hostname() {
-            return config.getString(MySqlConnectorConfig.HOSTNAME);
+            return config.getString(MySqlConnectorConfig_V2.HOSTNAME);
         }
 
         public int port() {
-            return config.getInteger(MySqlConnectorConfig.PORT);
+            return config.getInteger(MySqlConnectorConfig_V2.PORT);
         }
 
         public SecureConnectionMode sslMode() {
-            String mode = config.getString(MySqlConnectorConfig.SSL_MODE);
+            String mode = config.getString(MySqlConnectorConfig_V2.SSL_MODE);
             return SecureConnectionMode.parse(mode);
         }
 
@@ -585,37 +585,37 @@ public class MySqlConnection extends JdbcConnection {
         }
 
         public String sslKeyStore() {
-            return config.getString(MySqlConnectorConfig.SSL_KEYSTORE);
+            return config.getString(MySqlConnectorConfig_V2.SSL_KEYSTORE);
         }
 
         public char[] sslKeyStorePassword() {
-            String password = config.getString(MySqlConnectorConfig.SSL_KEYSTORE_PASSWORD);
+            String password = config.getString(MySqlConnectorConfig_V2.SSL_KEYSTORE_PASSWORD);
             return Strings.isNullOrBlank(password) ? null : password.toCharArray();
         }
 
         public String sslTrustStore() {
-            return config.getString(MySqlConnectorConfig.SSL_TRUSTSTORE);
+            return config.getString(MySqlConnectorConfig_V2.SSL_TRUSTSTORE);
         }
 
         public char[] sslTrustStorePassword() {
-            String password = config.getString(MySqlConnectorConfig.SSL_TRUSTSTORE_PASSWORD);
+            String password = config.getString(MySqlConnectorConfig_V2.SSL_TRUSTSTORE_PASSWORD);
             return Strings.isNullOrBlank(password) ? null : password.toCharArray();
         }
 
         public Duration getConnectionTimeout() {
-            return Duration.ofMillis(config.getLong(MySqlConnectorConfig.CONNECTION_TIMEOUT_MS));
+            return Duration.ofMillis(config.getLong(MySqlConnectorConfig_V2.CONNECTION_TIMEOUT_MS));
         }
 
         public EventProcessingFailureHandlingMode eventProcessingFailureHandlingMode() {
             String mode = config.getString(CommonConnectorConfig.EVENT_PROCESSING_FAILURE_HANDLING_MODE);
             if (mode == null) {
-                mode = config.getString(MySqlConnectorConfig.EVENT_DESERIALIZATION_FAILURE_HANDLING_MODE);
+                mode = config.getString(MySqlConnectorConfig_V2.EVENT_DESERIALIZATION_FAILURE_HANDLING_MODE);
             }
             return EventProcessingFailureHandlingMode.parse(mode);
         }
 
         public EventProcessingFailureHandlingMode inconsistentSchemaHandlingMode() {
-            String mode = config.getString(MySqlConnectorConfig.INCONSISTENT_SCHEMA_HANDLING_MODE);
+            String mode = config.getString(MySqlConnectorConfig_V2.INCONSISTENT_SCHEMA_HANDLING_MODE);
             return EventProcessingFailureHandlingMode.parse(mode);
         }
     }

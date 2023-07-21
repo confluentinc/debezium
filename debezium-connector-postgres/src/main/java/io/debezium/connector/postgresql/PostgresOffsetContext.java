@@ -44,7 +44,7 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
     private final TransactionContext transactionContext;
     private final IncrementalSnapshotContext<TableId> incrementalSnapshotContext;
 
-    private PostgresOffsetContext(PostgresConnectorConfig connectorConfig, Lsn lsn, Lsn lastCompletelyProcessedLsn, Lsn lastCommitLsn, Long txId, Operation messageType,
+    private PostgresOffsetContext(PostgresConnectorConfig_V2 connectorConfig, Lsn lsn, Lsn lastCompletelyProcessedLsn, Lsn lastCommitLsn, Long txId, Operation messageType,
                                   Instant time,
                                   boolean snapshot,
                                   boolean lastSnapshotRecord, TransactionContext transactionContext,
@@ -183,9 +183,9 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
 
     public static class Loader implements OffsetContext.Loader<PostgresOffsetContext> {
 
-        private final PostgresConnectorConfig connectorConfig;
+        private final PostgresConnectorConfig_V2 connectorConfig;
 
-        public Loader(PostgresConnectorConfig connectorConfig) {
+        public Loader(PostgresConnectorConfig_V2 connectorConfig) {
             this.connectorConfig = connectorConfig;
         }
 
@@ -223,11 +223,11 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
                 + ", incrementalSnapshotContext=" + incrementalSnapshotContext + "]";
     }
 
-    public static PostgresOffsetContext initialContext(PostgresConnectorConfig connectorConfig, PostgresConnection jdbcConnection, Clock clock) {
+    public static PostgresOffsetContext initialContext(PostgresConnectorConfig_V2 connectorConfig, PostgresConnection jdbcConnection, Clock clock) {
         return initialContext(connectorConfig, jdbcConnection, clock, null, null);
     }
 
-    public static PostgresOffsetContext initialContext(PostgresConnectorConfig connectorConfig, PostgresConnection jdbcConnection, Clock clock, Lsn lastCommitLsn,
+    public static PostgresOffsetContext initialContext(PostgresConnectorConfig_V2 connectorConfig, PostgresConnection jdbcConnection, Clock clock, Lsn lastCommitLsn,
                                                        Lsn lastCompletelyProcessedLsn) {
         try {
             LOGGER.info("Creating initial offset context");

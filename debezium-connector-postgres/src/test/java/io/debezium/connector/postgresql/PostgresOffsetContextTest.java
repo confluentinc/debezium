@@ -22,12 +22,12 @@ import io.debezium.pipeline.spi.OffsetContext;
  */
 public class PostgresOffsetContextTest {
 
-    private PostgresConnectorConfig connectorConfig;
+    private PostgresConnectorConfig_V2 connectorConfig;
     private OffsetContext.Loader offsetLoader;
 
     @Before
     public void beforeEach() throws Exception {
-        this.connectorConfig = new PostgresConnectorConfig(TestHelper.defaultConfig().build());
+        this.connectorConfig = new PostgresConnectorConfig_V2(TestHelper.defaultConfig().build());
         this.offsetLoader = new PostgresOffsetContext.Loader(this.connectorConfig);
     }
 

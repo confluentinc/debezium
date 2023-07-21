@@ -78,7 +78,7 @@ Here are the last few lines from this restarted service:
 ----
 ...
 2021-11-30 01:49:07,938 INFO   ||  Get all known binlogs from MySQL   [io.debezium.connector.mysql.MySqlConnection]
-2021-11-30 01:49:07,941 INFO   ||  MySQL has the binlog file 'mysql-bin.000003' required by the connector   [io.debezium.connector.mysql.MySqlConnectorTask]
+2021-11-30 01:49:07,941 INFO   ||  MySQL has the binlog file 'mysql-bin.000003' required by the connector   [io.debezium.connector.mysql.MySqlConnectorTask_V2]
 2021-11-30 01:49:07,967 INFO   ||  Requested thread factory for connector MySqlConnector, id = dbserver1 named = change-event-source-coordinator   [io.debezium.util.Threads]
 2021-11-30 01:49:07,968 INFO   ||  Creating thread debezium-mysqlconnector-dbserver1-change-event-source-coordinator   [io.debezium.util.Threads]
 2021-11-30 01:49:07,968 INFO   ||  WorkerSourceTask{id=inventory-connector-0} Source task finished initialization and start   [org.apache.kafka.connect.runtime.WorkerSourceTask]

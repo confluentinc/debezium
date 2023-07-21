@@ -59,12 +59,12 @@ public class MySqlSkipMessagesWithoutChangeConfigIT extends AbstractConnectorTes
     @FixFor("DBZ-2979")
     public void shouldSkipEventsWithNoChangeInIncludedColumnsWhenSkipEnabled() throws SQLException, InterruptedException {
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.COLUMN_INCLUDE_LIST, getQualifiedColumnName("id") + "," + getQualifiedColumnName("white"))
-                .with(MySqlConnectorConfig.SKIP_MESSAGES_WITHOUT_CHANGE, true)
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.NEVER)
+                .with(MySqlConnectorConfig_V2.COLUMN_INCLUDE_LIST, getQualifiedColumnName("id") + "," + getQualifiedColumnName("white"))
+                .with(MySqlConnectorConfig_V2.SKIP_MESSAGES_WITHOUT_CHANGE, true)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.NEVER)
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForStreamingRunning("mysql", DATABASE.getServerName());
 
         try (MySqlTestConnection db = MySqlTestConnection.forTestDatabase(DATABASE.getDatabaseName())) {
@@ -100,12 +100,12 @@ public class MySqlSkipMessagesWithoutChangeConfigIT extends AbstractConnectorTes
     @FixFor("DBZ-2979")
     public void shouldSkipEventsWithNoChangeInIncludedColumnsWhenSkipEnabledWithExcludeConfig() throws Exception {
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.COLUMN_EXCLUDE_LIST, getQualifiedColumnName("black"))
-                .with(MySqlConnectorConfig.SKIP_MESSAGES_WITHOUT_CHANGE, true)
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.NEVER)
+                .with(MySqlConnectorConfig_V2.COLUMN_EXCLUDE_LIST, getQualifiedColumnName("black"))
+                .with(MySqlConnectorConfig_V2.SKIP_MESSAGES_WITHOUT_CHANGE, true)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.NEVER)
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForStreamingRunning("mysql", DATABASE.getServerName());
 
         try (MySqlTestConnection db = MySqlTestConnection.forTestDatabase(DATABASE.getDatabaseName())) {
@@ -140,12 +140,12 @@ public class MySqlSkipMessagesWithoutChangeConfigIT extends AbstractConnectorTes
     @FixFor("DBZ-2979")
     public void shouldNotSkipEventsWithNoChangeInIncludedColumnsWhenSkipDisabled() throws Exception {
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.COLUMN_INCLUDE_LIST, getQualifiedColumnName("id") + "," + getQualifiedColumnName("white"))
-                .with(MySqlConnectorConfig.SKIP_MESSAGES_WITHOUT_CHANGE, false)
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.NEVER)
+                .with(MySqlConnectorConfig_V2.COLUMN_INCLUDE_LIST, getQualifiedColumnName("id") + "," + getQualifiedColumnName("white"))
+                .with(MySqlConnectorConfig_V2.SKIP_MESSAGES_WITHOUT_CHANGE, false)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.NEVER)
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForStreamingRunning("mysql", DATABASE.getServerName());
 
         try (MySqlTestConnection db = MySqlTestConnection.forTestDatabase(DATABASE.getDatabaseName())) {

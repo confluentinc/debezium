@@ -53,12 +53,12 @@ public class PostgresSkipMessagesWithoutChangeConfigIT extends AbstractConnector
                 "ALTER TABLE updates_test.debezium_test REPLICA IDENTITY FULL;");
 
         Configuration config = TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.COLUMN_INCLUDE_LIST, "updates_test.debezium_test.id, updates_test.debezium_test.white")
-                .with(PostgresConnectorConfig.SKIP_MESSAGES_WITHOUT_CHANGE, true)
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, PostgresConnectorConfig.SnapshotMode.NEVER)
+                .with(PostgresConnectorConfig_V2.COLUMN_INCLUDE_LIST, "updates_test.debezium_test.id, updates_test.debezium_test.white")
+                .with(PostgresConnectorConfig_V2.SKIP_MESSAGES_WITHOUT_CHANGE, true)
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, PostgresConnectorConfig_V2.SnapshotMode.NEVER)
                 .build();
 
-        start(PostgresConnector.class, config);
+        start(PostgresConnector_V2.class, config);
         waitForStreamingRunning("postgres", TestHelper.TEST_SERVER);
 
         TestHelper.execute("INSERT INTO updates_test.debezium_test (id,white,black) VALUES (1,1,1);");
@@ -93,12 +93,12 @@ public class PostgresSkipMessagesWithoutChangeConfigIT extends AbstractConnector
                 "ALTER TABLE updates_test.debezium_test REPLICA IDENTITY FULL;");
 
         Configuration config = TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.COLUMN_EXCLUDE_LIST, "updates_test.debezium_test.black")
-                .with(PostgresConnectorConfig.SKIP_MESSAGES_WITHOUT_CHANGE, true)
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, PostgresConnectorConfig.SnapshotMode.NEVER)
+                .with(PostgresConnectorConfig_V2.COLUMN_EXCLUDE_LIST, "updates_test.debezium_test.black")
+                .with(PostgresConnectorConfig_V2.SKIP_MESSAGES_WITHOUT_CHANGE, true)
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, PostgresConnectorConfig_V2.SnapshotMode.NEVER)
                 .build();
 
-        start(PostgresConnector.class, config);
+        start(PostgresConnector_V2.class, config);
         waitForStreamingRunning("postgres", TestHelper.TEST_SERVER);
 
         TestHelper.execute("INSERT INTO updates_test.debezium_test (id,white,black) VALUES (1,1,1);");
@@ -131,12 +131,12 @@ public class PostgresSkipMessagesWithoutChangeConfigIT extends AbstractConnector
                 "CREATE TABLE updates_test.debezium_test (id int4 NOT NULL, white int, black int, PRIMARY KEY(id));");
 
         Configuration config = TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.COLUMN_INCLUDE_LIST, "updates_test.debezium_test.id, updates_test.debezium_test.white")
-                .with(PostgresConnectorConfig.SKIP_MESSAGES_WITHOUT_CHANGE, true)
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, PostgresConnectorConfig.SnapshotMode.NEVER)
+                .with(PostgresConnectorConfig_V2.COLUMN_INCLUDE_LIST, "updates_test.debezium_test.id, updates_test.debezium_test.white")
+                .with(PostgresConnectorConfig_V2.SKIP_MESSAGES_WITHOUT_CHANGE, true)
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, PostgresConnectorConfig_V2.SnapshotMode.NEVER)
                 .build();
 
-        start(PostgresConnector.class, config);
+        start(PostgresConnector_V2.class, config);
         waitForStreamingRunning("postgres", TestHelper.TEST_SERVER);
 
         TestHelper.execute("INSERT INTO updates_test.debezium_test (id,white,black) VALUES (1,1,1);");
@@ -172,12 +172,12 @@ public class PostgresSkipMessagesWithoutChangeConfigIT extends AbstractConnector
                 "ALTER TABLE updates_test.debezium_test REPLICA IDENTITY FULL;");
 
         Configuration config = TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.COLUMN_INCLUDE_LIST, "updates_test.debezium_test.id, updates_test.debezium_test.white")
-                .with(PostgresConnectorConfig.SKIP_MESSAGES_WITHOUT_CHANGE, false)
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, PostgresConnectorConfig.SnapshotMode.NEVER)
+                .with(PostgresConnectorConfig_V2.COLUMN_INCLUDE_LIST, "updates_test.debezium_test.id, updates_test.debezium_test.white")
+                .with(PostgresConnectorConfig_V2.SKIP_MESSAGES_WITHOUT_CHANGE, false)
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, PostgresConnectorConfig_V2.SnapshotMode.NEVER)
                 .build();
 
-        start(PostgresConnector.class, config);
+        start(PostgresConnector_V2.class, config);
         waitForStreamingRunning("postgres", TestHelper.TEST_SERVER);
 
         TestHelper.execute("INSERT INTO updates_test.debezium_test (id,white,black) VALUES (1,1,1);");

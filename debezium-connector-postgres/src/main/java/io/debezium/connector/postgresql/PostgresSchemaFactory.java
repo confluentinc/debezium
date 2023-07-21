@@ -55,7 +55,7 @@ public class PostgresSchemaFactory extends SchemaFactory {
                 .build();
     }
 
-    public Schema logicalDecodingMessageMonitorValueSchema(SchemaNameAdjuster adjuster, PostgresConnectorConfig config,
+    public Schema logicalDecodingMessageMonitorValueSchema(SchemaNameAdjuster adjuster, PostgresConnectorConfig_V2 config,
                                                            CommonConnectorConfig.BinaryHandlingMode binaryHandlingMode) {
         return SchemaBuilder.struct()
                 .name(adjuster.adjust(POSTGRES_LOGICAL_DECODING_MESSAGE_MONITOR_VALUE_SCHEMA_NAME))

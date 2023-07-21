@@ -42,9 +42,9 @@ import io.debezium.util.Clock;
  * @author Jiri Pechanec
  *
  */
-public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, SqlServerOffsetContext> {
+public class SqlServerConnectorTask_V2 extends BaseSourceTask<SqlServerPartition, SqlServerOffsetContext> {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(SqlServerConnectorTask.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(SqlServerConnectorTask_V2.class);
     private static final String CONTEXT_NAME = "sql-server-connector-task";
 
     private volatile SqlServerTaskContext taskContext;
@@ -69,7 +69,7 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
                 .withDefault(CommonConnectorConfig.DRIVER_CONFIG_PREFIX + "fetchSize", 10_000)
                 .build();
 
-        final SqlServerConnectorConfig connectorConfig = new SqlServerConnectorConfig(config);
+        final SqlServerConnectorConfig_V2 connectorConfig = new SqlServerConnectorConfig_V2(config);
         final TopicNamingStrategy<TableId> topicNamingStrategy = connectorConfig.getTopicNamingStrategy(CommonConnectorConfig.TOPIC_NAMING_STRATEGY, true);
         final SchemaNameAdjuster schemaNameAdjuster = connectorConfig.schemaNameAdjuster();
         final SqlServerValueConverters valueConverters = new SqlServerValueConverters(connectorConfig.getDecimalMode(),
@@ -113,7 +113,7 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
         final SqlServerEventMetadataProvider metadataProvider = new SqlServerEventMetadataProvider();
 
         SignalProcessor<SqlServerPartition, SqlServerOffsetContext> signalProcessor = new SignalProcessor<>(
-                SqlServerConnector.class, connectorConfig, Map.of(),
+                SqlServerConnector_V2.class, connectorConfig, Map.of(),
                 getAvailableSignalChannels(),
                 DocumentReader.defaultReader(),
                 offsets);
@@ -137,7 +137,7 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
         ChangeEventSourceCoordinator<SqlServerPartition, SqlServerOffsetContext> coordinator = new SqlServerChangeEventSourceCoordinator(
                 offsets,
                 errorHandler,
-                SqlServerConnector.class,
+                SqlServerConnector_V2.class,
                 connectorConfig,
                 new SqlServerChangeEventSourceFactory(connectorConfig, connectionFactory, metadataConnection, errorHandler, dispatcher, clock, schema),
                 new SqlServerMetricsFactory(offsets.getPartitions()),
@@ -195,6 +195,6 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
 
     @Override
     protected Iterable<Field> getAllConfigurationFields() {
-        return SqlServerConnectorConfig.ALL_FIELDS;
+        return SqlServerConnectorConfig_V2.ALL_FIELDS;
     }
 }

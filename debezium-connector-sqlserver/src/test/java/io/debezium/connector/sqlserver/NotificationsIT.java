@@ -16,7 +16,7 @@ import io.debezium.connector.sqlserver.util.TestHelper;
 import io.debezium.pipeline.notification.AbstractNotificationsIT;
 import io.debezium.util.Testing;
 
-public class NotificationsIT extends AbstractNotificationsIT<SqlServerConnector> {
+public class NotificationsIT extends AbstractNotificationsIT<SqlServerConnector_V2> {
 
     @Before
     public void before() throws SQLException {
@@ -41,14 +41,14 @@ public class NotificationsIT extends AbstractNotificationsIT<SqlServerConnector>
     }
 
     @Override
-    protected Class<SqlServerConnector> connectorClass() {
-        return SqlServerConnector.class;
+    protected Class<SqlServerConnector_V2> connectorClass() {
+        return SqlServerConnector_V2.class;
     }
 
     @Override
     protected Configuration.Builder config() {
         return TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SqlServerConnectorConfig.SnapshotMode.SCHEMA_ONLY);
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, SqlServerConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY);
     }
 
     @Override

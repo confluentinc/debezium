@@ -59,7 +59,7 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
     private final ErrorHandler errorHandler;
     private final Clock clock;
     private final PostgresSchema schema;
-    private final PostgresConnectorConfig connectorConfig;
+    private final PostgresConnectorConfig_V2 connectorConfig;
     private final PostgresTaskContext taskContext;
     private final ReplicationConnection replicationConnection;
     private final AtomicReference<ReplicationStream> replicationStream = new AtomicReference<>();
@@ -81,7 +81,7 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
     private Lsn lastCompletelyProcessedLsn;
     private PostgresOffsetContext effectiveOffset;
 
-    public PostgresStreamingChangeEventSource(PostgresConnectorConfig connectorConfig, Snapshotter snapshotter,
+    public PostgresStreamingChangeEventSource(PostgresConnectorConfig_V2 connectorConfig, Snapshotter snapshotter,
                                               PostgresConnection connection, PostgresEventDispatcher<TableId> dispatcher, ErrorHandler errorHandler, Clock clock,
                                               PostgresSchema schema, PostgresTaskContext taskContext, ReplicationConnection replicationConnection) {
         this.connectorConfig = connectorConfig;
@@ -150,7 +150,7 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
             // such that the connection times out. We must enable keep
             // alive to ensure that it doesn't time out
             ReplicationStream stream = this.replicationStream.get();
-            stream.startKeepAlive(Threads.newSingleThreadExecutor(PostgresConnector.class, connectorConfig.getLogicalName(), KEEP_ALIVE_THREAD_NAME));
+            stream.startKeepAlive(Threads.newSingleThreadExecutor(PostgresConnector_V2.class, connectorConfig.getLogicalName(), KEEP_ALIVE_THREAD_NAME));
 
             initSchema();
 
@@ -177,7 +177,7 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
                 replicationConnection.reconnect();
                 replicationStream.set(replicationConnection.startStreaming(walPosition.getLastEventStoredLsn(), walPosition));
                 stream = this.replicationStream.get();
-                stream.startKeepAlive(Threads.newSingleThreadExecutor(PostgresConnector.class, connectorConfig.getLogicalName(), KEEP_ALIVE_THREAD_NAME));
+                stream.startKeepAlive(Threads.newSingleThreadExecutor(PostgresConnector_V2.class, connectorConfig.getLogicalName(), KEEP_ALIVE_THREAD_NAME));
             }
             processMessages(context, partition, this.effectiveOffset, stream);
         }

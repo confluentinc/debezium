@@ -18,7 +18,7 @@ public class SnapshotParallelSourceIT extends SnapshotSourceIT {
 
     @Override
     protected Configuration.Builder simpleConfig() {
-        return super.simpleConfig().with(MySqlConnectorConfig.SNAPSHOT_MAX_THREADS, 3);
+        return super.simpleConfig().with(MySqlConnectorConfig_V2.SNAPSHOT_MAX_THREADS, 3);
     }
 
     @Ignore

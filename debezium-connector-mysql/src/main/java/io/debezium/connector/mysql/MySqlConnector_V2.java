@@ -28,19 +28,19 @@ import io.debezium.relational.RelationalDatabaseConnectorConfig;
  * data change events.
  * <h2>Configuration</h2>
  * <p>
- * This connector is configured with the set of properties described in {@link MySqlConnectorConfig}.
+ * This connector is configured with the set of properties described in {@link MySqlConnectorConfig_V2}.
  *
  *
  * @author Randall Hauch
  */
-public class MySqlConnector extends RelationalBaseSourceConnector {
+public class MySqlConnector_V2 extends RelationalBaseSourceConnector {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(MySqlConnector.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(MySqlConnector_V2.class);
 
     @Immutable
     private Map<String, String> properties;
 
-    public MySqlConnector() {
+    public MySqlConnector_V2() {
     }
 
     @Override
@@ -55,7 +55,7 @@ public class MySqlConnector extends RelationalBaseSourceConnector {
 
     @Override
     public Class<? extends Task> taskClass() {
-        return io.debezium.connector.mysql.MySqlConnectorTask.class;
+        return MySqlConnectorTask_V2.class;
     }
 
     @Override
@@ -73,7 +73,7 @@ public class MySqlConnector extends RelationalBaseSourceConnector {
 
     @Override
     public ConfigDef config() {
-        return MySqlConnectorConfig.configDef();
+        return MySqlConnectorConfig_V2.configDef();
     }
 
     @Override
@@ -99,6 +99,6 @@ public class MySqlConnector extends RelationalBaseSourceConnector {
 
     @Override
     protected Map<String, ConfigValue> validateAllFields(Configuration config) {
-        return config.validate(MySqlConnectorConfig.ALL_FIELDS);
+        return config.validate(MySqlConnectorConfig_V2.ALL_FIELDS);
     }
 }

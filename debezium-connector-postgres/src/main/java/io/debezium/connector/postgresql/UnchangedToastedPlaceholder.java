@@ -26,7 +26,7 @@ public class UnchangedToastedPlaceholder {
     private final String toastPlaceholderString;
     private final Map toastPlaceholderHstore = new HashMap<String, String>();
 
-    public UnchangedToastedPlaceholder(PostgresConnectorConfig connectorConfig) {
+    public UnchangedToastedPlaceholder(PostgresConnectorConfig_V2 connectorConfig) {
         toastPlaceholderBinary = connectorConfig.getUnavailableValuePlaceholder();
         toastPlaceholderString = new String(toastPlaceholderBinary);
         placeholderValues.put(UnchangedToastedReplicationMessageColumn.UNCHANGED_TOAST_VALUE, toastPlaceholderString);

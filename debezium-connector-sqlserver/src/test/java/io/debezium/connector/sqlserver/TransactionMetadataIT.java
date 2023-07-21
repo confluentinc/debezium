@@ -26,7 +26,6 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import io.debezium.config.Configuration;
-import io.debezium.connector.sqlserver.SqlServerConnectorConfig.SnapshotMode;
 import io.debezium.connector.sqlserver.util.TestHelper;
 import io.debezium.data.Envelope;
 import io.debezium.data.SchemaAndValueField;
@@ -79,11 +78,11 @@ public class TransactionMetadataIT extends AbstractConnectorTest {
         final int RECORDS_PER_TABLE = 5;
         final int ID_START = 10;
         final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
-                .with(SqlServerConnectorConfig.PROVIDE_TRANSACTION_METADATA, true)
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(SqlServerConnectorConfig_V2.PROVIDE_TRANSACTION_METADATA, true)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Testing.Print.enable();
@@ -132,14 +131,14 @@ public class TransactionMetadataIT extends AbstractConnectorTest {
         final int ID_RESTART = 1000;
         final int HALF_ID = ID_START + RECORDS_PER_TABLE / 2;
         final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
-                .with(SqlServerConnectorConfig.PROVIDE_TRANSACTION_METADATA, true)
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(SqlServerConnectorConfig_V2.PROVIDE_TRANSACTION_METADATA, true)
                 .build();
 
         // Testing.Print.enable();
 
         if (restartJustAfterSnapshot) {
-            start(SqlServerConnector.class, config);
+            start(SqlServerConnector_V2.class, config);
             assertConnectorIsRunning();
 
             // Wait for snapshot to be completed
@@ -180,7 +179,7 @@ public class TransactionMetadataIT extends AbstractConnectorTest {
             });
         }
 
-        start(SqlServerConnector.class, config, record -> {
+        start(SqlServerConnector_V2.class, config, record -> {
             if (!"server1.testDB1.dbo.tablea.Envelope".equals(record.valueSchema().name())) {
                 return false;
             }
@@ -244,7 +243,7 @@ public class TransactionMetadataIT extends AbstractConnectorTest {
         assertRecordTransactionMetadata(lastRecordForOffset, batchTxId, RECORDS_PER_TABLE, RECORDS_PER_TABLE / 2);
 
         stopConnector();
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         SourceRecords sourceRecords = consumeRecordsByTopic(RECORDS_PER_TABLE);

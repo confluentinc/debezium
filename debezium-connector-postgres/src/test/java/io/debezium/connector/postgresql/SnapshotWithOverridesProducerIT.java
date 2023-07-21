@@ -18,10 +18,10 @@ import org.junit.Before;
 import org.junit.Test;
 
 import io.debezium.config.Configuration;
-import io.debezium.connector.postgresql.PostgresConnectorConfig.SnapshotMode;
+import io.debezium.connector.postgresql.PostgresConnectorConfig_V2.SnapshotMode;
 
 /**
- * Integration test for {@link io.debezium.connector.postgresql.PostgresConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE}
+ * Integration test for {@link PostgresConnectorConfig_V2.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE}
  *
  * @author Jiri Pechanec (jpechane@redhat.com)
  */
@@ -53,8 +53,9 @@ public class SnapshotWithOverridesProducerIT extends AbstractRecordsProducerTest
         TestHelper.execute(STATEMENTS);
 
         buildProducer(TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE, "over.t1")
-                .with(PostgresConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE.name() + ".over.t1", "SELECT * FROM over.t1 WHERE pk > 100"));
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE, "over.t1")
+                .with(
+                    PostgresConnectorConfig_V2.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE.name() + ".over.t1", "SELECT * FROM over.t1 WHERE pk > 100"));
 
         final int expectedRecordsCount = 3 + 6;
 
@@ -71,9 +72,11 @@ public class SnapshotWithOverridesProducerIT extends AbstractRecordsProducerTest
         TestHelper.execute(STATEMENTS);
 
         buildProducer(TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE, "over.t1,over.t2")
-                .with(PostgresConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE.name() + ".over.t1", "SELECT * FROM over.t1 WHERE pk > 101")
-                .with(PostgresConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE.name() + ".over.t2", "SELECT * FROM over.t2 WHERE pk > 100"));
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE, "over.t1,over.t2")
+                .with(
+                    PostgresConnectorConfig_V2.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE.name() + ".over.t1", "SELECT * FROM over.t1 WHERE pk > 101")
+                .with(
+                    PostgresConnectorConfig_V2.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE.name() + ".over.t2", "SELECT * FROM over.t2 WHERE pk > 100"));
 
         final int expectedRecordsCount = 2 + 3;
 
@@ -86,8 +89,8 @@ public class SnapshotWithOverridesProducerIT extends AbstractRecordsProducerTest
     }
 
     private void buildProducer(Configuration.Builder config) {
-        start(PostgresConnector.class, config
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL_ONLY)
+        start(PostgresConnector_V2.class, config
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.INITIAL_ONLY)
                 .build());
         assertConnectorIsRunning();
     }

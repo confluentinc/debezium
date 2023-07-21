@@ -34,7 +34,7 @@ public class SqlServerOffsetContext extends CommonOffsetContext<SourceInfo> {
      */
     private long eventSerialNo;
 
-    public SqlServerOffsetContext(SqlServerConnectorConfig connectorConfig, TxLogPosition position, boolean snapshot,
+    public SqlServerOffsetContext(SqlServerConnectorConfig_V2 connectorConfig, TxLogPosition position, boolean snapshot,
                                   boolean snapshotCompleted, long eventSerialNo, TransactionContext transactionContext,
                                   IncrementalSnapshotContext<TableId> incrementalSnapshotContext) {
         super(new SourceInfo(connectorConfig));
@@ -55,7 +55,7 @@ public class SqlServerOffsetContext extends CommonOffsetContext<SourceInfo> {
         this.incrementalSnapshotContext = incrementalSnapshotContext;
     }
 
-    public SqlServerOffsetContext(SqlServerConnectorConfig connectorConfig, TxLogPosition position, boolean snapshot, boolean snapshotCompleted) {
+    public SqlServerOffsetContext(SqlServerConnectorConfig_V2 connectorConfig, TxLogPosition position, boolean snapshot, boolean snapshotCompleted) {
         this(connectorConfig, position, snapshot, snapshotCompleted, 1, new TransactionContext(), new SignalBasedIncrementalSnapshotContext<>());
     }
 
@@ -123,9 +123,9 @@ public class SqlServerOffsetContext extends CommonOffsetContext<SourceInfo> {
 
     public static class Loader implements OffsetContext.Loader<SqlServerOffsetContext> {
 
-        private final SqlServerConnectorConfig connectorConfig;
+        private final SqlServerConnectorConfig_V2 connectorConfig;
 
-        public Loader(SqlServerConnectorConfig connectorConfig) {
+        public Loader(SqlServerConnectorConfig_V2 connectorConfig) {
             this.connectorConfig = connectorConfig;
         }
 

@@ -49,9 +49,9 @@ public class PostgresMoneyIT extends AbstractConnectorTest {
         createTable();
 
         Configuration config = TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, PostgresConnectorConfig.SnapshotMode.NEVER)
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, PostgresConnectorConfig_V2.SnapshotMode.NEVER)
                 .build();
-        start(PostgresConnector.class, config);
+        start(PostgresConnector_V2.class, config);
         waitForStreamingRunning("postgres", TestHelper.TEST_SERVER);
 
         // insert 2 records for testing
@@ -74,10 +74,10 @@ public class PostgresMoneyIT extends AbstractConnectorTest {
         createTable();
 
         Configuration config = TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, PostgresConnectorConfig.SnapshotMode.NEVER)
-                .with(PostgresConnectorConfig.DECIMAL_HANDLING_MODE, "string")
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, PostgresConnectorConfig_V2.SnapshotMode.NEVER)
+                .with(PostgresConnectorConfig_V2.DECIMAL_HANDLING_MODE, "string")
                 .build();
-        start(PostgresConnector.class, config);
+        start(PostgresConnector_V2.class, config);
         waitForStreamingRunning("postgres", TestHelper.TEST_SERVER);
 
         // insert 2 records for testing
@@ -100,10 +100,10 @@ public class PostgresMoneyIT extends AbstractConnectorTest {
         createTable();
 
         Configuration config = TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, PostgresConnectorConfig.SnapshotMode.NEVER)
-                .with(PostgresConnectorConfig.DECIMAL_HANDLING_MODE, "double")
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, PostgresConnectorConfig_V2.SnapshotMode.NEVER)
+                .with(PostgresConnectorConfig_V2.DECIMAL_HANDLING_MODE, "double")
                 .build();
-        start(PostgresConnector.class, config);
+        start(PostgresConnector_V2.class, config);
         waitForStreamingRunning("postgres", TestHelper.TEST_SERVER);
 
         // insert 2 records for testing
@@ -126,9 +126,9 @@ public class PostgresMoneyIT extends AbstractConnectorTest {
         createTable();
 
         Configuration config = TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, PostgresConnectorConfig.SnapshotMode.NEVER)
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, PostgresConnectorConfig_V2.SnapshotMode.NEVER)
                 .build();
-        start(PostgresConnector.class, config);
+        start(PostgresConnector_V2.class, config);
         waitForStreamingRunning("postgres", TestHelper.TEST_SERVER);
 
         // insert 2 records for testing

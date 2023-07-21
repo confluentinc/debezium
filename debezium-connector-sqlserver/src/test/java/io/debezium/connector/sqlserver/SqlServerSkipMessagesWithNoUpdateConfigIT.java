@@ -17,7 +17,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import io.debezium.config.Configuration;
-import io.debezium.connector.sqlserver.SqlServerConnectorConfig.SnapshotMode;
 import io.debezium.connector.sqlserver.util.TestHelper;
 import io.debezium.doc.FixFor;
 import io.debezium.embedded.AbstractConnectorTest;
@@ -32,9 +31,9 @@ public class SqlServerSkipMessagesWithNoUpdateConfigIT extends AbstractConnector
     private SqlServerConnection connection;
 
     private final Configuration.Builder configBuilder = TestHelper.defaultConfig()
-            .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.SCHEMA_ONLY)
-            .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.skip_messages_test")
-            .with(SqlServerConnectorConfig.COLUMN_INCLUDE_LIST, "dbo.skip_messages_test.id, dbo.skip_messages_test.white");
+            .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
+            .with(SqlServerConnectorConfig_V2.TABLE_INCLUDE_LIST, "dbo.skip_messages_test")
+            .with(SqlServerConnectorConfig_V2.COLUMN_INCLUDE_LIST, "dbo.skip_messages_test.id, dbo.skip_messages_test.white");
 
     @Before
     public void before() throws SQLException {
@@ -58,10 +57,10 @@ public class SqlServerSkipMessagesWithNoUpdateConfigIT extends AbstractConnector
     @Test
     public void shouldSkipEventsWithNoChangeInIncludedColumnsWhenSkipEnabled() throws Exception {
         Configuration config = configBuilder
-                .with(SqlServerConnectorConfig.SKIP_MESSAGES_WITHOUT_CHANGE, true)
+                .with(SqlServerConnectorConfig_V2.SKIP_MESSAGES_WITHOUT_CHANGE, true)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         TestHelper.waitForStreamingStarted();
 
         connection.execute("INSERT INTO skip_messages_test VALUES (1, 1, 1);");
@@ -89,13 +88,13 @@ public class SqlServerSkipMessagesWithNoUpdateConfigIT extends AbstractConnector
     @FixFor("DBZ-2979")
     public void shouldSkipEventsWithNoChangeInIncludedColumnsWhenSkipEnabledWithExcludeConfig() throws Exception {
         Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.SCHEMA_ONLY)
-                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.skip_messages_test")
-                .with(SqlServerConnectorConfig.SKIP_MESSAGES_WITHOUT_CHANGE, true)
-                .with(SqlServerConnectorConfig.COLUMN_EXCLUDE_LIST, "dbo.skip_messages_test.black")
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
+                .with(SqlServerConnectorConfig_V2.TABLE_INCLUDE_LIST, "dbo.skip_messages_test")
+                .with(SqlServerConnectorConfig_V2.SKIP_MESSAGES_WITHOUT_CHANGE, true)
+                .with(SqlServerConnectorConfig_V2.COLUMN_EXCLUDE_LIST, "dbo.skip_messages_test.black")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         TestHelper.waitForStreamingStarted();
 
         connection.execute("INSERT INTO skip_messages_test VALUES (1, 1, 1);");
@@ -123,10 +122,10 @@ public class SqlServerSkipMessagesWithNoUpdateConfigIT extends AbstractConnector
     @FixFor("DBZ-2979")
     public void shouldNotSkipEventsWithNoChangeInIncludedColumnsWhenSkipDisabled() throws Exception {
         Configuration config = configBuilder
-                .with(SqlServerConnectorConfig.SKIP_MESSAGES_WITHOUT_CHANGE, false)
+                .with(SqlServerConnectorConfig_V2.SKIP_MESSAGES_WITHOUT_CHANGE, false)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         TestHelper.waitForStreamingStarted();
 
         connection.execute("INSERT INTO skip_messages_test VALUES (1, 1, 1);");

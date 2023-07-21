@@ -89,12 +89,12 @@ public class SqlServerBinaryModeIT extends AbstractConnectorTest {
 
     private Struct consume(BinaryHandlingMode binaryMode) throws InterruptedException {
         final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SqlServerConnectorConfig.SnapshotMode.INITIAL)
-                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo\\.binary_mode_test")
-                .with(SqlServerConnectorConfig.BINARY_HANDLING_MODE, binaryMode)
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, SqlServerConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(SqlServerConnectorConfig_V2.TABLE_INCLUDE_LIST, "dbo\\.binary_mode_test")
+                .with(SqlServerConnectorConfig_V2.BINARY_HANDLING_MODE, binaryMode)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 

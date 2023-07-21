@@ -32,7 +32,7 @@ import org.junit.Test;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.CommonConnectorConfig.SchemaNameAdjustmentMode;
 import io.debezium.config.Configuration;
-import io.debezium.connector.mysql.MySqlConnectorConfig.SnapshotMode;
+import io.debezium.connector.mysql.MySqlConnectorConfig_V2.SnapshotMode;
 import io.debezium.doc.FixFor;
 import io.debezium.jdbc.JdbcConnection;
 import io.debezium.junit.logging.LogInterceptor;
@@ -41,7 +41,7 @@ import io.debezium.relational.TableId;
 import io.debezium.relational.history.SchemaHistory;
 import io.debezium.util.Testing;
 
-public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotWithSchemaChangesSupportTest<MySqlConnector> {
+public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotWithSchemaChangesSupportTest<MySqlConnector_V2> {
 
     protected static final String SERVER_NAME = "is_test";
     protected final UniqueDatabase DATABASE = new UniqueDatabase(SERVER_NAME, "incremental_snapshot-test").withDbHistoryPath(SCHEMA_HISTORY_PATH);
@@ -66,15 +66,15 @@ public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotWithSchema
 
     protected Configuration.Builder config() {
         return DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.INCLUDE_SQL_QUERY, true)
-                .with(MySqlConnectorConfig.USER, "mysqluser")
-                .with(MySqlConnectorConfig.PASSWORD, "mysqlpw")
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, SnapshotMode.SCHEMA_ONLY.getValue())
-                .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, false)
-                .with(MySqlConnectorConfig.SIGNAL_DATA_COLLECTION, DATABASE.qualifiedTableName("debezium_signal"))
+                .with(MySqlConnectorConfig_V2.INCLUDE_SQL_QUERY, true)
+                .with(MySqlConnectorConfig_V2.USER, "mysqluser")
+                .with(MySqlConnectorConfig_V2.PASSWORD, "mysqlpw")
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.SCHEMA_ONLY.getValue())
+                .with(MySqlConnectorConfig_V2.INCLUDE_SCHEMA_CHANGES, false)
+                .with(MySqlConnectorConfig_V2.SIGNAL_DATA_COLLECTION, DATABASE.qualifiedTableName("debezium_signal"))
                 .with(CommonConnectorConfig.SIGNAL_POLL_INTERVAL_MS, 1)
-                .with(MySqlConnectorConfig.INCREMENTAL_SNAPSHOT_CHUNK_SIZE, 10)
-                .with(MySqlConnectorConfig.INCREMENTAL_SNAPSHOT_ALLOW_SCHEMA_CHANGES, true)
+                .with(MySqlConnectorConfig_V2.INCREMENTAL_SNAPSHOT_CHUNK_SIZE, 10)
+                .with(MySqlConnectorConfig_V2.INCREMENTAL_SNAPSHOT_ALLOW_SCHEMA_CHANGES, true)
                 .with(CommonConnectorConfig.SCHEMA_NAME_ADJUSTMENT_MODE, SchemaNameAdjustmentMode.AVRO);
     }
 
@@ -88,23 +88,23 @@ public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotWithSchema
             tableIncludeList = DATABASE.qualifiedTableName("a") + ", " + DATABASE.qualifiedTableName("c");
         }
         return DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.INCLUDE_SQL_QUERY, true)
-                .with(MySqlConnectorConfig.USER, "mysqluser")
-                .with(MySqlConnectorConfig.PASSWORD, "mysqlpw")
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL.getValue())
-                .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, false)
-                .with(MySqlConnectorConfig.SIGNAL_DATA_COLLECTION, DATABASE.qualifiedTableName("debezium_signal"))
+                .with(MySqlConnectorConfig_V2.INCLUDE_SQL_QUERY, true)
+                .with(MySqlConnectorConfig_V2.USER, "mysqluser")
+                .with(MySqlConnectorConfig_V2.PASSWORD, "mysqlpw")
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.INITIAL.getValue())
+                .with(MySqlConnectorConfig_V2.INCLUDE_SCHEMA_CHANGES, false)
+                .with(MySqlConnectorConfig_V2.SIGNAL_DATA_COLLECTION, DATABASE.qualifiedTableName("debezium_signal"))
                 .with(CommonConnectorConfig.SIGNAL_POLL_INTERVAL_MS, 5)
-                .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, tableIncludeList)
-                .with(MySqlConnectorConfig.INCREMENTAL_SNAPSHOT_CHUNK_SIZE, 10)
-                .with(MySqlConnectorConfig.INCREMENTAL_SNAPSHOT_ALLOW_SCHEMA_CHANGES, true)
+                .with(MySqlConnectorConfig_V2.TABLE_INCLUDE_LIST, tableIncludeList)
+                .with(MySqlConnectorConfig_V2.INCREMENTAL_SNAPSHOT_CHUNK_SIZE, 10)
+                .with(MySqlConnectorConfig_V2.INCREMENTAL_SNAPSHOT_ALLOW_SCHEMA_CHANGES, true)
                 .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, storeOnlyCapturedDdl)
                 .with(CommonConnectorConfig.SCHEMA_NAME_ADJUSTMENT_MODE, SchemaNameAdjustmentMode.AVRO);
     }
 
     @Override
-    protected Class<MySqlConnector> connectorClass() {
-        return MySqlConnector.class;
+    protected Class<MySqlConnector_V2> connectorClass() {
+        return MySqlConnector_V2.class;
     }
 
     @Override
@@ -266,7 +266,7 @@ public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotWithSchema
             connection.commit();
         }
 
-        final Configuration config = config().with(MySqlConnectorConfig.SNAPSHOT_FETCH_SIZE, 5).build();
+        final Configuration config = config().with(MySqlConnectorConfig_V2.SNAPSHOT_FETCH_SIZE, 5).build();
         start(connectorClass(), config, loggingCompletion());
         waitForConnectorToStart();
         waitForAvailableRecords(5, TimeUnit.SECONDS);
@@ -315,7 +315,7 @@ public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotWithSchema
             connection.commit();
         }
 
-        final Configuration config = config().with(MySqlConnectorConfig.SNAPSHOT_FETCH_SIZE, 5).build();
+        final Configuration config = config().with(MySqlConnectorConfig_V2.SNAPSHOT_FETCH_SIZE, 5).build();
         start(connectorClass(), config, loggingCompletion());
         waitForConnectorToStart();
         waitForAvailableRecords(5, TimeUnit.SECONDS);

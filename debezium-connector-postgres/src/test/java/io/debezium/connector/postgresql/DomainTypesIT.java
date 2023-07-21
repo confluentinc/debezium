@@ -22,7 +22,7 @@ import org.apache.kafka.connect.source.SourceRecord;
 import org.junit.Before;
 import org.junit.Test;
 
-import io.debezium.connector.postgresql.PostgresConnectorConfig.SnapshotMode;
+import io.debezium.connector.postgresql.PostgresConnectorConfig_V2.SnapshotMode;
 import io.debezium.doc.FixFor;
 import io.debezium.junit.SkipWhenDatabaseVersion;
 
@@ -43,9 +43,9 @@ public class DomainTypesIT extends AbstractRecordsProducerTest {
     @Test
     @FixFor("DBZ-3657")
     public void shouldNotChokeOnDomainTypeInArray() throws Exception {
-        start(PostgresConnector.class, TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER)
-                .with(PostgresConnectorConfig.SCHEMA_INCLUDE_LIST, "domaintypes")
+        start(PostgresConnector_V2.class, TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.NEVER)
+                .with(PostgresConnectorConfig_V2.SCHEMA_INCLUDE_LIST, "domaintypes")
                 .build());
         assertConnectorIsRunning();
 
@@ -63,10 +63,10 @@ public class DomainTypesIT extends AbstractRecordsProducerTest {
     @Test
     @FixFor("DBZ-3657")
     public void shouldExportDomainTypeInArrayAsUnknown() throws Exception {
-        start(PostgresConnector.class, TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER)
-                .with(PostgresConnectorConfig.SCHEMA_INCLUDE_LIST, "domaintypes")
-                .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true)
+        start(PostgresConnector_V2.class, TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.NEVER)
+                .with(PostgresConnectorConfig_V2.SCHEMA_INCLUDE_LIST, "domaintypes")
+                .with(PostgresConnectorConfig_V2.INCLUDE_UNKNOWN_DATATYPES, true)
                 .build());
         assertConnectorIsRunning();
 

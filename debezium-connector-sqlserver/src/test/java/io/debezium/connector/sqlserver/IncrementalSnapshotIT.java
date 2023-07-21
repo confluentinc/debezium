@@ -14,7 +14,6 @@ import org.junit.Before;
 import org.junit.Rule;
 
 import io.debezium.config.Configuration.Builder;
-import io.debezium.connector.sqlserver.SqlServerConnectorConfig.SnapshotMode;
 import io.debezium.connector.sqlserver.util.TestHelper;
 import io.debezium.jdbc.JdbcConnection;
 import io.debezium.junit.SkipTestRule;
@@ -22,7 +21,7 @@ import io.debezium.pipeline.source.snapshot.incremental.AbstractIncrementalSnaps
 import io.debezium.relational.history.SchemaHistory;
 import io.debezium.util.Testing;
 
-public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotWithSchemaChangesSupportTest<SqlServerConnector> {
+public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotWithSchemaChangesSupportTest<SqlServerConnector_V2> {
     private static final int POLLING_INTERVAL = 1;
 
     private SqlServerConnection connection;
@@ -66,8 +65,8 @@ public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotWithSchema
     }
 
     @Override
-    protected Class<SqlServerConnector> connectorClass() {
-        return SqlServerConnector.class;
+    protected Class<SqlServerConnector_V2> connectorClass() {
+        return SqlServerConnector_V2.class;
     }
 
     @Override
@@ -150,10 +149,10 @@ public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotWithSchema
     @Override
     protected Builder config() {
         return TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.SCHEMA_ONLY)
-                .with(SqlServerConnectorConfig.SIGNAL_DATA_COLLECTION, "testDB1.dbo.debezium_signal")
-                .with(SqlServerConnectorConfig.INCREMENTAL_SNAPSHOT_CHUNK_SIZE, 250)
-                .with(SqlServerConnectorConfig.INCREMENTAL_SNAPSHOT_ALLOW_SCHEMA_CHANGES, true);
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
+                .with(SqlServerConnectorConfig_V2.SIGNAL_DATA_COLLECTION, "testDB1.dbo.debezium_signal")
+                .with(SqlServerConnectorConfig_V2.INCREMENTAL_SNAPSHOT_CHUNK_SIZE, 250)
+                .with(SqlServerConnectorConfig_V2.INCREMENTAL_SNAPSHOT_ALLOW_SCHEMA_CHANGES, true);
     }
 
     @Override
@@ -166,11 +165,11 @@ public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotWithSchema
             tableIncludeList = "dbo.a,dbo.b";
         }
         return TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
-                .with(SqlServerConnectorConfig.SIGNAL_DATA_COLLECTION, "testDB1.dbo.debezium_signal")
-                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, tableIncludeList)
-                .with(SqlServerConnectorConfig.INCREMENTAL_SNAPSHOT_CHUNK_SIZE, 250)
-                .with(SqlServerConnectorConfig.INCREMENTAL_SNAPSHOT_ALLOW_SCHEMA_CHANGES, true)
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(SqlServerConnectorConfig_V2.SIGNAL_DATA_COLLECTION, "testDB1.dbo.debezium_signal")
+                .with(SqlServerConnectorConfig_V2.TABLE_INCLUDE_LIST, tableIncludeList)
+                .with(SqlServerConnectorConfig_V2.INCREMENTAL_SNAPSHOT_CHUNK_SIZE, 250)
+                .with(SqlServerConnectorConfig_V2.INCREMENTAL_SNAPSHOT_ALLOW_SCHEMA_CHANGES, true)
                 .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, storeOnlyCapturedDdl);
     }
 

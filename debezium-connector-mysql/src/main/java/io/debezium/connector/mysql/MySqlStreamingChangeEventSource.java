@@ -70,7 +70,7 @@ import io.debezium.DebeziumException;
 import io.debezium.annotation.SingleThreadAccess;
 import io.debezium.config.CommonConnectorConfig.EventProcessingFailureHandlingMode;
 import io.debezium.config.Configuration;
-import io.debezium.connector.mysql.MySqlConnectorConfig.SecureConnectionMode;
+import io.debezium.connector.mysql.MySqlConnectorConfig_V2.SecureConnectionMode;
 import io.debezium.data.Envelope.Operation;
 import io.debezium.function.BlockingConsumer;
 import io.debezium.pipeline.ErrorHandler;
@@ -113,7 +113,7 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
     private final float heartbeatIntervalFactor = 0.8f;
     private final Map<String, Thread> binaryLogClientThreads = new ConcurrentHashMap<>(4);
     private final MySqlTaskContext taskContext;
-    private final MySqlConnectorConfig connectorConfig;
+    private final MySqlConnectorConfig_V2 connectorConfig;
     private final MySqlConnection connection;
     private final EventDispatcher<MySqlPartition, TableId> eventDispatcher;
     private final ErrorHandler errorHandler;
@@ -182,7 +182,7 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
         void emit(TableId tableId, T data) throws InterruptedException;
     }
 
-    public MySqlStreamingChangeEventSource(MySqlConnectorConfig connectorConfig, MySqlConnection connection,
+    public MySqlStreamingChangeEventSource(MySqlConnectorConfig_V2 connectorConfig, MySqlConnection connection,
                                            EventDispatcher<MySqlPartition, TableId> dispatcher, ErrorHandler errorHandler, Clock clock,
                                            MySqlTaskContext taskContext, MySqlStreamingChangeEventSourceMetrics metrics) {
 
@@ -201,7 +201,7 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
         client = taskContext.getBinaryLogClient();
         // BinaryLogClient will overwrite thread names later
         client.setThreadFactory(
-                Threads.threadFactory(MySqlConnector.class, connectorConfig.getLogicalName(), "binlog-client", false, false,
+                Threads.threadFactory(MySqlConnector_V2.class, connectorConfig.getLogicalName(), "binlog-client", false, false,
                         x -> binaryLogClientThreads.put(x.getName(), x)));
         client.setServerId(connectorConfig.serverId());
         client.setSSLMode(sslModeFor(connectorConfig.sslMode()));
@@ -212,15 +212,15 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
             }
         }
         Configuration configuration = connectorConfig.getConfig();
-        client.setKeepAlive(configuration.getBoolean(MySqlConnectorConfig.KEEP_ALIVE));
-        final long keepAliveInterval = configuration.getLong(MySqlConnectorConfig.KEEP_ALIVE_INTERVAL_MS);
+        client.setKeepAlive(configuration.getBoolean(MySqlConnectorConfig_V2.KEEP_ALIVE));
+        final long keepAliveInterval = configuration.getLong(MySqlConnectorConfig_V2.KEEP_ALIVE_INTERVAL_MS);
         client.setKeepAliveInterval(keepAliveInterval);
         // Considering heartbeatInterval should be less than keepAliveInterval, we use the heartbeatIntervalFactor
         // multiply by keepAliveInterval and set the result value to heartbeatInterval.The default value of heartbeatIntervalFactor
         // is 0.8, and we believe the left time (0.2 * keepAliveInterval) is enough to process the packet received from the MySQL server.
         client.setHeartbeatInterval((long) (keepAliveInterval * heartbeatIntervalFactor));
 
-        boolean filterDmlEventsByGtidSource = configuration.getBoolean(MySqlConnectorConfig.GTID_SOURCE_FILTER_DML_EVENTS);
+        boolean filterDmlEventsByGtidSource = configuration.getBoolean(MySqlConnectorConfig_V2.GTID_SOURCE_FILTER_DML_EVENTS);
         gtidDmlSourceFilter = filterDmlEventsByGtidSource ? connectorConfig.gtidSourceFilter() : null;
 
         // Set up the event deserializer with additional type(s) ...
@@ -500,7 +500,7 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
      * it so that we know the position of this event and know we've processed the binlog to this point.
      * <p>
      * Note that this captures the current GTID and complete GTID set, regardless of whether the connector is
-     * {@link MySqlConnectorConfig#gtidSourceFilter() filtering} the GTID set upon connection. We do this because
+     * {@link MySqlConnectorConfig_V2#gtidSourceFilter() filtering} the GTID set upon connection. We do this because
      * we actually want to capture all GTID set values found in the binlog, whether or not we process them.
      * However, only when we connect do we actually want to pass to MySQL only those GTID ranges that are applicable
      * per the configuration.
@@ -585,7 +585,7 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
         if (sql.equalsIgnoreCase("ROLLBACK")) {
             // We have hit a ROLLBACK which is not supported
             LOGGER.warn("Rollback statements cannot be handled without binlog buffering, the connector will fail. Please check '{}' to see how to enable buffering",
-                    MySqlConnectorConfig.BUFFER_SIZE_FOR_BINLOG_READER.name());
+                    MySqlConnectorConfig_V2.BUFFER_SIZE_FOR_BINLOG_READER.name());
         }
 
         final List<SchemaChangeEvent> schemaChangeEvents = taskContext.getSchema().parseStreamingDdl(partition, sql,
@@ -680,7 +680,7 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
     /**
      * If we receive an event for a table that is monitored but whose metadata we
      * don't know, either ignore that event or raise a warning or error as per the
-     * {@link MySqlConnectorConfig#INCONSISTENT_SCHEMA_HANDLING_MODE} configuration.
+     * {@link MySqlConnectorConfig_V2#INCONSISTENT_SCHEMA_HANDLING_MODE} configuration.
      */
     private void informAboutUnknownTableIfRequired(MySqlPartition partition, MySqlOffsetContext offsetContext, Event event, TableId tableId,
                                                    Operation operation)
@@ -885,7 +885,7 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
             LOGGER.info("Streaming is disabled for snapshot mode {}", connectorConfig.getSnapshotMode());
             return;
         }
-        if (connectorConfig.getSnapshotMode() != MySqlConnectorConfig.SnapshotMode.NEVER) {
+        if (connectorConfig.getSnapshotMode() != MySqlConnectorConfig_V2.SnapshotMode.NEVER) {
             taskContext.getSchema().assureNonEmptySchema();
         }
         final Set<Operation> skippedOperations = connectorConfig.getSkippedOperations();
@@ -1055,7 +1055,7 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
         return effectiveOffsetContext;
     }
 
-    private SSLSocketFactory getBinlogSslSocketFactory(MySqlConnectorConfig connectorConfig, MySqlConnection connection) {
+    private SSLSocketFactory getBinlogSslSocketFactory(MySqlConnectorConfig_V2 connectorConfig, MySqlConnection connection) {
         String acceptedTlsVersion = connection.getSessionVariableForSslVersion();
         if (!isNullOrEmpty(acceptedTlsVersion)) {
             SSLMode sslMode = sslModeFor(connectorConfig.sslMode());

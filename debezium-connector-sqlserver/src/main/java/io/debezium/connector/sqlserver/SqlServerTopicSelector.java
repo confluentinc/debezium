@@ -17,7 +17,7 @@ import io.debezium.schema.TopicSelector;
 @Deprecated
 public class SqlServerTopicSelector {
 
-    public static TopicSelector<TableId> defaultSelector(SqlServerConnectorConfig connectorConfig) {
+    public static TopicSelector<TableId> defaultSelector(SqlServerConnectorConfig_V2 connectorConfig) {
 
         return TopicSelector.defaultSelector(
                 connectorConfig,

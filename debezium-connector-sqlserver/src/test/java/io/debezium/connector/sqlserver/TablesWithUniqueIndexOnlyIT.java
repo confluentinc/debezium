@@ -14,7 +14,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import io.debezium.connector.sqlserver.SqlServerConnectorConfig.SnapshotMode;
 import io.debezium.connector.sqlserver.util.TestHelper;
 import io.debezium.embedded.AbstractConnectorTest;
 import io.debezium.util.Collect;
@@ -61,10 +60,10 @@ public class TablesWithUniqueIndexOnlyIT extends AbstractConnectorTest {
 
         TestHelper.enableTableCdc(connection, "t1", "t1_CT", Collect.arrayListOf("key1", "key2", "data"));
 
-        start(SqlServerConnector.class, TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
-                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.t1")
-                .with(SqlServerConnectorConfig.MSG_KEY_COLUMNS, "dbo.t1:key1,key2;")
+        start(SqlServerConnector_V2.class, TestHelper.defaultConfig()
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(SqlServerConnectorConfig_V2.TABLE_INCLUDE_LIST, "dbo.t1")
+                .with(SqlServerConnectorConfig_V2.MSG_KEY_COLUMNS, "dbo.t1:key1,key2;")
                 .build());
         assertConnectorIsRunning();
 
@@ -82,9 +81,9 @@ public class TablesWithUniqueIndexOnlyIT extends AbstractConnectorTest {
 
         TestHelper.enableTableCdc(connection, "t1", "t1_CT", Collect.arrayListOf("key1", "key2", "data"));
 
-        start(SqlServerConnector.class, TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
-                .with(SqlServerConnectorConfig.MSG_KEY_COLUMNS, "dbo.t1:key1,key2;dbo.t2:key1,key2")
+        start(SqlServerConnector_V2.class, TestHelper.defaultConfig()
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(SqlServerConnectorConfig_V2.MSG_KEY_COLUMNS, "dbo.t1:key1,key2;dbo.t2:key1,key2")
                 .build());
         assertConnectorIsRunning();
 

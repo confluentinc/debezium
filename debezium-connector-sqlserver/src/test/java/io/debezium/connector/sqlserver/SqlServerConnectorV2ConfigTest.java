@@ -17,71 +17,71 @@ import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.storage.kafka.history.KafkaSchemaHistory;
 
-public class SqlServerConnectorConfigTest {
+public class SqlServerConnectorV2ConfigTest {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(SqlServerConnectorConfigTest.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(SqlServerConnectorV2ConfigTest.class);
 
     @Test
     public void nullDatabaseNames() {
-        final SqlServerConnectorConfig connectorConfig = new SqlServerConnectorConfig(
+        final SqlServerConnectorConfig_V2 connectorConfig = new SqlServerConnectorConfig_V2(
                 defaultConfig().build());
-        assertFalse(connectorConfig.validateAndRecord(SqlServerConnectorConfig.ALL_FIELDS, LOGGER::error));
+        assertFalse(connectorConfig.validateAndRecord(SqlServerConnectorConfig_V2.ALL_FIELDS, LOGGER::error));
     }
 
     @Test
     public void emptyDatabaseNames() {
-        final SqlServerConnectorConfig connectorConfig = new SqlServerConnectorConfig(
+        final SqlServerConnectorConfig_V2 connectorConfig = new SqlServerConnectorConfig_V2(
                 defaultConfig()
-                        .with(SqlServerConnectorConfig.DATABASE_NAMES, "")
+                        .with(SqlServerConnectorConfig_V2.DATABASE_NAMES, "")
                         .build());
-        assertFalse(connectorConfig.validateAndRecord(SqlServerConnectorConfig.ALL_FIELDS, LOGGER::error));
+        assertFalse(connectorConfig.validateAndRecord(SqlServerConnectorConfig_V2.ALL_FIELDS, LOGGER::error));
     }
 
     @Test
     public void nonEmptyDatabaseNames() {
-        final SqlServerConnectorConfig connectorConfig = new SqlServerConnectorConfig(
+        final SqlServerConnectorConfig_V2 connectorConfig = new SqlServerConnectorConfig_V2(
                 defaultConfig()
-                        .with(SqlServerConnectorConfig.DATABASE_NAMES, "testDB1")
+                        .with(SqlServerConnectorConfig_V2.DATABASE_NAMES, "testDB1")
                         .build());
-        assertTrue(connectorConfig.validateAndRecord(SqlServerConnectorConfig.ALL_FIELDS, LOGGER::error));
+        assertTrue(connectorConfig.validateAndRecord(SqlServerConnectorConfig_V2.ALL_FIELDS, LOGGER::error));
     }
 
     @Test
     public void hostnameAndDefaultPortConnectionUrl() {
-        final SqlServerConnectorConfig connectorConfig = new SqlServerConnectorConfig(
+        final SqlServerConnectorConfig_V2 connectorConfig = new SqlServerConnectorConfig_V2(
                 defaultConfig()
-                        .with(SqlServerConnectorConfig.HOSTNAME, "example.com")
+                        .with(SqlServerConnectorConfig_V2.HOSTNAME, "example.com")
                         .build());
         assertEquals(connectionUrl(connectorConfig), "jdbc:sqlserver://${hostname}:${port}");
     }
 
     @Test
     public void hostnameAndPortConnectionUrl() {
-        final SqlServerConnectorConfig connectorConfig = new SqlServerConnectorConfig(
+        final SqlServerConnectorConfig_V2 connectorConfig = new SqlServerConnectorConfig_V2(
                 defaultConfig()
-                        .with(SqlServerConnectorConfig.HOSTNAME, "example.com")
-                        .with(SqlServerConnectorConfig.PORT, "11433")
+                        .with(SqlServerConnectorConfig_V2.HOSTNAME, "example.com")
+                        .with(SqlServerConnectorConfig_V2.PORT, "11433")
                         .build());
         assertEquals(connectionUrl(connectorConfig), "jdbc:sqlserver://${hostname}:${port}");
     }
 
     @Test
     public void hostnameAndInstanceConnectionUrl() {
-        final SqlServerConnectorConfig connectorConfig = new SqlServerConnectorConfig(
+        final SqlServerConnectorConfig_V2 connectorConfig = new SqlServerConnectorConfig_V2(
                 defaultConfig()
-                        .with(SqlServerConnectorConfig.HOSTNAME, "example.com")
-                        .with(SqlServerConnectorConfig.INSTANCE, "instance")
+                        .with(SqlServerConnectorConfig_V2.HOSTNAME, "example.com")
+                        .with(SqlServerConnectorConfig_V2.INSTANCE, "instance")
                         .build());
         assertEquals(connectionUrl(connectorConfig), "jdbc:sqlserver://${hostname}\\instance");
     }
 
     @Test
     public void hostnameAndInstanceAndPortConnectionUrl() {
-        final SqlServerConnectorConfig connectorConfig = new SqlServerConnectorConfig(
+        final SqlServerConnectorConfig_V2 connectorConfig = new SqlServerConnectorConfig_V2(
                 defaultConfig()
-                        .with(SqlServerConnectorConfig.HOSTNAME, "example.com")
-                        .with(SqlServerConnectorConfig.INSTANCE, "instance")
-                        .with(SqlServerConnectorConfig.PORT, "11433")
+                        .with(SqlServerConnectorConfig_V2.HOSTNAME, "example.com")
+                        .with(SqlServerConnectorConfig_V2.INSTANCE, "instance")
+                        .with(SqlServerConnectorConfig_V2.PORT, "11433")
                         .build());
         assertEquals(connectionUrl(connectorConfig), "jdbc:sqlserver://${hostname}\\instance:${port}");
     }
@@ -89,13 +89,13 @@ public class SqlServerConnectorConfigTest {
     private Configuration.Builder defaultConfig() {
         return Configuration.create()
                 .with(CommonConnectorConfig.TOPIC_PREFIX, "server")
-                .with(SqlServerConnectorConfig.HOSTNAME, "localhost")
-                .with(SqlServerConnectorConfig.USER, "debezium")
+                .with(SqlServerConnectorConfig_V2.HOSTNAME, "localhost")
+                .with(SqlServerConnectorConfig_V2.USER, "debezium")
                 .with(KafkaSchemaHistory.BOOTSTRAP_SERVERS, "localhost:9092")
                 .with(KafkaSchemaHistory.TOPIC, "history");
     }
 
-    private String connectionUrl(SqlServerConnectorConfig connectorConfig) {
+    private String connectionUrl(SqlServerConnectorConfig_V2 connectorConfig) {
         SqlServerJdbcConfiguration jdbcConfig = connectorConfig.getJdbcConfig();
         return SqlServerConnection.createUrlPattern(jdbcConfig, false);
     }

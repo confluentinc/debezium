@@ -14,7 +14,7 @@ public class FieldTest extends AbstractFieldTest {
 
     @Before
     public void before() {
-        setAllConnectorFields(PostgresConnectorConfig.ALL_FIELDS);
+        setAllConnectorFields(PostgresConnectorConfig_V2.ALL_FIELDS);
     }
 
 }

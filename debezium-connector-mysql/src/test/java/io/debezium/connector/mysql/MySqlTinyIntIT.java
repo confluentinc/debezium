@@ -62,12 +62,12 @@ public class MySqlTinyIntIT extends AbstractConnectorTest {
     public void shouldHandleTinyIntAsNumber() throws SQLException, InterruptedException {
         // Use the DB configuration to define the connector's configuration ...
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
-                .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("DBZ1773"))
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(MySqlConnectorConfig_V2.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("DBZ1773"))
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         consumeInitial();
 
@@ -86,15 +86,15 @@ public class MySqlTinyIntIT extends AbstractConnectorTest {
     public void shouldHandleTinyIntOneAsBoolean() throws SQLException, InterruptedException {
         // Use the DB configuration to define the connector's configuration ...
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
-                .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("DBZ1773"))
-                .with(MySqlConnectorConfig.CUSTOM_CONVERTERS, "boolean")
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(MySqlConnectorConfig_V2.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("DBZ1773"))
+                .with(MySqlConnectorConfig_V2.CUSTOM_CONVERTERS, "boolean")
                 .with("boolean.type", TinyIntOneToBooleanConverter.class.getName())
                 .with("boolean.selector", ".*DBZ1773.b")
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         consumeInitial();
 
@@ -113,15 +113,15 @@ public class MySqlTinyIntIT extends AbstractConnectorTest {
     public void shouldDefaultValueForTinyIntOneAsBoolean() throws SQLException, InterruptedException {
         // Use the DB configuration to define the connector's configuration ...
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
-                .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("DBZ2085"))
-                .with(MySqlConnectorConfig.CUSTOM_CONVERTERS, "boolean")
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(MySqlConnectorConfig_V2.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("DBZ2085"))
+                .with(MySqlConnectorConfig_V2.CUSTOM_CONVERTERS, "boolean")
                 .with("boolean.type", TinyIntOneToBooleanConverter.class.getName())
                 .with("boolean.selector", ".*DBZ2085.b")
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         consumeInitial();
 
@@ -141,14 +141,14 @@ public class MySqlTinyIntIT extends AbstractConnectorTest {
     public void shouldHandleUnsignedTinyIntOneAsBoolean() throws SQLException, InterruptedException {
         // Use the DB configuration to define the connector's configuration ...
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
-                .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("DBZ5236"))
-                .with(MySqlConnectorConfig.CUSTOM_CONVERTERS, "boolean")
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(MySqlConnectorConfig_V2.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("DBZ5236"))
+                .with(MySqlConnectorConfig_V2.CUSTOM_CONVERTERS, "boolean")
                 .with("boolean.type", TinyIntOneToBooleanConverter.class.getName())
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         consumeInitial();
 
@@ -167,17 +167,17 @@ public class MySqlTinyIntIT extends AbstractConnectorTest {
     public void shouldHandleMySQL8TinyIntAsBoolean() throws SQLException, InterruptedException {
         // Use the DB configuration to define the connector's configuration ...
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
-                .with(MySqlConnectorConfig.SNAPSHOT_LOCKING_MODE, "none")
-                .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("DBZ5236"))
-                .with(MySqlConnectorConfig.CUSTOM_CONVERTERS, "boolean")
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_LOCKING_MODE, "none")
+                .with(MySqlConnectorConfig_V2.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("DBZ5236"))
+                .with(MySqlConnectorConfig_V2.CUSTOM_CONVERTERS, "boolean")
                 .with("boolean.type", TinyIntOneToBooleanConverter.class.getName())
                 .with("boolean.length.checker", "false")
                 .with("boolean.selector", ".*DBZ5236.ti2,.*DBZ5236.ti3")
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         consumeInitial();
 

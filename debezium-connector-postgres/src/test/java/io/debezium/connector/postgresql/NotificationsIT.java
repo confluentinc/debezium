@@ -14,7 +14,7 @@ import org.junit.Before;
 import io.debezium.config.Configuration;
 import io.debezium.pipeline.notification.AbstractNotificationsIT;
 
-public class NotificationsIT extends AbstractNotificationsIT<PostgresConnector> {
+public class NotificationsIT extends AbstractNotificationsIT<PostgresConnector_V2> {
 
     @Before
     public void before() throws SQLException {
@@ -31,15 +31,15 @@ public class NotificationsIT extends AbstractNotificationsIT<PostgresConnector> 
     }
 
     @Override
-    protected Class<PostgresConnector> connectorClass() {
-        return PostgresConnector.class;
+    protected Class<PostgresConnector_V2> connectorClass() {
+        return PostgresConnector_V2.class;
     }
 
     @Override
     protected Configuration.Builder config() {
         return TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, PostgresConnectorConfig.SnapshotMode.INITIAL.getValue())
-                .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.TRUE);
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, PostgresConnectorConfig_V2.SnapshotMode.INITIAL.getValue())
+                .with(PostgresConnectorConfig_V2.DROP_SLOT_ON_STOP, Boolean.TRUE);
     }
 
     @Override

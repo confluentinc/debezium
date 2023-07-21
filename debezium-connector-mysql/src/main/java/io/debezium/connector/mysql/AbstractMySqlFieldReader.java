@@ -29,9 +29,9 @@ public abstract class AbstractMySqlFieldReader implements MySqlFieldReader {
 
     private static final Set<String> TEXT_DATATYPES = Collect.unmodifiableSet("CHAR", "VARCHAR", "TEXT");
 
-    private final MySqlConnectorConfig connectorConfig;
+    private final MySqlConnectorConfig_V2 connectorConfig;
 
-    protected AbstractMySqlFieldReader(MySqlConnectorConfig connectorConfig) {
+    protected AbstractMySqlFieldReader(MySqlConnectorConfig_V2 connectorConfig) {
         this.connectorConfig = connectorConfig;
     }
 

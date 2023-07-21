@@ -66,9 +66,9 @@ public class SqlServerPartition extends AbstractPartition implements Partition {
     }
 
     static class Provider implements Partition.Provider<SqlServerPartition> {
-        private final SqlServerConnectorConfig connectorConfig;
+        private final SqlServerConnectorConfig_V2 connectorConfig;
 
-        Provider(SqlServerConnectorConfig connectorConfig) {
+        Provider(SqlServerConnectorConfig_V2 connectorConfig) {
             this.connectorConfig = connectorConfig;
         }
 

@@ -21,7 +21,7 @@ import io.debezium.connector.sqlserver.util.TestHelper;
 import io.debezium.embedded.AbstractConnectorTest;
 import io.debezium.util.Testing;
 
-public class SqlServerConnectorMultiPartitionModeIT extends AbstractConnectorTest {
+public class SqlServerConnectorV2MultiPartitionModeIT extends AbstractConnectorTest {
 
     private SqlServerConnection connection;
 
@@ -62,9 +62,9 @@ public class SqlServerConnectorMultiPartitionModeIT extends AbstractConnectorTes
         final Configuration config = TestHelper.defaultConfig(
                 TestHelper.TEST_DATABASE_1,
                 TestHelper.TEST_DATABASE_2)
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SqlServerConnectorConfig.SnapshotMode.INITIAL)
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, SqlServerConnectorConfig_V2.SnapshotMode.INITIAL)
                 .build();
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         TestHelper.waitForDatabaseSnapshotsToBeCompleted(TestHelper.TEST_DATABASE_1, TestHelper.TEST_DATABASE_2);

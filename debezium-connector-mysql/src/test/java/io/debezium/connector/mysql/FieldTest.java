@@ -14,7 +14,7 @@ public class FieldTest extends AbstractFieldTest {
 
     @Before
     public void before() {
-        setAllConnectorFields(MySqlConnectorConfig.ALL_FIELDS);
+        setAllConnectorFields(MySqlConnectorConfig_V2.ALL_FIELDS);
     }
 
 }

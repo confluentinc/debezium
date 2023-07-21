@@ -90,12 +90,12 @@ public class ReadOnlyIncrementalSnapshotIT extends IncrementalSnapshotIT {
 
     protected Configuration.Builder config() {
         return super.config()
-                .with(MySqlConnectorConfig.TABLE_EXCLUDE_LIST, DATABASE.getDatabaseName() + "." + EXCLUDED_TABLE)
-                .with(MySqlConnectorConfig.READ_ONLY_CONNECTION, true)
+                .with(MySqlConnectorConfig_V2.TABLE_EXCLUDE_LIST, DATABASE.getDatabaseName() + "." + EXCLUDED_TABLE)
+                .with(MySqlConnectorConfig_V2.READ_ONLY_CONNECTION, true)
                 .with(KafkaSignalChannel.SIGNAL_TOPIC, getSignalsTopic())
                 .with(KafkaSignalChannel.BOOTSTRAP_SERVERS, kafka.brokerList())
                 .with(CommonConnectorConfig.SIGNAL_ENABLED_CHANNELS, "source,kafka")
-                .with(MySqlConnectorConfig.INCLUDE_SQL_QUERY, true)
+                .with(MySqlConnectorConfig_V2.INCLUDE_SQL_QUERY, true)
                 .with(RelationalDatabaseConnectorConfig.MSG_KEY_COLUMNS, String.format("%s:%s", DATABASE.qualifiedTableName("a42"), "pk1,pk2,pk3,pk4"));
     }
 

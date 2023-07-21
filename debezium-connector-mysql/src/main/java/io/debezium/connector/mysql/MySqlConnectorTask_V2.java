@@ -20,8 +20,8 @@ import io.debezium.config.Field;
 import io.debezium.connector.base.ChangeEventQueue;
 import io.debezium.connector.common.BaseSourceTask;
 import io.debezium.connector.mysql.MySqlConnection.MySqlConnectionConfiguration;
-import io.debezium.connector.mysql.MySqlConnectorConfig.BigIntUnsignedHandlingMode;
-import io.debezium.connector.mysql.MySqlConnectorConfig.SnapshotMode;
+import io.debezium.connector.mysql.MySqlConnectorConfig_V2.BigIntUnsignedHandlingMode;
+import io.debezium.connector.mysql.MySqlConnectorConfig_V2.SnapshotMode;
 import io.debezium.document.DocumentReader;
 import io.debezium.jdbc.DefaultMainConnectionProvidingConnectionFactory;
 import io.debezium.jdbc.JdbcValueConverters.BigIntUnsignedMode;
@@ -49,9 +49,9 @@ import io.debezium.util.Clock;
  * @author Jiri Pechanec
  *
  */
-public class MySqlConnectorTask extends BaseSourceTask<MySqlPartition, MySqlOffsetContext> {
+public class MySqlConnectorTask_V2 extends BaseSourceTask<MySqlPartition, MySqlOffsetContext> {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(MySqlConnectorTask.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(MySqlConnectorTask_V2.class);
     private static final String CONTEXT_NAME = "mysql-connector-task";
 
     private volatile MySqlTaskContext taskContext;
@@ -68,8 +68,9 @@ public class MySqlConnectorTask extends BaseSourceTask<MySqlPartition, MySqlOffs
     @Override
     public ChangeEventSourceCoordinator<MySqlPartition, MySqlOffsetContext> start(Configuration configuration) {
         final Clock clock = Clock.system();
-        final MySqlConnectorConfig connectorConfig = new MySqlConnectorConfig(configuration);
-        final TopicNamingStrategy<TableId> topicNamingStrategy = connectorConfig.getTopicNamingStrategy(MySqlConnectorConfig.TOPIC_NAMING_STRATEGY);
+        final MySqlConnectorConfig_V2 connectorConfig = new MySqlConnectorConfig_V2(configuration);
+        final TopicNamingStrategy<TableId> topicNamingStrategy = connectorConfig.getTopicNamingStrategy(
+            MySqlConnectorConfig_V2.TOPIC_NAMING_STRATEGY);
         final SchemaNameAdjuster schemaNameAdjuster = connectorConfig.schemaNameAdjuster();
         final MySqlValueConverters valueConverters = getValueConverters(connectorConfig);
 
@@ -142,7 +143,7 @@ public class MySqlConnectorTask extends BaseSourceTask<MySqlPartition, MySqlOffs
         final MySqlEventMetadataProvider metadataProvider = new MySqlEventMetadataProvider();
 
         SignalProcessor<MySqlPartition, MySqlOffsetContext> signalProcessor = new SignalProcessor<>(
-                MySqlConnector.class, connectorConfig, Map.of(),
+                MySqlConnector_V2.class, connectorConfig, Map.of(),
                 getAvailableSignalChannels(),
                 DocumentReader.defaultReader(),
                 previousOffsets);
@@ -190,7 +191,7 @@ public class MySqlConnectorTask extends BaseSourceTask<MySqlPartition, MySqlOffs
         ChangeEventSourceCoordinator<MySqlPartition, MySqlOffsetContext> coordinator = new ChangeEventSourceCoordinator<>(
                 previousOffsets,
                 errorHandler,
-                MySqlConnector.class,
+                MySqlConnector_V2.class,
                 connectorConfig,
                 new MySqlChangeEventSourceFactory(connectorConfig, connectionFactory, errorHandler, dispatcher, clock, schema, taskContext, streamingMetrics, queue),
                 new MySqlChangeEventSourceMetricsFactory(streamingMetrics),
@@ -204,18 +205,20 @@ public class MySqlConnectorTask extends BaseSourceTask<MySqlPartition, MySqlOffs
         return coordinator;
     }
 
-    private MySqlValueConverters getValueConverters(MySqlConnectorConfig configuration) {
+    private MySqlValueConverters getValueConverters(MySqlConnectorConfig_V2 configuration) {
         // Use MySQL-specific converters and schemas for values ...
 
         TemporalPrecisionMode timePrecisionMode = configuration.getTemporalPrecisionMode();
 
         DecimalMode decimalMode = configuration.getDecimalMode();
 
-        String bigIntUnsignedHandlingModeStr = configuration.getConfig().getString(MySqlConnectorConfig.BIGINT_UNSIGNED_HANDLING_MODE);
+        String bigIntUnsignedHandlingModeStr = configuration.getConfig().getString(
+            MySqlConnectorConfig_V2.BIGINT_UNSIGNED_HANDLING_MODE);
         BigIntUnsignedHandlingMode bigIntUnsignedHandlingMode = BigIntUnsignedHandlingMode.parse(bigIntUnsignedHandlingModeStr);
         BigIntUnsignedMode bigIntUnsignedMode = bigIntUnsignedHandlingMode.asBigIntUnsignedMode();
 
-        final boolean timeAdjusterEnabled = configuration.getConfig().getBoolean(MySqlConnectorConfig.ENABLE_TIME_ADJUSTER);
+        final boolean timeAdjusterEnabled = configuration.getConfig().getBoolean(
+            MySqlConnectorConfig_V2.ENABLE_TIME_ADJUSTER);
         return new MySqlValueConverters(decimalMode, timePrecisionMode, bigIntUnsignedMode,
                 configuration.binaryHandlingMode(), timeAdjusterEnabled ? MySqlValueConverters::adjustTemporal : x -> x,
                 MySqlValueConverters::defaultParsingErrorHandler);
@@ -250,10 +253,10 @@ public class MySqlConnectorTask extends BaseSourceTask<MySqlPartition, MySqlOffs
 
     @Override
     protected Iterable<Field> getAllConfigurationFields() {
-        return MySqlConnectorConfig.ALL_FIELDS;
+        return MySqlConnectorConfig_V2.ALL_FIELDS;
     }
 
-    private void validateBinlogConfiguration(MySqlConnectorConfig config) {
+    private void validateBinlogConfiguration(MySqlConnectorConfig_V2 config) {
         if (config.getSnapshotMode().shouldStream()) {
             // Check whether the row-level binlog is enabled ...
             if (!connection.isBinlogFormatRow()) {
@@ -275,7 +278,7 @@ public class MySqlConnectorTask extends BaseSourceTask<MySqlPartition, MySqlOffs
      *
      * @return {@code true} if the server has the binlog coordinates, or {@code false} otherwise
      */
-    protected boolean isBinlogAvailable(MySqlConnectorConfig config, MySqlOffsetContext offset) {
+    protected boolean isBinlogAvailable(MySqlConnectorConfig_V2 config, MySqlOffsetContext offset) {
         String gtidStr = offset.gtidSet();
         if (gtidStr != null) {
             if (gtidStr.trim().isEmpty()) {
@@ -334,7 +337,7 @@ public class MySqlConnectorTask extends BaseSourceTask<MySqlPartition, MySqlOffs
         return found;
     }
 
-    private boolean validateAndLoadSchemaHistory(MySqlConnectorConfig config, MySqlPartition partition, MySqlOffsetContext offset, MySqlDatabaseSchema schema) {
+    private boolean validateAndLoadSchemaHistory(MySqlConnectorConfig_V2 config, MySqlPartition partition, MySqlOffsetContext offset, MySqlDatabaseSchema schema) {
         if (offset == null) {
             if (config.getSnapshotMode().shouldSnapshotOnSchemaError()) {
                 // We are in schema only recovery mode, use the existing binlog position
@@ -368,7 +371,7 @@ public class MySqlConnectorTask extends BaseSourceTask<MySqlPartition, MySqlOffs
         return false;
     }
 
-    private boolean validateSnapshotFeasibility(MySqlConnectorConfig config, MySqlOffsetContext offset) {
+    private boolean validateSnapshotFeasibility(MySqlConnectorConfig_V2 config, MySqlOffsetContext offset) {
         if (offset != null) {
             if (offset.isSnapshotRunning()) {
                 // The last offset was an incomplete snapshot and now the snapshot was disabled
@@ -410,7 +413,7 @@ public class MySqlConnectorTask extends BaseSourceTask<MySqlPartition, MySqlOffs
         return false;
     }
 
-    private void resetOffset(MySqlConnectorConfig connectorConfig, MySqlOffsetContext previousOffset,
+    private void resetOffset(MySqlConnectorConfig_V2 connectorConfig, MySqlOffsetContext previousOffset,
                              SignalProcessor<MySqlPartition, MySqlOffsetContext> signalProcessor) {
         boolean isKafkaChannelEnabled = connectorConfig.getEnabledChannels().contains(KafkaSignalChannel.CHANNEL_NAME);
         if (previousOffset != null && isKafkaChannelEnabled && connectorConfig.isReadOnlyConnection()) {

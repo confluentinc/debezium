@@ -111,7 +111,7 @@ public final class SourceInfo extends BaseSourceInfo {
     private Set<TableId> tableIds;
     private String databaseName;
 
-    public SourceInfo(MySqlConnectorConfig connectorConfig) {
+    public SourceInfo(MySqlConnectorConfig_V2 connectorConfig) {
         super(connectorConfig);
 
         this.tableIds = new HashSet<>();

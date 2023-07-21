@@ -75,22 +75,23 @@ public class BinlogReaderBufferIT extends AbstractConnectorTest {
         // Use the DB configuration to define the connector's configuration to use the "replica"
         // which may be the same as the "master" ...
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.HOSTNAME, System.getProperty("database.replica.hostname", "localhost"))
-                .with(MySqlConnectorConfig.PORT, System.getProperty("database.replica.port", "3306"))
-                .with(MySqlConnectorConfig.USER, "snapper")
-                .with(MySqlConnectorConfig.PASSWORD, "snapperpass")
-                .with(MySqlConnectorConfig.SERVER_ID, 18765)
+                .with(MySqlConnectorConfig_V2.HOSTNAME, System.getProperty("database.replica.hostname", "localhost"))
+                .with(
+                    MySqlConnectorConfig_V2.PORT, System.getProperty("database.replica.port", "3306"))
+                .with(MySqlConnectorConfig_V2.USER, "snapper")
+                .with(MySqlConnectorConfig_V2.PASSWORD, "snapperpass")
+                .with(MySqlConnectorConfig_V2.SERVER_ID, 18765)
                 .with(CommonConnectorConfig.TOPIC_PREFIX, DATABASE.getServerName())
-                .with(MySqlConnectorConfig.POLL_INTERVAL_MS, 10)
-                .with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, DATABASE.getDatabaseName())
-                .with(MySqlConnectorConfig.SCHEMA_HISTORY, FileSchemaHistory.class)
-                .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
-                .with(MySqlConnectorConfig.BUFFER_SIZE_FOR_BINLOG_READER, 10_000)
+                .with(MySqlConnectorConfig_V2.POLL_INTERVAL_MS, 10)
+                .with(MySqlConnectorConfig_V2.DATABASE_INCLUDE_LIST, DATABASE.getDatabaseName())
+                .with(MySqlConnectorConfig_V2.SCHEMA_HISTORY, FileSchemaHistory.class)
+                .with(MySqlConnectorConfig_V2.INCLUDE_SCHEMA_CHANGES, true)
+                .with(MySqlConnectorConfig_V2.BUFFER_SIZE_FOR_BINLOG_READER, 10_000)
                 .with(FileSchemaHistory.FILE_PATH, SCHEMA_HISTORY_PATH)
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         SourceRecords records = consumeRecordsByTopic(5 + 9 + 9 + 4 + 11 + 1); // 11 schema change records + 1 SET statement
 
@@ -143,21 +144,22 @@ public class BinlogReaderBufferIT extends AbstractConnectorTest {
         // Use the DB configuration to define the connector's configuration to use the "replica"
         // which may be the same as the "master" ...
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.HOSTNAME, System.getProperty("database.replica.hostname", "localhost"))
-                .with(MySqlConnectorConfig.PORT, System.getProperty("database.replica.port", "3306"))
-                .with(MySqlConnectorConfig.USER, "snapper")
-                .with(MySqlConnectorConfig.PASSWORD, "snapperpass")
-                .with(MySqlConnectorConfig.SERVER_ID, 18765)
+                .with(MySqlConnectorConfig_V2.HOSTNAME, System.getProperty("database.replica.hostname", "localhost"))
+                .with(
+                    MySqlConnectorConfig_V2.PORT, System.getProperty("database.replica.port", "3306"))
+                .with(MySqlConnectorConfig_V2.USER, "snapper")
+                .with(MySqlConnectorConfig_V2.PASSWORD, "snapperpass")
+                .with(MySqlConnectorConfig_V2.SERVER_ID, 18765)
                 .with(CommonConnectorConfig.TOPIC_PREFIX, DATABASE.getServerName())
-                .with(MySqlConnectorConfig.POLL_INTERVAL_MS, 10)
-                .with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, DATABASE.getDatabaseName())
-                .with(MySqlConnectorConfig.SCHEMA_HISTORY, FileSchemaHistory.class)
-                .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
+                .with(MySqlConnectorConfig_V2.POLL_INTERVAL_MS, 10)
+                .with(MySqlConnectorConfig_V2.DATABASE_INCLUDE_LIST, DATABASE.getDatabaseName())
+                .with(MySqlConnectorConfig_V2.SCHEMA_HISTORY, FileSchemaHistory.class)
+                .with(MySqlConnectorConfig_V2.INCLUDE_SCHEMA_CHANGES, true)
                 .with(FileSchemaHistory.FILE_PATH, SCHEMA_HISTORY_PATH)
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         SourceRecords records = consumeRecordsByTopic(5 + 9 + 9 + 4 + 11 + 1); // 11 schema change records + 1 SET statement
         // Testing.Print.enable();
@@ -204,22 +206,23 @@ public class BinlogReaderBufferIT extends AbstractConnectorTest {
         // Use the DB configuration to define the connector's configuration to use the "replica"
         // which may be the same as the "master" ...
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.HOSTNAME, System.getProperty("database.replica.hostname", "localhost"))
-                .with(MySqlConnectorConfig.PORT, System.getProperty("database.replica.port", "3306"))
-                .with(MySqlConnectorConfig.USER, "snapper")
-                .with(MySqlConnectorConfig.PASSWORD, "snapperpass")
-                .with(MySqlConnectorConfig.SERVER_ID, 18765)
+                .with(MySqlConnectorConfig_V2.HOSTNAME, System.getProperty("database.replica.hostname", "localhost"))
+                .with(
+                    MySqlConnectorConfig_V2.PORT, System.getProperty("database.replica.port", "3306"))
+                .with(MySqlConnectorConfig_V2.USER, "snapper")
+                .with(MySqlConnectorConfig_V2.PASSWORD, "snapperpass")
+                .with(MySqlConnectorConfig_V2.SERVER_ID, 18765)
                 .with(CommonConnectorConfig.TOPIC_PREFIX, DATABASE.getServerName())
-                .with(MySqlConnectorConfig.POLL_INTERVAL_MS, 10)
-                .with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, DATABASE.getDatabaseName())
-                .with(MySqlConnectorConfig.SCHEMA_HISTORY, FileSchemaHistory.class)
-                .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
-                .with(MySqlConnectorConfig.BUFFER_SIZE_FOR_BINLOG_READER, 9)
+                .with(MySqlConnectorConfig_V2.POLL_INTERVAL_MS, 10)
+                .with(MySqlConnectorConfig_V2.DATABASE_INCLUDE_LIST, DATABASE.getDatabaseName())
+                .with(MySqlConnectorConfig_V2.SCHEMA_HISTORY, FileSchemaHistory.class)
+                .with(MySqlConnectorConfig_V2.INCLUDE_SCHEMA_CHANGES, true)
+                .with(MySqlConnectorConfig_V2.BUFFER_SIZE_FOR_BINLOG_READER, 9)
                 .with(FileSchemaHistory.FILE_PATH, SCHEMA_HISTORY_PATH)
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         SourceRecords records = consumeRecordsByTopic(5 + 9 + 9 + 4 + 11 + 1); // 11 schema change records + 1 SET statement
 
@@ -275,21 +278,22 @@ public class BinlogReaderBufferIT extends AbstractConnectorTest {
         // Use the DB configuration to define the connector's configuration to use the "replica"
         // which may be the same as the "master" ...
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.HOSTNAME, System.getProperty("database.replica.hostname", "localhost"))
-                .with(MySqlConnectorConfig.PORT, System.getProperty("database.replica.port", "3306"))
-                .with(MySqlConnectorConfig.USER, "snapper")
-                .with(MySqlConnectorConfig.PASSWORD, "snapperpass")
-                .with(MySqlConnectorConfig.SERVER_ID, 18765)
+                .with(MySqlConnectorConfig_V2.HOSTNAME, System.getProperty("database.replica.hostname", "localhost"))
+                .with(
+                    MySqlConnectorConfig_V2.PORT, System.getProperty("database.replica.port", "3306"))
+                .with(MySqlConnectorConfig_V2.USER, "snapper")
+                .with(MySqlConnectorConfig_V2.PASSWORD, "snapperpass")
+                .with(MySqlConnectorConfig_V2.SERVER_ID, 18765)
                 .with(CommonConnectorConfig.TOPIC_PREFIX, DATABASE.getServerName())
-                .with(MySqlConnectorConfig.POLL_INTERVAL_MS, 10)
-                .with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, DATABASE.getDatabaseName())
-                .with(MySqlConnectorConfig.SCHEMA_HISTORY, FileSchemaHistory.class)
-                .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
+                .with(MySqlConnectorConfig_V2.POLL_INTERVAL_MS, 10)
+                .with(MySqlConnectorConfig_V2.DATABASE_INCLUDE_LIST, DATABASE.getDatabaseName())
+                .with(MySqlConnectorConfig_V2.SCHEMA_HISTORY, FileSchemaHistory.class)
+                .with(MySqlConnectorConfig_V2.INCLUDE_SCHEMA_CHANGES, true)
                 .with(FileSchemaHistory.FILE_PATH, SCHEMA_HISTORY_PATH)
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         SourceRecords records = consumeRecordsByTopic(5 + 9 + 9 + 4 + 11 + 1); // 11 schema change records + 1 SET statement
         // Testing.Print.enable();

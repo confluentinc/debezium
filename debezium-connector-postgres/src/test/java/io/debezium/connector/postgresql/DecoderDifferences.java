@@ -21,7 +21,7 @@ public class DecoderDifferences {
     static final String TOASTED_VALUE_NUMBER_STRING = "95, 95, 100, 101, 98, 101, 122, 105, 117, 109, 95, 117, 110, 97, 118, 97, 105, 108, 97, 98, 108, 101, 95, 118, 97, 108, 117, 101";
 
     private static boolean pgoutput() {
-        return TestHelper.decoderPlugin() == PostgresConnectorConfig.LogicalDecoder.PGOUTPUT;
+        return TestHelper.decoderPlugin() == PostgresConnectorConfig_V2.LogicalDecoder.PGOUTPUT;
     }
 
     public static String optionalToastedValuePlaceholder() {

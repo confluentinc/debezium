@@ -26,7 +26,7 @@ import org.junit.Test;
 
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
-import io.debezium.connector.postgresql.PostgresConnectorConfig.SnapshotMode;
+import io.debezium.connector.postgresql.PostgresConnectorConfig_V2.SnapshotMode;
 import io.debezium.data.VariableScaleDecimal;
 import io.debezium.doc.FixFor;
 import io.debezium.jdbc.JdbcConnection;
@@ -38,7 +38,7 @@ import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.util.Collect;
 import io.debezium.util.Testing;
 
-public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotTest<PostgresConnector> {
+public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotTest<PostgresConnector_V2> {
 
     private static final String TOPIC_NAME = "test_server.s1.a";
 
@@ -92,11 +92,11 @@ public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotTest<Postg
 
     protected Configuration.Builder config() {
         return TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER.getValue())
-                .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.FALSE)
-                .with(PostgresConnectorConfig.SIGNAL_DATA_COLLECTION, "s1.debezium_signal")
-                .with(PostgresConnectorConfig.INCREMENTAL_SNAPSHOT_CHUNK_SIZE, 10)
-                .with(PostgresConnectorConfig.SCHEMA_INCLUDE_LIST, "s1")
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.NEVER.getValue())
+                .with(PostgresConnectorConfig_V2.DROP_SLOT_ON_STOP, Boolean.FALSE)
+                .with(PostgresConnectorConfig_V2.SIGNAL_DATA_COLLECTION, "s1.debezium_signal")
+                .with(PostgresConnectorConfig_V2.INCREMENTAL_SNAPSHOT_CHUNK_SIZE, 10)
+                .with(PostgresConnectorConfig_V2.SCHEMA_INCLUDE_LIST, "s1")
                 .with(CommonConnectorConfig.SIGNAL_ENABLED_CHANNELS, "source")
                 .with(CommonConnectorConfig.SIGNAL_POLL_INTERVAL_MS, 5)
                 .with(RelationalDatabaseConnectorConfig.MSG_KEY_COLUMNS, "s1.a42:pk1,pk2,pk3,pk4")
@@ -114,21 +114,21 @@ public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotTest<Postg
             tableIncludeList = "s1.a,s1.b";
         }
         return TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER.getValue())
-                .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.FALSE)
-                .with(PostgresConnectorConfig.SIGNAL_DATA_COLLECTION, "s1.debezium_signal")
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.NEVER.getValue())
+                .with(PostgresConnectorConfig_V2.DROP_SLOT_ON_STOP, Boolean.FALSE)
+                .with(PostgresConnectorConfig_V2.SIGNAL_DATA_COLLECTION, "s1.debezium_signal")
                 .with(CommonConnectorConfig.SIGNAL_POLL_INTERVAL_MS, 5)
-                .with(PostgresConnectorConfig.INCREMENTAL_SNAPSHOT_CHUNK_SIZE, 10)
-                .with(PostgresConnectorConfig.SCHEMA_INCLUDE_LIST, "s1")
+                .with(PostgresConnectorConfig_V2.INCREMENTAL_SNAPSHOT_CHUNK_SIZE, 10)
+                .with(PostgresConnectorConfig_V2.SCHEMA_INCLUDE_LIST, "s1")
                 .with(RelationalDatabaseConnectorConfig.MSG_KEY_COLUMNS, "s1.a42:pk1,pk2,pk3,pk4")
-                .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, tableIncludeList)
+                .with(PostgresConnectorConfig_V2.TABLE_INCLUDE_LIST, tableIncludeList)
                 // DBZ-4272 required to allow dropping columns just before an incremental snapshot
                 .with("database.autosave", "conservative");
     }
 
     @Override
-    protected Class<PostgresConnector> connectorClass() {
-        return PostgresConnector.class;
+    protected Class<PostgresConnector_V2> connectorClass() {
+        return PostgresConnector_V2.class;
     }
 
     @Override
@@ -316,7 +316,7 @@ public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotTest<Postg
         }
 
         // start connector
-        startConnector(x -> x.with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "s1.part, s1.part1, s1.part2"));
+        startConnector(x -> x.with(PostgresConnectorConfig_V2.TABLE_INCLUDE_LIST, "s1.part, s1.part1, s1.part2"));
         waitForConnectorToStart();
 
         sendAdHocSnapshotSignal("s1.part");

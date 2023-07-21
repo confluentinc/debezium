@@ -13,7 +13,6 @@ import org.junit.Before;
 import org.junit.Rule;
 
 import io.debezium.config.Configuration.Builder;
-import io.debezium.connector.sqlserver.SqlServerConnectorConfig.SnapshotMode;
 import io.debezium.connector.sqlserver.util.TestHelper;
 import io.debezium.jdbc.JdbcConnection;
 import io.debezium.junit.SkipTestRule;
@@ -21,7 +20,7 @@ import io.debezium.pipeline.source.snapshot.incremental.AbstractIncrementalSnaps
 import io.debezium.relational.history.SchemaHistory;
 import io.debezium.util.Testing;
 
-public class IncrementalSnapshotWithRecompileIT extends AbstractIncrementalSnapshotTest<SqlServerConnector> {
+public class IncrementalSnapshotWithRecompileIT extends AbstractIncrementalSnapshotTest<SqlServerConnector_V2> {
 
     private SqlServerConnection connection;
 
@@ -63,8 +62,8 @@ public class IncrementalSnapshotWithRecompileIT extends AbstractIncrementalSnaps
     }
 
     @Override
-    protected Class<SqlServerConnector> connectorClass() {
-        return SqlServerConnector.class;
+    protected Class<SqlServerConnector_V2> connectorClass() {
+        return SqlServerConnector_V2.class;
     }
 
     @Override
@@ -100,9 +99,9 @@ public class IncrementalSnapshotWithRecompileIT extends AbstractIncrementalSnaps
     @Override
     protected Builder config() {
         return TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.SCHEMA_ONLY)
-                .with(SqlServerConnectorConfig.SIGNAL_DATA_COLLECTION, "testDB1.dbo.debezium_signal")
-                .with(SqlServerConnectorConfig.INCREMENTAL_SNAPSHOT_OPTION_RECOMPILE, true);
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
+                .with(SqlServerConnectorConfig_V2.SIGNAL_DATA_COLLECTION, "testDB1.dbo.debezium_signal")
+                .with(SqlServerConnectorConfig_V2.INCREMENTAL_SNAPSHOT_OPTION_RECOMPILE, true);
     }
 
     @Override
@@ -115,10 +114,10 @@ public class IncrementalSnapshotWithRecompileIT extends AbstractIncrementalSnaps
             tableIncludeList = "dbo.a,dbo.b";
         }
         return TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
-                .with(SqlServerConnectorConfig.SIGNAL_DATA_COLLECTION, "testDB1.dbo.debezium_signal")
-                .with(SqlServerConnectorConfig.INCREMENTAL_SNAPSHOT_OPTION_RECOMPILE, true)
-                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, tableIncludeList)
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(SqlServerConnectorConfig_V2.SIGNAL_DATA_COLLECTION, "testDB1.dbo.debezium_signal")
+                .with(SqlServerConnectorConfig_V2.INCREMENTAL_SNAPSHOT_OPTION_RECOMPILE, true)
+                .with(SqlServerConnectorConfig_V2.TABLE_INCLUDE_LIST, tableIncludeList)
                 .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, storeOnlyCapturedDdl);
     }
 

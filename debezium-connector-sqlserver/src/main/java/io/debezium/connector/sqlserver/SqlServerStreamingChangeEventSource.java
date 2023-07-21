@@ -25,7 +25,6 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.debezium.connector.sqlserver.SqlServerConnectorConfig.SnapshotMode;
 import io.debezium.pipeline.ErrorHandler;
 import io.debezium.pipeline.EventDispatcher;
 import io.debezium.pipeline.source.spi.StreamingChangeEventSource;
@@ -83,7 +82,7 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
     private final Clock clock;
     private final SqlServerDatabaseSchema schema;
     private final Duration pollInterval;
-    private final SqlServerConnectorConfig connectorConfig;
+    private final SqlServerConnectorConfig_V2 connectorConfig;
 
     private final ElapsedTimeStrategy pauseBetweenCommits;
     private final Map<SqlServerPartition, SqlServerStreamingExecutionContext> streamingExecutionContexts;
@@ -91,7 +90,7 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
     private boolean checkAgent;
     private SqlServerOffsetContext effectiveOffset;
 
-    public SqlServerStreamingChangeEventSource(SqlServerConnectorConfig connectorConfig, SqlServerConnection dataConnection,
+    public SqlServerStreamingChangeEventSource(SqlServerConnectorConfig_V2 connectorConfig, SqlServerConnection dataConnection,
                                                SqlServerConnection metadataConnection,
                                                EventDispatcher<SqlServerPartition, TableId> dispatcher,
                                                ErrorHandler errorHandler, Clock clock, SqlServerDatabaseSchema schema) {
@@ -126,7 +125,8 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
     @Override
     public boolean executeIteration(ChangeEventSourceContext context, SqlServerPartition partition, SqlServerOffsetContext offsetContext)
             throws InterruptedException {
-        if (connectorConfig.getSnapshotMode().equals(SnapshotMode.INITIAL_ONLY)) {
+        if (connectorConfig.getSnapshotMode().equals(
+            io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.INITIAL_ONLY)) {
             LOGGER.info("Streaming is not enabled in current configuration");
             return false;
         }

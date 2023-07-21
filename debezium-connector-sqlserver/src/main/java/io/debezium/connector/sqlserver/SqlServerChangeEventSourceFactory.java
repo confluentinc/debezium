@@ -25,7 +25,7 @@ import io.debezium.util.Strings;
 
 public class SqlServerChangeEventSourceFactory implements ChangeEventSourceFactory<SqlServerPartition, SqlServerOffsetContext> {
 
-    private final SqlServerConnectorConfig configuration;
+    private final SqlServerConnectorConfig_V2 configuration;
     private final MainConnectionProvidingConnectionFactory<SqlServerConnection> connectionFactory;
     private final SqlServerConnection metadataConnection;
     private final ErrorHandler errorHandler;
@@ -33,7 +33,7 @@ public class SqlServerChangeEventSourceFactory implements ChangeEventSourceFacto
     private final Clock clock;
     private final SqlServerDatabaseSchema schema;
 
-    public SqlServerChangeEventSourceFactory(SqlServerConnectorConfig configuration, MainConnectionProvidingConnectionFactory<SqlServerConnection> connectionFactory,
+    public SqlServerChangeEventSourceFactory(SqlServerConnectorConfig_V2 configuration, MainConnectionProvidingConnectionFactory<SqlServerConnection> connectionFactory,
                                              SqlServerConnection metadataConnection, ErrorHandler errorHandler, EventDispatcher<SqlServerPartition, TableId> dispatcher,
                                              Clock clock, SqlServerDatabaseSchema schema) {
         this.configuration = configuration;

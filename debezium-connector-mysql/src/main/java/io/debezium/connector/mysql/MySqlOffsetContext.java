@@ -60,7 +60,7 @@ public class MySqlOffsetContext extends CommonOffsetContext<SourceInfo> {
         this.incrementalSnapshotContext = incrementalSnapshotContext;
     }
 
-    public MySqlOffsetContext(MySqlConnectorConfig connectorConfig, boolean snapshot, boolean snapshotCompleted, SourceInfo sourceInfo) {
+    public MySqlOffsetContext(MySqlConnectorConfig_V2 connectorConfig, boolean snapshot, boolean snapshotCompleted, SourceInfo sourceInfo) {
         this(snapshot, snapshotCompleted, new TransactionContext(),
                 connectorConfig.isReadOnlyConnection() ? new MySqlReadOnlyIncrementalSnapshotContext<>() : new SignalBasedIncrementalSnapshotContext<>(),
                 sourceInfo);
@@ -152,7 +152,7 @@ public class MySqlOffsetContext extends CommonOffsetContext<SourceInfo> {
         this.restartRowsToSkip = restartRowsToSkip;
     }
 
-    public static MySqlOffsetContext initial(MySqlConnectorConfig config) {
+    public static MySqlOffsetContext initial(MySqlConnectorConfig_V2 config) {
         final MySqlOffsetContext offset = new MySqlOffsetContext(config, false, false, new SourceInfo(config));
         offset.setBinlogStartPoint("", 0L); // start from the beginning of the binlog
         return offset;
@@ -160,9 +160,9 @@ public class MySqlOffsetContext extends CommonOffsetContext<SourceInfo> {
 
     public static class Loader implements OffsetContext.Loader<MySqlOffsetContext> {
 
-        private final MySqlConnectorConfig connectorConfig;
+        private final MySqlConnectorConfig_V2 connectorConfig;
 
-        public Loader(MySqlConnectorConfig connectorConfig) {
+        public Loader(MySqlConnectorConfig_V2 connectorConfig) {
             this.connectorConfig = connectorConfig;
         }
 

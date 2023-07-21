@@ -55,9 +55,9 @@ import io.debezium.util.Metronome;
  *
  * @author Horia Chiorean (hchiorea@redhat.com)
  */
-public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, PostgresOffsetContext> {
+public class PostgresConnectorTask_V2 extends BaseSourceTask<PostgresPartition, PostgresOffsetContext> {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(PostgresConnectorTask.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(PostgresConnectorTask_V2.class);
     private static final String CONTEXT_NAME = "postgres-connector-task";
 
     private volatile PostgresTaskContext taskContext;
@@ -68,7 +68,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
     @Override
     public ChangeEventSourceCoordinator<PostgresPartition, PostgresOffsetContext> start(Configuration config) {
-        final PostgresConnectorConfig connectorConfig = new PostgresConnectorConfig(config);
+        final PostgresConnectorConfig_V2 connectorConfig = new PostgresConnectorConfig_V2(config);
         final TopicNamingStrategy<TableId> topicNamingStrategy = connectorConfig.getTopicNamingStrategy(CommonConnectorConfig.TOPIC_NAMING_STRATEGY);
         final Snapshotter snapshotter = connectorConfig.getSnapshotter();
         final SchemaNameAdjuster schemaNameAdjuster = connectorConfig.schemaNameAdjuster();
@@ -177,7 +177,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
             final PostgresEventMetadataProvider metadataProvider = new PostgresEventMetadataProvider();
 
             SignalProcessor<PostgresPartition, PostgresOffsetContext> signalProcessor = new SignalProcessor<>(
-                    PostgresConnector.class, connectorConfig, Map.of(),
+                    PostgresConnector_V2.class, connectorConfig, Map.of(),
                     getAvailableSignalChannels(),
                     DocumentReader.defaultReader(),
                     previousOffsets);
@@ -219,7 +219,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
             ChangeEventSourceCoordinator<PostgresPartition, PostgresOffsetContext> coordinator = new PostgresChangeEventSourceCoordinator(
                     previousOffsets,
                     errorHandler,
-                    PostgresConnector.class,
+                    PostgresConnector_V2.class,
                     connectorConfig,
                     new PostgresChangeEventSourceFactory(
                             connectorConfig,
@@ -322,7 +322,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
     @Override
     protected Iterable<Field> getAllConfigurationFields() {
-        return PostgresConnectorConfig.ALL_FIELDS;
+        return PostgresConnectorConfig_V2.ALL_FIELDS;
     }
 
     public PostgresTaskContext getTaskContext() {

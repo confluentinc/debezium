@@ -38,7 +38,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.debezium.DebeziumException;
-import io.debezium.connector.postgresql.PostgresConnectorConfig;
+import io.debezium.connector.postgresql.PostgresConnectorConfig_V2;
 import io.debezium.connector.postgresql.PostgresSchema;
 import io.debezium.connector.postgresql.ReplicaIdentityMapper;
 import io.debezium.connector.postgresql.TypeRegistry;
@@ -66,10 +66,10 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
     private final String slotName;
     private final String publicationName;
     private final RelationalTableFilters tableFilter;
-    private final PostgresConnectorConfig.AutoCreateMode publicationAutocreateMode;
-    private final PostgresConnectorConfig.LogicalDecoder plugin;
+    private final PostgresConnectorConfig_V2.AutoCreateMode publicationAutocreateMode;
+    private final PostgresConnectorConfig_V2.LogicalDecoder plugin;
     private final boolean dropSlotOnClose;
-    private final PostgresConnectorConfig connectorConfig;
+    private final PostgresConnectorConfig_V2 connectorConfig;
     private final Duration statusUpdateInterval;
     private final MessageDecoder messageDecoder;
     private final PostgresConnection jdbcConnection;
@@ -98,12 +98,12 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
      * @param streamParams              additional parameters to pass to the replication stream
      * @param schema                    the schema; must not be null
      */
-    private PostgresReplicationConnection(PostgresConnectorConfig config,
+    private PostgresReplicationConnection(PostgresConnectorConfig_V2 config,
                                           String slotName,
                                           String publicationName,
                                           RelationalTableFilters tableFilter,
-                                          PostgresConnectorConfig.AutoCreateMode publicationAutocreateMode,
-                                          PostgresConnectorConfig.LogicalDecoder plugin,
+                                          PostgresConnectorConfig_V2.AutoCreateMode publicationAutocreateMode,
+                                          PostgresConnectorConfig_V2.LogicalDecoder plugin,
                                           boolean dropSlotOnClose,
                                           Duration statusUpdateInterval,
                                           PostgresConnection jdbcConnection,
@@ -148,7 +148,7 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
     protected void initPublication() {
         String createPublicationStmt;
         String tableFilterString = null;
-        if (PostgresConnectorConfig.LogicalDecoder.PGOUTPUT.equals(plugin)) {
+        if (PostgresConnectorConfig_V2.LogicalDecoder.PGOUTPUT.equals(plugin)) {
             LOGGER.info("Initializing PgOutput logical decoder publication");
             try {
                 // Unless the autocommit is disabled the SELECT publication query will stay running
@@ -221,7 +221,7 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
 
     /**
      * Check all tables captured by the connector, contained in {@link Set<TableId>} from {@link PostgresReplicationConnection#determineCapturedTables()}.
-     * Updating Replica Identity in PostgreSQL database based on {@link PostgresConnectorConfig#REPLICA_IDENTITY_AUTOSET_VALUES} configuration parameter
+     * Updating Replica Identity in PostgreSQL database based on {@link PostgresConnectorConfig_V2#REPLICA_IDENTITY_AUTOSET_VALUES} configuration parameter
      * for each {@link TableId}
      *
      * @throws Exception
@@ -779,12 +779,12 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
 
     protected static class ReplicationConnectionBuilder implements Builder {
 
-        private final PostgresConnectorConfig config;
+        private final PostgresConnectorConfig_V2 config;
         private String slotName = DEFAULT_SLOT_NAME;
         private String publicationName = DEFAULT_PUBLICATION_NAME;
         private RelationalTableFilters tableFilter;
-        private PostgresConnectorConfig.AutoCreateMode publicationAutocreateMode = PostgresConnectorConfig.AutoCreateMode.ALL_TABLES;
-        private PostgresConnectorConfig.LogicalDecoder plugin = PostgresConnectorConfig.LogicalDecoder.DECODERBUFS;
+        private PostgresConnectorConfig_V2.AutoCreateMode publicationAutocreateMode = PostgresConnectorConfig_V2.AutoCreateMode.ALL_TABLES;
+        private PostgresConnectorConfig_V2.LogicalDecoder plugin = PostgresConnectorConfig_V2.LogicalDecoder.DECODERBUFS;
         private boolean dropSlotOnClose = DEFAULT_DROP_SLOT_ON_CLOSE;
         private Duration statusUpdateIntervalVal;
         private TypeRegistry typeRegistry;
@@ -792,7 +792,7 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
         private Properties slotStreamParams = new Properties();
         private PostgresConnection jdbcConnection;
 
-        protected ReplicationConnectionBuilder(PostgresConnectorConfig config) {
+        protected ReplicationConnectionBuilder(PostgresConnectorConfig_V2 config) {
             assert config != null;
             this.config = config;
         }
@@ -819,14 +819,14 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
         }
 
         @Override
-        public Builder withPublicationAutocreateMode(PostgresConnectorConfig.AutoCreateMode publicationAutocreateMode) {
+        public Builder withPublicationAutocreateMode(PostgresConnectorConfig_V2.AutoCreateMode publicationAutocreateMode) {
             assert publicationName != null;
             this.publicationAutocreateMode = publicationAutocreateMode;
             return this;
         }
 
         @Override
-        public ReplicationConnectionBuilder withPlugin(final PostgresConnectorConfig.LogicalDecoder plugin) {
+        public ReplicationConnectionBuilder withPlugin(final PostgresConnectorConfig_V2.LogicalDecoder plugin) {
             assert plugin != null;
             this.plugin = plugin;
             return this;

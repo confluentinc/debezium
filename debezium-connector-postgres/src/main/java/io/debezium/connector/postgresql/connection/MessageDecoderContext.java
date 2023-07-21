@@ -5,7 +5,7 @@
  */
 package io.debezium.connector.postgresql.connection;
 
-import io.debezium.connector.postgresql.PostgresConnectorConfig;
+import io.debezium.connector.postgresql.PostgresConnectorConfig_V2;
 import io.debezium.connector.postgresql.PostgresSchema;
 
 /**
@@ -15,15 +15,15 @@ import io.debezium.connector.postgresql.PostgresSchema;
  */
 public class MessageDecoderContext {
 
-    private final PostgresConnectorConfig config;
+    private final PostgresConnectorConfig_V2 config;
     private final PostgresSchema schema;
 
-    public MessageDecoderContext(PostgresConnectorConfig config, PostgresSchema schema) {
+    public MessageDecoderContext(PostgresConnectorConfig_V2 config, PostgresSchema schema) {
         this.config = config;
         this.schema = schema;
     }
 
-    public PostgresConnectorConfig getConfig() {
+    public PostgresConnectorConfig_V2 getConfig() {
         return config;
     }
 

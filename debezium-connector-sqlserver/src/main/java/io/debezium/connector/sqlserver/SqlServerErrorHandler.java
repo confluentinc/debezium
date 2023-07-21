@@ -20,13 +20,13 @@ import io.debezium.util.Collect;
  */
 public class SqlServerErrorHandler extends ErrorHandler {
 
-    public SqlServerErrorHandler(SqlServerConnectorConfig connectorConfig, ChangeEventQueue<?> queue) {
-        super(SqlServerConnector.class, connectorConfig, queue);
+    public SqlServerErrorHandler(SqlServerConnectorConfig_V2 connectorConfig, ChangeEventQueue<?> queue) {
+        super(SqlServerConnector_V2.class, connectorConfig, queue);
     }
 
-    public SqlServerErrorHandler(SqlServerConnectorConfig connectorConfig, ChangeEventQueue<?> queue,
+    public SqlServerErrorHandler(SqlServerConnectorConfig_V2 connectorConfig, ChangeEventQueue<?> queue,
                                  SqlServerErrorHandler errorHandler) {
-        super(SqlServerConnector.class, connectorConfig, queue, errorHandler);
+        super(SqlServerConnector_V2.class, connectorConfig, queue, errorHandler);
     }
 
     @Override

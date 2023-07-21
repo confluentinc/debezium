@@ -20,7 +20,6 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.debezium.connector.sqlserver.SqlServerConnectorConfig.SnapshotIsolationMode;
 import io.debezium.connector.sqlserver.SqlServerOffsetContext.Loader;
 import io.debezium.jdbc.MainConnectionProvidingConnectionFactory;
 import io.debezium.pipeline.EventDispatcher;
@@ -41,12 +40,12 @@ public class SqlServerSnapshotChangeEventSource extends RelationalSnapshotChange
      */
     private static final int TRANSACTION_SNAPSHOT = 4096;
 
-    private final SqlServerConnectorConfig connectorConfig;
+    private final SqlServerConnectorConfig_V2 connectorConfig;
     private final SqlServerConnection jdbcConnection;
     private final SqlServerDatabaseSchema sqlServerDatabaseSchema;
     private final Map<SqlServerPartition, Map<TableId, SqlServerChangeTable>> changeTablesByPartition = new HashMap<>();
 
-    public SqlServerSnapshotChangeEventSource(SqlServerConnectorConfig connectorConfig, MainConnectionProvidingConnectionFactory<SqlServerConnection> connectionFactory,
+    public SqlServerSnapshotChangeEventSource(SqlServerConnectorConfig_V2 connectorConfig, MainConnectionProvidingConnectionFactory<SqlServerConnection> connectionFactory,
                                               SqlServerDatabaseSchema schema, EventDispatcher<SqlServerPartition, TableId> dispatcher, Clock clock,
                                               SnapshotProgressListener<SqlServerPartition> snapshotProgressListener) {
         super(connectorConfig, connectionFactory, schema, dispatcher, clock, snapshotProgressListener);
@@ -91,7 +90,7 @@ public class SqlServerSnapshotChangeEventSource extends RelationalSnapshotChange
             throws Exception {
         ((SqlServerSnapshotContext) snapshotContext).isolationLevelBeforeStart = jdbcConnection.connection().getTransactionIsolation();
 
-        if (connectorConfig.getSnapshotIsolationMode() == SnapshotIsolationMode.SNAPSHOT) {
+        if (connectorConfig.getSnapshotIsolationMode() == io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotIsolationMode.SNAPSHOT) {
             // Terminate any transaction in progress so we can change the isolation level
             jdbcConnection.connection().rollback();
             // With one exception, you can switch from one isolation level to another at any time during a transaction.
@@ -111,20 +110,20 @@ public class SqlServerSnapshotChangeEventSource extends RelationalSnapshotChange
     protected void lockTablesForSchemaSnapshot(ChangeEventSourceContext sourceContext,
                                                RelationalSnapshotContext<SqlServerPartition, SqlServerOffsetContext> snapshotContext)
             throws SQLException, InterruptedException {
-        if (connectorConfig.getSnapshotIsolationMode() == SnapshotIsolationMode.READ_UNCOMMITTED) {
+        if (connectorConfig.getSnapshotIsolationMode() == io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotIsolationMode.READ_UNCOMMITTED) {
             jdbcConnection.connection().setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED);
             LOGGER.info("Schema locking was disabled in connector configuration");
         }
-        else if (connectorConfig.getSnapshotIsolationMode() == SnapshotIsolationMode.READ_COMMITTED) {
+        else if (connectorConfig.getSnapshotIsolationMode() == io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotIsolationMode.READ_COMMITTED) {
             jdbcConnection.connection().setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
             LOGGER.info("Schema locking was disabled in connector configuration");
         }
-        else if (connectorConfig.getSnapshotIsolationMode() == SnapshotIsolationMode.SNAPSHOT) {
+        else if (connectorConfig.getSnapshotIsolationMode() == io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotIsolationMode.SNAPSHOT) {
             // Snapshot transaction isolation level has already been set.
             LOGGER.info("Schema locking was disabled in connector configuration");
         }
-        else if (connectorConfig.getSnapshotIsolationMode() == SnapshotIsolationMode.EXCLUSIVE
-                || connectorConfig.getSnapshotIsolationMode() == SnapshotIsolationMode.REPEATABLE_READ) {
+        else if (connectorConfig.getSnapshotIsolationMode() == io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotIsolationMode.EXCLUSIVE
+                || connectorConfig.getSnapshotIsolationMode() == io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotIsolationMode.REPEATABLE_READ) {
             LOGGER.info("Setting locking timeout to {} s", connectorConfig.snapshotLockTimeout().getSeconds());
             jdbcConnection.execute("SET LOCK_TIMEOUT " + connectorConfig.snapshotLockTimeout().toMillis());
             jdbcConnection.connection().setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
@@ -155,7 +154,7 @@ public class SqlServerSnapshotChangeEventSource extends RelationalSnapshotChange
             throws SQLException {
         // Exclusive mode: locks should be kept until the end of transaction.
         // read_uncommitted mode; snapshot mode: no locks have been acquired.
-        if (connectorConfig.getSnapshotIsolationMode() == SnapshotIsolationMode.REPEATABLE_READ) {
+        if (connectorConfig.getSnapshotIsolationMode() == io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotIsolationMode.REPEATABLE_READ) {
             jdbcConnection.connection().rollback(((SqlServerSnapshotContext) snapshotContext).preSchemaSnapshotSavepoint);
             LOGGER.info("Schema locks released.");
         }
