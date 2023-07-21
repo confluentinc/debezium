@@ -18,7 +18,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import io.debezium.config.Configuration;
-import io.debezium.connector.sqlserver.SqlServerConnectorConfig.SnapshotMode;
 import io.debezium.connector.sqlserver.util.TestHelper;
 import io.debezium.doc.FixFor;
 import io.debezium.embedded.AbstractConnectorTest;
@@ -72,10 +71,10 @@ public class CaseSensitivenessIT extends AbstractConnectorTest {
 
     private void testDatabase() throws Exception {
         final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.INITIAL)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         SourceRecords records = consumeRecordsByTopic(1);

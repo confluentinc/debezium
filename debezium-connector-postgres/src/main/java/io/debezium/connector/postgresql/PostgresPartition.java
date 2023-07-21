@@ -55,10 +55,10 @@ public class PostgresPartition extends AbstractPartition implements Partition {
     }
 
     static class Provider implements Partition.Provider<PostgresPartition> {
-        private final PostgresConnectorConfig connectorConfig;
+        private final PostgresConnectorConfig_V2 connectorConfig;
         private final Configuration taskConfig;
 
-        Provider(PostgresConnectorConfig connectorConfig, Configuration taskConfig) {
+        Provider(PostgresConnectorConfig_V2 connectorConfig, Configuration taskConfig) {
             this.connectorConfig = connectorConfig;
             this.taskConfig = taskConfig;
         }

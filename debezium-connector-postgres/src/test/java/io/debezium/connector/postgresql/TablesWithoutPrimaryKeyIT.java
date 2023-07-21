@@ -18,7 +18,7 @@ import org.apache.kafka.connect.source.SourceRecord;
 import org.junit.Before;
 import org.junit.Test;
 
-import io.debezium.connector.postgresql.PostgresConnectorConfig.SnapshotMode;
+import io.debezium.connector.postgresql.PostgresConnectorConfig_V2.SnapshotMode;
 
 /**
  * Integration test to verify behaviour of tables that do not have primary key
@@ -44,9 +44,9 @@ public class TablesWithoutPrimaryKeyIT extends AbstractRecordsProducerTest {
     public void shouldProcessFromSnapshot() throws Exception {
         TestHelper.execute(STATEMENTS);
 
-        start(PostgresConnector.class, TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL_ONLY)
-                .with(PostgresConnectorConfig.SCHEMA_INCLUDE_LIST, "nopk")
+        start(PostgresConnector_V2.class, TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.INITIAL_ONLY)
+                .with(PostgresConnectorConfig_V2.SCHEMA_INCLUDE_LIST, "nopk")
                 .build());
         assertConnectorIsRunning();
 
@@ -66,9 +66,9 @@ public class TablesWithoutPrimaryKeyIT extends AbstractRecordsProducerTest {
     public void shouldProcessFromSnapshotOld() throws Exception {
         TestHelper.execute(STATEMENTS);
 
-        start(PostgresConnector.class, TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL_ONLY)
-                .with(PostgresConnectorConfig.SCHEMA_INCLUDE_LIST, "nopk")
+        start(PostgresConnector_V2.class, TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.INITIAL_ONLY)
+                .with(PostgresConnectorConfig_V2.SCHEMA_INCLUDE_LIST, "nopk")
                 .build());
         assertConnectorIsRunning();
 
@@ -86,9 +86,9 @@ public class TablesWithoutPrimaryKeyIT extends AbstractRecordsProducerTest {
 
     @Test
     public void shouldProcessFromStreaming() throws Exception {
-        start(PostgresConnector.class, TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER)
-                .with(PostgresConnectorConfig.SCHEMA_INCLUDE_LIST, "nopk")
+        start(PostgresConnector_V2.class, TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.NEVER)
+                .with(PostgresConnectorConfig_V2.SCHEMA_INCLUDE_LIST, "nopk")
                 .build());
         assertConnectorIsRunning();
         waitForStreamingToStart();
@@ -125,9 +125,9 @@ public class TablesWithoutPrimaryKeyIT extends AbstractRecordsProducerTest {
 
     @Test
     public void shouldProcessFromStreamingOld() throws Exception {
-        start(PostgresConnector.class, TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER)
-                .with(PostgresConnectorConfig.SCHEMA_INCLUDE_LIST, "nopk")
+        start(PostgresConnector_V2.class, TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.NEVER)
+                .with(PostgresConnectorConfig_V2.SCHEMA_INCLUDE_LIST, "nopk")
                 .build());
         assertConnectorIsRunning();
         waitForStreamingToStart();

@@ -26,7 +26,7 @@ public class SourceInfoTest {
 
     @Before
     public void beforeEach() {
-        final SqlServerConnectorConfig connectorConfig = new SqlServerConnectorConfig(
+        final SqlServerConnectorConfig_V2 connectorConfig = new SqlServerConnectorConfig_V2(
                 Configuration.create()
                         .with(CommonConnectorConfig.TOPIC_PREFIX, "serverX")
                         .build());

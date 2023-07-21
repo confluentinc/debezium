@@ -23,7 +23,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import io.debezium.config.Configuration;
-import io.debezium.connector.sqlserver.SqlServerConnectorConfig.SnapshotMode;
 import io.debezium.connector.sqlserver.util.TestHelper;
 import io.debezium.doc.FixFor;
 import io.debezium.document.Array;
@@ -72,10 +71,10 @@ public class SqlServerChangeTableSetIT extends AbstractConnectorTest {
         final int TABLES = 2;
         final int ID_START = 10;
         final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.SCHEMA_ONLY)
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -138,10 +137,10 @@ public class SqlServerChangeTableSetIT extends AbstractConnectorTest {
         final int ID_START_1 = 10;
         final int ID_START_2 = 100;
         final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.SCHEMA_ONLY)
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -175,7 +174,7 @@ public class SqlServerChangeTableSetIT extends AbstractConnectorTest {
     @Test
     public void addColumnToTableEndOfBatchWithoutLsnLimit() throws Exception {
         final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.SCHEMA_ONLY)
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
                 .build();
         addColumnToTable(config, true);
     }
@@ -184,8 +183,8 @@ public class SqlServerChangeTableSetIT extends AbstractConnectorTest {
     @FixFor("DBZ-3992")
     public void addColumnToTableEndOfBatchWithLsnLimit() throws Exception {
         final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.SCHEMA_ONLY)
-                .with(SqlServerConnectorConfig.MAX_TRANSACTIONS_PER_ITERATION, 1)
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
+                .with(SqlServerConnectorConfig_V2.MAX_TRANSACTIONS_PER_ITERATION, 1)
                 .build();
         addColumnToTable(config, true);
     }
@@ -193,7 +192,7 @@ public class SqlServerChangeTableSetIT extends AbstractConnectorTest {
     @Test
     public void addColumnToTableMiddleOfBatchWithoutLsnLimit() throws Exception {
         final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.SCHEMA_ONLY)
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
                 .build();
         addColumnToTable(config, false);
     }
@@ -202,8 +201,8 @@ public class SqlServerChangeTableSetIT extends AbstractConnectorTest {
     @FixFor("DBZ-3992")
     public void addColumnToTableMiddleOfBatchWithLsnLimit() throws Exception {
         final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.SCHEMA_ONLY)
-                .with(SqlServerConnectorConfig.MAX_TRANSACTIONS_PER_ITERATION, 1)
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
+                .with(SqlServerConnectorConfig_V2.MAX_TRANSACTIONS_PER_ITERATION, 1)
                 .build();
         addColumnToTable(config, true);
     }
@@ -216,7 +215,7 @@ public class SqlServerChangeTableSetIT extends AbstractConnectorTest {
         final int ID_START_3 = 1000;
         final int ID_START_4 = 10000;
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -326,10 +325,10 @@ public class SqlServerChangeTableSetIT extends AbstractConnectorTest {
         final int ID_START_2 = 100;
         final int ID_START_3 = 1000;
         final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.SCHEMA_ONLY)
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -412,12 +411,12 @@ public class SqlServerChangeTableSetIT extends AbstractConnectorTest {
         final int TABLES = 1;
         final int ID_START_1 = 10;
         final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.tableb2")
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.SCHEMA_ONLY)
-                .with(SqlServerConnectorConfig.COLUMN_INCLUDE_LIST, ".*id")
+                .with(SqlServerConnectorConfig_V2.TABLE_INCLUDE_LIST, "dbo.tableb2")
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
+                .with(SqlServerConnectorConfig_V2.COLUMN_INCLUDE_LIST, ".*id")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -448,10 +447,10 @@ public class SqlServerChangeTableSetIT extends AbstractConnectorTest {
         final int ID_START_2 = 100;
         final int ID_START_3 = 1000;
         final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.SCHEMA_ONLY)
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -547,10 +546,10 @@ public class SqlServerChangeTableSetIT extends AbstractConnectorTest {
         final int ID_START_2 = 100;
         final int ID_START_3 = 1000;
         final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.SCHEMA_ONLY)
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForStreamingStarted();
 
@@ -582,7 +581,7 @@ public class SqlServerChangeTableSetIT extends AbstractConnectorTest {
         assertThat(records.recordsForTopic("server1.testDB1.dbo.tableb")).hasSize(RECORDS_PER_TABLE);
 
         stopConnector();
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         for (int i = 0; i < RECORDS_PER_TABLE; i++) {
@@ -640,10 +639,10 @@ public class SqlServerChangeTableSetIT extends AbstractConnectorTest {
         final int ID_START_2 = 100;
         final int ID_START_3 = 1000;
         final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.SCHEMA_ONLY)
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -727,10 +726,10 @@ public class SqlServerChangeTableSetIT extends AbstractConnectorTest {
         final int ID_START_2 = 100;
         final int ID_START_3 = 1000;
         final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.SCHEMA_ONLY)
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -820,10 +819,10 @@ public class SqlServerChangeTableSetIT extends AbstractConnectorTest {
     @FixFor("DBZ-1491")
     public void addDefaultValue() throws Exception {
         final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.SCHEMA_ONLY)
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -859,10 +858,10 @@ public class SqlServerChangeTableSetIT extends AbstractConnectorTest {
         TestHelper.enableTableCdc(connection, "table_dv");
 
         final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.SCHEMA_ONLY)
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 

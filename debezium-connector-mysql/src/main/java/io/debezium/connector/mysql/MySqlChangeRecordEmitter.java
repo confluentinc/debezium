@@ -29,7 +29,7 @@ public class MySqlChangeRecordEmitter extends RelationalChangeRecordEmitter<MySq
     private final Object[] after;
 
     public MySqlChangeRecordEmitter(MySqlPartition partition, OffsetContext offset, Clock clock, Operation operation, Serializable[] before,
-                                    Serializable[] after, MySqlConnectorConfig connectorConfig) {
+                                    Serializable[] after, MySqlConnectorConfig_V2 connectorConfig) {
         super(partition, offset, clock, connectorConfig);
         this.offset = offset;
         this.operation = operation;

@@ -61,12 +61,12 @@ public class MySqlBinaryModeIT extends AbstractConnectorTest {
 
         // Use the DB configuration to define the connector's configuration ...
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.NEVER)
-                .with(MySqlConnectorConfig.BINARY_HANDLING_MODE, BinaryHandlingMode.BYTES)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.NEVER)
+                .with(MySqlConnectorConfig_V2.BINARY_HANDLING_MODE, BinaryHandlingMode.BYTES)
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // ---------------------------------------------------------------------------------------------------------------
         // Consume all of the events due to startup and initialization of the database
@@ -101,12 +101,12 @@ public class MySqlBinaryModeIT extends AbstractConnectorTest {
     public void shouldReceiveHexBinary() throws SQLException, InterruptedException {
         // Use the DB configuration to define the connector's configuration ...
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.NEVER)
-                .with(MySqlConnectorConfig.BINARY_HANDLING_MODE, BinaryHandlingMode.HEX)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.NEVER)
+                .with(MySqlConnectorConfig_V2.BINARY_HANDLING_MODE, BinaryHandlingMode.HEX)
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // ---------------------------------------------------------------------------------------------------------------
         // Consume all of the events due to startup and initialization of the database
@@ -141,12 +141,12 @@ public class MySqlBinaryModeIT extends AbstractConnectorTest {
     public void shouldReceiveBase64Binary() throws SQLException, InterruptedException {
         // Use the DB configuration to define the connector's configuration ...
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.NEVER)
-                .with(MySqlConnectorConfig.BINARY_HANDLING_MODE, BinaryHandlingMode.BASE64)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.NEVER)
+                .with(MySqlConnectorConfig_V2.BINARY_HANDLING_MODE, BinaryHandlingMode.BASE64)
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // ---------------------------------------------------------------------------------------------------------------
         // Consume all of the events due to startup and initialization of the database
@@ -181,12 +181,12 @@ public class MySqlBinaryModeIT extends AbstractConnectorTest {
     public void shouldReceiveBase64UrlSafeBinary() throws SQLException, InterruptedException {
         // Use the DB configuration to define the connector's configuration ...
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.NEVER)
-                .with(MySqlConnectorConfig.BINARY_HANDLING_MODE, BinaryHandlingMode.BASE64_URL_SAFE)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.NEVER)
+                .with(MySqlConnectorConfig_V2.BINARY_HANDLING_MODE, BinaryHandlingMode.BASE64_URL_SAFE)
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // ---------------------------------------------------------------------------------------------------------------
         // Consume all of the events due to startup and initialization of the database

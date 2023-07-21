@@ -21,7 +21,7 @@ public class PostgresErrorHandlerTest {
     private static final String A_CLASSIFIED_EXCEPTION = "Database connection failed when writing to copy";
 
     private final PostgresErrorHandler errorHandler = new PostgresErrorHandler(
-            new PostgresConnectorConfig(Configuration.create()
+            new PostgresConnectorConfig_V2(Configuration.create()
                     .with(CommonConnectorConfig.TOPIC_PREFIX, "postgres")
                     .build()),
             new ChangeEventQueue.Builder<DataChangeEvent>().build());

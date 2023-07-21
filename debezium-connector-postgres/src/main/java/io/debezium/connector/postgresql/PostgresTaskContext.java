@@ -23,7 +23,7 @@ import io.debezium.util.Clock;
 import io.debezium.util.ElapsedTimeStrategy;
 
 /**
- * The context of a {@link PostgresConnectorTask}. This deals with most of the brunt of reading various configuration options
+ * The context of a {@link PostgresConnectorTask_V2}. This deals with most of the brunt of reading various configuration options
  * and creating other objects with these various options.
  *
  * @author Horia Chiorean (hchiorea@redhat.com)
@@ -33,14 +33,14 @@ public class PostgresTaskContext extends CdcSourceTaskContext {
 
     protected final static Logger LOGGER = LoggerFactory.getLogger(PostgresTaskContext.class);
 
-    private final PostgresConnectorConfig config;
+    private final PostgresConnectorConfig_V2 config;
     private final TopicNamingStrategy<TableId> topicNamingStrategy;
     private final PostgresSchema schema;
 
     private ElapsedTimeStrategy refreshXmin;
     private Long lastXmin;
 
-    protected PostgresTaskContext(PostgresConnectorConfig config, PostgresSchema schema, TopicNamingStrategy<TableId> topicNamingStrategy) {
+    protected PostgresTaskContext(PostgresConnectorConfig_V2 config, PostgresSchema schema, TopicNamingStrategy<TableId> topicNamingStrategy) {
         super(config.getContextName(), config.getLogicalName(), Collections::emptySet);
 
         this.config = config;
@@ -60,7 +60,7 @@ public class PostgresTaskContext extends CdcSourceTaskContext {
         return schema;
     }
 
-    protected PostgresConnectorConfig config() {
+    protected PostgresConnectorConfig_V2 config() {
         return config;
     }
 
@@ -102,7 +102,7 @@ public class PostgresTaskContext extends CdcSourceTaskContext {
                     "Connector has enabled automated replication slot removal upon restart ({} = true). " +
                             "This setting is not recommended for production environments, as a new replication slot " +
                             "will be created after a connector restart, resulting in missed data change events.",
-                    PostgresConnectorConfig.DROP_SLOT_ON_STOP.name());
+                    PostgresConnectorConfig_V2.DROP_SLOT_ON_STOP.name());
         }
         return ReplicationConnection.builder(config)
                 .withSlot(config.slotName())
@@ -119,7 +119,7 @@ public class PostgresTaskContext extends CdcSourceTaskContext {
                 .build();
     }
 
-    PostgresConnectorConfig getConfig() {
+    PostgresConnectorConfig_V2 getConfig() {
         return config;
     }
 }

@@ -18,7 +18,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import io.debezium.config.Configuration;
-import io.debezium.connector.postgresql.PostgresConnectorConfig;
+import io.debezium.connector.postgresql.PostgresConnectorConfig_V2;
 import io.debezium.connector.postgresql.PostgresValueConverter;
 import io.debezium.connector.postgresql.TestHelper;
 import io.debezium.connector.postgresql.TypeRegistry;
@@ -38,10 +38,10 @@ public class PostgresDefaultValueConverterIT {
 
         postgresConnection = TestHelper.create();
 
-        PostgresConnectorConfig postgresConnectorConfig = new PostgresConnectorConfig(defaultJdbcConfig());
+        PostgresConnectorConfig_V2 postgresConnectorConfigV2 = new PostgresConnectorConfig_V2(defaultJdbcConfig());
         TypeRegistry typeRegistry = new TypeRegistry(postgresConnection);
         postgresValueConverter = PostgresValueConverter.of(
-                postgresConnectorConfig,
+            postgresConnectorConfigV2,
                 Charset.defaultCharset(),
                 typeRegistry);
 
@@ -73,13 +73,13 @@ public class PostgresDefaultValueConverterIT {
     public void shouldReturnNullForNumericDefaultValueUsingDecimalHandlingModePrecise() {
         Configuration config = defaultJdbcConfig()
                 .edit()
-                .with(PostgresConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.PRECISE)
+                .with(PostgresConnectorConfig_V2.DECIMAL_HANDLING_MODE, DecimalHandlingMode.PRECISE)
                 .build();
 
-        PostgresConnectorConfig postgresConnectorConfig = new PostgresConnectorConfig(config);
+        PostgresConnectorConfig_V2 postgresConnectorConfigV2 = new PostgresConnectorConfig_V2(config);
         TypeRegistry typeRegistry = new TypeRegistry(postgresConnection);
         PostgresValueConverter postgresValueConverter = PostgresValueConverter.of(
-                postgresConnectorConfig,
+            postgresConnectorConfigV2,
                 Charset.defaultCharset(),
                 typeRegistry);
 

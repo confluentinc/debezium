@@ -38,7 +38,7 @@ public class PostgresEventDispatcher<T extends DataCollectionId> extends EventDi
     private final LogicalDecodingMessageMonitor logicalDecodingMessageMonitor;
     private final LogicalDecodingMessageFilter messageFilter;
 
-    public PostgresEventDispatcher(PostgresConnectorConfig connectorConfig, TopicNamingStrategy<T> topicNamingStrategy,
+    public PostgresEventDispatcher(PostgresConnectorConfig_V2 connectorConfig, TopicNamingStrategy<T> topicNamingStrategy,
                                    DatabaseSchema<T> schema, ChangeEventQueue<DataChangeEvent> queue, DataCollectionFilters.DataCollectionFilter<T> filter,
                                    ChangeEventCreator changeEventCreator, InconsistentSchemaHandler<PostgresPartition, T> inconsistentSchemaHandler,
                                    EventMetadataProvider metadataProvider, Heartbeat heartbeat, SchemaNameAdjuster schemaNameAdjuster,

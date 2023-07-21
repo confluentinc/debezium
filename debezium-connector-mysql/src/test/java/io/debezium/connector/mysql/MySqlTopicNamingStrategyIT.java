@@ -63,14 +63,14 @@ public class MySqlTopicNamingStrategyIT extends AbstractConnectorTest {
     @FixFor("DBZ-4180")
     public void testSpecifyDelimiterAndPrefixStrategy() throws SQLException, InterruptedException {
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
-                .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName(TABLE_NAME))
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(MySqlConnectorConfig_V2.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName(TABLE_NAME))
                 .with(RelationalDatabaseConnectorConfig.INCLUDE_SCHEMA_CHANGES, "true")
                 .with(CommonConnectorConfig.TOPIC_PREFIX, "my_prefix")
                 .with(AbstractTopicNamingStrategy.TOPIC_DELIMITER, "_")
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         SourceRecords records = consumeRecordsByTopic(100);
 
@@ -101,8 +101,8 @@ public class MySqlTopicNamingStrategyIT extends AbstractConnectorTest {
     public void testSpecifyByLogicalTableStrategy() throws SQLException, InterruptedException {
         String tables = DATABASE.qualifiedTableName("dbz_4180_00") + "," + DATABASE.qualifiedTableName("dbz_4180_01");
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.SCHEMA_ONLY)
-                .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, tables)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
+                .with(MySqlConnectorConfig_V2.TABLE_INCLUDE_LIST, tables)
                 .with(RelationalDatabaseConnectorConfig.INCLUDE_SCHEMA_CHANGES, "false")
                 .with(DefaultRegexTopicNamingStrategy.TOPIC_REGEX, "(.*)(dbz_4180)(.*)")
                 .with(DefaultRegexTopicNamingStrategy.TOPIC_REPLACEMENT, "$1$2_all_shards")
@@ -112,7 +112,7 @@ public class MySqlTopicNamingStrategyIT extends AbstractConnectorTest {
                 .with(CommonConnectorConfig.TOPIC_NAMING_STRATEGY, "io.debezium.schema.DefaultRegexTopicNamingStrategy")
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         assertConnectorIsRunning();
 
@@ -142,14 +142,14 @@ public class MySqlTopicNamingStrategyIT extends AbstractConnectorTest {
     @FixFor("DBZ-4180")
     public void testSpecifyTransactionStrategy() throws SQLException, InterruptedException {
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.SCHEMA_ONLY)
-                .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName(TABLE_NAME))
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
+                .with(MySqlConnectorConfig_V2.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName(TABLE_NAME))
                 .with(RelationalDatabaseConnectorConfig.INCLUDE_SCHEMA_CHANGES, "false")
                 .with(CommonConnectorConfig.PROVIDE_TRANSACTION_METADATA, "true")
                 .with(AbstractTopicNamingStrategy.TOPIC_TRANSACTION, "my_transaction")
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Debug.enable();
         assertConnectorIsRunning();
@@ -181,13 +181,13 @@ public class MySqlTopicNamingStrategyIT extends AbstractConnectorTest {
     @FixFor("DBZ-5743")
     public void testUnicodeTopicNamingStrategy() throws SQLException, InterruptedException {
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
-                .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("dbz5743中文"))
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(MySqlConnectorConfig_V2.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("dbz5743中文"))
                 .with(RelationalDatabaseConnectorConfig.INCLUDE_SCHEMA_CHANGES, "true")
                 .with(CommonConnectorConfig.TOPIC_NAMING_STRATEGY, "io.debezium.schema.DefaultUnicodeTopicNamingStrategy")
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         assertConnectorIsRunning();
 

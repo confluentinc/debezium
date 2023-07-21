@@ -22,7 +22,7 @@ import org.testcontainers.utility.DockerImageName;
 
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
-import io.debezium.connector.postgresql.PostgresConnectorConfig.SnapshotMode;
+import io.debezium.connector.postgresql.PostgresConnectorConfig_V2.SnapshotMode;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.doc.FixFor;
 import io.debezium.embedded.AbstractConnectorTest;
@@ -34,7 +34,7 @@ import io.debezium.util.ContainerImageVersions;
 import io.debezium.util.Testing;
 
 /**
- * Integration test for {@link PostgresConnector} using an {@link EmbeddedEngine} and Testcontainers infrastructure for when Postgres is shutdown during streaming
+ * Integration test for {@link PostgresConnector_V2} using an {@link EmbeddedEngine} and Testcontainers infrastructure for when Postgres is shutdown during streaming
  */
 public class PostgresShutdownIT extends AbstractConnectorTest {
 
@@ -103,9 +103,9 @@ public class PostgresShutdownIT extends AbstractConnectorTest {
         }
         Configuration.Builder configBuilder = TestHelper.defaultConfig()
                 .with(CommonConnectorConfig.DATABASE_CONFIG_PREFIX + JdbcConfiguration.PORT, postgresContainer.getMappedPort(5432))
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.ALWAYS.getValue())
-                .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, false)
-                .with(PostgresConnectorConfig.SCHEMA_INCLUDE_LIST, "s1")
+                .with(PostgresConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.ALWAYS.getValue())
+                .with(PostgresConnectorConfig_V2.DROP_SLOT_ON_STOP, false)
+                .with(PostgresConnectorConfig_V2.SCHEMA_INCLUDE_LIST, "s1")
                 .with(Heartbeat.HEARTBEAT_INTERVAL, 500)
                 .with(DatabaseHeartbeatImpl.HEARTBEAT_ACTION_QUERY, "UPDATE s1.heartbeat SET ts=NOW();");
 
@@ -114,7 +114,7 @@ public class PostgresShutdownIT extends AbstractConnectorTest {
         String initialHeartbeat = postgresConnection.queryAndMap(
                 "SELECT ts FROM s1.heartbeat;",
                 postgresConnection.singleResultMapper(rs -> rs.getString("ts"), "Could not fetch keepalive info"));
-        start(PostgresConnector.class, configBuilder.build());
+        start(PostgresConnector_V2.class, configBuilder.build());
         assertConnectorIsRunning();
 
         waitForSnapshotToBeCompleted("postgres", TestHelper.TEST_SERVER);

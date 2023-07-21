@@ -34,14 +34,14 @@ public class PostgresSnapshotChangeEventSource extends RelationalSnapshotChangeE
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PostgresSnapshotChangeEventSource.class);
 
-    private final PostgresConnectorConfig connectorConfig;
+    private final PostgresConnectorConfig_V2 connectorConfig;
     private final PostgresConnection jdbcConnection;
     private final PostgresSchema schema;
     private final Snapshotter snapshotter;
     private final SlotCreationResult slotCreatedInfo;
     private final SlotState startingSlotInfo;
 
-    public PostgresSnapshotChangeEventSource(PostgresConnectorConfig connectorConfig, Snapshotter snapshotter,
+    public PostgresSnapshotChangeEventSource(PostgresConnectorConfig_V2 connectorConfig, Snapshotter snapshotter,
                                              MainConnectionProvidingConnectionFactory<PostgresConnection> connectionFactory, PostgresSchema schema,
                                              EventDispatcher<PostgresPartition, TableId> dispatcher, Clock clock,
                                              SnapshotProgressListener<PostgresPartition> snapshotProgressListener, SlotCreationResult slotCreatedInfo,

@@ -65,12 +65,12 @@ public class SqlServerSchemaNameAdjustmentModeIT extends AbstractConnectorTest {
 
     private Struct consume(SchemaNameAdjustmentMode adjustmentMode) throws InterruptedException {
         final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SqlServerConnectorConfig.SnapshotMode.INITIAL)
-                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo\\.name-adjustment")
-                .with(SqlServerConnectorConfig.SCHEMA_NAME_ADJUSTMENT_MODE, adjustmentMode)
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, SqlServerConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(SqlServerConnectorConfig_V2.TABLE_INCLUDE_LIST, "dbo\\.name-adjustment")
+                .with(SqlServerConnectorConfig_V2.SCHEMA_NAME_ADJUSTMENT_MODE, adjustmentMode)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 

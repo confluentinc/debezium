@@ -56,11 +56,11 @@ public class MultiTableStatementIT extends AbstractConnectorTest {
     @Test
     public void shouldConsumeAllEventsFromDatabaseUsingBinlogAndNoSnapshot() throws SQLException, InterruptedException {
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.NEVER)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.NEVER)
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
         // CREATE DB + 4 * CREATE TABLE + DROP TABLE

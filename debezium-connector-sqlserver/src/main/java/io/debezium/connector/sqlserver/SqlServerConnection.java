@@ -205,7 +205,7 @@ public class SqlServerConnection extends JdbcConnection {
         return JdbcConnection.patternBasedFactory(createUrlPattern(config, useSingleDatabase),
                 SQLServerDriver.class.getName(),
                 SqlServerConnection.class.getClassLoader(),
-                JdbcConfiguration.PORT.withDefault(SqlServerConnectorConfig.PORT.defaultValueAsString()));
+                JdbcConfiguration.PORT.withDefault(SqlServerConnectorConfig_V2.PORT.defaultValueAsString()));
     }
 
     @VisibleForTesting

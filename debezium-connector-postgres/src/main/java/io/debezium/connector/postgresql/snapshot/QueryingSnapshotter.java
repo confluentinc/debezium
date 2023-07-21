@@ -11,7 +11,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import io.debezium.connector.postgresql.PostgresConnectorConfig;
+import io.debezium.connector.postgresql.PostgresConnectorConfig_V2;
 import io.debezium.connector.postgresql.spi.OffsetState;
 import io.debezium.connector.postgresql.spi.SlotCreationResult;
 import io.debezium.connector.postgresql.spi.SlotState;
@@ -21,7 +21,7 @@ import io.debezium.relational.TableId;
 public abstract class QueryingSnapshotter implements Snapshotter {
 
     @Override
-    public void init(PostgresConnectorConfig config, OffsetState sourceInfo, SlotState slotState) {
+    public void init(PostgresConnectorConfig_V2 config, OffsetState sourceInfo, SlotState slotState) {
     }
 
     @Override

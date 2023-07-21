@@ -30,7 +30,7 @@ import io.debezium.util.Strings;
 
 public class MySqlChangeEventSourceFactory implements ChangeEventSourceFactory<MySqlPartition, MySqlOffsetContext> {
 
-    private final MySqlConnectorConfig configuration;
+    private final MySqlConnectorConfig_V2 configuration;
     private final MainConnectionProvidingConnectionFactory<MySqlConnection> connectionFactory;
     private final ErrorHandler errorHandler;
     private final EventDispatcher<MySqlPartition, TableId> dispatcher;
@@ -44,7 +44,7 @@ public class MySqlChangeEventSourceFactory implements ChangeEventSourceFactory<M
     // but in the core shared code.
     private final ChangeEventQueue<DataChangeEvent> queue;
 
-    public MySqlChangeEventSourceFactory(MySqlConnectorConfig configuration, MainConnectionProvidingConnectionFactory<MySqlConnection> connectionFactory,
+    public MySqlChangeEventSourceFactory(MySqlConnectorConfig_V2 configuration, MainConnectionProvidingConnectionFactory<MySqlConnection> connectionFactory,
                                          ErrorHandler errorHandler, EventDispatcher<MySqlPartition, TableId> dispatcher, Clock clock, MySqlDatabaseSchema schema,
                                          MySqlTaskContext taskContext, MySqlStreamingChangeEventSourceMetrics streamingMetrics,
                                          ChangeEventQueue<DataChangeEvent> queue) {

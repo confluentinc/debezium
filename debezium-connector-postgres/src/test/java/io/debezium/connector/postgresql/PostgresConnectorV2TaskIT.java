@@ -20,20 +20,20 @@ import io.debezium.schema.SchemaTopicNamingStrategy;
 import io.debezium.spi.topic.TopicNamingStrategy;
 
 /**
- * Integration test for {@link PostgresConnectorTask} class.
+ * Integration test for {@link PostgresConnectorTask_V2} class.
  */
-public class PostgresConnectorTaskIT {
+public class PostgresConnectorV2TaskIT {
 
     @Test
     @FixFor("DBZ-519")
     public void shouldNotThrowNullPointerExceptionDuringCommit() throws Exception {
-        PostgresConnectorTask postgresConnectorTask = new PostgresConnectorTask();
-        postgresConnectorTask.commit();
+        PostgresConnectorTask_V2 postgresConnectorTaskV2 = new PostgresConnectorTask_V2();
+        postgresConnectorTaskV2.commit();
     }
 
     class FakeContext extends PostgresTaskContext {
-        FakeContext(PostgresConnectorConfig postgresConnectorConfig, PostgresSchema postgresSchema) {
-            super(postgresConnectorConfig, postgresSchema, null);
+        FakeContext(PostgresConnectorConfig_V2 postgresConnectorConfigV2, PostgresSchema postgresSchema) {
+            super(postgresConnectorConfigV2, postgresSchema, null);
         }
 
         @Override
@@ -45,10 +45,10 @@ public class PostgresConnectorTaskIT {
     @Test(expected = ConnectException.class)
     @FixFor("DBZ-1426")
     public void retryOnFailureToCreateConnection() throws Exception {
-        PostgresConnectorTask postgresConnectorTask = new PostgresConnectorTask();
-        PostgresConnectorConfig config = new PostgresConnectorConfig(TestHelper.defaultConfig().build());
+        PostgresConnectorTask_V2 postgresConnectorTaskV2 = new PostgresConnectorTask_V2();
+        PostgresConnectorConfig_V2 config = new PostgresConnectorConfig_V2(TestHelper.defaultConfig().build());
         long startTime = System.currentTimeMillis();
-        postgresConnectorTask.createReplicationConnection(new FakeContext(config, new PostgresSchema(
+        postgresConnectorTaskV2.createReplicationConnection(new FakeContext(config, new PostgresSchema(
                 config,
                 null,
                 (TopicNamingStrategy) SchemaTopicNamingStrategy.create(config), null)), 3, Duration.ofSeconds(2));

@@ -60,9 +60,9 @@ public class MysqlDefaultGeneratedValueIT extends AbstractConnectorTest {
     @FixFor("DBZ-1123")
     public void generatedValueTest() throws InterruptedException {
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.INITIAL)
                 .build();
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
 

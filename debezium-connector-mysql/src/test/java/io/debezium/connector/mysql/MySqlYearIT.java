@@ -59,12 +59,12 @@ public class MySqlYearIT extends AbstractConnectorTest {
     public void shouldProcessTwoAndForDigitYearsInDatabase() throws SQLException, InterruptedException {
         // Use the DB configuration to define the connector's configuration ...
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
-                .with(MySqlConnectorConfig.ENABLE_TIME_ADJUSTER, false)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(MySqlConnectorConfig_V2.ENABLE_TIME_ADJUSTER, false)
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // ---------------------------------------------------------------------------------------------------------------
         // Consume all of the events due to startup and initialization of the database
@@ -110,11 +110,11 @@ public class MySqlYearIT extends AbstractConnectorTest {
     public void shouldProcessTwoAndForDigitYearsInConnector() throws SQLException, InterruptedException {
         // Use the DB configuration to define the connector's configuration ...
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.INITIAL)
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // ---------------------------------------------------------------------------------------------------------------
         // Consume all of the events due to startup and initialization of the database

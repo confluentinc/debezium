@@ -64,11 +64,11 @@ public class MySqlSchemaHistoryIT extends AbstractConnectorTest {
     @FixFor("DBZ-3485")
     public void shouldUseQuotedNameInDrop() throws SQLException, InterruptedException {
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.SCHEMA_ONLY)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         Testing.Print.enable();
         // SET + USE + Drop DB + create DB + CREATE/DROP for each table
@@ -76,7 +76,7 @@ public class MySqlSchemaHistoryIT extends AbstractConnectorTest {
         assertDdls(records);
         stopConnector();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         assertConnectorIsRunning();
         stopConnector();
     }
@@ -85,11 +85,11 @@ public class MySqlSchemaHistoryIT extends AbstractConnectorTest {
     @FixFor("DBZ-3399")
     public void shouldStoreSingleRename() throws SQLException, InterruptedException {
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.SCHEMA_ONLY)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         Testing.Print.enable();
         // SET + USE + Drop DB + create DB + CREATE/DROP for each table
@@ -104,7 +104,7 @@ public class MySqlSchemaHistoryIT extends AbstractConnectorTest {
 
         stopConnector();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         assertConnectorIsRunning();
         stopConnector();
     }
@@ -113,11 +113,11 @@ public class MySqlSchemaHistoryIT extends AbstractConnectorTest {
     @FixFor("DBZ-3399")
     public void shouldStoreMultipleRenames() throws SQLException, InterruptedException {
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.SCHEMA_ONLY)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         Testing.Print.enable();
         // SET + USE + Drop DB + create DB + CREATE/DROP for each table
@@ -132,7 +132,7 @@ public class MySqlSchemaHistoryIT extends AbstractConnectorTest {
 
         stopConnector();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         assertConnectorIsRunning();
         stopConnector();
     }
@@ -141,11 +141,11 @@ public class MySqlSchemaHistoryIT extends AbstractConnectorTest {
     @FixFor("DBZ-3399")
     public void shouldStoreAlterRename() throws SQLException, InterruptedException {
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.SCHEMA_ONLY)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         Testing.Print.enable();
         // SET + USE + Drop DB + create DB + CREATE/DROP for each table
@@ -159,7 +159,7 @@ public class MySqlSchemaHistoryIT extends AbstractConnectorTest {
 
         stopConnector();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         assertConnectorIsRunning();
         stopConnector();
     }

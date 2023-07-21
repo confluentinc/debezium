@@ -46,13 +46,13 @@ import io.debezium.relational.Tables.TableFilter;
 import io.debezium.util.Strings;
 
 /**
- * The configuration properties for the {@link PostgresConnector}
+ * The configuration properties for the {@link PostgresConnector_V2}
  *
  * @author Horia Chiorean
  */
-public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
+public class PostgresConnectorConfig_V2 extends RelationalDatabaseConnectorConfig {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(PostgresConnectorConfig.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(PostgresConnectorConfig_V2.class);
 
     /**
      * The set of predefined HStoreHandlingMode options or aliases
@@ -509,7 +509,7 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
             .withWidth(Width.MEDIUM)
             .withImportance(Importance.MEDIUM)
             .withDefault(ReplicationConnection.Builder.DEFAULT_SLOT_NAME)
-            .withValidation(PostgresConnectorConfig::validateReplicationSlotName)
+            .withValidation(PostgresConnectorConfig_V2::validateReplicationSlotName)
             .withDescription("The name of the Postgres logical decoding slot created for streaming changes from a plugin. " +
                     "Defaults to 'debezium");
 
@@ -619,7 +619,7 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
             .withGroup(Field.createGroupEntry(Field.Group.CONNECTION_ADVANCED_REPLICATION, 10))
             .withWidth(Width.LONG)
             .withImportance(Importance.MEDIUM)
-            .withValidation(PostgresConnectorConfig::validateReplicaAutoSetField)
+            .withValidation(PostgresConnectorConfig_V2::validateReplicaAutoSetField)
             .withDescription(
                     "Applies only when streaming changes using pgoutput." +
                             "Determines the value for Replica Identity at table level. This option will overwrite the existing value in database" +
@@ -770,7 +770,7 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
             .withGroup(Field.createGroupEntry(Field.Group.CONNECTOR, 25))
             .withWidth(Width.LONG)
             .withImportance(Importance.MEDIUM)
-            .withValidation(Field::isListOfRegex, PostgresConnectorConfig::validateLogicalDecodingMessageExcludeList)
+            .withValidation(Field::isListOfRegex, PostgresConnectorConfig_V2::validateLogicalDecodingMessageExcludeList)
             .withDescription("A comma-separated list of regular expressions that match the logical decoding message prefixes to be excluded from monitoring.");
 
     /**
@@ -890,7 +890,7 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
             .withDescription(
                     "Boolean to determine if Debezium should flush LSN in the source postgres database. If set to false, user will have to flush the LSN manually outside Debezium.")
             .withDefault(Boolean.TRUE)
-            .withValidation(Field::isBoolean, PostgresConnectorConfig::validateFlushLsnSource);
+            .withValidation(Field::isBoolean, PostgresConnectorConfig_V2::validateFlushLsnSource);
 
     public static final Field SOURCE_INFO_STRUCT_MAKER = CommonConnectorConfig.SOURCE_INFO_STRUCT_MAKER
             .withDefault(PostgresSourceInfoStructMaker.class.getName());
@@ -903,7 +903,7 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
     private final boolean flushLsnOnSource;
     private final ReplicaIdentityMapper replicaIdentityMapper;
 
-    public PostgresConnectorConfig(Configuration config) {
+    public PostgresConnectorConfig_V2(Configuration config) {
         super(
                 config,
                 new SystemTablesPredicate(),
@@ -914,9 +914,10 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
 
         this.logicalDecodingMessageFilter = new LogicalDecodingMessageFilter(config.getString(LOGICAL_DECODING_MESSAGE_PREFIX_INCLUDE_LIST),
                 config.getString(LOGICAL_DECODING_MESSAGE_PREFIX_EXCLUDE_LIST));
-        String hstoreHandlingModeStr = config.getString(PostgresConnectorConfig.HSTORE_HANDLING_MODE);
+        String hstoreHandlingModeStr = config.getString(PostgresConnectorConfig_V2.HSTORE_HANDLING_MODE);
         this.hStoreHandlingMode = HStoreHandlingMode.parse(hstoreHandlingModeStr);
-        this.intervalHandlingMode = IntervalHandlingMode.parse(config.getString(PostgresConnectorConfig.INTERVAL_HANDLING_MODE));
+        this.intervalHandlingMode = IntervalHandlingMode.parse(config.getString(
+            PostgresConnectorConfig_V2.INTERVAL_HANDLING_MODE));
         this.snapshotMode = SnapshotMode.parse(config.getString(SNAPSHOT_MODE));
         this.schemaRefreshMode = SchemaRefreshMode.parse(config.getString(SCHEMA_REFRESH_MODE));
         this.flushLsnOnSource = config.getBoolean(SHOULD_FLUSH_LSN_IN_SOURCE_DB);
@@ -973,7 +974,7 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
     }
 
     protected Duration statusUpdateInterval() {
-        return Duration.ofMillis(getConfig().getLong(PostgresConnectorConfig.STATUS_UPDATE_INTERVAL_MS));
+        return Duration.ofMillis(getConfig().getLong(PostgresConnectorConfig_V2.STATUS_UPDATE_INTERVAL_MS));
     }
 
     public LogicalDecodingMessageFilter getMessageFilter() {
@@ -1005,7 +1006,7 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
     }
 
     protected Duration xminFetchInterval() {
-        return Duration.ofMillis(getConfig().getLong(PostgresConnectorConfig.XMIN_FETCH_INTERVAL));
+        return Duration.ofMillis(getConfig().getLong(PostgresConnectorConfig_V2.XMIN_FETCH_INTERVAL));
     }
 
     public boolean isFlushLsnOnSource() {
@@ -1118,25 +1119,25 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
     }
 
     private static int validateFlushLsnSource(Configuration config, Field field, Field.ValidationOutput problems) {
-        if (config.getString(PostgresConnectorConfig.SHOULD_FLUSH_LSN_IN_SOURCE_DB, "true").equalsIgnoreCase("false")) {
-            LOGGER.warn("Property '" + PostgresConnectorConfig.SHOULD_FLUSH_LSN_IN_SOURCE_DB.name()
+        if (config.getString(PostgresConnectorConfig_V2.SHOULD_FLUSH_LSN_IN_SOURCE_DB, "true").equalsIgnoreCase("false")) {
+            LOGGER.warn("Property '" + PostgresConnectorConfig_V2.SHOULD_FLUSH_LSN_IN_SOURCE_DB.name()
                     + "' is set to 'false', the LSN will not be flushed to the database source and WAL logs will not be cleared. User is expected to handle this outside Debezium.");
         }
         return 0;
     }
 
     protected static int validateReplicaAutoSetField(Configuration config, Field field, Field.ValidationOutput problems) {
-        String replica_autoset_values = config.getString(PostgresConnectorConfig.REPLICA_IDENTITY_AUTOSET_VALUES);
+        String replica_autoset_values = config.getString(PostgresConnectorConfig_V2.REPLICA_IDENTITY_AUTOSET_VALUES);
         int problemCount = 0;
 
         if (replica_autoset_values != null) {
             if (replica_autoset_values.isEmpty()) {
-                problems.accept(PostgresConnectorConfig.REPLICA_IDENTITY_AUTOSET_VALUES, "", "Must not be empty");
+                problems.accept(PostgresConnectorConfig_V2.REPLICA_IDENTITY_AUTOSET_VALUES, "", "Must not be empty");
             }
 
             for (String substring : ReplicaIdentityMapper.PATTERN_SPLIT.split(replica_autoset_values)) {
                 if (!ReplicaIdentityMapper.REPLICA_AUTO_SET_PATTERN.asPredicate().test(substring)) {
-                    problems.accept(PostgresConnectorConfig.REPLICA_IDENTITY_AUTOSET_VALUES, substring,
+                    problems.accept(PostgresConnectorConfig_V2.REPLICA_IDENTITY_AUTOSET_VALUES, substring,
                             substring + " has an invalid format (expecting '" + ReplicaIdentityMapper.REPLICA_AUTO_SET_PATTERN.pattern() + "')");
                     problemCount++;
                 }

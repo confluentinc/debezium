@@ -12,7 +12,7 @@ import org.apache.kafka.connect.errors.ConnectException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.debezium.connector.postgresql.PostgresConnectorConfig;
+import io.debezium.connector.postgresql.PostgresConnectorConfig_V2;
 import io.debezium.connector.postgresql.spi.OffsetState;
 import io.debezium.connector.postgresql.spi.SlotState;
 import io.debezium.connector.postgresql.spi.Snapshotter;
@@ -23,7 +23,7 @@ public class NeverSnapshotter implements Snapshotter {
     private final static Logger LOGGER = LoggerFactory.getLogger(NeverSnapshotter.class);
 
     @Override
-    public void init(PostgresConnectorConfig config, OffsetState sourceInfo, SlotState slotState) {
+    public void init(PostgresConnectorConfig_V2 config, OffsetState sourceInfo, SlotState slotState) {
         if (sourceInfo != null && sourceInfo.snapshotInEffect()) {
             String msg = "The connector previously stopped while taking a snapshot, but now the connector is configured "
                     + "to never allow snapshots. Reconfigure the connector to use snapshots initially or when needed.";

@@ -14,7 +14,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import io.debezium.connector.sqlserver.SqlServerConnectorConfig.SnapshotMode;
 import io.debezium.connector.sqlserver.util.TestHelper;
 import io.debezium.embedded.AbstractConnectorTest;
 import io.debezium.util.Testing;
@@ -60,9 +59,9 @@ public class TablesWithoutPrimaryKeyIT extends AbstractConnectorTest {
         TestHelper.enableTableCdc(connection, "t2");
         TestHelper.enableTableCdc(connection, "t3");
 
-        start(SqlServerConnector.class, TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
-                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.t[123]")
+        start(SqlServerConnector_V2.class, TestHelper.defaultConfig()
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(SqlServerConnectorConfig_V2.TABLE_INCLUDE_LIST, "dbo.t[123]")
                 .build());
         assertConnectorIsRunning();
 
@@ -88,8 +87,8 @@ public class TablesWithoutPrimaryKeyIT extends AbstractConnectorTest {
         TestHelper.waitForDisabledCdc(connection, "t2");
         TestHelper.waitForDisabledCdc(connection, "t3");
 
-        start(SqlServerConnector.class, TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
+        start(SqlServerConnector_V2.class, TestHelper.defaultConfig()
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.INITIAL)
                 .build());
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();

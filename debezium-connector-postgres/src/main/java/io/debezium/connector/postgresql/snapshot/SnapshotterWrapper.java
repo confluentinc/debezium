@@ -5,7 +5,7 @@
  */
 package io.debezium.connector.postgresql.snapshot;
 
-import io.debezium.connector.postgresql.PostgresConnectorConfig;
+import io.debezium.connector.postgresql.PostgresConnectorConfig_V2;
 import io.debezium.connector.postgresql.spi.OffsetState;
 import io.debezium.connector.postgresql.spi.SlotState;
 import io.debezium.connector.postgresql.spi.Snapshotter;
@@ -19,7 +19,7 @@ public class SnapshotterWrapper {
     private final Snapshotter snapshotter;
     private final SlotState slotState;
 
-    public SnapshotterWrapper(Snapshotter snapshotter, PostgresConnectorConfig config, OffsetState offsetState, SlotState slotState) {
+    public SnapshotterWrapper(Snapshotter snapshotter, PostgresConnectorConfig_V2 config, OffsetState offsetState, SlotState slotState) {
         this.snapshotter = snapshotter;
         this.slotState = slotState;
         this.snapshotter.init(config, offsetState, slotState);

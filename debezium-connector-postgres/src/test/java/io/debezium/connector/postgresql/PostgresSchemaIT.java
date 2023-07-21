@@ -88,7 +88,7 @@ public class PostgresSchemaIT {
     public void shouldLoadSchemaForBuiltinPostgresTypes() throws Exception {
         TestHelper.executeDDL("postgres_create_tables.ddl");
 
-        PostgresConnectorConfig config = new PostgresConnectorConfig(TestHelper.defaultConfig().build());
+        PostgresConnectorConfig_V2 config = new PostgresConnectorConfig_V2(TestHelper.defaultConfig().build());
         schema = TestHelper.getSchema(config);
 
         try (PostgresConnection connection = TestHelper.createWithTypeRegistry()) {
@@ -149,7 +149,7 @@ public class PostgresSchemaIT {
         String ddl = "CREATE TABLE macaddr8_table (pk SERIAL, m MACADDR8, PRIMARY KEY(pk));";
 
         TestHelper.execute(ddl);
-        PostgresConnectorConfig config = new PostgresConnectorConfig(TestHelper.defaultConfig().build());
+        PostgresConnectorConfig_V2 config = new PostgresConnectorConfig_V2(TestHelper.defaultConfig().build());
         schema = TestHelper.getSchema(config);
 
         try (PostgresConnection connection = TestHelper.createWithTypeRegistry()) {
@@ -163,8 +163,8 @@ public class PostgresSchemaIT {
     @Test
     public void shouldLoadSchemaForExtensionPostgresTypes() throws Exception {
         TestHelper.executeDDL("postgres_create_tables.ddl");
-        PostgresConnectorConfig config = new PostgresConnectorConfig(
-                TestHelper.defaultConfig().with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true).build());
+        PostgresConnectorConfig_V2 config = new PostgresConnectorConfig_V2(
+                TestHelper.defaultConfig().with(PostgresConnectorConfig_V2.INCLUDE_UNKNOWN_DATATYPES, true).build());
 
         schema = TestHelper.getSchema(config);
 
@@ -180,7 +180,7 @@ public class PostgresSchemaIT {
     public void shouldLoadSchemaForPostgisTypes() throws Exception {
         TestHelper.executeDDL("init_postgis.ddl");
         TestHelper.executeDDL("postgis_create_tables.ddl");
-        PostgresConnectorConfig config = new PostgresConnectorConfig(TestHelper.defaultConfig().build());
+        PostgresConnectorConfig_V2 config = new PostgresConnectorConfig_V2(TestHelper.defaultConfig().build());
         schema = TestHelper.getSchema(config);
 
         try (PostgresConnection connection = TestHelper.createWithTypeRegistry()) {
@@ -207,7 +207,7 @@ public class PostgresSchemaIT {
                 "CREATE TABLE s2.A (pk SERIAL, aa integer, PRIMARY KEY(pk));" +
                 "CREATE TABLE s2.B (pk SERIAL, ba integer, PRIMARY KEY(pk));";
         TestHelper.execute(statements);
-        PostgresConnectorConfig config = new PostgresConnectorConfig(TestHelper.defaultConfig().with(SCHEMA_EXCLUDE_LIST, "s1").build());
+        PostgresConnectorConfig_V2 config = new PostgresConnectorConfig_V2(TestHelper.defaultConfig().with(SCHEMA_EXCLUDE_LIST, "s1").build());
         final TypeRegistry typeRegistry = TestHelper.getTypeRegistry();
         schema = TestHelper.getSchema(config, typeRegistry);
         try (PostgresConnection connection = TestHelper.createWithTypeRegistry()) {
@@ -216,14 +216,15 @@ public class PostgresSchemaIT {
             assertTablesExcluded("s1.a", "s1.b");
         }
 
-        config = new PostgresConnectorConfig(TestHelper.defaultConfig().with(SCHEMA_EXCLUDE_LIST, "s.*").build());
+        config = new PostgresConnectorConfig_V2(TestHelper.defaultConfig().with(SCHEMA_EXCLUDE_LIST, "s.*").build());
         schema = TestHelper.getSchema(config, typeRegistry);
         try (PostgresConnection connection = TestHelper.create()) {
             schema.refresh(connection, false);
             assertTablesExcluded("s1.a", "s2.a", "s1.b", "s2.b");
         }
 
-        config = new PostgresConnectorConfig(TestHelper.defaultConfig().with(PostgresConnectorConfig.TABLE_EXCLUDE_LIST, "s1.A,s2.A").build());
+        config = new PostgresConnectorConfig_V2(TestHelper.defaultConfig().with(
+            PostgresConnectorConfig_V2.TABLE_EXCLUDE_LIST, "s1.A,s2.A").build());
         schema = TestHelper.getSchema(config, typeRegistry);
         try (PostgresConnection connection = TestHelper.createWithTypeRegistry()) {
             schema.refresh(connection, false);
@@ -231,7 +232,8 @@ public class PostgresSchemaIT {
             assertTablesExcluded("s1.a", "s2.a");
         }
 
-        config = new PostgresConnectorConfig(TestHelper.defaultConfig().with(PostgresConnectorConfig.TABLE_EXCLUDE_LIST, "s1.A,s2.A").build());
+        config = new PostgresConnectorConfig_V2(TestHelper.defaultConfig().with(
+            PostgresConnectorConfig_V2.TABLE_EXCLUDE_LIST, "s1.A,s2.A").build());
         schema = TestHelper.getSchema(config, typeRegistry);
         try (PostgresConnection connection = TestHelper.createWithTypeRegistry()) {
             schema.refresh(connection, false);
@@ -239,9 +241,9 @@ public class PostgresSchemaIT {
             assertTablesExcluded("s1.a", "s2.a");
         }
 
-        config = new PostgresConnectorConfig(TestHelper.defaultConfig()
+        config = new PostgresConnectorConfig_V2(TestHelper.defaultConfig()
                 .with(SCHEMA_EXCLUDE_LIST, "s2")
-                .with(PostgresConnectorConfig.TABLE_EXCLUDE_LIST, "s1.A")
+                .with(PostgresConnectorConfig_V2.TABLE_EXCLUDE_LIST, "s1.A")
                 .build());
         schema = TestHelper.getSchema(config, typeRegistry);
         try (PostgresConnection connection = TestHelper.createWithTypeRegistry()) {
@@ -250,7 +252,8 @@ public class PostgresSchemaIT {
             assertTablesExcluded("s1.a", "s2.a", "s2.b");
         }
 
-        config = new PostgresConnectorConfig(TestHelper.defaultConfig().with(PostgresConnectorConfig.COLUMN_EXCLUDE_LIST, ".*aa")
+        config = new PostgresConnectorConfig_V2(TestHelper.defaultConfig().with(
+                PostgresConnectorConfig_V2.COLUMN_EXCLUDE_LIST, ".*aa")
                 .build());
         schema = TestHelper.getSchema(config, typeRegistry);
         try (PostgresConnection connection = TestHelper.createWithTypeRegistry()) {
@@ -258,7 +261,8 @@ public class PostgresSchemaIT {
             assertColumnsExcluded("s1.a.aa", "s2.a.aa");
         }
 
-        config = new PostgresConnectorConfig(TestHelper.defaultConfig().with(PostgresConnectorConfig.COLUMN_INCLUDE_LIST, ".*bb")
+        config = new PostgresConnectorConfig_V2(TestHelper.defaultConfig().with(
+                PostgresConnectorConfig_V2.COLUMN_INCLUDE_LIST, ".*bb")
                 .build());
         schema = TestHelper.getSchema(config, typeRegistry);
         try (PostgresConnection connection = TestHelper.createWithTypeRegistry()) {
@@ -273,7 +277,7 @@ public class PostgresSchemaIT {
                 "DROP TABLE IF EXISTS table1;" +
                 "CREATE TABLE table1 (pk SERIAL,  PRIMARY KEY(pk));";
         TestHelper.execute(statements);
-        PostgresConnectorConfig config = new PostgresConnectorConfig(TestHelper.defaultConfig().build());
+        PostgresConnectorConfig_V2 config = new PostgresConnectorConfig_V2(TestHelper.defaultConfig().build());
         schema = TestHelper.getSchema(config);
         try (PostgresConnection connection = TestHelper.createWithTypeRegistry()) {
             schema.refresh(connection, false);
@@ -312,7 +316,7 @@ public class PostgresSchemaIT {
                 "DROP TABLE IF EXISTS table1;" +
                 "CREATE TABLE table1 (pk SERIAL,  toasted text, untoasted int, PRIMARY KEY(pk));";
         TestHelper.execute(statements);
-        PostgresConnectorConfig config = new PostgresConnectorConfig(TestHelper.defaultConfig().build());
+        PostgresConnectorConfig_V2 config = new PostgresConnectorConfig_V2(TestHelper.defaultConfig().build());
         schema = TestHelper.getSchema(config);
         TableId tableId = TableId.parse("public.table1", false);
 
@@ -399,7 +403,7 @@ public class PostgresSchemaIT {
                 "xml XML default '<foo>bar</foo>'" +
                 ");";
 
-        PostgresConnectorConfig config = new PostgresConnectorConfig(TestHelper.defaultConfig().build());
+        PostgresConnectorConfig_V2 config = new PostgresConnectorConfig_V2(TestHelper.defaultConfig().build());
         schema = TestHelper.getSchema(config);
 
         final PostgresConnection.PostgresValueConverterBuilder valueConverterBuilder = (typeRegistry) -> PostgresValueConverter.of(
@@ -486,7 +490,7 @@ public class PostgresSchemaIT {
                 + "create unique index uk_including_function on counter(campaign_id, COALESCE(group_id, ''::text));";
 
         TestHelper.execute(statements);
-        PostgresConnectorConfig config = new PostgresConnectorConfig(TestHelper.defaultConfig().build());
+        PostgresConnectorConfig_V2 config = new PostgresConnectorConfig_V2(TestHelper.defaultConfig().build());
         schema = TestHelper.getSchema(config);
         TableId tableId = TableId.parse("public.counter", false);
 

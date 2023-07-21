@@ -75,8 +75,8 @@ public class LogicalDecodingMessageIT extends AbstractConnectorTest {
     public void shouldNotConsumeLogicalDecodingMessagesWhenAllPrefixesAreInTheExcludedList() throws Exception {
         TestHelper.execute(SETUP_TABLES_STMT);
         Configuration.Builder configBuilder = TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.LOGICAL_DECODING_MESSAGE_PREFIX_EXCLUDE_LIST, ".*");
-        start(PostgresConnector.class, configBuilder.build());
+                .with(PostgresConnectorConfig_V2.LOGICAL_DECODING_MESSAGE_PREFIX_EXCLUDE_LIST, ".*");
+        start(PostgresConnector_V2.class, configBuilder.build());
         assertConnectorIsRunning();
         waitForSnapshotToBeCompleted();
 
@@ -99,7 +99,7 @@ public class LogicalDecodingMessageIT extends AbstractConnectorTest {
         TestHelper.execute(SETUP_TABLES_STMT);
         Configuration.Builder configBuilder = TestHelper.defaultConfig();
 
-        start(PostgresConnector.class, configBuilder.build());
+        start(PostgresConnector_V2.class, configBuilder.build());
         assertConnectorIsRunning();
         waitForSnapshotToBeCompleted();
 
@@ -138,7 +138,7 @@ public class LogicalDecodingMessageIT extends AbstractConnectorTest {
         TestHelper.execute(SETUP_TABLES_STMT);
         Configuration.Builder configBuilder = TestHelper.defaultConfig();
 
-        start(PostgresConnector.class, configBuilder.build());
+        start(PostgresConnector_V2.class, configBuilder.build());
         assertConnectorIsRunning();
         waitForSnapshotToBeCompleted();
 
@@ -178,9 +178,9 @@ public class LogicalDecodingMessageIT extends AbstractConnectorTest {
     public void shouldApplyBinaryHandlingMode() throws Exception {
         TestHelper.execute(SETUP_TABLES_STMT);
         Configuration.Builder configBuilder = TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.BINARY_HANDLING_MODE, "base64");
+                .with(PostgresConnectorConfig_V2.BINARY_HANDLING_MODE, "base64");
 
-        start(PostgresConnector.class, configBuilder.build());
+        start(PostgresConnector_V2.class, configBuilder.build());
         assertConnectorIsRunning();
         waitForSnapshotToBeCompleted();
 
@@ -205,8 +205,8 @@ public class LogicalDecodingMessageIT extends AbstractConnectorTest {
     public void shouldNotConsumeLogicalDecodingMessagesWithExcludedPrefixes() throws Exception {
         TestHelper.execute(SETUP_TABLES_STMT);
         Configuration.Builder configBuilder = TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.LOGICAL_DECODING_MESSAGE_PREFIX_EXCLUDE_LIST, "excluded_prefix, prefix:excluded");
-        start(PostgresConnector.class, configBuilder.build());
+                .with(PostgresConnectorConfig_V2.LOGICAL_DECODING_MESSAGE_PREFIX_EXCLUDE_LIST, "excluded_prefix, prefix:excluded");
+        start(PostgresConnector_V2.class, configBuilder.build());
         assertConnectorIsRunning();
         waitForSnapshotToBeCompleted();
 
@@ -231,8 +231,8 @@ public class LogicalDecodingMessageIT extends AbstractConnectorTest {
     public void shouldOnlyConsumeLogicalDecodingMessagesWithIncludedPrefixes() throws Exception {
         TestHelper.execute(SETUP_TABLES_STMT);
         Configuration.Builder configBuilder = TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.LOGICAL_DECODING_MESSAGE_PREFIX_INCLUDE_LIST, "included_prefix, prefix:included, ano.*er_included");
-        start(PostgresConnector.class, configBuilder.build());
+                .with(PostgresConnectorConfig_V2.LOGICAL_DECODING_MESSAGE_PREFIX_INCLUDE_LIST, "included_prefix, prefix:included, ano.*er_included");
+        start(PostgresConnector_V2.class, configBuilder.build());
         assertConnectorIsRunning();
         waitForSnapshotToBeCompleted();
 

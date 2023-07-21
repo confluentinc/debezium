@@ -18,7 +18,7 @@ import io.debezium.schema.TopicSelector;
 @Deprecated
 public class PostgresTopicSelector {
 
-    public static TopicSelector<TableId> create(PostgresConnectorConfig connectorConfig) {
+    public static TopicSelector<TableId> create(PostgresConnectorConfig_V2 connectorConfig) {
         return TopicSelector.defaultSelector(connectorConfig,
                 (id, prefix, delimiter) -> String.join(delimiter, prefix, id.schema(), id.table()));
     }

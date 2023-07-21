@@ -30,10 +30,10 @@ public class SourceInfoTest {
 
     @Before
     public void beforeEach() {
-        source = new SourceInfo(new PostgresConnectorConfig(
+        source = new SourceInfo(new PostgresConnectorConfig_V2(
                 Configuration.create()
                         .with(CommonConnectorConfig.TOPIC_PREFIX, "serverX")
-                        .with(PostgresConnectorConfig.DATABASE_NAME, "serverX")
+                        .with(PostgresConnectorConfig_V2.DATABASE_NAME, "serverX")
                         .build()));
         source.update(Conversions.toInstantFromMicros(123_456_789L), new TableId("catalogNameX", "schemaNameX", "tableNameX"));
     }

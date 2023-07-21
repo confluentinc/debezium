@@ -66,12 +66,12 @@ public class TransactionMetadataIT extends AbstractConnectorTest {
     @Test
     public void transactionMetadataEnabled() throws InterruptedException, SQLException {
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.SCHEMA_ONLY)
-                .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, false)
-                .with(MySqlConnectorConfig.PROVIDE_TRANSACTION_METADATA, true)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
+                .with(MySqlConnectorConfig_V2.INCLUDE_SCHEMA_CHANGES, false)
+                .with(MySqlConnectorConfig_V2.PROVIDE_TRANSACTION_METADATA, true)
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Debug.enable();
         assertConnectorIsRunning();
@@ -113,13 +113,13 @@ public class TransactionMetadataIT extends AbstractConnectorTest {
     @FixFor("DBZ-4077")
     public void shouldUseConfiguredTransactionTopicName() throws InterruptedException, SQLException {
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.SCHEMA_ONLY)
-                .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, false)
-                .with(MySqlConnectorConfig.PROVIDE_TRANSACTION_METADATA, true)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
+                .with(MySqlConnectorConfig_V2.INCLUDE_SCHEMA_CHANGES, false)
+                .with(MySqlConnectorConfig_V2.PROVIDE_TRANSACTION_METADATA, true)
                 .with(AbstractTopicNamingStrategy.TOPIC_TRANSACTION, "tx.of.server")
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Debug.enable();
         assertConnectorIsRunning();
@@ -143,13 +143,13 @@ public class TransactionMetadataIT extends AbstractConnectorTest {
     @FixFor("DBZ-4077")
     public void shouldUseConfiguredTransactionTopicNameWithoutServerName() throws InterruptedException, SQLException {
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.SCHEMA_ONLY)
-                .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, false)
-                .with(MySqlConnectorConfig.PROVIDE_TRANSACTION_METADATA, true)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
+                .with(MySqlConnectorConfig_V2.INCLUDE_SCHEMA_CHANGES, false)
+                .with(MySqlConnectorConfig_V2.PROVIDE_TRANSACTION_METADATA, true)
                 .with(AbstractTopicNamingStrategy.TOPIC_TRANSACTION, "mytransactions")
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Debug.enable();
         assertConnectorIsRunning();

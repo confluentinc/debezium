@@ -49,7 +49,7 @@ public class MySqlSnapshotChangeEventSource extends RelationalSnapshotChangeEven
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MySqlSnapshotChangeEventSource.class);
 
-    private final MySqlConnectorConfig connectorConfig;
+    private final MySqlConnectorConfig_V2 connectorConfig;
     private final MySqlConnection connection;
     private long globalLockAcquiredAt = -1;
     private long tableLockAcquiredAt = -1;
@@ -60,7 +60,7 @@ public class MySqlSnapshotChangeEventSource extends RelationalSnapshotChangeEven
     private Set<TableId> delayedSchemaSnapshotTables = Collections.emptySet();
     private final BlockingConsumer<Function<SourceRecord, SourceRecord>> lastEventProcessor;
 
-    public MySqlSnapshotChangeEventSource(MySqlConnectorConfig connectorConfig, MainConnectionProvidingConnectionFactory<MySqlConnection> connectionFactory,
+    public MySqlSnapshotChangeEventSource(MySqlConnectorConfig_V2 connectorConfig, MainConnectionProvidingConnectionFactory<MySqlConnection> connectionFactory,
                                           MySqlDatabaseSchema schema, EventDispatcher<MySqlPartition, TableId> dispatcher, Clock clock,
                                           MySqlSnapshotChangeEventSourceMetrics metrics,
                                           BlockingConsumer<Function<SourceRecord, SourceRecord>> lastEventProcessor) {

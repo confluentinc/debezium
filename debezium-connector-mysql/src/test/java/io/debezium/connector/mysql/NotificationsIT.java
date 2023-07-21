@@ -16,7 +16,7 @@ import io.debezium.config.Configuration;
 import io.debezium.pipeline.notification.AbstractNotificationsIT;
 import io.debezium.util.Testing;
 
-public class NotificationsIT extends AbstractNotificationsIT<MySqlConnector> {
+public class NotificationsIT extends AbstractNotificationsIT<MySqlConnector_V2> {
 
     protected static final String SERVER_NAME = "is_test";
     protected final UniqueDatabase DATABASE = new UniqueDatabase(SERVER_NAME, "incremental_snapshot-test").withDbHistoryPath(SCHEMA_HISTORY_PATH);
@@ -42,14 +42,14 @@ public class NotificationsIT extends AbstractNotificationsIT<MySqlConnector> {
     }
 
     @Override
-    protected Class<MySqlConnector> connectorClass() {
-        return MySqlConnector.class;
+    protected Class<MySqlConnector_V2> connectorClass() {
+        return MySqlConnector_V2.class;
     }
 
     @Override
     protected Configuration.Builder config() {
         return DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL.getValue());
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.INITIAL.getValue());
     }
 
     @Override

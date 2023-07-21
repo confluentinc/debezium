@@ -20,7 +20,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import io.debezium.config.Configuration;
-import io.debezium.connector.sqlserver.SqlServerConnectorConfig.SnapshotMode;
 import io.debezium.connector.sqlserver.util.TestHelper;
 import io.debezium.embedded.AbstractConnectorTest;
 import io.debezium.relational.RelationalDatabaseConnectorConfig.DecimalHandlingMode;
@@ -79,11 +78,11 @@ public class SQLServerNumericColumnIT extends AbstractConnectorTest {
     @Test
     public void decimalModeConfigString() throws Exception {
         final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
-                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.tablenuma")
-                .with(SqlServerConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.STRING).build();
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(SqlServerConnectorConfig_V2.TABLE_INCLUDE_LIST, "dbo.tablenuma")
+                .with(SqlServerConnectorConfig_V2.DECIMAL_HANDLING_MODE, DecimalHandlingMode.STRING).build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -111,11 +110,11 @@ public class SQLServerNumericColumnIT extends AbstractConnectorTest {
     @Test
     public void decimalModeConfigDouble() throws Exception {
         final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
-                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.tablenumb")
-                .with(SqlServerConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.DOUBLE).build();
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(SqlServerConnectorConfig_V2.TABLE_INCLUDE_LIST, "dbo.tablenumb")
+                .with(SqlServerConnectorConfig_V2.DECIMAL_HANDLING_MODE, DecimalHandlingMode.DOUBLE).build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -142,11 +141,11 @@ public class SQLServerNumericColumnIT extends AbstractConnectorTest {
     @Test
     public void decimalModeConfigPrecise() throws Exception {
         final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
-                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.tablenumc")
-                .with(SqlServerConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.PRECISE).build();
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(SqlServerConnectorConfig_V2.TABLE_INCLUDE_LIST, "dbo.tablenumc")
+                .with(SqlServerConnectorConfig_V2.DECIMAL_HANDLING_MODE, DecimalHandlingMode.PRECISE).build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 

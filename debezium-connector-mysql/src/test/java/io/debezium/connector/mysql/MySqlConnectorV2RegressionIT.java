@@ -34,7 +34,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import io.debezium.config.Configuration;
-import io.debezium.connector.mysql.MySqlConnectorConfig.SnapshotMode;
+import io.debezium.connector.mysql.MySqlConnectorConfig_V2.SnapshotMode;
 import io.debezium.data.Envelope;
 import io.debezium.doc.FixFor;
 import io.debezium.embedded.AbstractConnectorTest;
@@ -49,7 +49,7 @@ import io.debezium.util.Testing;
  * @author Randall Hauch
  */
 @SkipWhenDatabaseVersion(check = LESS_THAN, major = 5, minor = 6, reason = "DDL uses fractional second data types, not supported until MySQL 5.6")
-public class MySqlConnectorRegressionIT extends AbstractConnectorTest {
+public class MySqlConnectorV2RegressionIT extends AbstractConnectorTest {
 
     private static final Path SCHEMA_HISTORY_PATH = Testing.Files.createTestingPath("file-schema-history-regression.txt").toAbsolutePath();
     private final UniqueDatabase DATABASE = new UniqueDatabase("regression", "regression_test")
@@ -82,12 +82,12 @@ public class MySqlConnectorRegressionIT extends AbstractConnectorTest {
     public void shouldConsumeAllEventsFromDatabaseUsingBinlogAndNoSnapshot() throws SQLException, InterruptedException {
         // Use the DB configuration to define the connector's configuration ...
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.NEVER)
+                .with(MySqlConnectorConfig_V2.INCLUDE_SCHEMA_CHANGES, true)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.NEVER)
                 .with("database.connectionTimeZone", DATABASE.timezone())
                 .build();
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForStreamingRunning("mysql", DATABASE.getServerName(), getStreamingNamespace());
 
         // ---------------------------------------------------------------------------------------------------------------
@@ -367,14 +367,14 @@ public class MySqlConnectorRegressionIT extends AbstractConnectorTest {
     public void shouldConsumeAllEventsFromDatabaseUsingBinlogAndNoSnapshotAndConnectTimesTypes() throws SQLException, InterruptedException {
         // Use the DB configuration to define the connector's configuration ...
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
-                .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER)
-                .with(MySqlConnectorConfig.TIME_PRECISION_MODE, TemporalPrecisionMode.CONNECT)
+                .with(MySqlConnectorConfig_V2.INCLUDE_SCHEMA_CHANGES, true)
+                .with(MySqlConnectorConfig_V2.INCLUDE_SCHEMA_CHANGES, true)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.NEVER)
+                .with(MySqlConnectorConfig_V2.TIME_PRECISION_MODE, TemporalPrecisionMode.CONNECT)
                 .with("database.connectionTimeZone", DATABASE.timezone())
                 .build();
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // ---------------------------------------------------------------------------------------------------------------
         // Consume all of the events due to startup and initialization of the database
@@ -577,7 +577,7 @@ public class MySqlConnectorRegressionIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // ---------------------------------------------------------------------------------------------------------------
         // Consume all of the events due to startup and initialization of the database
@@ -850,11 +850,11 @@ public class MySqlConnectorRegressionIT extends AbstractConnectorTest {
 
             // Use the DB configuration to define the connector's configuration ...
             config = DATABASE.defaultConfig()
-                    .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("dbz_85_fractest"))
+                    .with(MySqlConnectorConfig_V2.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("dbz_85_fractest"))
                     .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, true)
                     .build();
             // Start the connector ...
-            start(MySqlConnector.class, config);
+            start(MySqlConnector_V2.class, config);
 
             // ---------------------------------------------------------------------------------------------------------------
             // Consume all of the events due to startup and initialization of the database
@@ -928,13 +928,13 @@ public class MySqlConnectorRegressionIT extends AbstractConnectorTest {
     public void shouldConsumeAllEventsFromDecimalTableInDatabaseUsingBinlogAndNoSnapshot() throws SQLException, InterruptedException {
         // Use the DB configuration to define the connector's configuration ...
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("dbz_147_decimalvalues"))
-                .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER.toString())
-                .with(MySqlConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.DOUBLE)
+                .with(MySqlConnectorConfig_V2.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("dbz_147_decimalvalues"))
+                .with(MySqlConnectorConfig_V2.INCLUDE_SCHEMA_CHANGES, true)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.NEVER.toString())
+                .with(MySqlConnectorConfig_V2.DECIMAL_HANDLING_MODE, DecimalHandlingMode.DOUBLE)
                 .build();
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForStreamingRunning("mysql", DATABASE.getServerName(), getStreamingNamespace());
 
         // ---------------------------------------------------------------------------------------------------------------
@@ -970,13 +970,13 @@ public class MySqlConnectorRegressionIT extends AbstractConnectorTest {
     public void shouldConsumeDecimalAsStringFromBinlog() throws SQLException, InterruptedException {
         // Use the DB configuration to define the connector's configuration ...
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("dbz_147_decimalvalues"))
-                .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER.toString())
-                .with(MySqlConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.STRING)
+                .with(MySqlConnectorConfig_V2.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("dbz_147_decimalvalues"))
+                .with(MySqlConnectorConfig_V2.INCLUDE_SCHEMA_CHANGES, true)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.NEVER.toString())
+                .with(MySqlConnectorConfig_V2.DECIMAL_HANDLING_MODE, DecimalHandlingMode.STRING)
                 .build();
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // ---------------------------------------------------------------------------------------------------------------
         // Consume all of the events due to startup and initialization of the database
@@ -1010,13 +1010,13 @@ public class MySqlConnectorRegressionIT extends AbstractConnectorTest {
     public void shouldConsumeDecimalAsStringFromSnapshot() throws SQLException, InterruptedException {
         // Use the DB configuration to define the connector's configuration ...
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("dbz_147_decimalvalues"))
-                .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
+                .with(MySqlConnectorConfig_V2.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("dbz_147_decimalvalues"))
+                .with(MySqlConnectorConfig_V2.INCLUDE_SCHEMA_CHANGES, true)
                 .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, true)
-                .with(MySqlConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.STRING)
+                .with(MySqlConnectorConfig_V2.DECIMAL_HANDLING_MODE, DecimalHandlingMode.STRING)
                 .build();
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // ---------------------------------------------------------------------------------------------------------------
         // Consume all of the events due to startup and initialization of the database

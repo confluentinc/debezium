@@ -31,9 +31,9 @@ import io.debezium.relational.Tables;
 import io.debezium.spi.topic.TopicNamingStrategy;
 
 /**
- * Component that records the schema information for the {@link PostgresConnector}. The schema information contains
+ * Component that records the schema information for the {@link PostgresConnector_V2}. The schema information contains
  * the {@link Tables table definitions} and the Kafka Connect {@link #schemaFor(TableId) Schema}s for each table, where the
- * {@link Schema} excludes any columns that have been {@link PostgresConnectorConfig#COLUMN_EXCLUDE_LIST specified} in the
+ * {@link Schema} excludes any columns that have been {@link PostgresConnectorConfig_V2#COLUMN_EXCLUDE_LIST specified} in the
  * configuration.
  *
  * @author Horia Chiorean
@@ -49,11 +49,11 @@ public class PostgresSchema extends RelationalDatabaseSchema {
     private final boolean readToastableColumns;
 
     /**
-     * Create a schema component given the supplied {@link PostgresConnectorConfig Postgres connector configuration}.
+     * Create a schema component given the supplied {@link PostgresConnectorConfig_V2 Postgres connector configuration}.
      *
      * @param config the connector configuration, which is presumed to be valid
      */
-    protected PostgresSchema(PostgresConnectorConfig config, PostgresDefaultValueConverter defaultValueConverter,
+    protected PostgresSchema(PostgresConnectorConfig_V2 config, PostgresDefaultValueConverter defaultValueConverter,
                              TopicNamingStrategy<TableId> topicNamingStrategy, PostgresValueConverter valueConverter) {
         super(config, topicNamingStrategy, config.getTableFilters().dataCollectionFilter(),
                 config.getColumnFilter(), getTableSchemaBuilder(config, valueConverter, defaultValueConverter),
@@ -64,7 +64,7 @@ public class PostgresSchema extends RelationalDatabaseSchema {
         this.readToastableColumns = config.skipRefreshSchemaOnMissingToastableData();
     }
 
-    private static TableSchemaBuilder getTableSchemaBuilder(PostgresConnectorConfig config, PostgresValueConverter valueConverter,
+    private static TableSchemaBuilder getTableSchemaBuilder(PostgresConnectorConfig_V2 config, PostgresValueConverter valueConverter,
                                                             PostgresDefaultValueConverter defaultValueConverter) {
         return new TableSchemaBuilder(valueConverter, defaultValueConverter, config.schemaNameAdjuster(),
                 config.customConverterRegistry(), config.getSourceInfoStructMaker().schema(),

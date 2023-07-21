@@ -41,9 +41,9 @@ import io.debezium.util.Strings;
  *
  * @author Jiri Pechanec
  */
-public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnectorConfig {
+public class SqlServerConnectorConfig_V2 extends HistorizedRelationalDatabaseConnectorConfig {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(SqlServerConnectorConfig.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(SqlServerConnectorConfig_V2.class);
 
     public static final String MAX_TRANSACTIONS_PER_ITERATION_CONFIG_NAME = "max.iteration.transactions";
     public static final String ERRORS_MAX_RETRIES = "errors.max.retries";
@@ -100,13 +100,13 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
          * @param value the configuration property value; may not be null
          * @return the matching option, or null if no match is found
          */
-        public static SnapshotMode parse(String value) {
+        public static io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode parse(String value) {
             if (value == null) {
                 return null;
             }
             value = value.trim();
 
-            for (SnapshotMode option : SnapshotMode.values()) {
+            for (io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode option : io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.values()) {
                 if (option.getValue().equalsIgnoreCase(value)) {
                     return option;
                 }
@@ -122,8 +122,8 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
          * @param defaultValue the default value; may be null
          * @return the matching option, or null if no match is found and the non-null default is invalid
          */
-        public static SnapshotMode parse(String value, String defaultValue) {
-            SnapshotMode mode = parse(value);
+        public static io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode parse(String value, String defaultValue) {
+            io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode mode = parse(value);
 
             if (mode == null && defaultValue != null) {
                 mode = parse(defaultValue);
@@ -190,12 +190,12 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
          * @param value the configuration property value; may not be null
          * @return the matching option, or null if no match is found
          */
-        public static SnapshotIsolationMode parse(String value) {
+        public static io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotIsolationMode parse(String value) {
             if (value == null) {
                 return null;
             }
             value = value.trim();
-            for (SnapshotIsolationMode option : SnapshotIsolationMode.values()) {
+            for (io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotIsolationMode option : io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotIsolationMode.values()) {
                 if (option.getValue().equalsIgnoreCase(value)) {
                     return option;
                 }
@@ -210,8 +210,8 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
          * @param defaultValue the default value; may be null
          * @return the matching option, or null if no match is found and the non-null default is invalid
          */
-        public static SnapshotIsolationMode parse(String value, String defaultValue) {
-            SnapshotIsolationMode mode = parse(value);
+        public static io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotIsolationMode parse(String value, String defaultValue) {
+            io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotIsolationMode mode = parse(value);
             if (mode == null && defaultValue != null) {
                 mode = parse(defaultValue);
             }
@@ -240,7 +240,7 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
             .withGroup(Field.createGroupEntry(Field.Group.CONNECTION, 7))
             .withWidth(Width.MEDIUM)
             .withImportance(Importance.HIGH)
-            .withValidation(SqlServerConnectorConfig::validateDatabaseNames)
+            .withValidation(SqlServerConnectorConfig_V2::validateDatabaseNames)
             .withDescription("The names of the databases from which the connector should capture changes");
 
     public static final Field MAX_LSN_OPTIMIZATION = Field.createInternal("streaming.lsn.optimization")
@@ -272,7 +272,7 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
 
     public static final Field SNAPSHOT_MODE = Field.create("snapshot.mode")
             .withDisplayName("Snapshot mode")
-            .withEnum(SnapshotMode.class, SnapshotMode.INITIAL)
+            .withEnum(io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.class, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.INITIAL)
             .withGroup(Field.createGroupEntry(Field.Group.CONNECTOR_SNAPSHOT, 0))
             .withWidth(Width.SHORT)
             .withImportance(Importance.LOW)
@@ -283,21 +283,22 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
                     + "'schema_only': If the connector does not detect any offsets for the logical server name, it runs a snapshot that captures only the schema (table structures), but not any table data. After the snapshot completes, the connector begins to stream changes from the transaction log.");
     public static final Field SNAPSHOT_ISOLATION_MODE = Field.create("snapshot.isolation.mode")
             .withDisplayName("Snapshot isolation mode")
-            .withEnum(SnapshotIsolationMode.class, SnapshotIsolationMode.REPEATABLE_READ)
+            .withEnum(
+                io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotIsolationMode.class, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotIsolationMode.REPEATABLE_READ)
             .withGroup(Field.createGroupEntry(Field.Group.CONNECTOR_SNAPSHOT, 1))
             .withWidth(Width.SHORT)
             .withImportance(Importance.LOW)
             .withDescription("Controls which transaction isolation level is used and how long the connector locks the captured tables. "
-                    + "The default is '" + SnapshotIsolationMode.REPEATABLE_READ.getValue()
+                    + "The default is '" + io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotIsolationMode.REPEATABLE_READ.getValue()
                     + "', which means that repeatable read isolation level is used. In addition, exclusive locks are taken only during schema snapshot. "
-                    + "Using a value of '" + SnapshotIsolationMode.EXCLUSIVE.getValue()
+                    + "Using a value of '" + io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotIsolationMode.EXCLUSIVE.getValue()
                     + "' ensures that the connector holds the exclusive lock (and thus prevents any reads and updates) for all captured tables during the entire snapshot duration. "
-                    + "When '" + SnapshotIsolationMode.SNAPSHOT.getValue()
+                    + "When '" + io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotIsolationMode.SNAPSHOT.getValue()
                     + "' is specified, connector runs the initial snapshot in SNAPSHOT isolation level, which guarantees snapshot consistency. In addition, neither table nor row-level locks are held. "
-                    + "When '" + SnapshotIsolationMode.READ_COMMITTED.getValue()
+                    + "When '" + io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotIsolationMode.READ_COMMITTED.getValue()
                     + "' is specified, connector runs the initial snapshot in READ COMMITTED isolation level. No long-running locks are taken, so that initial snapshot does not prevent "
                     + "other transactions from updating table rows. Snapshot consistency is not guaranteed."
-                    + "In '" + SnapshotIsolationMode.READ_UNCOMMITTED.getValue()
+                    + "In '" + io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotIsolationMode.READ_UNCOMMITTED.getValue()
                     + "' mode neither table nor row-level locks are acquired, but connector does not guarantee snapshot consistency.");
 
     public static final Field INCREMENTAL_SNAPSHOT_OPTION_RECOMPILE = Field.create("incremental.snapshot.option.recompile")
@@ -348,16 +349,16 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
 
     private final List<String> databaseNames;
     private final String instanceName;
-    private final SnapshotMode snapshotMode;
-    private final SnapshotIsolationMode snapshotIsolationMode;
+    private final io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode snapshotModeV2;
+    private final io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotIsolationMode snapshotIsolationModeV2;
     private final boolean readOnlyDatabaseConnection;
     private final int maxTransactionsPerIteration;
     private final int maxRetriesOnError;
     private final boolean optionRecompile;
 
-    public SqlServerConnectorConfig(Configuration config) {
+    public SqlServerConnectorConfig_V2(Configuration config) {
         super(
-                SqlServerConnector.class,
+                SqlServerConnector_V2.class,
                 config,
                 new SystemTablesPredicate(),
                 x -> x.schema() + "." + x.table(),
@@ -375,15 +376,15 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
         }
 
         this.instanceName = config.getString(INSTANCE);
-        this.snapshotMode = SnapshotMode.parse(config.getString(SNAPSHOT_MODE), SNAPSHOT_MODE.defaultValueAsString());
+        this.snapshotModeV2 = io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.parse(config.getString(SNAPSHOT_MODE), SNAPSHOT_MODE.defaultValueAsString());
 
         this.readOnlyDatabaseConnection = READ_ONLY_INTENT.equals(config.getString(APPLICATION_INTENT_KEY));
         if (readOnlyDatabaseConnection) {
-            this.snapshotIsolationMode = SnapshotIsolationMode.SNAPSHOT;
-            LOGGER.info("JDBC connection has set applicationIntent = ReadOnly, switching snapshot isolation mode to {}", SnapshotIsolationMode.SNAPSHOT.name());
+            this.snapshotIsolationModeV2 = io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotIsolationMode.SNAPSHOT;
+            LOGGER.info("JDBC connection has set applicationIntent = ReadOnly, switching snapshot isolation mode to {}", io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotIsolationMode.SNAPSHOT.name());
         }
         else {
-            this.snapshotIsolationMode = SnapshotIsolationMode.parse(config.getString(SNAPSHOT_ISOLATION_MODE), SNAPSHOT_ISOLATION_MODE.defaultValueAsString());
+            this.snapshotIsolationModeV2 = io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotIsolationMode.parse(config.getString(SNAPSHOT_ISOLATION_MODE), SNAPSHOT_ISOLATION_MODE.defaultValueAsString());
         }
 
         this.maxTransactionsPerIteration = config.getInteger(MAX_TRANSACTIONS_PER_ITERATION);
@@ -425,12 +426,12 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
         return sqlServerconfig;
     }
 
-    public SnapshotIsolationMode getSnapshotIsolationMode() {
-        return this.snapshotIsolationMode;
+    public io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotIsolationMode getSnapshotIsolationMode() {
+        return this.snapshotIsolationModeV2;
     }
 
-    public SnapshotMode getSnapshotMode() {
-        return snapshotMode;
+    public io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode getSnapshotMode() {
+        return snapshotModeV2;
     }
 
     public boolean isReadOnlyDatabaseConnection() {
@@ -461,7 +462,7 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
 
     @Override
     protected SourceInfoStructMaker<? extends AbstractSourceInfo> getSourceInfoStructMaker(Version version) {
-        return getSourceInfoStructMaker(SqlServerConnectorConfig.SOURCE_INFO_STRUCT_MAKER, Module.name(), Module.version(), this);
+        return getSourceInfoStructMaker(SqlServerConnectorConfig_V2.SOURCE_INFO_STRUCT_MAKER, Module.name(), Module.version(), this);
     }
 
     private static class SystemTablesPredicate implements TableFilter {

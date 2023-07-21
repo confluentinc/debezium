@@ -34,7 +34,7 @@ import io.debezium.config.Configuration;
 import io.debezium.connector.sqlserver.Lsn;
 import io.debezium.connector.sqlserver.SqlServerChangeTable;
 import io.debezium.connector.sqlserver.SqlServerConnection;
-import io.debezium.connector.sqlserver.SqlServerConnectorConfig;
+import io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2;
 import io.debezium.connector.sqlserver.SqlServerJdbcConfiguration;
 import io.debezium.connector.sqlserver.SqlServerValueConverters;
 import io.debezium.jdbc.JdbcConfiguration;
@@ -105,7 +105,8 @@ public class TestHelper {
     }
 
     public static JdbcConfiguration defaultJdbcConfig() {
-        return JdbcConfiguration.copy(Configuration.fromSystemProperties(SqlServerConnectorConfig.DATABASE_CONFIG_PREFIX))
+        return JdbcConfiguration.copy(Configuration.fromSystemProperties(
+                SqlServerConnectorConfig_V2.DATABASE_CONFIG_PREFIX))
                 .withDefault(JdbcConfiguration.HOSTNAME, "localhost")
                 .withDefault(JdbcConfiguration.PORT, 1433)
                 .withDefault(JdbcConfiguration.USER, "sa")
@@ -125,10 +126,10 @@ public class TestHelper {
         Configuration.Builder builder = Configuration.create();
 
         jdbcConfiguration.forEach(
-                (field, value) -> builder.with(SqlServerConnectorConfig.DATABASE_CONFIG_PREFIX + field, value));
+                (field, value) -> builder.with(SqlServerConnectorConfig_V2.DATABASE_CONFIG_PREFIX + field, value));
 
         return builder.with(CommonConnectorConfig.TOPIC_PREFIX, "server1")
-                .with(SqlServerConnectorConfig.SCHEMA_HISTORY, FileSchemaHistory.class)
+                .with(SqlServerConnectorConfig_V2.SCHEMA_HISTORY, FileSchemaHistory.class)
                 .with(FileSchemaHistory.FILE_PATH, SCHEMA_HISTORY_PATH)
                 .with(RelationalDatabaseConnectorConfig.INCLUDE_SCHEMA_CHANGES, false);
     }
@@ -146,7 +147,7 @@ public class TestHelper {
      */
     public static Configuration.Builder defaultConfig(String... databaseNames) {
         return defaultConnectorConfig()
-                .with(SqlServerConnectorConfig.DATABASE_NAMES.name(), String.join(",", databaseNames));
+                .with(SqlServerConnectorConfig_V2.DATABASE_NAMES.name(), String.join(",", databaseNames));
     }
 
     public static void createTestDatabase() {

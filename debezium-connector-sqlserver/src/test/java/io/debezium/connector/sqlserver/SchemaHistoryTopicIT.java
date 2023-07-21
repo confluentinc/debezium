@@ -20,7 +20,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import io.debezium.config.Configuration;
-import io.debezium.connector.sqlserver.SqlServerConnectorConfig.SnapshotMode;
 import io.debezium.connector.sqlserver.util.TestHelper;
 import io.debezium.doc.FixFor;
 import io.debezium.embedded.AbstractConnectorTest;
@@ -71,11 +70,11 @@ public class SchemaHistoryTopicIT extends AbstractConnectorTest {
         final int ID_START_2 = 100;
         final int ID_START_3 = 1000;
         final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.SCHEMA_ONLY)
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.SCHEMA_ONLY)
                 .with(RelationalDatabaseConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -203,7 +202,7 @@ public class SchemaHistoryTopicIT extends AbstractConnectorTest {
         final int TABLES = 2;
         final int ID_START_1 = 10;
         final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.INITIAL)
                 .with(RelationalDatabaseConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
                 .build();
 
@@ -215,7 +214,7 @@ public class SchemaHistoryTopicIT extends AbstractConnectorTest {
                     "INSERT INTO tableb VALUES(" + id + ", 'b')");
         }
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -259,9 +258,9 @@ public class SchemaHistoryTopicIT extends AbstractConnectorTest {
         final int RECORDS_PER_TABLE = 1;
         final int ID_START = 10;
         final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
-                .with(SqlServerConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
-                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.tablec")
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(SqlServerConnectorConfig_V2.INCLUDE_SCHEMA_CHANGES, true)
+                .with(SqlServerConnectorConfig_V2.TABLE_INCLUDE_LIST, "dbo.tablec")
                 .build();
 
         connection.execute("CREATE TABLE tabled (id int primary key, cold varchar(30))");
@@ -272,7 +271,7 @@ public class SchemaHistoryTopicIT extends AbstractConnectorTest {
         // Make sure table's capture instance exists first; avoids unexpected ALTER
         TestHelper.waitForEnabledCdc(connection, "tablec");
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -285,11 +284,11 @@ public class SchemaHistoryTopicIT extends AbstractConnectorTest {
         assertConnectorNotRunning();
 
         final Configuration config2 = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
-                .with(SqlServerConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
-                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.tablec,dbo.tabled")
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(SqlServerConnectorConfig_V2.INCLUDE_SCHEMA_CHANGES, true)
+                .with(SqlServerConnectorConfig_V2.TABLE_INCLUDE_LIST, "dbo.tablec,dbo.tabled")
                 .build();
-        start(SqlServerConnector.class, config2);
+        start(SqlServerConnector_V2.class, config2);
         assertConnectorIsRunning();
 
         // Guarantee we've started streaming and not still in bootstrap steps
@@ -326,11 +325,11 @@ public class SchemaHistoryTopicIT extends AbstractConnectorTest {
         TestHelper.enableTableCdc(connection, "dbz3347");
 
         Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo\\.dbz3347")
-                .with(SqlServerConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
+                .with(SqlServerConnectorConfig_V2.TABLE_INCLUDE_LIST, "dbo\\.dbz3347")
+                .with(SqlServerConnectorConfig_V2.INCLUDE_SCHEMA_CHANGES, true)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         TestHelper.waitForStreamingStarted();

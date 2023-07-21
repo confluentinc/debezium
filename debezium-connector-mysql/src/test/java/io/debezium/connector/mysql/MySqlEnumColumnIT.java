@@ -64,11 +64,11 @@ public class MySqlEnumColumnIT extends AbstractConnectorTest {
     public void shouldAlterEnumColumnCharacterSet() throws Exception {
 
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.NEVER)
-                .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("test_stations_10"))
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.NEVER)
+                .with(MySqlConnectorConfig_V2.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("test_stations_10"))
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // There are 5 records to account for the following operations
         // CREATE DATABASE
@@ -93,12 +93,12 @@ public class MySqlEnumColumnIT extends AbstractConnectorTest {
     @FixFor("DBZ-1636")
     public void shouldPropagateColumnSourceType() throws Exception {
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.NEVER)
-                .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("test_stations_10"))
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.NEVER)
+                .with(MySqlConnectorConfig_V2.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("test_stations_10"))
                 .with("column.propagate.source.type", DATABASE.qualifiedTableName("test_stations_10") + ".type")
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         SourceRecords records = consumeRecordsByTopic(5);
 

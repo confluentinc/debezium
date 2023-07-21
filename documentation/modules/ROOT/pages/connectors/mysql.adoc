@@ -2281,7 +2281,7 @@ and captures changes to the `inventory` database.
     labels:
       strimzi.io/cluster: my-connect-cluster
   spec:
-    class: io.debezium.connector.mysql.MySqlConnector
+    class: io.debezium.connector.mysql.MySqlConnector_V2
     tasksMax: 1  // <2>
     config:  // <3>
       database.hostname: mysql  // <4>
@@ -2363,7 +2363,7 @@ Optionally, you can ignore, mask, or truncate columns that contain sensitive dat
 {
     "name": "inventory-connector", // <1>
     "config": {
-        "connector.class": "io.debezium.connector.mysql.MySqlConnector", // <2>
+        "connector.class": "io.debezium.connector.mysql.MySqlConnector_V2", // <2>
         "database.hostname": "192.168.99.100", // <3>
         "database.port": "3306", // <4>
         "database.user": "debezium-user", // <5>
@@ -2462,7 +2462,7 @@ The following configuration properties are _required_ unless a default value is 
 
 |[[mysql-property-connector-class]]<<mysql-property-connector-class, `+connector.class+`>>
 |No default
-|The name of the Java class for the connector. Always specify  `io.debezium.connector.mysql.MySqlConnector` for the MySQL connector.
+|The name of the Java class for the connector. Always specify  `io.debezium.connector.mysql.MySqlConnector_V2` for the MySQL connector.
 
 |[[mysql-property-tasks-max]]<<mysql-property-tasks-max, `+tasks.max+`>>
 |`1`

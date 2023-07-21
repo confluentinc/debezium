@@ -28,7 +28,7 @@ public class SqlServerChangeRecordEmitter extends RelationalChangeRecordEmitter 
     private final Object[] dataNext;
 
     public SqlServerChangeRecordEmitter(Partition partition, OffsetContext offset, int operation, Object[] data, Object[] dataNext, Clock clock,
-                                        SqlServerConnectorConfig connectorConfig) {
+                                        SqlServerConnectorConfig_V2 connectorConfig) {
         super(partition, offset, clock, connectorConfig);
 
         this.operation = operation;

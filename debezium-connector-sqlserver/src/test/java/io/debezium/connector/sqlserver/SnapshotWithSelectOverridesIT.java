@@ -108,7 +108,7 @@ public class SnapshotWithSelectOverridesIT extends AbstractConnectorTest {
     }
 
     private void takeSnapshotWithOverrides(Configuration config, String topicPrefix) throws Exception {
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         SourceRecords records = consumeRecordsByTopic(INITIAL_RECORDS_PER_TABLE + (INITIAL_RECORDS_PER_TABLE + INITIAL_RECORDS_PER_TABLE) / 2);
@@ -157,7 +157,7 @@ public class SnapshotWithSelectOverridesIT extends AbstractConnectorTest {
     }
 
     private void takeSnapshotWithOverridesWithAdditionalWhitespace(Configuration config, String topicPrefix) throws Exception {
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         SourceRecords records = consumeRecordsByTopic(INITIAL_RECORDS_PER_TABLE + (INITIAL_RECORDS_PER_TABLE + INITIAL_RECORDS_PER_TABLE) / 2);

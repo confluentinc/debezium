@@ -28,8 +28,8 @@ import org.testcontainers.containers.wait.strategy.Wait;
 
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
-import io.debezium.connector.mysql.MySqlConnector;
-import io.debezium.connector.mysql.MySqlConnectorConfig;
+import io.debezium.connector.mysql.MySqlConnector_V2;
+import io.debezium.connector.mysql.MySqlConnectorConfig_V2;
 import io.debezium.connector.mysql.MySqlTestConnection;
 import io.debezium.connector.mysql.UniqueDatabase;
 import io.debezium.embedded.AbstractConnectorTest;
@@ -118,18 +118,18 @@ public class JdbcOffsetBackingStoreIT extends AbstractConnectorTest {
     private Configuration.Builder config(String jdbcUrl) {
 
         final Configuration.Builder builder = Configuration.create()
-                .with(MySqlConnectorConfig.HOSTNAME, container.getHost())
-                .with(MySqlConnectorConfig.PORT, container.getMappedPort(PORT))
-                .with(MySqlConnectorConfig.USER, USER)
-                .with(MySqlConnectorConfig.PASSWORD, PASSWORD)
-                .with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, DBNAME)
-                .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, DBNAME + "." + TABLE_NAME)
-                .with(MySqlConnectorConfig.SERVER_ID, 18765)
-                .with(MySqlConnectorConfig.POLL_INTERVAL_MS, 10)
-                .with(MySqlConnectorConfig.SCHEMA_HISTORY, JdbcSchemaHistory.class)
+                .with(MySqlConnectorConfig_V2.HOSTNAME, container.getHost())
+                .with(MySqlConnectorConfig_V2.PORT, container.getMappedPort(PORT))
+                .with(MySqlConnectorConfig_V2.USER, USER)
+                .with(MySqlConnectorConfig_V2.PASSWORD, PASSWORD)
+                .with(MySqlConnectorConfig_V2.DATABASE_INCLUDE_LIST, DBNAME)
+                .with(MySqlConnectorConfig_V2.TABLE_INCLUDE_LIST, DBNAME + "." + TABLE_NAME)
+                .with(MySqlConnectorConfig_V2.SERVER_ID, 18765)
+                .with(MySqlConnectorConfig_V2.POLL_INTERVAL_MS, 10)
+                .with(MySqlConnectorConfig_V2.SCHEMA_HISTORY, JdbcSchemaHistory.class)
                 .with(CommonConnectorConfig.TOPIC_PREFIX, TOPIC_PREFIX)
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
-                .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, false)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(MySqlConnectorConfig_V2.INCLUDE_SCHEMA_CHANGES, false)
                 .with(JdbcOffsetBackingStoreConfig.OFFSET_STORAGE_PREFIX + JdbcOffsetBackingStoreConfig.PROP_JDBC_URL.name(), jdbcUrl)
                 .with(JdbcOffsetBackingStoreConfig.OFFSET_STORAGE_PREFIX + JdbcOffsetBackingStoreConfig.PROP_USER.name(), "user")
                 .with(JdbcOffsetBackingStoreConfig.OFFSET_STORAGE_PREFIX + JdbcOffsetBackingStoreConfig.PROP_PASSWORD.name(), "pass")
@@ -178,7 +178,7 @@ public class JdbcOffsetBackingStoreIT extends AbstractConnectorTest {
         Configuration config = config(jdbcUrl).build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForStreamingRunning("mysql", TOPIC_PREFIX);
 
         consumeRecordsByTopic(4);

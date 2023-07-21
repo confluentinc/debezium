@@ -52,8 +52,8 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 
 import io.debezium.config.CommonConnectorConfig.BinaryHandlingMode;
-import io.debezium.connector.postgresql.PostgresConnectorConfig.HStoreHandlingMode;
-import io.debezium.connector.postgresql.PostgresConnectorConfig.IntervalHandlingMode;
+import io.debezium.connector.postgresql.PostgresConnectorConfig_V2.HStoreHandlingMode;
+import io.debezium.connector.postgresql.PostgresConnectorConfig_V2.IntervalHandlingMode;
 import io.debezium.connector.postgresql.data.Ltree;
 import io.debezium.connector.postgresql.proto.PgProto;
 import io.debezium.data.Bits;
@@ -158,7 +158,7 @@ public class PostgresValueConverter extends JdbcValueConverters {
     private final UnchangedToastedPlaceholder unchangedToastedPlaceholder;
     private final int moneyFractionDigits;
 
-    public static PostgresValueConverter of(PostgresConnectorConfig connectorConfig, Charset databaseCharset, TypeRegistry typeRegistry) {
+    public static PostgresValueConverter of(PostgresConnectorConfig_V2 connectorConfig, Charset databaseCharset, TypeRegistry typeRegistry) {
         return new PostgresValueConverter(
                 databaseCharset,
                 connectorConfig.getDecimalMode(),
@@ -382,7 +382,7 @@ public class PostgresValueConverter extends JdbcValueConverters {
     }
 
     private SchemaBuilder hstoreSchema() {
-        if (hStoreMode == PostgresConnectorConfig.HStoreHandlingMode.JSON) {
+        if (hStoreMode == PostgresConnectorConfig_V2.HStoreHandlingMode.JSON) {
             return Json.builder();
         }
         else {

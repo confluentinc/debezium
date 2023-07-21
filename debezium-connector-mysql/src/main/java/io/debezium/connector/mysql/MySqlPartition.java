@@ -55,10 +55,10 @@ public class MySqlPartition extends AbstractPartition implements Partition {
     }
 
     public static class Provider implements Partition.Provider<MySqlPartition> {
-        private final MySqlConnectorConfig connectorConfig;
+        private final MySqlConnectorConfig_V2 connectorConfig;
         private final Configuration taskConfig;
 
-        public Provider(MySqlConnectorConfig connectorConfig, Configuration taskConfig) {
+        public Provider(MySqlConnectorConfig_V2 connectorConfig, Configuration taskConfig) {
             this.connectorConfig = connectorConfig;
             this.taskConfig = taskConfig;
         }

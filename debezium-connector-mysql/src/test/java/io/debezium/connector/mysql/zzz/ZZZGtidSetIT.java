@@ -8,6 +8,7 @@ package io.debezium.connector.mysql.zzz;
 import static io.debezium.junit.EqualityCheck.LESS_THAN;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.debezium.connector.mysql.MySqlConnector_V2;
 import java.nio.file.Path;
 import java.sql.SQLException;
 import java.time.Duration;
@@ -22,9 +23,8 @@ import org.junit.Before;
 import org.junit.Test;
 
 import io.debezium.config.Configuration;
-import io.debezium.connector.mysql.MySqlConnector;
-import io.debezium.connector.mysql.MySqlConnectorConfig;
-import io.debezium.connector.mysql.MySqlConnectorConfig.SnapshotMode;
+import io.debezium.connector.mysql.MySqlConnectorConfig_V2;
+import io.debezium.connector.mysql.MySqlConnectorConfig_V2.SnapshotMode;
 import io.debezium.connector.mysql.MySqlTestConnection;
 import io.debezium.connector.mysql.UniqueDatabase;
 import io.debezium.doc.FixFor;
@@ -100,13 +100,13 @@ public class ZZZGtidSetIT extends AbstractConnectorTest {
 
         // Use the DB configuration to define the connector's configuration ...
         config = ro_database.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER)
-                .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
-                .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, ro_database.qualifiedTableName("customers"))
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.NEVER)
+                .with(MySqlConnectorConfig_V2.INCLUDE_SCHEMA_CHANGES, true)
+                .with(MySqlConnectorConfig_V2.TABLE_INCLUDE_LIST, ro_database.qualifiedTableName("customers"))
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Consume the first records due to startup and initialization of the database ...
         // Testing.Print.enable();
@@ -187,13 +187,13 @@ public class ZZZGtidSetIT extends AbstractConnectorTest {
 
         // Use the DB configuration to define the connector's configuration ...
         config = database.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, SnapshotMode.WHEN_NEEDED)
-                .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
-                .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, database.qualifiedTableName("customers"))
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.WHEN_NEEDED)
+                .with(MySqlConnectorConfig_V2.INCLUDE_SCHEMA_CHANGES, true)
+                .with(MySqlConnectorConfig_V2.TABLE_INCLUDE_LIST, database.qualifiedTableName("customers"))
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Consume the first records due to startup and initialization of the database ...
         // Testing.Print.enable();
@@ -213,7 +213,7 @@ public class ZZZGtidSetIT extends AbstractConnectorTest {
                     "INSERT INTO customers VALUES(default,2,2,2)");
         }
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         records = consumeRecordsByTopic(2);
         stopConnector();
 
@@ -223,7 +223,7 @@ public class ZZZGtidSetIT extends AbstractConnectorTest {
                     "INSERT INTO customers VALUES(default,4,4,4)");
         }
         purgeDatabaseLogs();
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         // SET + DROP/CREATE/USE DB + DROP/CREATE 4 tables + 8 data
         records = consumeRecordsByTopic(1 + 3 + 2 * 4 + 8);
         assertThat(records.recordsForTopic(database.topicForTable("customers")).size()).isEqualTo(8);
@@ -242,7 +242,7 @@ public class ZZZGtidSetIT extends AbstractConnectorTest {
                     "INSERT INTO customers VALUES(default,7,7,7)",
                     "INSERT INTO customers VALUES(default,8,8,8)");
         }
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         // SET + DROP/CREATE/USE DB + DROP/CREATE 4 tables + 8 data
         records = consumeRecordsByTopic(1 + 3 + 2 * 4 + 12);
         assertThat(records.recordsForTopic(database.topicForTable("customers")).size()).isEqualTo(12);

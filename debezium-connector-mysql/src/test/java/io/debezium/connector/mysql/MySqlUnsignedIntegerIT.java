@@ -61,12 +61,13 @@ public class MySqlUnsignedIntegerIT extends AbstractConnectorTest {
     public void shouldConsumeAllEventsFromDatabaseUsingBinlogAndNoSnapshot() throws SQLException, InterruptedException {
         // Use the DB configuration to define the connector's configuration ...
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.NEVER)
-                .with(MySqlConnectorConfig.BIGINT_UNSIGNED_HANDLING_MODE, MySqlConnectorConfig.BigIntUnsignedHandlingMode.PRECISE)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.NEVER)
+                .with(
+                    MySqlConnectorConfig_V2.BIGINT_UNSIGNED_HANDLING_MODE, MySqlConnectorConfig_V2.BigIntUnsignedHandlingMode.PRECISE)
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // ---------------------------------------------------------------------------------------------------------------
         // Consume all of the events due to startup and initialization of the database
@@ -128,11 +129,12 @@ public class MySqlUnsignedIntegerIT extends AbstractConnectorTest {
     public void shouldConsumeAllEventsFromBigIntTableInDatabaseUsingBinlogAndNoSnapshotUsingLong() throws SQLException, InterruptedException {
         // Use the DB configuration to define the connector's configuration ...
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.NEVER.toString())
-                .with(MySqlConnectorConfig.BIGINT_UNSIGNED_HANDLING_MODE, MySqlConnectorConfig.BigIntUnsignedHandlingMode.LONG)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.NEVER.toString())
+                .with(
+                    MySqlConnectorConfig_V2.BIGINT_UNSIGNED_HANDLING_MODE, MySqlConnectorConfig_V2.BigIntUnsignedHandlingMode.LONG)
                 .build();
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // ---------------------------------------------------------------------------------------------------------------
         // Consume all of the events due to startup and initialization of the database
@@ -166,7 +168,7 @@ public class MySqlUnsignedIntegerIT extends AbstractConnectorTest {
         config = DATABASE.defaultConfig().build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // ---------------------------------------------------------------------------------------------------------------
         // Consume all of the events due to startup and initialization of the database

@@ -7,6 +7,7 @@ package io.debezium.storage.jdbc.history;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.debezium.connector.mysql.MySqlConnector_V2;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -28,9 +29,8 @@ import org.testcontainers.containers.wait.strategy.Wait;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.config.Configuration.Builder;
-import io.debezium.connector.mysql.MySqlConnector;
-import io.debezium.connector.mysql.MySqlConnectorConfig;
-import io.debezium.connector.mysql.MySqlConnectorConfig.SnapshotMode;
+import io.debezium.connector.mysql.MySqlConnectorConfig_V2;
+import io.debezium.connector.mysql.MySqlConnectorConfig_V2.SnapshotMode;
 import io.debezium.connector.mysql.MySqlTestConnection;
 import io.debezium.embedded.AbstractConnectorTest;
 import io.debezium.jdbc.JdbcConfiguration;
@@ -117,18 +117,18 @@ public class JdbcSchemaHistoryIT extends AbstractConnectorTest {
         String jdbcUrl = String.format("jdbc:sqlite:%s", dbFile.getAbsolutePath());
 
         final Builder builder = Configuration.create()
-                .with(MySqlConnectorConfig.HOSTNAME, container.getHost())
-                .with(MySqlConnectorConfig.PORT, container.getMappedPort(PORT))
-                .with(MySqlConnectorConfig.USER, USER)
-                .with(MySqlConnectorConfig.PASSWORD, PASSWORD)
-                .with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, DBNAME)
-                .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, DBNAME + "." + TABLE_NAME)
-                .with(MySqlConnectorConfig.SERVER_ID, 18765)
-                .with(MySqlConnectorConfig.POLL_INTERVAL_MS, 10)
-                .with(MySqlConnectorConfig.SCHEMA_HISTORY, JdbcSchemaHistory.class)
+                .with(MySqlConnectorConfig_V2.HOSTNAME, container.getHost())
+                .with(MySqlConnectorConfig_V2.PORT, container.getMappedPort(PORT))
+                .with(MySqlConnectorConfig_V2.USER, USER)
+                .with(MySqlConnectorConfig_V2.PASSWORD, PASSWORD)
+                .with(MySqlConnectorConfig_V2.DATABASE_INCLUDE_LIST, DBNAME)
+                .with(MySqlConnectorConfig_V2.TABLE_INCLUDE_LIST, DBNAME + "." + TABLE_NAME)
+                .with(MySqlConnectorConfig_V2.SERVER_ID, 18765)
+                .with(MySqlConnectorConfig_V2.POLL_INTERVAL_MS, 10)
+                .with(MySqlConnectorConfig_V2.SCHEMA_HISTORY, JdbcSchemaHistory.class)
                 .with(CommonConnectorConfig.TOPIC_PREFIX, TOPIC_PREFIX)
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
-                .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, false)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, SnapshotMode.INITIAL)
+                .with(MySqlConnectorConfig_V2.INCLUDE_SCHEMA_CHANGES, false)
                 .with(JdbcOffsetBackingStoreConfig.OFFSET_STORAGE_PREFIX + JdbcOffsetBackingStoreConfig.PROP_JDBC_URL.name(), jdbcUrl)
                 .with(JdbcOffsetBackingStoreConfig.OFFSET_STORAGE_PREFIX + JdbcOffsetBackingStoreConfig.PROP_USER.name(), "user")
                 .with(JdbcOffsetBackingStoreConfig.OFFSET_STORAGE_PREFIX + JdbcOffsetBackingStoreConfig.PROP_PASSWORD.name(), "pass")
@@ -153,7 +153,7 @@ public class JdbcSchemaHistoryIT extends AbstractConnectorTest {
         Configuration config = config().build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
         SourceRecords records = consumeRecordsByTopic(4); // 4 DML changes
@@ -168,7 +168,7 @@ public class JdbcSchemaHistoryIT extends AbstractConnectorTest {
         Configuration config = config().build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForStreamingRunning("mysql", TOPIC_PREFIX);
 
         Testing.Print.enable();
@@ -192,7 +192,7 @@ public class JdbcSchemaHistoryIT extends AbstractConnectorTest {
             conn.execute("INSERT INTO schematest VALUES (5, 'five')");
         }
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForStreamingRunning("mysql", TOPIC_PREFIX);
 
         records = consumeRecordsByTopic(1); // 1 DML change

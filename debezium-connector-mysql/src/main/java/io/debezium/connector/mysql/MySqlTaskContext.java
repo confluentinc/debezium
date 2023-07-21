@@ -20,7 +20,7 @@ public class MySqlTaskContext extends CdcSourceTaskContext {
     private final MySqlDatabaseSchema schema;
     private final BinaryLogClient binaryLogClient;
 
-    public MySqlTaskContext(MySqlConnectorConfig config, MySqlDatabaseSchema schema) {
+    public MySqlTaskContext(MySqlConnectorConfig_V2 config, MySqlDatabaseSchema schema) {
         super(config.getContextName(), config.getLogicalName(), schema::tableIds);
         this.schema = schema;
         this.binaryLogClient = new BinaryLogClient(config.hostname(), config.port(), config.username(), config.password());

@@ -20,7 +20,6 @@ import org.junit.Test;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.CommonConnectorConfig.SchemaNameAdjustmentMode;
 import io.debezium.config.Configuration;
-import io.debezium.connector.sqlserver.SqlServerConnectorConfig.SnapshotMode;
 import io.debezium.connector.sqlserver.util.TestHelper;
 import io.debezium.doc.FixFor;
 import io.debezium.embedded.AbstractConnectorTest;
@@ -52,8 +51,8 @@ public class SpecialCharsInNamesIT extends AbstractConnectorTest {
         Testing.Files.delete(TestHelper.SCHEMA_HISTORY_PATH);
 
         final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
-                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo\\.UAT WAG CZ\\$Fixed Asset.*, dbo\\.UAT WAG CZ\\$Fixed Prop.*")
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(SqlServerConnectorConfig_V2.TABLE_INCLUDE_LIST, "dbo\\.UAT WAG CZ\\$Fixed Asset.*, dbo\\.UAT WAG CZ\\$Fixed Prop.*")
                 .build();
 
         connection.execute(
@@ -64,7 +63,7 @@ public class SpecialCharsInNamesIT extends AbstractConnectorTest {
         TestHelper.enableTableCdc(connection, "UAT WAG CZ$Fixed Asset");
         TestHelper.enableTableCdc(connection, "person");
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         SourceRecords actualRecords = consumeRecordsByTopic(2, false);
@@ -122,16 +121,16 @@ public class SpecialCharsInNamesIT extends AbstractConnectorTest {
         Testing.Files.delete(TestHelper.SCHEMA_HISTORY_PATH);
 
         final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
-                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo\\.UAT WAG CZ\\$Fixed Asset.*")
-                .with(SqlServerConnectorConfig.FIELD_NAME_ADJUSTMENT_MODE, SchemaNameAdjustmentMode.AVRO)
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(SqlServerConnectorConfig_V2.TABLE_INCLUDE_LIST, "dbo\\.UAT WAG CZ\\$Fixed Asset.*")
+                .with(SqlServerConnectorConfig_V2.FIELD_NAME_ADJUSTMENT_MODE, SchemaNameAdjustmentMode.AVRO)
                 .build();
 
         connection.execute(
                 "CREATE TABLE [UAT WAG CZ$Fixed Asset] (id int primary key, [my col$a] varchar(30))",
                 "INSERT INTO [UAT WAG CZ$Fixed Asset] VALUES(1, 'a')");
         TestHelper.enableTableCdc(connection, "UAT WAG CZ$Fixed Asset");
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         SourceRecords records = consumeRecordsByTopic(1);
@@ -225,7 +224,7 @@ public class SpecialCharsInNamesIT extends AbstractConnectorTest {
 
         stopConnector();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         connection.execute("INSERT INTO [UAT WAG CZ$Fixed Asset] VALUES(4, 'b')");
@@ -260,15 +259,15 @@ public class SpecialCharsInNamesIT extends AbstractConnectorTest {
         Testing.Files.delete(TestHelper.SCHEMA_HISTORY_PATH);
 
         final Configuration config = TestHelper.defaultConfig(databaseName)
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
-                .with(SqlServerConnectorConfig.FIELD_NAME_ADJUSTMENT_MODE, SchemaNameAdjustmentMode.NONE)
+                .with(SqlServerConnectorConfig_V2.SNAPSHOT_MODE, io.debezium.connector.sqlserver.SqlServerConnectorConfig_V2.SnapshotMode.INITIAL)
+                .with(SqlServerConnectorConfig_V2.FIELD_NAME_ADJUSTMENT_MODE, SchemaNameAdjustmentMode.NONE)
                 .with(CommonConnectorConfig.SCHEMA_NAME_ADJUSTMENT_MODE, SchemaNameAdjustmentMode.AVRO)
                 .build();
         connection.execute(
                 "CREATE TABLE tablea (id int primary key, cola varchar(30))",
                 "INSERT INTO tablea VALUES(1, 'a')");
         TestHelper.enableTableCdc(connection, "tablea");
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Wait for snapshot completion

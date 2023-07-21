@@ -32,7 +32,7 @@ import io.debezium.util.Testing;
  * @author Randall Hauch
  */
 @SkipWhenDatabaseVersion(check = LESS_THAN, major = 5, minor = 7, reason = "JSON data type was not added until MySQL 5.7")
-public class MySqlConnectorJsonIT extends AbstractConnectorTest {
+public class MySqlConnectorV2JsonIT extends AbstractConnectorTest {
 
     private static final Path SCHEMA_HISTORY_PATH = Testing.Files.createTestingPath("file-schema-history-json.txt").toAbsolutePath();
     private final UniqueDatabase DATABASE = new UniqueDatabase("jsonit", "json_test")
@@ -63,10 +63,10 @@ public class MySqlConnectorJsonIT extends AbstractConnectorTest {
     public void shouldConsumeAllEventsFromDatabaseUsingBinlogAndNoSnapshot() throws SQLException, InterruptedException {
         // Use the DB configuration to define the connector's configuration ...
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.NEVER)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.NEVER)
                 .build();
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // ---------------------------------------------------------------------------------------------------------------
         // Consume all of the events due to startup and initialization of the database
@@ -113,7 +113,7 @@ public class MySqlConnectorJsonIT extends AbstractConnectorTest {
         // Use the DB configuration to define the connector's configuration ...
         config = DATABASE.defaultConfig().build();
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // ---------------------------------------------------------------------------------------------------------------
         // Consume all of the events due to startup and initialization of the database
@@ -163,10 +163,10 @@ public class MySqlConnectorJsonIT extends AbstractConnectorTest {
     public void shouldProcessUpdate() throws SQLException, InterruptedException {
         // Use the DB configuration to define the connector's configuration ...
         config = DATABASE.defaultConfig()
-                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.NEVER)
+                .with(MySqlConnectorConfig_V2.SNAPSHOT_MODE, MySqlConnectorConfig_V2.SnapshotMode.NEVER)
                 .build();
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // ---------------------------------------------------------------------------------------------------------------
         // Consume all of the events due to startup and initialization of the database
