@@ -49,7 +49,7 @@ import io.debezium.util.Testing;
  * @author Randall Hauch
  */
 @SkipWhenDatabaseVersion(check = LESS_THAN, major = 5, minor = 6, reason = "DDL uses fractional second data types, not supported until MySQL 5.6")
-public class MySqlConnectorRegressionIT extends AbstractConnectorTest {
+public class MySqlConnectorV2RegressionIT extends AbstractConnectorTest {
 
     private static final Path SCHEMA_HISTORY_PATH = Testing.Files.createTestingPath("file-schema-history-regression.txt").toAbsolutePath();
     private final UniqueDatabase DATABASE = new UniqueDatabase("regression", "regression_test")
@@ -87,7 +87,7 @@ public class MySqlConnectorRegressionIT extends AbstractConnectorTest {
                 .with("database.connectionTimeZone", DATABASE.timezone())
                 .build();
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForStreamingRunning("mysql", DATABASE.getServerName(), getStreamingNamespace());
 
         // ---------------------------------------------------------------------------------------------------------------
@@ -374,7 +374,7 @@ public class MySqlConnectorRegressionIT extends AbstractConnectorTest {
                 .with("database.connectionTimeZone", DATABASE.timezone())
                 .build();
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // ---------------------------------------------------------------------------------------------------------------
         // Consume all of the events due to startup and initialization of the database
@@ -577,7 +577,7 @@ public class MySqlConnectorRegressionIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // ---------------------------------------------------------------------------------------------------------------
         // Consume all of the events due to startup and initialization of the database
@@ -854,7 +854,7 @@ public class MySqlConnectorRegressionIT extends AbstractConnectorTest {
                     .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, true)
                     .build();
             // Start the connector ...
-            start(MySqlConnector.class, config);
+            start(MySqlConnector_V2.class, config);
 
             // ---------------------------------------------------------------------------------------------------------------
             // Consume all of the events due to startup and initialization of the database
@@ -934,7 +934,7 @@ public class MySqlConnectorRegressionIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.DOUBLE)
                 .build();
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForStreamingRunning("mysql", DATABASE.getServerName(), getStreamingNamespace());
 
         // ---------------------------------------------------------------------------------------------------------------
@@ -976,7 +976,7 @@ public class MySqlConnectorRegressionIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.STRING)
                 .build();
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // ---------------------------------------------------------------------------------------------------------------
         // Consume all of the events due to startup and initialization of the database
@@ -1016,7 +1016,7 @@ public class MySqlConnectorRegressionIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.STRING)
                 .build();
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // ---------------------------------------------------------------------------------------------------------------
         // Consume all of the events due to startup and initialization of the database

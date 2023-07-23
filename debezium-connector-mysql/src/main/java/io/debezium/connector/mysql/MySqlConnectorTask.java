@@ -142,7 +142,7 @@ public class MySqlConnectorTask extends BaseSourceTask<MySqlPartition, MySqlOffs
         final MySqlEventMetadataProvider metadataProvider = new MySqlEventMetadataProvider();
 
         SignalProcessor<MySqlPartition, MySqlOffsetContext> signalProcessor = new SignalProcessor<>(
-                MySqlConnector.class, connectorConfig, Map.of(),
+                MySqlConnector_V2.class, connectorConfig, Map.of(),
                 getAvailableSignalChannels(),
                 DocumentReader.defaultReader(),
                 previousOffsets);
@@ -190,7 +190,7 @@ public class MySqlConnectorTask extends BaseSourceTask<MySqlPartition, MySqlOffs
         ChangeEventSourceCoordinator<MySqlPartition, MySqlOffsetContext> coordinator = new ChangeEventSourceCoordinator<>(
                 previousOffsets,
                 errorHandler,
-                MySqlConnector.class,
+                MySqlConnector_V2.class,
                 connectorConfig,
                 new MySqlChangeEventSourceFactory(connectorConfig, connectionFactory, errorHandler, dispatcher, clock, schema, taskContext, streamingMetrics, queue),
                 new MySqlChangeEventSourceMetricsFactory(streamingMetrics),

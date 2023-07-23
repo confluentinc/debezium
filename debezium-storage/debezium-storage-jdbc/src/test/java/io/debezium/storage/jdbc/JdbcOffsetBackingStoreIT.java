@@ -28,7 +28,7 @@ import org.testcontainers.containers.wait.strategy.Wait;
 
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
-import io.debezium.connector.mysql.MySqlConnector;
+import io.debezium.connector.mysql.MySqlConnector_V2;
 import io.debezium.connector.mysql.MySqlConnectorConfig;
 import io.debezium.connector.mysql.MySqlTestConnection;
 import io.debezium.connector.mysql.UniqueDatabase;
@@ -178,7 +178,7 @@ public class JdbcOffsetBackingStoreIT extends AbstractConnectorTest {
         Configuration config = config(jdbcUrl).build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForStreamingRunning("mysql", TOPIC_PREFIX);
 
         consumeRecordsByTopic(4);

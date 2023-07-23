@@ -64,7 +64,7 @@ public class MySqlRestartIT extends AbstractConnectorTest {
                         "INSERT INTO restart_table VALUES(1, 10)");
             }
         }
-        start(MySqlConnector.class, config, record -> {
+        start(MySqlConnector_V2.class, config, record -> {
             final Schema schema = record.valueSchema();
             final Struct value = ((Struct) record.value());
             return schema.field("after") != null && value.getStruct("after").getInt32("id").equals(5);
@@ -93,7 +93,7 @@ public class MySqlRestartIT extends AbstractConnectorTest {
 
         stopConnector();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         records = consumeRecordsByTopic(2);
         assertThat(records.recordsForTopic(DATABASE.topicForTable("restart_table")).size()).isEqualTo(2);

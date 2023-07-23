@@ -67,7 +67,7 @@ public class MySqlSchemaMigrationIT extends AbstractConnectorTest {
         connection.execute("insert into monitored values(default, 'a1', 1)");
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         SourceRecords records = consumeRecordsByTopic(1);
 
         // ---------------------------------------------------------------------------------------------------------------
@@ -108,7 +108,7 @@ public class MySqlSchemaMigrationIT extends AbstractConnectorTest {
         connection.execute("insert into monitored values(default, 'a1', 1)");
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         SourceRecords records = consumeRecordsByTopic(1);
 
         // ---------------------------------------------------------------------------------------------------------------
@@ -159,7 +159,7 @@ public class MySqlSchemaMigrationIT extends AbstractConnectorTest {
         connection.execute("insert into monitored values(default, 'a1', 1)");
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         SourceRecords records = consumeRecordsByTopic(1);
 
         // ---------------------------------------------------------------------------------------------------------------

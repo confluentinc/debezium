@@ -70,7 +70,7 @@ public class SqlServerSchemaNameAdjustmentModeIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.SCHEMA_NAME_ADJUSTMENT_MODE, adjustmentMode)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 

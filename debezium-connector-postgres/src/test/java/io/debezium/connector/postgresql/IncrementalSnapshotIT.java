@@ -38,7 +38,7 @@ import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.util.Collect;
 import io.debezium.util.Testing;
 
-public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotTest<PostgresConnector> {
+public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotTest<PostgresConnector_V2> {
 
     private static final String TOPIC_NAME = "test_server.s1.a";
 
@@ -127,8 +127,8 @@ public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotTest<Postg
     }
 
     @Override
-    protected Class<PostgresConnector> connectorClass() {
-        return PostgresConnector.class;
+    protected Class<PostgresConnector_V2> connectorClass() {
+        return PostgresConnector_V2.class;
     }
 
     @Override

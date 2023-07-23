@@ -201,7 +201,7 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
         client = taskContext.getBinaryLogClient();
         // BinaryLogClient will overwrite thread names later
         client.setThreadFactory(
-                Threads.threadFactory(MySqlConnector.class, connectorConfig.getLogicalName(), "binlog-client", false, false,
+                Threads.threadFactory(MySqlConnector_V2.class, connectorConfig.getLogicalName(), "binlog-client", false, false,
                         x -> binaryLogClientThreads.put(x.getName(), x)));
         client.setServerId(connectorConfig.serverId());
         client.setSSLMode(sslModeFor(connectorConfig.sslMode()));

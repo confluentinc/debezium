@@ -1211,7 +1211,7 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
         Configuration.Builder configBuilder = TestHelper.defaultConfig()
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL_ONLY.getValue())
                 .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "s1.part");
-        start(PostgresConnector.class, configBuilder.build());
+        start(PostgresConnector_V2.class, configBuilder.build());
         assertConnectorIsRunning();
         waitForSnapshotToBeCompleted();
 
@@ -1228,7 +1228,7 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
 
     private void buildNoStreamProducer(Configuration.Builder config) {
         alterConfig(config);
-        start(PostgresConnector.class, config
+        start(PostgresConnector_V2.class, config
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL_ONLY)
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE_CLASS, CustomTestSnapshot.class.getName())
                 .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.FALSE)
@@ -1238,7 +1238,7 @@ public class RecordsSnapshotProducerIT extends AbstractRecordsProducerTest {
 
     private void buildWithStreamProducer(Configuration.Builder config) {
         alterConfig(config);
-        start(PostgresConnector.class, config
+        start(PostgresConnector_V2.class, config
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.ALWAYS)
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE_CLASS, CustomTestSnapshot.class.getName())
                 .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.FALSE)

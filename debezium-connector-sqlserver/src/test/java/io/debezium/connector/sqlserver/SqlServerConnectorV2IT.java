@@ -81,7 +81,7 @@ import io.debezium.util.Testing;
  *
  * @author Jiri Pechanec
  */
-public class SqlServerConnectorIT extends AbstractConnectorTest {
+public class SqlServerConnectorV2IT extends AbstractConnectorTest {
 
     private SqlServerConnection connection;
 
@@ -117,7 +117,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Wait for snapshot completion
@@ -199,7 +199,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with("database.applicationName", appId)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Wait for snapshot completion
@@ -278,7 +278,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                     .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
                     .build();
 
-            start(SqlServerConnector.class, config);
+            start(SqlServerConnector_V2.class, config);
             assertConnectorIsRunning();
 
             // Wait for snapshot completion
@@ -323,7 +323,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.TOMBSTONES_ON_DELETE, false)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Wait for snapshot completion
@@ -369,7 +369,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Testing.Print.enable();
@@ -427,7 +427,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Testing.Print.enable();
@@ -526,7 +526,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
                 .build();
 
-        start(SqlServerConnector.class, config, record -> {
+        start(SqlServerConnector_V2.class, config, record -> {
             final Struct envelope = (Struct) record.value();
             return envelope != null && "c".equals(envelope.get("op")) && (envelope.getStruct("after").getInt32("id") == 100);
         });
@@ -551,7 +551,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
         final SourceRecords records1 = consumeRecordsByTopic(2);
         stopConnector();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         final SourceRecords records2 = consumeRecordsByTopic(4);
 
@@ -642,7 +642,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
 
         // Testing.Print.enable();
         // Wait for snapshot completion
-        start(SqlServerConnector.class, config, record -> {
+        start(SqlServerConnector_V2.class, config, record -> {
             final Struct envelope = (Struct) record.value();
             boolean stop = envelope != null && "d".equals(envelope.get("op")) && (envelope.getStruct("before").getInt32("id") == 305);
             return stop;
@@ -669,7 +669,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
 
         stopConnector();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         final int expectedRecords = 20;
@@ -693,7 +693,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Wait for snapshot completion
@@ -717,7 +717,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                     "INSERT INTO tableb VALUES(" + id + ", 'b')");
         }
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         final SourceRecords records = consumeRecordsByTopic(RECORDS_PER_TABLE * TABLES);
@@ -812,7 +812,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
             return resultMap.values().stream().filter(v -> !v).count() == 0;
         });
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         List<SourceRecord> records = consumeRecordsByTopic(1 + RECORDS_PER_TABLE * TABLES).allRecordsInOrder();
@@ -837,7 +837,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                     "INSERT INTO tableb VALUES(" + id + ", 'b')");
         }
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         final SourceRecords sourceRecords = consumeRecordsByTopic(RECORDS_PER_TABLE * TABLES);
@@ -888,7 +888,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
         connection.execute(
                 "INSERT INTO tableb VALUES(1, 'b')");
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Wait for snapshot completion
@@ -929,7 +929,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.USER, "test_user")
                 .build();
 
-        SqlServerConnector connector = new SqlServerConnector();
+        SqlServerConnector_V2 connector = new SqlServerConnector_V2();
         Config validatedConfig = connector.validate(config.asMap());
 
         assertConfigurationErrors(validatedConfig, SqlServerConnectorConfig.USER, 1);
@@ -953,7 +953,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.USER, "test_user")
                 .build();
 
-        SqlServerConnector connector = new SqlServerConnector();
+        SqlServerConnector_V2 connector = new SqlServerConnector_V2();
         Config validatedConfig = connector.validate(config.asMap());
 
         assertNoConfigurationErrors(validatedConfig, SqlServerConnectorConfig.USER);
@@ -971,7 +971,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
         connection.execute(
                 "INSERT INTO tableb VALUES(1, 'b')");
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Wait for snapshot completion
@@ -1007,7 +1007,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
         connection.execute(
                 "INSERT INTO tableb VALUES(1, 'b')");
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Wait for snapshot completion
@@ -1043,7 +1043,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.COLUMN_EXCLUDE_LIST, "dbo.table_a.blacklisted_column")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Wait for snapshot completion
@@ -1088,7 +1088,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.COLUMN_EXCLUDE_LIST, "dbo.blacklist_column_table_a.amount")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Wait for snapshot completion
@@ -1150,7 +1150,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.COLUMN_INCLUDE_LIST, ".*id,.*name,dbo.include_list_column_table_b.amount")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -1207,7 +1207,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .build();
         final LogInterceptor logInterceptor = new LogInterceptor(RelationalSnapshotChangeEventSource.class);
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Wait for snapshot completion
@@ -1234,7 +1234,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with("column.mask.hash.SHA-256.with.salt.CzQMA0cB5K", "testDB1.dbo.masked_hashed_column_table_a.name, testDB1.dbo.masked_hashed_column_table_b.name")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Wait for snapshot completion
@@ -1283,7 +1283,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with("column.truncate.to.4.chars", "testDB1.dbo.truncated_column_table.name")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Wait for snapshot completion
@@ -1330,7 +1330,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
         final Configuration config = TestHelper.defaultConfig()
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -1380,7 +1380,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
         final Configuration config = TestHelper.defaultConfig()
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -1432,7 +1432,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(RelationalDatabaseConnectorConfig.TABLE_INCLUDE_LIST, ".*excluded_column_table_a")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForStreamingStarted();
 
@@ -1489,7 +1489,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.SCHEMA_ONLY)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         TestHelper.waitForStreamingStarted();
@@ -1530,7 +1530,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(RelationalDatabaseConnectorConfig.TABLE_INCLUDE_LIST, ".*exclude_list_column_table_a")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -1577,7 +1577,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.COLUMN_INCLUDE_LIST, "dbo.include_list_column_table_a.id,dbo.include_list_column_table_a.name")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -1619,7 +1619,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.COLUMN_EXCLUDE_LIST, "dbo.exclude_list_column_table_a.amount,dbo.exclude_list_column_table_a.note")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -1661,7 +1661,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.COLUMN_INCLUDE_LIST, "dbo.include_list_column_table_a.id,dbo.include_list_column_table_a.name")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -1700,7 +1700,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with("database.applicationName", "Debezium App DBZ-964")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // consuming one record to make sure the connector establishes the DB connection which happens asynchronously
@@ -1725,7 +1725,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .build();
 
         if (restartJustAfterSnapshot) {
-            start(SqlServerConnector.class, config);
+            start(SqlServerConnector_V2.class, config);
             assertConnectorIsRunning();
 
             // Wait for snapshot to be completed
@@ -1734,7 +1734,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
             connection.execute("INSERT INTO tablea VALUES(-1, '-a')");
         }
 
-        start(SqlServerConnector.class, config, record -> {
+        start(SqlServerConnector_V2.class, config, record -> {
             if (!"server1.testDB1.dbo.tablea.Envelope".equals(record.valueSchema().name())) {
                 return false;
             }
@@ -1782,7 +1782,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
         assertRecord((Struct) value.get("after"), expectedLastRow);
 
         stopConnector();
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         SourceRecords sourceRecords = consumeRecordsByTopic(RECORDS_PER_TABLE);
@@ -1880,7 +1880,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "my_products")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         waitForAvailableRecords(100, TimeUnit.MILLISECONDS);
 
@@ -1897,7 +1897,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         waitForAvailableRecords(100, TimeUnit.MILLISECONDS);
 
@@ -1917,7 +1917,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.keyless")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         final List<SchemaAndValueField> key = Arrays.asList(
@@ -1977,7 +1977,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.MSG_KEY_COLUMNS, "(.*).keyless:id")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
 
         SourceRecords records = consumeRecordsByTopic(1);
         List<SourceRecord> recordsForTopic = records.recordsForTopic("server1.testDB1.dbo.keyless");
@@ -2005,7 +2005,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.SCHEMA_ONLY)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -2059,7 +2059,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
             return connection.getMaxLsn(TestHelper.TEST_DATABASE_1).isAvailable();
         });
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         List<SourceRecord> records = consumeRecordsByTopic(1 + RECORDS_PER_TABLE * TABLES).allRecordsInOrder();
@@ -2084,8 +2084,8 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
 
         Testing.Files.delete(TestHelper.SCHEMA_HISTORY_PATH);
 
-        final LogInterceptor logInterceptor = new LogInterceptor(SqlServerConnectorIT.class);
-        start(SqlServerConnector.class, config);
+        final LogInterceptor logInterceptor = new LogInterceptor(SqlServerConnectorV2IT.class);
+        start(SqlServerConnector_V2.class, config);
         waitForConnectorShutdown("sqlserver", TestHelper.TEST_SERVER_NAME);
         assertThat(logInterceptor.containsStacktraceElement(
                 "The db history topic or its content is fully or partially missing. Please check database schema history topic configuration and re-execute the snapshot."))
@@ -2103,7 +2103,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with("column.mask.with.4.chars", "dbo.tablea.cola")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Wait for snapshot completion
@@ -2151,7 +2151,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with("column.mask.with.4.chars", "testDB1.dbo.tablea.cola")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Wait for snapshot completion
@@ -2199,7 +2199,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.MSG_KEY_COLUMNS, "testDB1.dbo.tablea:cola")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Wait for snapshot completion
@@ -2247,7 +2247,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.MSG_KEY_COLUMNS, "dbo.tablea:cola")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Wait for snapshot completion
@@ -2296,7 +2296,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with("datatype.propagate.source.type", ".+\\.NUMERIC,.+\\.VARCHAR,.+\\.REAL,.+\\.DECIMAL")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
         connection.execute("INSERT INTO dt_table (id,c1,c2,c3a,c3b,f1,f2) values (1, 123, 456, 789.01, 'test', 1.228, 234.56)");
@@ -2340,7 +2340,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .build();
 
         final LogInterceptor logInterceptor = new LogInterceptor(SqlServerStreamingChangeEventSource.class);
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Wait for snapshot completion
@@ -2364,7 +2364,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.SCHEMA_ONLY)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Wait for snapshot completion
@@ -2399,7 +2399,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.MAX_TRANSACTIONS_PER_ITERATION, 1)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Wait for snapshot completion
@@ -2430,7 +2430,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.SKIPPED_OPERATIONS, "u,d")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         // Wait for snapshot completion
         TestHelper.waitForSnapshotToBeCompleted();
@@ -2465,7 +2465,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .build()
                 .asMap();
 
-        SqlServerConnector connector = new SqlServerConnector();
+        SqlServerConnector_V2 connector = new SqlServerConnector_V2();
         connector.start(props);
         List<Map<String, String>> taskConfigs = connector.taskConfigs(1);
         assertThat(taskConfigs).hasSize(1);
@@ -2480,7 +2480,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .build()
                 .asMap();
 
-        SqlServerConnector connector = new SqlServerConnector();
+        SqlServerConnector_V2 connector = new SqlServerConnector_V2();
         connector.start(props);
         List<Map<String, String>> taskConfigs = connector.taskConfigs(3);
         assertThat(taskConfigs).hasSize(2);
@@ -2497,7 +2497,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .build()
                 .asMap();
 
-        SqlServerConnector connector = new SqlServerConnector();
+        SqlServerConnector_V2 connector = new SqlServerConnector_V2();
         connector.start(props);
         List<Map<String, String>> taskConfigs = connector.taskConfigs(2);
         assertThat(taskConfigs).hasSize(2);
@@ -2512,7 +2512,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         TestHelper.waitForDatabaseSnapshotToBeCompleted(TestHelper.TEST_DATABASE_1);
@@ -2556,7 +2556,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SCHEMA_EXCLUDE_LIST, "s1")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Wait for snapshot completion
@@ -2593,7 +2593,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SCHEMA_INCLUDE_LIST, "s1")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         connection.execute("INSERT INTO s2.tablea VALUES(2, 3)");
@@ -2629,7 +2629,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
                 .build();
         Map<String, Object> result = new HashMap<>();
-        start(SqlServerConnector.class, config2, (success, message, error) -> {
+        start(SqlServerConnector_V2.class, config2, (success, message, error) -> {
             result.put("success", success);
             result.put("message", message);
         });
@@ -2645,7 +2645,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
         final Configuration config1 = TestHelper.defaultConfig()
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL_ONLY)
                 .build();
-        start(SqlServerConnector.class, config1);
+        start(SqlServerConnector_V2.class, config1);
         assertConnectorIsRunning();
         TestHelper.waitForDatabaseSnapshotToBeCompleted(TestHelper.TEST_DATABASE_1);
         stopConnector();
@@ -2655,7 +2655,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 TestHelper.TEST_DATABASE_1, TestHelper.TEST_DATABASE_2)
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL_ONLY)
                 .build();
-        start(SqlServerConnector.class, config2);
+        start(SqlServerConnector_V2.class, config2);
         assertConnectorIsRunning();
         TestHelper.waitForDatabaseSnapshotToBeCompleted(TestHelper.TEST_DATABASE_2);
         stopConnector();
@@ -2672,7 +2672,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Wait for snapshot completion
@@ -2738,7 +2738,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Wait for snapshot completion
@@ -2803,7 +2803,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Restart the connector
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         waitForStreamingStarted();
@@ -2874,7 +2874,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
         final LogInterceptor logInterceptor = new LogInterceptor(ErrorHandler.class);
 
         try {
-            start(SqlServerConnector.class, config1);
+            start(SqlServerConnector_V2.class, config1);
             assertConnectorIsRunning();
             scenario.run();
 

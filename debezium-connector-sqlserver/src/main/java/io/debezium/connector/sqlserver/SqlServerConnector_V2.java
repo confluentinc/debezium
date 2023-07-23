@@ -31,9 +31,9 @@ import io.debezium.relational.RelationalDatabaseConnectorConfig;
  * @author Jiri Pechanec
  *
  */
-public class SqlServerConnector extends RelationalBaseSourceConnector {
+public class SqlServerConnector_V2 extends RelationalBaseSourceConnector {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(SqlServerConnector.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(SqlServerConnector_V2.class);
 
     private Map<String, String> properties;
 

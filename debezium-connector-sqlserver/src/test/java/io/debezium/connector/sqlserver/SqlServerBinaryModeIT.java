@@ -94,7 +94,7 @@ public class SqlServerBinaryModeIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.BINARY_HANDLING_MODE, binaryMode)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 

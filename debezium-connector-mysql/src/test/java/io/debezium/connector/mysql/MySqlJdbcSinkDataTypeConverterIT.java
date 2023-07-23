@@ -68,7 +68,7 @@ public class MySqlJdbcSinkDataTypeConverterIT extends AbstractConnectorTest {
                 .with("jdbc-sink.selector.boolean", ".*BOOLEAN_TEST.b.*|.*BOOLEAN_TEST2.b.*")
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         SourceRecords records = consumeRecordsByTopic(2 + 4 + 1);
         assertThat(records).isNotNull();
@@ -147,7 +147,7 @@ public class MySqlJdbcSinkDataTypeConverterIT extends AbstractConnectorTest {
                 .with("jdbc-sink.selector.real", ".*REAL_TEST.r.*|.*REAL_TEST2.r.*")
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         SourceRecords records = consumeRecordsByTopic(2 + 4 + 1);
         assertThat(records).isNotNull();
@@ -213,7 +213,7 @@ public class MySqlJdbcSinkDataTypeConverterIT extends AbstractConnectorTest {
                 .with("jdbc-sink.selector.string", ".*NC_TEST.nc.*|.*NC_TEST2.nc.*")
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         SourceRecords records = consumeRecordsByTopic(2 + 4 + 1);
         assertThat(records).isNotNull();

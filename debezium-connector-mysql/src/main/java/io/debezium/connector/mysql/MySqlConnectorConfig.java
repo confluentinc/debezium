@@ -953,7 +953,7 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
 
     public MySqlConnectorConfig(Configuration config) {
         super(
-                MySqlConnector.class,
+                MySqlConnector_V2.class,
                 config,
                 TableFilter.fromPredicate(MySqlConnectorConfig::isNotBuiltInTable),
                 true,

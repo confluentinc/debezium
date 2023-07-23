@@ -75,7 +75,7 @@ public class MySqlDecimalIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.DECIMAL_HANDLING_MODE, RelationalDatabaseConnectorConfig.DecimalHandlingMode.PRECISE)
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         assertBigDecimalChangeRecord(consumeInsert());
 
@@ -91,7 +91,7 @@ public class MySqlDecimalIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.DECIMAL_HANDLING_MODE, RelationalDatabaseConnectorConfig.DecimalHandlingMode.DOUBLE)
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         assertDoubleChangeRecord(consumeInsert());
 
@@ -107,7 +107,7 @@ public class MySqlDecimalIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.DECIMAL_HANDLING_MODE, RelationalDatabaseConnectorConfig.DecimalHandlingMode.STRING)
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         assertStringChangeRecord(consumeInsert());
 

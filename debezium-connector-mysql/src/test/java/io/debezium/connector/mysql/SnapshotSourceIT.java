@@ -150,7 +150,7 @@ public class SnapshotSourceIT extends AbstractConnectorTest {
         config = builder.build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
 
         // Poll for records ...
@@ -293,7 +293,7 @@ public class SnapshotSourceIT extends AbstractConnectorTest {
 
         latch.await(10, TimeUnit.SECONDS);
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
 
         // Poll for records ...
@@ -313,7 +313,7 @@ public class SnapshotSourceIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
 
         // Poll for records ...
@@ -359,7 +359,7 @@ public class SnapshotSourceIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
 
         // Poll for records ...
@@ -409,7 +409,7 @@ public class SnapshotSourceIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForSnapshotToBeCompleted("mysql", BINARY_FIELD_DATABASE.getServerName());
 
         // Poll for records ...
@@ -446,7 +446,7 @@ public class SnapshotSourceIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
 
         // Poll for records ...
@@ -535,7 +535,7 @@ public class SnapshotSourceIT extends AbstractConnectorTest {
         config = simpleConfig().with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, true).build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
 
         // Poll for records ...
@@ -620,7 +620,7 @@ public class SnapshotSourceIT extends AbstractConnectorTest {
 
         // Start the connector ...
         AtomicReference<Throwable> exception = new AtomicReference<>();
-        start(MySqlConnector.class, config, (success, message, error) -> {
+        start(MySqlConnector_V2.class, config, (success, message, error) -> {
             exception.set(error);
         });
 
@@ -638,7 +638,7 @@ public class SnapshotSourceIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.SCHEMA_HISTORY, MemorySchemaHistory.class.getName());
         config = builder.build();
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Poll for records ...
         // Testing.Print.enable();
@@ -649,7 +649,7 @@ public class SnapshotSourceIT extends AbstractConnectorTest {
 
         builder.with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.SCHEMA_ONLY_RECOVERY);
         config = builder.build();
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         try (
                 MySqlTestConnection db = MySqlTestConnection.forTestDatabase(DATABASE.getDatabaseName());
@@ -670,7 +670,7 @@ public class SnapshotSourceIT extends AbstractConnectorTest {
                         "connector_test_ro_(.*).orders,connector_test_ro_(.*).Products,connector_test_ro_(.*).products_on_hand,connector_test_ro_(.*).dbz_342_timetest")
                 .build();
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
 
         // Poll for records ...
@@ -699,7 +699,7 @@ public class SnapshotSourceIT extends AbstractConnectorTest {
                                 + CONFLICT_NAMES_DATABASE.qualifiedTableName("tablename_suffix"))
                 .build();
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
 
         // Poll for records ...
@@ -735,7 +735,7 @@ public class SnapshotSourceIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
 
         // Poll for records ...
@@ -771,7 +771,7 @@ public class SnapshotSourceIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
 
         // Poll for records ...
@@ -794,7 +794,7 @@ public class SnapshotSourceIT extends AbstractConnectorTest {
         config = simpleConfig()
                 .build();
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
 
         // Poll for records ...
@@ -827,7 +827,7 @@ public class SnapshotSourceIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
 
         // Poll for records ...

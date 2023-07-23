@@ -2581,7 +2581,7 @@ apiVersion: {KafkaConnectorApiVersion}
     labels:
       strimzi.io/cluster: my-connect-cluster
   spec:
-    class: io.debezium.connector.postgresql.PostgresConnector
+    class: io.debezium.connector.postgresql.PostgresConnector_V2
     tasksMax: 1  // <2>
     config:  // <3>
       database.hostname: 192.168.99.100   // <4>
@@ -2639,7 +2639,7 @@ Optionally, you can ignore, mask, or truncate columns that contain sensitive dat
 {
   "name": "fulfillment-connector",  // <1>
   "config": {
-    "connector.class": "io.debezium.connector.postgresql.PostgresConnector", // <2>
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector_V2", // <2>
     "database.hostname": "192.168.99.100", // <3>
     "database.port": "5432", // <4>
     "database.user": "postgres", // <5>
@@ -2731,7 +2731,7 @@ The following configuration properties are _required_ unless a default value is 
 
 |[[postgresql-property-connector-class]]<<postgresql-property-connector-class, `+connector.class+`>>
 |No default
-|The name of the Java class for the connector. Always use a value of `io.debezium.connector.postgresql.PostgresConnector` for the PostgreSQL connector.
+|The name of the Java class for the connector. Always use a value of `io.debezium.connector.postgresql.PostgresConnector_V2` for the PostgreSQL connector.
 
 |[[postgresql-property-tasks-max]]<<postgresql-property-tasks-max, `+tasks.max+`>>
 |`1`

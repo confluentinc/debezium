@@ -66,7 +66,7 @@ public class MySqlUnsignedIntegerIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // ---------------------------------------------------------------------------------------------------------------
         // Consume all of the events due to startup and initialization of the database
@@ -132,7 +132,7 @@ public class MySqlUnsignedIntegerIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.BIGINT_UNSIGNED_HANDLING_MODE, MySqlConnectorConfig.BigIntUnsignedHandlingMode.LONG)
                 .build();
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // ---------------------------------------------------------------------------------------------------------------
         // Consume all of the events due to startup and initialization of the database
@@ -166,7 +166,7 @@ public class MySqlUnsignedIntegerIT extends AbstractConnectorTest {
         config = DATABASE.defaultConfig().build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // ---------------------------------------------------------------------------------------------------------------
         // Consume all of the events due to startup and initialization of the database

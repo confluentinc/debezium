@@ -7,6 +7,7 @@ package io.debezium.storage.jdbc.history;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.debezium.connector.mysql.MySqlConnector_V2;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -28,7 +29,6 @@ import org.testcontainers.containers.wait.strategy.Wait;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.config.Configuration.Builder;
-import io.debezium.connector.mysql.MySqlConnector;
 import io.debezium.connector.mysql.MySqlConnectorConfig;
 import io.debezium.connector.mysql.MySqlConnectorConfig.SnapshotMode;
 import io.debezium.connector.mysql.MySqlTestConnection;
@@ -153,7 +153,7 @@ public class JdbcSchemaHistoryIT extends AbstractConnectorTest {
         Configuration config = config().build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
         SourceRecords records = consumeRecordsByTopic(4); // 4 DML changes
@@ -168,7 +168,7 @@ public class JdbcSchemaHistoryIT extends AbstractConnectorTest {
         Configuration config = config().build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForStreamingRunning("mysql", TOPIC_PREFIX);
 
         Testing.Print.enable();
@@ -192,7 +192,7 @@ public class JdbcSchemaHistoryIT extends AbstractConnectorTest {
             conn.execute("INSERT INTO schematest VALUES (5, 'five')");
         }
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForStreamingRunning("mysql", TOPIC_PREFIX);
 
         records = consumeRecordsByTopic(1); // 1 DML change

@@ -66,7 +66,7 @@ import io.debezium.util.Testing;
  * @author Randall Hauch
  */
 @SkipWhenDatabaseVersion(check = LESS_THAN, major = 5, minor = 6, reason = "DDL uses fractional second data types, not supported until MySQL 5.6")
-public class MySqlConnectorIT extends AbstractConnectorTest {
+public class MySqlConnectorV2IT extends AbstractConnectorTest {
 
     private static final Path SCHEMA_HISTORY_PATH = Testing.Files.createTestingPath("file-schema-history-connect.txt").toAbsolutePath();
     private final UniqueDatabase DATABASE = new UniqueDatabase("myServer1", "connector_test")
@@ -114,7 +114,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
 
         // we expect the engine will log at least one error, so preface it ...
         logger.info("Attempting to start the connector with an INVALID configuration, so MULTIPLE error messages and exceptions will appear in the log");
-        start(MySqlConnector.class, config, (success, msg, error) -> {
+        start(MySqlConnector_V2.class, config, (success, msg, error) -> {
             assertThat(success).isFalse();
             assertThat(error).isNotNull();
         });
@@ -127,7 +127,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.SCHEMA_HISTORY, FileSchemaHistory.class)
                 .with(FileSchemaHistory.FILE_PATH, SCHEMA_HISTORY_PATH)
                 .build();
-        MySqlConnector connector = new MySqlConnector();
+        MySqlConnector_V2 connector = new MySqlConnector_V2();
         Config result = connector.validate(config.asMap());
 
         assertConfigurationErrors(result, MySqlConnectorConfig.HOSTNAME, 1);
@@ -165,7 +165,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
     @Test
     public void shouldValidateAcceptableConfiguration() {
         Configuration config = Configuration.create().build();
-        MySqlConnector connector = new MySqlConnector();
+        MySqlConnector_V2 connector = new MySqlConnector_V2();
         Config result = connector.validate(config.asMap());
 
         // validate that the required fields have errors
@@ -249,7 +249,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                     .with(MySqlConnectorConfig.SNAPSHOT_MODE, acceptableValue)
                     .build();
 
-            MySqlConnector connector = new MySqlConnector();
+            MySqlConnector_V2 connector = new MySqlConnector_V2();
             Config result = connector.validate(config.asMap());
             assertNoConfigurationErrors(result, MySqlConnectorConfig.SNAPSHOT_LOCKING_MODE);
 
@@ -305,7 +305,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
 
@@ -369,7 +369,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
 
         // Restart the connector and read the insert record ...
         Testing.print("*** Restarting connector after inserts were made");
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         records = consumeRecordsByTopic(1);
         assertThat(records.recordsForTopic(DATABASE.topicForTable("products")).size()).isEqualTo(1);
         assertThat(records.topics().size()).isEqualTo(1);
@@ -380,7 +380,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
         Testing.print("*** Stopping connector");
         stopConnector();
         Testing.print("*** Restarting connector");
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // ---------------------------------------------------------------------------------------------------------------
         // Simple INSERT
@@ -553,7 +553,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
         // ---------------------------------------------------------------------------------------------------------------
         Testing.print("*** Restarting connector");
         CompletionResult completion = new CompletionResult();
-        start(MySqlConnector.class, config, completion, (record) -> {
+        start(MySqlConnector_V2.class, config, completion, (record) -> {
             // We want to stop before processing record 3003 ...
             Struct key = (Struct) record.key();
             Number id = (Number) key.get("id");
@@ -650,7 +650,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
         // assertThat(persistedOffsetSource.gtidSet()).isEqualTo(positionBeforeInserts.gtidSet());
 
         Testing.print("*** Restarting connector, and should begin with inserting 3003 (not 109!)");
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // And consume the insert for 3003 ...
         records = consumeRecordsByTopic(1);
@@ -721,7 +721,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
 
@@ -771,7 +771,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
 
@@ -807,7 +807,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Consume the first records due to startup and initialization of the database ...
         // Testing.Print.enable();
@@ -843,7 +843,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Consume the first records due to startup and initialization of the database ...
         // Testing.Print.enable();
@@ -866,7 +866,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Wait for streaming to start
         // During the snapshot phase, 11 events in total should be generated
@@ -936,7 +936,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
         dropDatabases();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Consume the first records due to startup and initialization of the database ...
         // Testing.Print.enable();
@@ -979,7 +979,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
             }
         }
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Consume the first records due to startup and initialization of the database ...
         // Testing.Print.enable();
@@ -1023,7 +1023,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
         }
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Consume the first records due to startup and initialization of the database ...
         // Testing.Print.enable();
@@ -1050,7 +1050,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
         dropDatabases();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Consume the first records due to startup and initialization of the database ...
         // Testing.Print.enable();
@@ -1076,7 +1076,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
         dropDatabases();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Consume the first records due to startup and initialization of the database ...
         // Testing.Print.enable();
@@ -1157,7 +1157,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Consume the first records due to startup and initialization of the database ...
         // Testing.Print.enable();
@@ -1203,7 +1203,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Consume the first records due to startup and initialization of the database ...
         // Testing.Print.enable();
@@ -1262,7 +1262,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Consume the first records due to startup and initialization of the database ...
         // Testing.Print.enable();
@@ -1309,7 +1309,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Consume the first records due to startup and initialization of the database ...
         // Testing.Print.enable();
@@ -1364,7 +1364,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Consume the first records due to startup and initialization of the database ...
         // Testing.Print.enable();
@@ -1416,7 +1416,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Consume the first records due to startup and initialization of the database ...
         // Testing.Print.enable();
@@ -1464,7 +1464,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // ---------------------------------------------------------------------------------------------------------------
         // Consume all of the events due to startup and initialization of the database
@@ -1508,7 +1508,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
         // ---------------------------------------------------------------------------------------------------------------
@@ -1554,7 +1554,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // ---------------------------------------------------------------------------------------------------------------
         // Consume all of the events due to startup and initialization of the database
@@ -1606,7 +1606,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForStreamingRunning(DATABASE.getServerName());
 
         // Flush all existing records not related to the test.
@@ -1658,7 +1658,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Flush all existing records not related to the test.
         consumeRecords(PRODUCTS_TABLE_EVENT_COUNT, null);
@@ -1710,7 +1710,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Flush all existing records not related to the test.
         consumeRecords(PRODUCTS_TABLE_EVENT_COUNT, null);
@@ -1762,7 +1762,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Flush all existing records not related to the test.
         consumeRecords(PRODUCTS_TABLE_EVENT_COUNT, null);
@@ -1825,7 +1825,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Flush all existing records not related to the test.
         consumeRecords(PRODUCTS_TABLE_EVENT_COUNT, null);
@@ -1886,7 +1886,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Flush all existing records not related to the test.
         consumeRecords(ORDERS_TABLE_EVENT_COUNT, null);
@@ -1937,7 +1937,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Flush all existing records not related to the test.
         consumeRecords(ORDERS_TABLE_EVENT_COUNT, null);
@@ -1996,7 +1996,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Flush all existing records not related to the test.
         consumeRecords(PRODUCTS_TABLE_EVENT_COUNT, null);
@@ -2047,7 +2047,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Flush all existing records not related to the test.
         consumeRecords(ORDERS_TABLE_EVENT_COUNT, null);
@@ -2100,7 +2100,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.TIME_PRECISION_MODE, TemporalPrecisionMode.ADAPTIVE)
                 .build();
 
-        MySqlConnector connector = new MySqlConnector();
+        MySqlConnector_V2 connector = new MySqlConnector_V2();
         Config result = connector.validate(config.asMap());
 
         assertConfigurationErrors(result, MySqlConnectorConfig.TIME_PRECISION_MODE);
@@ -2116,7 +2116,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, "my_database")
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         consumeRecordsByTopic(12);
         waitForAvailableRecords(100, TimeUnit.MILLISECONDS);
@@ -2133,7 +2133,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         consumeRecordsByTopic(12);
         waitForAvailableRecords(100, TimeUnit.MILLISECONDS);
@@ -2152,7 +2152,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("my_products"))
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         assertConnectorIsRunning();
         waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
 
@@ -2172,7 +2172,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         assertConnectorIsRunning();
 
         consumeRecordsByTopic(12);
@@ -2198,7 +2198,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         final SourceRecords records = consumeRecordsByTopic(9);
         // Parse through the source record for the query value.
@@ -2228,7 +2228,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         final SourceRecords records = consumeRecordsByTopic(9);
         // Parse through the source record for the query value.
@@ -2256,7 +2256,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         final SourceRecords records = consumeRecordsByTopic(9);
         // Parse through the source record for the query value.
@@ -2283,7 +2283,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         final SourceRecords records = consumeRecordsByTopic(PRODUCTS_TABLE_EVENT_COUNT);
         final List<SourceRecord> table = records.recordsForTopic(DATABASE.topicForTable(tableName));
@@ -2312,7 +2312,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // ---------------------------------------------------------------------------------------------------------------
         // Consume all of the events due to startup and initialization of the database
@@ -2365,7 +2365,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
 
         try (MySqlTestConnection db = MySqlTestConnection.forTestDatabase(DATABASE.getDatabaseName());) {
@@ -2406,7 +2406,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
 
         try (MySqlTestConnection db = MySqlTestConnection.forTestDatabase(DATABASE.getDatabaseName());) {
@@ -2440,7 +2440,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, "my_database")
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         consumeRecordsByTopic(12);
         waitForAvailableRecords(100, TimeUnit.MILLISECONDS);
@@ -2460,7 +2460,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
 
         // Start the connector.
         CompletionResult completion = new CompletionResult();
-        start(MySqlConnector.class, config, completion);
+        start(MySqlConnector_V2.class, config, completion);
         waitForStreamingRunning(DATABASE.getServerName());
 
         // Do some changes.
@@ -2514,7 +2514,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.SKIPPED_OPERATIONS, "c")
                 .build();
 
-        start(MySqlConnector.class, config, new NoTombStonesHandler(consumedLines));
+        start(MySqlConnector_V2.class, config, new NoTombStonesHandler(consumedLines));
         waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
 
         try (MySqlTestConnection db = MySqlTestConnection.forTestDatabase(DATABASE.getDatabaseName());) {
@@ -2547,7 +2547,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.SKIPPED_OPERATIONS, "none")
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
 
         try (MySqlTestConnection db = MySqlTestConnection.forTestDatabase(DATABASE.getDatabaseName())) {

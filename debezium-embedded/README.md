@@ -36,7 +36,7 @@ Here's an example of code that configures and runs an embedded MySQL connector:
     Configuration config = Configuration.create()
                                         /* begin engine properties */
                                         .with("name", "my-sql-connector")
-                                        .with("connector.class", "io.debezium.connector.mysql.MySqlConnector")
+                                        .with("connector.class", "io.debezium.connector.mysql.MySqlConnector_V2")
                                         .with("offset.storage", "org.apache.kafka.connect.storage.FileOffsetBackingStore")
                                         .with("offset.storage.file.filename", "/path/to/storage/offset.dat")
                                         .with("offset.flush.interval.ms", 60000)
@@ -70,7 +70,7 @@ Let's look into this code in more detail, starting with the first few lines that
     Configuration config = Configuration.create()
                                         /* begin engine properties */
                                         .with("name", "mysql-connector")
-                                        .with("connector.class", "io.debezium.connector.mysql.MySqlConnector")
+                                        .with("connector.class", "io.debezium.connector.mysql.MySqlConnector_V2")
                                         .with("offset.storage", "org.apache.kafka.connect.storage.FileOffsetBackingStore")
                                         .with("offset.storage.file.filename", "/path/to/storage/offset.dat")
                                         .with("offset.flush.interval.ms", 60000)

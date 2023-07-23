@@ -67,7 +67,7 @@ public class MySqlTinyIntIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         consumeInitial();
 
@@ -94,7 +94,7 @@ public class MySqlTinyIntIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         consumeInitial();
 
@@ -121,7 +121,7 @@ public class MySqlTinyIntIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         consumeInitial();
 
@@ -148,7 +148,7 @@ public class MySqlTinyIntIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         consumeInitial();
 
@@ -177,7 +177,7 @@ public class MySqlTinyIntIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         consumeInitial();
 

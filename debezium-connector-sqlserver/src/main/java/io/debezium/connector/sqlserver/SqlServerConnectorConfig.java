@@ -357,7 +357,7 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
 
     public SqlServerConnectorConfig(Configuration config) {
         super(
-                SqlServerConnector.class,
+                SqlServerConnector_V2.class,
                 config,
                 new SystemTablesPredicate(),
                 x -> x.schema() + "." + x.table(),

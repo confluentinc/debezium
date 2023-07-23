@@ -165,7 +165,7 @@ public class StreamingSourceIT extends AbstractConnectorTest {
         config = simpleConfig()
                 .build();
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Poll for records ...
         // Testing.Print.enable();
@@ -224,7 +224,7 @@ public class StreamingSourceIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Poll for records ...
         // Testing.Print.enable();
@@ -305,7 +305,7 @@ public class StreamingSourceIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForStreamingRunning("mysql", DATABASE.getServerName(), "streaming");
 
         // Lets wait for at least 35 events to be filtered.
@@ -339,7 +339,7 @@ public class StreamingSourceIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         int expectedChanges = 1; // only 1 insert
 
@@ -376,7 +376,7 @@ public class StreamingSourceIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         int expectedChanges = 1; // only 1 insert
 
@@ -470,7 +470,7 @@ public class StreamingSourceIT extends AbstractConnectorTest {
 
         // Start the connector ...
         Map<String, Object> result = new HashMap<>();
-        start(MySqlConnector.class, config, (success, message, error) -> {
+        start(MySqlConnector_V2.class, config, (success, message, error) -> {
             result.put("success", success);
             result.put("message", message);
         });
@@ -496,7 +496,7 @@ public class StreamingSourceIT extends AbstractConnectorTest {
 
         // Start the connector ...
         AtomicReference<Throwable> exception = new AtomicReference<>();
-        start(MySqlConnector.class, config, (success, message, error) -> exception.set(error));
+        start(MySqlConnector_V2.class, config, (success, message, error) -> exception.set(error));
 
         waitForStreamingRunning("mysql", DATABASE.getServerName(), "streaming");
         assertThat(exception.get()).isNull();
@@ -523,7 +523,7 @@ public class StreamingSourceIT extends AbstractConnectorTest {
         }
         // Start the connector ...
         AtomicReference<Throwable> exception = new AtomicReference<>();
-        start(MySqlConnector.class, config, (success, message, error) -> exception.set(error));
+        start(MySqlConnector_V2.class, config, (success, message, error) -> exception.set(error));
 
         waitForStreamingRunning("mysql", DATABASE.getServerName(), "streaming");
 
@@ -562,7 +562,7 @@ public class StreamingSourceIT extends AbstractConnectorTest {
         }
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Poll for records ...
         // Testing.Print.enable();
@@ -575,7 +575,7 @@ public class StreamingSourceIT extends AbstractConnectorTest {
                 DATABASE.qualifiedTableName("orders") + "," + DATABASE.qualifiedTableName("customers")).build();
 
         AtomicReference<Throwable> exception = new AtomicReference<>();
-        start(MySqlConnector.class, config, (success, message, error) -> exception.set(error));
+        start(MySqlConnector_V2.class, config, (success, message, error) -> exception.set(error));
 
         try (
                 MySqlTestConnection db = MySqlTestConnection.forTestDatabase(DATABASE.getDatabaseName());

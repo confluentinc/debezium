@@ -61,7 +61,7 @@ public class TablesWithUniqueIndexOnlyIT extends AbstractConnectorTest {
 
         TestHelper.enableTableCdc(connection, "t1", "t1_CT", Collect.arrayListOf("key1", "key2", "data"));
 
-        start(SqlServerConnector.class, TestHelper.defaultConfig()
+        start(SqlServerConnector_V2.class, TestHelper.defaultConfig()
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
                 .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.t1")
                 .with(SqlServerConnectorConfig.MSG_KEY_COLUMNS, "dbo.t1:key1,key2;")
@@ -82,7 +82,7 @@ public class TablesWithUniqueIndexOnlyIT extends AbstractConnectorTest {
 
         TestHelper.enableTableCdc(connection, "t1", "t1_CT", Collect.arrayListOf("key1", "key2", "data"));
 
-        start(SqlServerConnector.class, TestHelper.defaultConfig()
+        start(SqlServerConnector_V2.class, TestHelper.defaultConfig()
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
                 .with(SqlServerConnectorConfig.MSG_KEY_COLUMNS, "dbo.t1:key1,key2;dbo.t2:key1,key2")
                 .build());
