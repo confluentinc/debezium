@@ -39,7 +39,8 @@ public class MySqlErrorHandler extends ErrorHandler {
         }
         else if (throwable instanceof EOFException) {
             // Retry with reading binlog error
-            return throwable.getMessage().contains("Failed to read next byte from position");
+            return throwable.getMessage().contains("Failed to read next byte from position")
+                || throwable.getMessage().contains("Failed to read remaining");
         }
         else if (throwable instanceof DebeziumException && throwable.getCause() != null) {
             return isRetriable(throwable.getCause());
