@@ -217,11 +217,11 @@
                       <ports>
                         <port>${mysql.ssl.port}:3306</port>
                       </ports>
-                      <volumes>
-                        <bind>
-                          <volume>${project.basedir}/src/test/resources/ssl-certs:/etc/certs</volume>
-                        </bind>
-                      </volumes>
+<!--                      <volumes>-->
+<!--                        <bind>-->
+<!--                          <volume>${project.basedir}/src/test/resources/ssl-certs:/etc/certs</volume>-->
+<!--                        </bind>-->
+<!--                      </volumes>-->
                       <log>
                         <prefix>mysql</prefix>
                         <enabled>true</enabled>
@@ -240,6 +240,10 @@
                         <assembly>
                           <inline>
                             <fileSets>
+                                <fileSet>
+                                    <directory>${project.basedir}/src/test/resources/ssl-certs</directory>
+                                    <outputDirectory>etc/certs</outputDirectory>
+                                </fileSet>
                               <fileSet>
                                 <directory>${project.basedir}/src/test/docker/server-ssl</directory>
                                 <includes>
@@ -437,7 +441,7 @@
                 </execution>
               </executions>
             </plugin>
-            <!-- 
+            <!--
             Unlike surefire, the failsafe plugin ensures 'post-integration-test' phase always runs, even
             when there are failed integration tests. We rely upon this to always shut down the Docker container
             after the integration tests (defined as '*IT.java') are run.
