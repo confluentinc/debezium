@@ -71,6 +71,8 @@ public class MySqlSnapshotChangeEventSource extends RelationalSnapshotChangeEven
         this.lastEventProcessor = lastEventProcessor;
     }
 
+    // some random comment
+
     @Override
     protected SnapshottingTask getSnapshottingTask(MySqlPartition partition, MySqlOffsetContext previousOffset) {
         boolean snapshotSchema = true;
