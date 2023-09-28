@@ -34,6 +34,14 @@
 
         <!-- We're tracking the API changes of the SPI. -->
         <revapi.skip>false</revapi.skip>
+
+        <!-- jacoco code coverage thresholds -->
+        <instruction.coverage.threshold>0.99</instruction.coverage.threshold>
+        <branch.coverage.threshold>0.99</branch.coverage.threshold>
+        <method.coverage.threshold>0.99</method.coverage.threshold>
+        <class.coverage.threshold>0.99</class.coverage.threshold>
+        <complexity.coverage.threshold>0.99</complexity.coverage.threshold>
+        <line.coverage.threshold>0.99</line.coverage.threshold>
     </properties>
 
     <dependencies>
@@ -117,85 +125,6 @@
 
     <build>
         <plugins>
-            <plugin>
-                <groupId>org.jacoco</groupId>
-                <artifactId>jacoco-maven-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>prepare-agent</id>
-                        <goals>
-                            <goal>prepare-agent</goal>
-                        </goals>
-                    </execution>
-                    <execution>
-                        <id>prepare-agent-it</id>
-                        <goals>
-                            <goal>prepare-agent-integration</goal>
-                        </goals>
-                        <phase>pre-integration-test</phase>
-                    </execution>
-                    <execution>
-                        <id>merge-coverage-reports</id>
-                        <phase>verify</phase>
-                        <goals>
-                            <goal>merge</goal>
-                        </goals>
-                        <configuration>
-                            <fileSets>
-                                <fileSet>
-                                    <directory>${project.basedir}</directory>
-                                    <includes>
-                                        <include>/target/jacoco.exec</include>
-                                        <include>/target/jacoco-it.exec</include>
-                                    </includes>
-                                </fileSet>
-                            </fileSets>
-                            <destFile>${project.basedir}/target/jacoco-aggregate.exec</destFile>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>check</id>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                        <configuration>
-                            <rules>
-                                <rule>
-                                    <element>BUNDLE</element>
-                                    <limits>
-                                        <limit>
-                                            <counter>LINE</counter>
-                                            <value>COVEREDRATIO</value>
-                                            <minimum>0.44</minimum>
-                                        </limit>
-                                        <limit>
-                                            <counter>METHOD</counter>
-                                            <value>COVEREDRATIO</value>
-                                            <minimum>0.40</minimum>
-                                        </limit>
-                                        <limit>
-                                            <counter>CLASS</counter>
-                                            <value>COVEREDRATIO</value>
-                                            <minimum>0.56</minimum>
-                                        </limit>
-                                    </limits>
-                                </rule>
-                            </rules>
-                            <dataFile>${project.basedir}/target/jacoco-aggregate.exec</dataFile>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>report</id>
-                        <phase>test</phase>
-                        <goals>
-                            <goal>report</goal>
-                        </goals>
-                        <configuration>
-                            <dataFile>${project.basedir}/target/jacoco-aggregate.exec</dataFile>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
             <plugin>
                 <groupId>com.github.os72</groupId>
                 <artifactId>protoc-jar-maven-plugin</artifactId>
