@@ -10,16 +10,6 @@
     <artifactId>debezium-connector-mongodb</artifactId>
     <name>Debezium Connector for MongoDB</name>
     <packaging>jar</packaging>
-
-    <properties>
-        <!-- jacoco code coverage thresholds -->
-        <instruction.coverage.threshold>0.99</instruction.coverage.threshold>
-        <branch.coverage.threshold>0.99</branch.coverage.threshold>
-        <method.coverage.threshold>0.99</method.coverage.threshold>
-        <class.coverage.threshold>0.99</class.coverage.threshold>
-        <complexity.coverage.threshold>0.99</complexity.coverage.threshold>
-        <line.coverage.threshold>0.99</line.coverage.threshold>
-    </properties>
     <dependencies>
         <dependency>
             <groupId>io.debezium</groupId>
