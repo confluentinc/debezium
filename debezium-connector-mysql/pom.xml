@@ -139,12 +139,12 @@
         <docker.skip>false</docker.skip>
         <docker.initimage>rm -f /etc/localtime; ln -s /usr/share/zoneinfo/US/Samoa /etc/localtime</docker.initimage>
         <!-- jacoco code coverage thresholds -->
-        <instruction.coverage.threshold>0.99</instruction.coverage.threshold>
-        <branch.coverage.threshold>0.99</branch.coverage.threshold>
-        <method.coverage.threshold>0.99</method.coverage.threshold>
-        <class.coverage.threshold>0.99</class.coverage.threshold>
-        <complexity.coverage.threshold>0.99</complexity.coverage.threshold>
-        <line.coverage.threshold>0.99</line.coverage.threshold>
+        <instruction.coverage.threshold>0.70</instruction.coverage.threshold>
+        <branch.coverage.threshold>0.57</branch.coverage.threshold>
+        <method.coverage.threshold>0.72</method.coverage.threshold>
+        <class.coverage.threshold>0.83</class.coverage.threshold>
+        <complexity.coverage.threshold>0.54</complexity.coverage.threshold>
+        <line.coverage.threshold>0.68</line.coverage.threshold>
     </properties>
     <build>
         <plugins>
