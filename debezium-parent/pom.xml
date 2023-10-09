@@ -76,6 +76,14 @@
         <!-- Skip the API checks by default. Let the modules opt in. -->
         <revapi.skip>true</revapi.skip>
 
+        <!-- jacoco code coverage thresholds -->
+        <instruction.coverage.threshold>0.0</instruction.coverage.threshold>
+        <branch.coverage.threshold>0.0</branch.coverage.threshold>
+        <method.coverage.threshold>0.0</method.coverage.threshold>
+        <class.coverage.threshold>0.0</class.coverage.threshold>
+        <complexity.coverage.threshold>0.0</complexity.coverage.threshold>
+        <line.coverage.threshold>0.0</line.coverage.threshold>
+
     </properties>
 
     <dependencyManagement>
