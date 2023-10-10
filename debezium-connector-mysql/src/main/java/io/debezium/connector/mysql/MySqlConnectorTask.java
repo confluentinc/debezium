@@ -101,6 +101,8 @@ public class MySqlConnectorTask extends BaseSourceTask<MySqlPartition, MySqlOffs
             throw new DebeziumException(e);
         }
 
+        // some random comment
+
         MySqlPartition partition = previousOffsets.getTheOnlyPartition();
         MySqlOffsetContext previousOffset = previousOffsets.getTheOnlyOffset();
 
