@@ -23,6 +23,14 @@
         <docker.filter>mcr.microsoft.com/mssql/server:2019-latest</docker.filter>
         <docker.skip>false</docker.skip>
         <docker.showLogs>true</docker.showLogs>
+
+        <!-- jacoco code coverage thresholds -->
+        <instruction.coverage.threshold>0.85</instruction.coverage.threshold>
+        <branch.coverage.threshold>0.72</branch.coverage.threshold>
+        <method.coverage.threshold>0.79</method.coverage.threshold>
+        <class.coverage.threshold>0.93</class.coverage.threshold>
+        <complexity.coverage.threshold>0.68</complexity.coverage.threshold>
+        <line.coverage.threshold>0.85</line.coverage.threshold>
     </properties>
 
     <dependencies>

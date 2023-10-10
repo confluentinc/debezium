@@ -34,6 +34,14 @@
 
         <!-- We're tracking the API changes of the SPI. -->
         <revapi.skip>false</revapi.skip>
+
+        <!-- jacoco code coverage thresholds -->
+        <instruction.coverage.threshold>0.56</instruction.coverage.threshold>
+        <branch.coverage.threshold>0.45</branch.coverage.threshold>
+        <method.coverage.threshold>0.55</method.coverage.threshold>
+        <class.coverage.threshold>0.80</class.coverage.threshold>
+        <complexity.coverage.threshold>0.44</complexity.coverage.threshold>
+        <line.coverage.threshold>0.55</line.coverage.threshold>
     </properties>
 
     <dependencies>
