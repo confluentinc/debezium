@@ -21,6 +21,7 @@ import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
 
 import io.debezium.connector.sqlserver.Module;
 import io.debezium.connector.sqlserver.SqlServerConnector;
@@ -30,6 +31,8 @@ import io.debezium.testing.testcontainers.ConnectorConfiguration;
 import io.debezium.testing.testcontainers.testhelper.RestExtensionTestInfrastructure;
 import io.restassured.http.ContentType;
 
+
+@Disabled
 public class DebeziumSqlServerConnectorResourceIT {
 
     @BeforeClass

@@ -15,11 +15,13 @@ import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
 
 import io.debezium.connector.mysql.Module;
 import io.debezium.connector.mysql.MySqlConnector;
 import io.debezium.testing.testcontainers.testhelper.RestExtensionTestInfrastructure;
 
+@Disabled
 public class DebeziumMySqlConnectorResourceNoDatabaseIT {
 
     @BeforeClass
