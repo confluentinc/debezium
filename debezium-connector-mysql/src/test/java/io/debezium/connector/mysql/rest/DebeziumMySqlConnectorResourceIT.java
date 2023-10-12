@@ -20,6 +20,8 @@ import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.debezium.connector.mysql.Module;
 import io.debezium.connector.mysql.MySqlConnector;
@@ -30,6 +32,7 @@ import io.debezium.testing.testcontainers.testhelper.RestExtensionTestInfrastruc
 import io.restassured.http.ContentType;
 
 public class DebeziumMySqlConnectorResourceIT {
+    private static final Logger LOGGER = LoggerFactory.getLogger(DebeziumMySqlConnectorResourceIT.class);
 
     @BeforeClass
     public static void checkCondition() {
@@ -51,6 +54,11 @@ public class DebeziumMySqlConnectorResourceIT {
     @Test
     public void testValidConnection() {
         ConnectorConfiguration config = getMySqlConnectorConfiguration(1);
+        LOGGER.info("Rajendra config: {}", config.toJson());
+        LOGGER.info("Rajendra getFirstMappedPort(): {}", RestExtensionTestInfrastructure.getDebeziumContainer().getFirstMappedPort());
+        LOGGER.info("Rajendra getFirstMappedPort() again to see if same: {}", RestExtensionTestInfrastructure.getDebeziumContainer().getFirstMappedPort());
+        LOGGER.info("Rajendra BASE_PATH: {} + VALIDATE_CONNECTION_ENDPOINT: {}",
+                DebeziumMySqlConnectorResource.BASE_PATH + DebeziumMySqlConnectorResource.VALIDATE_CONNECTION_ENDPOINT);
 
         given()
                 .port(RestExtensionTestInfrastructure.getDebeziumContainer().getFirstMappedPort())
