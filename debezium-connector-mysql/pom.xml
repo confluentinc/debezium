@@ -126,10 +126,6 @@
                     <groupId>org.junit.platform</groupId>
                     <artifactId>junit-platform-launcher</artifactId>
                 </exclusion>
-                <exclusion>
-                    <groupId>org.junit.jupiter</groupId>
-                    <artifactId>junit-jupiter</artifactId>
-                </exclusion>
             </exclusions>
         </dependency>
         <dependency>

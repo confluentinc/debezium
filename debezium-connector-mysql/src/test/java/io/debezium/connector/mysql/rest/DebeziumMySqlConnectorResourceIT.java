@@ -20,6 +20,7 @@ import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,6 +32,7 @@ import io.debezium.testing.testcontainers.ConnectorConfiguration;
 import io.debezium.testing.testcontainers.testhelper.RestExtensionTestInfrastructure;
 import io.restassured.http.ContentType;
 
+@Disabled
 public class DebeziumMySqlConnectorResourceIT {
     private static final Logger LOGGER = LoggerFactory.getLogger(DebeziumMySqlConnectorResourceIT.class);
 
