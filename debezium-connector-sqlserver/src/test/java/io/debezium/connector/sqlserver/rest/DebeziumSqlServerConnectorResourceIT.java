@@ -20,8 +20,8 @@ import org.junit.After;
 import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
-import org.junit.jupiter.api.Disabled;
 
 import io.debezium.connector.sqlserver.Module;
 import io.debezium.connector.sqlserver.SqlServerConnector;
@@ -32,7 +32,7 @@ import io.debezium.testing.testcontainers.testhelper.RestExtensionTestInfrastruc
 import io.restassured.http.ContentType;
 
 
-@Disabled
+@Ignore
 public class DebeziumSqlServerConnectorResourceIT {
 
     @BeforeClass
