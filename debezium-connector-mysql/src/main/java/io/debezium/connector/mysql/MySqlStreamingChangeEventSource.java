@@ -1153,7 +1153,7 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
     }
 
     protected void logEvent(MySqlOffsetContext offsetContext, Event event) {
-        LOGGER.trace("Received event: {}", event);
+        LOGGER.trace("Received event for offset: {}", offsetContext.getOffset());
     }
 
     private void logStreamingSourceState(Level severity) {
