@@ -59,7 +59,7 @@ public class ColumnMappers {
         config.forEachMatchingFieldName("column\\.propagate\\.source\\.type", builder::propagateSourceTypeToSchemaParameter);
         config.forEachMatchingFieldName("datatype\\.propagate\\.source\\.type", builder::propagateSourceTypeToSchemaParameterByDatatype);
 
-        final Pattern hashAlgorithmAndSaltExtractPattern = Pattern.compile("((?<hashAlgorithm>[^.]+)\\.with\\.salt\\.(?<salt>.+))");
+        final Pattern hashAlgorithmAndSaltExtractPattern = Pattern.compile("((?P<hashAlgorithm>[^.]+)\\.with\\.salt\\.(?P<salt>.+))");
         config.forEachMatchingFieldNameWithString("column\\.mask\\.hash\\." + hashAlgorithmAndSaltExtractPattern.pattern(),
                 (fullyQualifiedColumnNames, hashAlgorithmAndSalt) -> {
                     Matcher matcher = hashAlgorithmAndSaltExtractPattern.matcher(hashAlgorithmAndSalt);
