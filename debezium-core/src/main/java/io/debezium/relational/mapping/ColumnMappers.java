@@ -10,10 +10,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.apache.kafka.connect.errors.ConnectException;
+
+import com.google.re2j.Matcher;
+import com.google.re2j.Pattern;
 
 import io.debezium.annotation.Immutable;
 import io.debezium.config.Configuration;
