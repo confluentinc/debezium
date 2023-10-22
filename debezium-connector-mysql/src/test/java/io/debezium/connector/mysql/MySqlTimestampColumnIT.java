@@ -59,7 +59,7 @@ public class MySqlTimestampColumnIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("t_user_black_list"))
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // There should be 5 records that imply create database, create table, alter table, insert row, update row.
         // If the ddl parser fails, there will only be 3; the insert/update won't occur.

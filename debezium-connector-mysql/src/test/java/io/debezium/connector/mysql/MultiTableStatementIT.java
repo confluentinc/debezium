@@ -60,7 +60,7 @@ public class MultiTableStatementIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
         // CREATE DB + 4 * CREATE TABLE + DROP TABLE

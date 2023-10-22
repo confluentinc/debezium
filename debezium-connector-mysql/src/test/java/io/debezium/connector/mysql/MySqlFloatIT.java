@@ -68,7 +68,7 @@ public class MySqlFloatIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         assertFloatChangeRecord(consumeInsert());
 

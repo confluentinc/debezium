@@ -83,7 +83,7 @@ public class SQLServerNumericColumnIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.tablenuma")
                 .with(SqlServerConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.STRING).build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -115,7 +115,7 @@ public class SQLServerNumericColumnIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.tablenumb")
                 .with(SqlServerConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.DOUBLE).build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -146,7 +146,7 @@ public class SQLServerNumericColumnIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.tablenumc")
                 .with(SqlServerConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.PRECISE).build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 

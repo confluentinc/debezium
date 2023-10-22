@@ -22,14 +22,14 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import io.debezium.connector.postgresql.Module;
-import io.debezium.connector.postgresql.PostgresConnector;
+import io.debezium.connector.postgresql.PostgresConnector_V2;
 import io.debezium.connector.postgresql.PostgresConnectorConfig;
 import io.debezium.testing.testcontainers.ConnectorConfiguration;
 import io.debezium.testing.testcontainers.testhelper.RestExtensionTestInfrastructure;
 import io.restassured.http.ContentType;
 
 @Ignore
-public class DebeziumPostgresConnectorResourceIT {
+public class DebeziumPostgresConnectorV2ResourceIT {
 
     @BeforeClass
     public static void checkCondition() {
@@ -85,7 +85,7 @@ public class DebeziumPostgresConnectorResourceIT {
     public void testInvalidConnection() {
         given()
                 .port(RestExtensionTestInfrastructure.getDebeziumContainer().getFirstMappedPort())
-                .when().contentType(ContentType.JSON).accept(ContentType.JSON).body("{\"connector.class\": \"" + PostgresConnector.class.getName() + "\"}")
+                .when().contentType(ContentType.JSON).accept(ContentType.JSON).body("{\"connector.class\": \"" + PostgresConnector_V2.class.getName() + "\"}")
                 .put(DebeziumPostgresConnectorResource.BASE_PATH + DebeziumPostgresConnectorResource.VALIDATE_CONNECTION_ENDPOINT)
                 .then().log().all()
                 .statusCode(200)

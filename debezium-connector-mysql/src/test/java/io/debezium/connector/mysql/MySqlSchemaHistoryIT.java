@@ -68,7 +68,7 @@ public class MySqlSchemaHistoryIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         Testing.Print.enable();
         // SET + USE + Drop DB + create DB + CREATE/DROP for each table
@@ -76,7 +76,7 @@ public class MySqlSchemaHistoryIT extends AbstractConnectorTest {
         assertDdls(records);
         stopConnector();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         assertConnectorIsRunning();
         stopConnector();
     }
@@ -89,7 +89,7 @@ public class MySqlSchemaHistoryIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         Testing.Print.enable();
         // SET + USE + Drop DB + create DB + CREATE/DROP for each table
@@ -104,7 +104,7 @@ public class MySqlSchemaHistoryIT extends AbstractConnectorTest {
 
         stopConnector();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         assertConnectorIsRunning();
         stopConnector();
     }
@@ -117,7 +117,7 @@ public class MySqlSchemaHistoryIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         Testing.Print.enable();
         // SET + USE + Drop DB + create DB + CREATE/DROP for each table
@@ -132,7 +132,7 @@ public class MySqlSchemaHistoryIT extends AbstractConnectorTest {
 
         stopConnector();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         assertConnectorIsRunning();
         stopConnector();
     }
@@ -145,7 +145,7 @@ public class MySqlSchemaHistoryIT extends AbstractConnectorTest {
                 .build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         Testing.Print.enable();
         // SET + USE + Drop DB + create DB + CREATE/DROP for each table
@@ -159,7 +159,7 @@ public class MySqlSchemaHistoryIT extends AbstractConnectorTest {
 
         stopConnector();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         assertConnectorIsRunning();
         stopConnector();
     }

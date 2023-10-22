@@ -70,7 +70,7 @@ public class MySqlTopicNamingStrategyIT extends AbstractConnectorTest {
                 .with(AbstractTopicNamingStrategy.TOPIC_DELIMITER, "_")
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         SourceRecords records = consumeRecordsByTopic(100);
 
@@ -112,7 +112,7 @@ public class MySqlTopicNamingStrategyIT extends AbstractConnectorTest {
                 .with(CommonConnectorConfig.TOPIC_NAMING_STRATEGY, "io.debezium.schema.DefaultRegexTopicNamingStrategy")
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         assertConnectorIsRunning();
 
@@ -149,7 +149,7 @@ public class MySqlTopicNamingStrategyIT extends AbstractConnectorTest {
                 .with(AbstractTopicNamingStrategy.TOPIC_TRANSACTION, "my_transaction")
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Debug.enable();
         assertConnectorIsRunning();
@@ -187,7 +187,7 @@ public class MySqlTopicNamingStrategyIT extends AbstractConnectorTest {
                 .with(CommonConnectorConfig.TOPIC_NAMING_STRATEGY, "io.debezium.schema.DefaultUnicodeTopicNamingStrategy")
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         assertConnectorIsRunning();
 

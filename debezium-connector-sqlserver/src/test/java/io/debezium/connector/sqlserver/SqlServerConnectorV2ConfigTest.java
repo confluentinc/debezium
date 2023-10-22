@@ -17,9 +17,9 @@ import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.storage.kafka.history.KafkaSchemaHistory;
 
-public class SqlServerConnectorConfigTest {
+public class SqlServerConnectorV2ConfigTest {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(SqlServerConnectorConfigTest.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(SqlServerConnectorV2ConfigTest.class);
 
     @Test
     public void nullDatabaseNames() {

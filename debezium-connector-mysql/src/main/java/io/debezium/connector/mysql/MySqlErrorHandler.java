@@ -21,7 +21,7 @@ import io.debezium.util.Collect;
 public class MySqlErrorHandler extends ErrorHandler {
 
     public MySqlErrorHandler(MySqlConnectorConfig connectorConfig, ChangeEventQueue<?> queue, ErrorHandler replacedErrorHandler) {
-        super(MySqlConnector.class, connectorConfig, queue, replacedErrorHandler);
+        super(MySqlConnector_V2.class, connectorConfig, queue, replacedErrorHandler);
     }
 
     @Override

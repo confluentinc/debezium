@@ -36,12 +36,12 @@ import io.debezium.relational.RelationalDatabaseConnectorConfig;
  *
  * @author Horia Chiorean
  */
-public class PostgresConnector extends RelationalBaseSourceConnector {
+public class PostgresConnector_V2 extends RelationalBaseSourceConnector {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(PostgresConnector.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(PostgresConnector_V2.class);
     private Map<String, String> props;
 
-    public PostgresConnector() {
+    public PostgresConnector_V2() {
     }
 
     @Override

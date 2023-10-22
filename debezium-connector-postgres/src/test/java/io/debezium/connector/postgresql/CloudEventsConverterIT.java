@@ -16,11 +16,11 @@ import io.debezium.converters.AbstractCloudEventsConverterTest;
 import io.debezium.jdbc.JdbcConnection;
 
 /**
- * Integration test for {@link io.debezium.converters.CloudEventsConverter} with {@link PostgresConnector}
+ * Integration test for {@link io.debezium.converters.CloudEventsConverter} with {@link PostgresConnector_V2}
  *
  * @author Roman Kudryashov
  */
-public class CloudEventsConverterIT extends AbstractCloudEventsConverterTest<PostgresConnector> {
+public class CloudEventsConverterIT extends AbstractCloudEventsConverterTest<PostgresConnector_V2> {
 
     private static final String SETUP_OUTBOX_SCHEMA = "DROP SCHEMA IF EXISTS outboxsmtit CASCADE;" +
             "CREATE SCHEMA outboxsmtit;";
@@ -44,8 +44,8 @@ public class CloudEventsConverterIT extends AbstractCloudEventsConverterTest<Pos
     }
 
     @Override
-    protected Class<PostgresConnector> getConnectorClass() {
-        return PostgresConnector.class;
+    protected Class<PostgresConnector_V2> getConnectorClass() {
+        return PostgresConnector_V2.class;
     }
 
     @Override

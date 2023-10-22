@@ -68,7 +68,7 @@ public class EventProcessingFailureHandlingIT extends AbstractConnectorTest {
                 .build();
         final LogInterceptor logInterceptor = new LogInterceptor(EventDispatcher.class);
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForStreamingStarted();
 
@@ -110,7 +110,7 @@ public class EventProcessingFailureHandlingIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.EVENT_PROCESSING_FAILURE_HANDLING_MODE, EventProcessingFailureHandlingMode.SKIP)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForStreamingStarted();
 
@@ -146,7 +146,7 @@ public class EventProcessingFailureHandlingIT extends AbstractConnectorTest {
                 .build();
         final LogInterceptor logInterceptor = new LogInterceptor(ErrorHandler.class);
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForStreamingStarted();
 

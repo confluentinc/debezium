@@ -106,7 +106,7 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
         config = DATABASE.defaultConfig()
                 .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
                 .build();
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
 
@@ -140,7 +140,7 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
         config = DATABASE.defaultConfig()
                 .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
                 .build();
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
 
@@ -180,7 +180,7 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
         config = DATABASE.defaultConfig()
                 .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
                 .build();
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
 
@@ -214,7 +214,7 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
         config = DATABASE.defaultConfig()
                 .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
                 .build();
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
 
@@ -248,7 +248,7 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
         config = DATABASE.defaultConfig()
                 .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
                 .build();
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
 
@@ -283,7 +283,7 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
                 .with(MySqlConnectorConfig.BIGINT_UNSIGNED_HANDLING_MODE, JdbcValueConverters.BigIntUnsignedMode.PRECISE)
                 .build();
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
 
@@ -318,7 +318,7 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
         config = DATABASE.defaultConfig()
                 .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
                 .build();
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
 
@@ -351,7 +351,7 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
         config = DATABASE.defaultConfig()
                 .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
                 .build();
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
 
@@ -387,7 +387,7 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
                 statement.executeUpdate(insert);
             }
         }
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         Testing.Print.enable();
 
@@ -421,7 +421,7 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
         config = DATABASE.defaultConfig()
                 .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
                 .build();
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
 
@@ -458,7 +458,7 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
         config = DATABASE.defaultConfig()
                 .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
                 .build();
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
 
@@ -484,7 +484,7 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
         config = DATABASE.defaultConfig()
                 .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
                 .build();
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
 
@@ -516,7 +516,7 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
         config = DATABASE.defaultConfig()
                 .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
                 .build();
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
 
@@ -546,7 +546,7 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
         config = DATABASE.defaultConfig()
                 .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
                 .build();
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         Testing.Print.enable();
         waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
@@ -575,7 +575,7 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
         config = DATABASE.defaultConfig()
                 .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
                 .build();
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
 
@@ -596,7 +596,7 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
         config = DATABASE.defaultConfig()
                 .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
                 .build();
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
 
@@ -617,7 +617,7 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
                 .with(MySqlConnectorConfig.DECIMAL_HANDLING_MODE, RelationalDatabaseConnectorConfig.DecimalHandlingMode.DOUBLE)
                 .build();
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
 
@@ -641,7 +641,7 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
                 .with(MySqlConnectorConfig.DECIMAL_HANDLING_MODE, RelationalDatabaseConnectorConfig.DecimalHandlingMode.PRECISE)
                 .build();
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
 
@@ -664,7 +664,7 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("DATE_TIME_TABLE"))
                 .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, true)
                 .build();
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
 
@@ -733,7 +733,7 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.TIME_PRECISION_MODE, TemporalPrecisionMode.CONNECT)
                 .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, true)
                 .build();
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
 
@@ -792,7 +792,7 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
         config = DATABASE.defaultConfig()
                 .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
                 .build();
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
 
@@ -832,7 +832,7 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
         config = DATABASE.defaultConfig()
                 .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
                 .build();
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Print.enable();
 
@@ -877,7 +877,7 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
                 .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, true)
                 .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, false)
                 .build();
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
         Testing.Print.enable();
@@ -913,7 +913,7 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.DECIMAL_HANDLING_MODE, RelationalDatabaseConnectorConfig.DecimalHandlingMode.STRING)
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
 
         // Connect to the DB and issue our alter statement to test.
@@ -958,7 +958,7 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, false)
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
 
         // Connect to the DB and create our table and insert a value

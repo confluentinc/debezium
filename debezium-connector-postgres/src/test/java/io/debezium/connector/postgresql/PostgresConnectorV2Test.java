@@ -17,12 +17,12 @@ import org.apache.kafka.common.config.ConfigValue;
 import org.junit.Before;
 import org.junit.Test;
 
-public class PostgresConnectorTest {
-    PostgresConnector connector;
+public class PostgresConnectorV2Test {
+    PostgresConnector_V2 connector;
 
     @Before
     public void before() {
-        connector = new PostgresConnector();
+        connector = new PostgresConnector_V2();
     }
 
     @Test

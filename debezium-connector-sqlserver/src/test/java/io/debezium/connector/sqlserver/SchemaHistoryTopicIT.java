@@ -75,7 +75,7 @@ public class SchemaHistoryTopicIT extends AbstractConnectorTest {
                 .with(RelationalDatabaseConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -215,7 +215,7 @@ public class SchemaHistoryTopicIT extends AbstractConnectorTest {
                     "INSERT INTO tableb VALUES(" + id + ", 'b')");
         }
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -272,7 +272,7 @@ public class SchemaHistoryTopicIT extends AbstractConnectorTest {
         // Make sure table's capture instance exists first; avoids unexpected ALTER
         TestHelper.waitForEnabledCdc(connection, "tablec");
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -289,7 +289,7 @@ public class SchemaHistoryTopicIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
                 .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.tablec,dbo.tabled")
                 .build();
-        start(SqlServerConnector.class, config2);
+        start(SqlServerConnector_V2.class, config2);
         assertConnectorIsRunning();
 
         // Guarantee we've started streaming and not still in bootstrap steps
@@ -330,7 +330,7 @@ public class SchemaHistoryTopicIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         TestHelper.waitForStreamingStarted();

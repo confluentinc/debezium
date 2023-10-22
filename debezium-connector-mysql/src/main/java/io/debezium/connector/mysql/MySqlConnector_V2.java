@@ -33,14 +33,14 @@ import io.debezium.relational.RelationalDatabaseConnectorConfig;
  *
  * @author Randall Hauch
  */
-public class MySqlConnector extends RelationalBaseSourceConnector {
+public class MySqlConnector_V2 extends RelationalBaseSourceConnector {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(MySqlConnector.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(MySqlConnector_V2.class);
 
     @Immutable
     private Map<String, String> properties;
 
-    public MySqlConnector() {
+    public MySqlConnector_V2() {
     }
 
     @Override

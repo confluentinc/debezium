@@ -7,6 +7,7 @@ package io.debezium.storage.jdbc;
 
 import static io.debezium.junit.EqualityCheck.LESS_THAN;
 
+import io.debezium.connector.mysql.MySqlConnector_V2;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -28,7 +29,6 @@ import org.testcontainers.containers.wait.strategy.Wait;
 
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
-import io.debezium.connector.mysql.MySqlConnector;
 import io.debezium.connector.mysql.MySqlConnectorConfig;
 import io.debezium.connector.mysql.MySqlTestConnection;
 import io.debezium.embedded.AbstractConnectorTest;
@@ -175,7 +175,7 @@ public class JdbcOffsetBackingStoreIT extends AbstractConnectorTest {
         Configuration config = config(jdbcUrl).build();
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForStreamingRunning("mysql", TOPIC_PREFIX);
 
         consumeRecordsByTopic(4);

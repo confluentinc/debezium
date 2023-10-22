@@ -83,7 +83,7 @@ public class TransactionMetadataIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.PROVIDE_TRANSACTION_METADATA, true)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Testing.Print.enable();
@@ -139,7 +139,7 @@ public class TransactionMetadataIT extends AbstractConnectorTest {
         // Testing.Print.enable();
 
         if (restartJustAfterSnapshot) {
-            start(SqlServerConnector.class, config);
+            start(SqlServerConnector_V2.class, config);
             assertConnectorIsRunning();
 
             // Wait for snapshot to be completed
@@ -180,7 +180,7 @@ public class TransactionMetadataIT extends AbstractConnectorTest {
             });
         }
 
-        start(SqlServerConnector.class, config, record -> {
+        start(SqlServerConnector_V2.class, config, record -> {
             if (!"server1.testDB1.dbo.tablea.Envelope".equals(record.valueSchema().name())) {
                 return false;
             }
@@ -244,7 +244,7 @@ public class TransactionMetadataIT extends AbstractConnectorTest {
         assertRecordTransactionMetadata(lastRecordForOffset, batchTxId, RECORDS_PER_TABLE, RECORDS_PER_TABLE / 2);
 
         stopConnector();
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         SourceRecords sourceRecords = consumeRecordsByTopic(RECORDS_PER_TABLE);

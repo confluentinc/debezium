@@ -2204,7 +2204,7 @@ metadata:
   annotations:
     strimzi.io/use-connector-resources: 'true'
 spec:
-  class: io.debezium.connector.sqlserver.SqlServerConnector // <2>
+  class: io.debezium.connector.sqlserver.SqlServerConnector_V2 // <2>
   config:
     database.hostname: 192.168.99.100 // <3>
     database.port: 1433 // <4>
@@ -2299,7 +2299,7 @@ Optionally, you can ignore, mask, or truncate columns that contain sensitive dat
 {
     "name": "inventory-connector", // <1>
     "config": {
-        "connector.class": "io.debezium.connector.sqlserver.SqlServerConnector", // <2>
+        "connector.class": "io.debezium.connector.sqlserver.SqlServerConnector_V2", // <2>
         "database.hostname": "192.168.99.100", // <3>
         "database.port": "1433", // <4>
         "database.user": "sa", // <5>
@@ -2397,7 +2397,7 @@ The following configuration properties are _required_ unless a default value is 
 
 |[[sqlserver-property-connector-class]]<<sqlserver-property-connector-class, `+connector.class+`>>
 |No default
-|The name of the Java class for the connector. Always use a value of `io.debezium.connector.sqlserver.SqlServerConnector` for the SQL Server connector.
+|The name of the Java class for the connector. Always use a value of `io.debezium.connector.sqlserver.SqlServerConnector_V2` for the SQL Server connector.
 
 |[[sqlserver-property-tasks-max]]<<sqlserver-property-tasks-max, `+tasks.max+`>>
 |`1`

@@ -7,9 +7,9 @@ package io.debezium.connector.mysql;
 
 import io.debezium.config.ConfigDefinitionMetadataTest;
 
-public class MySqlConnectorConfigDefTest extends ConfigDefinitionMetadataTest {
+public class MySqlConnectorV2ConfigDefTest extends ConfigDefinitionMetadataTest {
 
-    public MySqlConnectorConfigDefTest() {
-        super(new MySqlConnector());
+    public MySqlConnectorV2ConfigDefTest() {
+        super(new MySqlConnector_V2());
     }
 }

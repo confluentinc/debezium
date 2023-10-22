@@ -71,7 +71,7 @@ public class TransactionMetadataIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.PROVIDE_TRANSACTION_METADATA, true)
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Debug.enable();
         assertConnectorIsRunning();
@@ -119,7 +119,7 @@ public class TransactionMetadataIT extends AbstractConnectorTest {
                 .with(AbstractTopicNamingStrategy.TOPIC_TRANSACTION, "tx.of.server")
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Debug.enable();
         assertConnectorIsRunning();
@@ -149,7 +149,7 @@ public class TransactionMetadataIT extends AbstractConnectorTest {
                 .with(AbstractTopicNamingStrategy.TOPIC_TRANSACTION, "mytransactions")
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         // Testing.Debug.enable();
         assertConnectorIsRunning();

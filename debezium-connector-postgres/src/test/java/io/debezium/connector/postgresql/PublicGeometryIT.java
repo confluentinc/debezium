@@ -90,7 +90,7 @@ public class PublicGeometryIT extends AbstractRecordsProducerTest {
     }
 
     private void setupRecordsProducer(Configuration.Builder config) {
-        start(PostgresConnector.class, config
+        start(PostgresConnector_V2.class, config
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER)
                 .build());
         assertConnectorIsRunning();

@@ -179,7 +179,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
             final PostgresEventMetadataProvider metadataProvider = new PostgresEventMetadataProvider();
 
             SignalProcessor<PostgresPartition, PostgresOffsetContext> signalProcessor = new SignalProcessor<>(
-                    PostgresConnector.class, connectorConfig, Map.of(),
+                    PostgresConnector_V2.class, connectorConfig, Map.of(),
                     getAvailableSignalChannels(),
                     DocumentReader.defaultReader(),
                     previousOffsets);
@@ -219,7 +219,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
             ChangeEventSourceCoordinator<PostgresPartition, PostgresOffsetContext> coordinator = new PostgresChangeEventSourceCoordinator(
                     previousOffsets,
                     errorHandler,
-                    PostgresConnector.class,
+                    PostgresConnector_V2.class,
                     connectorConfig,
                     new PostgresChangeEventSourceFactory(
                             connectorConfig,
