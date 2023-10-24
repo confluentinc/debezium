@@ -56,7 +56,7 @@ public class ConnectorConfigurationTest {
         assertThat(connectionNode.get("name").asText()).isEqualTo("inventory-connector");
 
         final JsonNode configNode = connectionNode.get("config");
-        assertThat(configNode.get("connector.class").asText()).isEqualTo("io.debezium.connector.mysql.MySqlConnector");
+        assertThat(configNode.get("connector.class").asText()).isEqualTo("io.debezium.connector.mysql.MySqlConnector_V2");
         assertThat(configNode.get("database.hostname").asText()).isEqualTo("192.168.99.100");
     }
 
@@ -87,7 +87,7 @@ public class ConnectorConfigurationTest {
         assertThat(connectionNode.get("name").asText()).isEqualTo("inventory-connector");
 
         final JsonNode configNode = connectionNode.get("config");
-        assertThat(configNode.get("connector.class").asText()).isEqualTo("io.debezium.connector.postgresql.PostgresConnector");
+        assertThat(configNode.get("connector.class").asText()).isEqualTo("io.debezium.connector.postgresql.PostgresConnector_V2");
         assertThat(configNode.get("database.hostname").asText()).isEqualTo("localhost");
         assertThat(configNode.get("database.dbname").asText()).isEqualTo("db");
     }

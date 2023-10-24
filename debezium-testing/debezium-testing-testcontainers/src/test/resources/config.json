@@ -1,7 +1,7 @@
 {
   "name": "inventory-connector",
   "config": {
-    "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+    "connector.class": "io.debezium.connector.mysql.MySqlConnector_V2",
     "database.hostname": "192.168.99.100"
   }
 }
