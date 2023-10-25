@@ -41,7 +41,7 @@ import io.debezium.relational.TableId;
 import io.debezium.relational.history.SchemaHistory;
 import io.debezium.util.Testing;
 
-public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotWithSchemaChangesSupportTest<MySqlConnector> {
+public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotWithSchemaChangesSupportTest<MySqlConnector_V2> {
 
     protected static final String SERVER_NAME = "is_test";
     protected final UniqueDatabase DATABASE = new UniqueDatabase(SERVER_NAME, "incremental_snapshot-test").withDbHistoryPath(SCHEMA_HISTORY_PATH);
@@ -113,8 +113,8 @@ public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotWithSchema
     }
 
     @Override
-    protected Class<MySqlConnector> connectorClass() {
-        return MySqlConnector.class;
+    protected Class<MySqlConnector_V2> connectorClass() {
+        return MySqlConnector_V2.class;
     }
 
     @Override

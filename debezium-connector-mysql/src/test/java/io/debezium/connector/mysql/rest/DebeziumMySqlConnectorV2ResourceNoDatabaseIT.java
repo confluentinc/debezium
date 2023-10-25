@@ -10,6 +10,7 @@ import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.hasKey;
 
+import io.debezium.connector.mysql.MySqlConnector_V2;
 import org.junit.After;
 import org.junit.Assume;
 import org.junit.Before;
@@ -18,11 +19,10 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import io.debezium.connector.mysql.Module;
-import io.debezium.connector.mysql.MySqlConnector;
 import io.debezium.testing.testcontainers.testhelper.RestExtensionTestInfrastructure;
 
 @Ignore
-public class DebeziumMySqlConnectorResourceNoDatabaseIT {
+public class DebeziumMySqlConnectorV2ResourceNoDatabaseIT {
 
     @BeforeClass
     public static void checkCondition() {
@@ -66,7 +66,7 @@ public class DebeziumMySqlConnectorResourceNoDatabaseIT {
                 .body("properties.size()", is(82))
                 .body("x-connector-id", is("mysql"))
                 .body("x-version", is(Module.version()))
-                .body("x-className", is(MySqlConnector.class.getName()))
+                .body("x-className", is(MySqlConnector_V2.class.getName()))
                 .body("properties", hasKey("topic.prefix"))
                 .body("properties", hasKey("database.server.id"))
                 .body("properties", hasKey("snapshot.mode"));

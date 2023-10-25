@@ -46,7 +46,7 @@ import io.debezium.relational.Tables.TableFilter;
 import io.debezium.util.Strings;
 
 /**
- * The configuration properties for the {@link PostgresConnector}
+ * The configuration properties for the {@link PostgresConnector_V2}
  *
  * @author Horia Chiorean
  */

@@ -12,6 +12,7 @@ import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.startsWith;
 
+import io.debezium.connector.mysql.MySqlConnector_V2;
 import java.util.Locale;
 import java.util.Map;
 
@@ -23,7 +24,6 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import io.debezium.connector.mysql.Module;
-import io.debezium.connector.mysql.MySqlConnector;
 import io.debezium.connector.mysql.MySqlConnectorConfig;
 import io.debezium.storage.kafka.history.KafkaSchemaHistory;
 import io.debezium.testing.testcontainers.ConnectorConfiguration;
@@ -31,7 +31,7 @@ import io.debezium.testing.testcontainers.testhelper.RestExtensionTestInfrastruc
 import io.restassured.http.ContentType;
 
 @Ignore
-public class DebeziumMySqlConnectorResourceIT {
+public class DebeziumMySqlConnectorV2ResourceIT {
 
     @BeforeClass
     public static void checkCondition() {
@@ -86,7 +86,7 @@ public class DebeziumMySqlConnectorResourceIT {
     public void testInvalidConnection() {
         given()
                 .port(RestExtensionTestInfrastructure.getDebeziumContainer().getFirstMappedPort())
-                .when().contentType(ContentType.JSON).accept(ContentType.JSON).body("{\"connector.class\": \"" + MySqlConnector.class.getName() + "\"}")
+                .when().contentType(ContentType.JSON).accept(ContentType.JSON).body("{\"connector.class\": \"" + MySqlConnector_V2.class.getName() + "\"}")
                 .put(DebeziumMySqlConnectorResource.BASE_PATH + DebeziumMySqlConnectorResource.VALIDATE_CONNECTION_ENDPOINT)
                 .then().log().all()
                 .statusCode(200)

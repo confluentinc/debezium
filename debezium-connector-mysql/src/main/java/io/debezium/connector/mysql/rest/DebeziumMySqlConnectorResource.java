@@ -5,6 +5,7 @@
  */
 package io.debezium.connector.mysql.rest;
 
+import io.debezium.connector.mysql.MySqlConnector_V2;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
@@ -14,7 +15,6 @@ import javax.ws.rs.core.MediaType;
 import org.apache.kafka.connect.connector.Connector;
 
 import io.debezium.connector.mysql.Module;
-import io.debezium.connector.mysql.MySqlConnector;
 import io.debezium.rest.ConnectionValidationResource;
 import io.debezium.rest.SchemaResource;
 
@@ -39,7 +39,7 @@ public class DebeziumMySqlConnectorResource implements SchemaResource, Connectio
 
     @Override
     public Connector getConnector() {
-        return new MySqlConnector();
+        return new MySqlConnector_V2();
     }
 
     @GET

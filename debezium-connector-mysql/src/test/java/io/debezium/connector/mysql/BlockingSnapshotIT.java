@@ -103,8 +103,8 @@ public class BlockingSnapshotIT extends AbstractBlockingSnapshotTest {
     }
 
     @Override
-    protected Class<MySqlConnector> connectorClass() {
-        return MySqlConnector.class;
+    protected Class<MySqlConnector_V2> connectorClass() {
+        return MySqlConnector_V2.class;
     }
 
     @Override

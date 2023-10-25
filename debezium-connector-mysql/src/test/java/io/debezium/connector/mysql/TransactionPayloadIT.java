@@ -82,7 +82,7 @@ public class TransactionPayloadIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.NEVER)
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         Testing.Debug.enable();
         assertConnectorIsRunning();

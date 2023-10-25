@@ -21,7 +21,7 @@ import io.debezium.pipeline.source.snapshot.incremental.AbstractIncrementalSnaps
 import io.debezium.relational.history.SchemaHistory;
 import io.debezium.util.Testing;
 
-public class IncrementalSnapshotWithRecompileIT extends AbstractIncrementalSnapshotTest<SqlServerConnector> {
+public class IncrementalSnapshotWithRecompileIT extends AbstractIncrementalSnapshotTest<SqlServerConnector_V2> {
 
     private SqlServerConnection connection;
 
@@ -63,8 +63,8 @@ public class IncrementalSnapshotWithRecompileIT extends AbstractIncrementalSnaps
     }
 
     @Override
-    protected Class<SqlServerConnector> connectorClass() {
-        return SqlServerConnector.class;
+    protected Class<SqlServerConnector_V2> connectorClass() {
+        return SqlServerConnector_V2.class;
     }
 
     @Override

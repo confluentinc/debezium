@@ -54,7 +54,7 @@ public class MysqlNonUtfDatabaseCharsetIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.INITIAL)
                 .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("DATA") + "," + DATABASE.qualifiedTableName("DATASTREAM"))
                 .build();
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         Testing.Print.enable();
 
@@ -87,7 +87,7 @@ public class MysqlNonUtfDatabaseCharsetIT extends AbstractConnectorTest {
                 .with("boolean.type", TinyIntOneToBooleanConverter.class.getName())
                 .with("boolean.selector", ".*")
                 .build();
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         Testing.Print.enable();
 

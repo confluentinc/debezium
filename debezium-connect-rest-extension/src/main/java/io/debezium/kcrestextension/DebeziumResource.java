@@ -57,10 +57,10 @@ public class DebeziumResource {
 
     public static final Set<String> SUPPORTED_CONNECTORS = new HashSet<>(Arrays.asList(
             "io.debezium.connector.mongodb.MongoDbConnector",
-            "io.debezium.connector.mysql.MySqlConnector",
+            "io.debezium.connector.mysql.MySqlConnector_V2",
             "io.debezium.connector.oracle.OracleConnector",
-            "io.debezium.connector.postgresql.PostgresConnector",
-            "io.debezium.connector.sqlserver.SqlServerConnector"));
+            "io.debezium.connector.postgresql.PostgresConnector_V2",
+            "io.debezium.connector.sqlserver.SqlServerConnector_V2"));
 
     private final ConnectClusterState connectClusterState;
     private Herder herder = null;

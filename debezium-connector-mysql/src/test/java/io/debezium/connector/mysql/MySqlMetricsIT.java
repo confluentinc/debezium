@@ -69,7 +69,7 @@ public class MySqlMetricsIT extends AbstractConnectorTest {
     @Test
     public void testLifecycle() throws Exception {
         // start connector
-        start(MySqlConnector.class,
+        start(MySqlConnector_V2.class,
                 DATABASE.defaultConfig()
                         .with(MySqlConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
                         .with(MySqlConnectorConfig.SCHEMA_HISTORY, FileSchemaHistory.class)
@@ -117,7 +117,7 @@ public class MySqlMetricsIT extends AbstractConnectorTest {
         }
 
         // start connector
-        start(MySqlConnector.class,
+        start(MySqlConnector_V2.class,
                 DATABASE.defaultConfig()
                         .with(MySqlConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL_ONLY)
                         .with(MySqlConnectorConfig.SCHEMA_HISTORY, FileSchemaHistory.class)
@@ -144,7 +144,7 @@ public class MySqlMetricsIT extends AbstractConnectorTest {
         }
 
         // Start connector.
-        start(MySqlConnector.class,
+        start(MySqlConnector_V2.class,
                 DATABASE.defaultConfig()
                         .with(MySqlConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
                         .with(MySqlConnectorConfig.SCHEMA_HISTORY, FileSchemaHistory.class)
@@ -196,7 +196,7 @@ public class MySqlMetricsIT extends AbstractConnectorTest {
         }
 
         // start connector
-        start(MySqlConnector.class,
+        start(MySqlConnector_V2.class,
                 DATABASE.defaultConfig()
                         .with(MySqlConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
                         .with(MySqlConnectorConfig.SCHEMA_HISTORY, FileSchemaHistory.class)
@@ -213,7 +213,7 @@ public class MySqlMetricsIT extends AbstractConnectorTest {
     @Test
     public void testStreamingOnlyMetrics() throws Exception {
         // start connector
-        start(MySqlConnector.class,
+        start(MySqlConnector_V2.class,
                 DATABASE.defaultConfig()
                         .with(MySqlConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER)
                         .with(MySqlConnectorConfig.SCHEMA_HISTORY, FileSchemaHistory.class)

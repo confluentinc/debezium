@@ -34,7 +34,7 @@ public class ConnectorFactories {
         return cb
                 .put("topic.prefix", cb.getDbServerName())
                 .put("database.server.id", 5400 + random.nextInt(1000))
-                .put("connector.class", "io.debezium.connector.mysql.MySqlConnector")
+                .put("connector.class", "io.debezium.connector.mysql.MySqlConnector_V2")
                 .put("task.max", 1)
                 .put("database.hostname", dbHost)
                 .put("database.port", dbPort)
@@ -53,7 +53,7 @@ public class ConnectorFactories {
 
         return cb
                 .put("topic.prefix", cb.getDbServerName())
-                .put("connector.class", "io.debezium.connector.postgresql.PostgresConnector")
+                .put("connector.class", "io.debezium.connector.postgresql.PostgresConnector_V2")
                 .put("task.max", 1)
                 .put("database.hostname", dbHost)
                 .put("database.port", dbPort)
@@ -72,7 +72,7 @@ public class ConnectorFactories {
 
         return cb
                 .put("topic.prefix", cb.getDbServerName())
-                .put("connector.class", "io.debezium.connector.sqlserver.SqlServerConnector")
+                .put("connector.class", "io.debezium.connector.sqlserver.SqlServerConnector_V2")
                 .put("task.max", 1)
                 .put("database.hostname", dbHost)
                 .put("database.port", dbPort)

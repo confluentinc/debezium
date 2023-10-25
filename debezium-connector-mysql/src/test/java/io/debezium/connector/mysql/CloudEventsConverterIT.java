@@ -20,11 +20,11 @@ import io.debezium.relational.TableId;
 import io.debezium.util.Testing;
 
 /**
- * Integration test for {@link io.debezium.converters.CloudEventsConverter} with {@link MySqlConnector}
+ * Integration test for {@link io.debezium.converters.CloudEventsConverter} with {@link MySqlConnector_V2}
  *
  * @author Roman Kudryashov
  */
-public class CloudEventsConverterIT extends AbstractCloudEventsConverterTest<MySqlConnector> {
+public class CloudEventsConverterIT extends AbstractCloudEventsConverterTest<MySqlConnector_V2> {
 
     private static final Path SCHEMA_HISTORY_PATH = Testing.Files.createTestingPath("file-schema-history-connect.txt").toAbsolutePath();
 
@@ -66,8 +66,8 @@ public class CloudEventsConverterIT extends AbstractCloudEventsConverterTest<MyS
     }
 
     @Override
-    protected Class<MySqlConnector> getConnectorClass() {
-        return MySqlConnector.class;
+    protected Class<MySqlConnector_V2> getConnectorClass() {
+        return MySqlConnector_V2.class;
     }
 
     @Override

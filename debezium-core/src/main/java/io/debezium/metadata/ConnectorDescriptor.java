@@ -46,13 +46,13 @@ public class ConnectorDescriptor {
         switch (className) {
             case "io.debezium.connector.mongodb.MongoDbConnector":
                 return "mongodb";
-            case "io.debezium.connector.mysql.MySqlConnector":
+            case "io.debezium.connector.mysql.MySqlConnector_V2":
                 return "mysql";
             case "io.debezium.connector.oracle.OracleConnector":
                 return "oracle";
-            case "io.debezium.connector.postgresql.PostgresConnector":
+            case "io.debezium.connector.postgresql.PostgresConnector_V2":
                 return "postgres";
-            case "io.debezium.connector.sqlserver.SqlServerConnector":
+            case "io.debezium.connector.sqlserver.SqlServerConnector_V2":
                 return "sqlserver";
             default:
                 throw new RuntimeException("Unsupported connector type with className: \"" + className + "\"");
@@ -63,13 +63,13 @@ public class ConnectorDescriptor {
         switch (className) {
             case "io.debezium.connector.mongodb.MongoDbConnector":
                 return "Debezium MongoDB Connector";
-            case "io.debezium.connector.mysql.MySqlConnector":
+            case "io.debezium.connector.mysql.MySqlConnector_V2":
                 return "Debezium MySQL Connector";
             case "io.debezium.connector.oracle.OracleConnector":
                 return "Debezium Oracle Connector";
-            case "io.debezium.connector.postgresql.PostgresConnector":
+            case "io.debezium.connector.postgresql.PostgresConnector_V2":
                 return "Debezium PostgreSQL Connector";
-            case "io.debezium.connector.sqlserver.SqlServerConnector":
+            case "io.debezium.connector.sqlserver.SqlServerConnector_V2":
                 return "Debezium SQLServer Connector";
             default:
                 throw new RuntimeException("Unsupported connector type with className: \"" + className + "\"");

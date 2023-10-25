@@ -14,7 +14,7 @@ import javax.ws.rs.core.MediaType;
 import org.apache.kafka.connect.connector.Connector;
 
 import io.debezium.connector.sqlserver.Module;
-import io.debezium.connector.sqlserver.SqlServerConnector;
+import io.debezium.connector.sqlserver.SqlServerConnector_V2;
 import io.debezium.rest.ConnectionValidationResource;
 import io.debezium.rest.SchemaResource;
 
@@ -38,7 +38,7 @@ public class DebeziumSqlServerConnectorResource implements SchemaResource, Conne
 
     @Override
     public Connector getConnector() {
-        return new SqlServerConnector();
+        return new SqlServerConnector_V2();
     }
 
     @Override

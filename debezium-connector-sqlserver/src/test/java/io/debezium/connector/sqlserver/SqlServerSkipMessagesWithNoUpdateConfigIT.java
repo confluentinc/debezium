@@ -61,7 +61,7 @@ public class SqlServerSkipMessagesWithNoUpdateConfigIT extends AbstractConnector
                 .with(SqlServerConnectorConfig.SKIP_MESSAGES_WITHOUT_CHANGE, true)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         TestHelper.waitForStreamingStarted();
 
         connection.execute("INSERT INTO skip_messages_test VALUES (1, 1, 1);");
@@ -95,7 +95,7 @@ public class SqlServerSkipMessagesWithNoUpdateConfigIT extends AbstractConnector
                 .with(SqlServerConnectorConfig.COLUMN_EXCLUDE_LIST, "dbo.skip_messages_test.black")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         TestHelper.waitForStreamingStarted();
 
         connection.execute("INSERT INTO skip_messages_test VALUES (1, 1, 1);");
@@ -126,7 +126,7 @@ public class SqlServerSkipMessagesWithNoUpdateConfigIT extends AbstractConnector
                 .with(SqlServerConnectorConfig.SKIP_MESSAGES_WITHOUT_CHANGE, false)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         TestHelper.waitForStreamingStarted();
 
         connection.execute("INSERT INTO skip_messages_test VALUES (1, 1, 1);");

@@ -12,6 +12,7 @@ import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.startsWith;
 
+import io.debezium.connector.sqlserver.SqlServerConnector_V2;
 import java.net.URISyntaxException;
 import java.util.Locale;
 import java.util.Map;
@@ -24,7 +25,6 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import io.debezium.connector.sqlserver.Module;
-import io.debezium.connector.sqlserver.SqlServerConnector;
 import io.debezium.connector.sqlserver.SqlServerConnectorConfig;
 import io.debezium.storage.kafka.history.KafkaSchemaHistory;
 import io.debezium.testing.testcontainers.ConnectorConfiguration;
@@ -33,7 +33,7 @@ import io.restassured.http.ContentType;
 
 
 @Ignore
-public class DebeziumSqlServerConnectorResourceIT {
+public class DebeziumSqlServerConnectorV2ResourceIT {
 
     @BeforeClass
     public static void checkCondition() {
@@ -90,7 +90,7 @@ public class DebeziumSqlServerConnectorResourceIT {
     public void testInvalidConnection() {
         given()
                 .port(RestExtensionTestInfrastructure.getDebeziumContainer().getFirstMappedPort())
-                .when().contentType(ContentType.JSON).accept(ContentType.JSON).body("{\"connector.class\": \"" + SqlServerConnector.class.getName() + "\"}")
+                .when().contentType(ContentType.JSON).accept(ContentType.JSON).body("{\"connector.class\": \"" + SqlServerConnector_V2.class.getName() + "\"}")
                 .put(DebeziumSqlServerConnectorResource.BASE_PATH + DebeziumSqlServerConnectorResource.VALIDATE_CONNECTION_ENDPOINT)
                 .then().log().all()
                 .statusCode(200)

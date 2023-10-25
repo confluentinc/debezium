@@ -600,7 +600,7 @@ node('release-node') {
                     "name": "inventory-connector",
                     "config": {
                         "name": "inventory-connector",
-                        "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+                        "connector.class": "io.debezium.connector.mysql.MySqlConnector_V2",
                         "tasks.max": "1",
                         "database.hostname": "mysql",
                         "database.port": "3306",

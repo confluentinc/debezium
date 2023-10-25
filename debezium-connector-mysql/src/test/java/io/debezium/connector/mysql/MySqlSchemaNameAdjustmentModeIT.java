@@ -70,7 +70,7 @@ public class MySqlSchemaNameAdjustmentModeIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.SCHEMA_NAME_ADJUSTMENT_MODE, adjustmentMode)
                 .build();
 
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         SourceRecords records = consumeRecordsByTopic(6 + 1); // 6 DDL changes, 1 INSERT
         final List<SourceRecord> results = records.recordsForTopic(DATABASE.topicForTable("name-adjustment"));

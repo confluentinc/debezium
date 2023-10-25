@@ -64,7 +64,7 @@ public class SpecialCharsInNamesIT extends AbstractConnectorTest {
         TestHelper.enableTableCdc(connection, "UAT WAG CZ$Fixed Asset");
         TestHelper.enableTableCdc(connection, "person");
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         SourceRecords actualRecords = consumeRecordsByTopic(2, false);
@@ -131,7 +131,7 @@ public class SpecialCharsInNamesIT extends AbstractConnectorTest {
                 "CREATE TABLE [UAT WAG CZ$Fixed Asset] (id int primary key, [my col$a] varchar(30))",
                 "INSERT INTO [UAT WAG CZ$Fixed Asset] VALUES(1, 'a')");
         TestHelper.enableTableCdc(connection, "UAT WAG CZ$Fixed Asset");
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         SourceRecords records = consumeRecordsByTopic(1);
@@ -225,7 +225,7 @@ public class SpecialCharsInNamesIT extends AbstractConnectorTest {
 
         stopConnector();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         connection.execute("INSERT INTO [UAT WAG CZ$Fixed Asset] VALUES(4, 'b')");
@@ -268,7 +268,7 @@ public class SpecialCharsInNamesIT extends AbstractConnectorTest {
                 "CREATE TABLE tablea (id int primary key, cola varchar(30))",
                 "INSERT INTO tablea VALUES(1, 'a')");
         TestHelper.enableTableCdc(connection, "tablea");
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Wait for snapshot completion

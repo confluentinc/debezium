@@ -46,7 +46,7 @@ public class MySqlTestResourceLifecycleManager implements QuarkusTestResourceLif
         container.start();
 
         Map<String, String> params = new ConcurrentHashMap<>();
-        params.put("debezium.source.connector.class", "io.debezium.connector.mysql.MySqlConnector");
+        params.put("debezium.source.connector.class", "io.debezium.connector.mysql.MySqlConnector_V2");
         params.put("debezium.source.database.hostname", HOST);
         params.put("debezium.source.database.port", container.getMappedPort(PORT).toString());
         params.put("debezium.source.database.user", USER);

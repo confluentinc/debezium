@@ -14,7 +14,7 @@ import javax.ws.rs.core.MediaType;
 import org.apache.kafka.connect.connector.Connector;
 
 import io.debezium.connector.postgresql.Module;
-import io.debezium.connector.postgresql.PostgresConnector;
+import io.debezium.connector.postgresql.PostgresConnector_V2;
 import io.debezium.rest.ConnectionValidationResource;
 import io.debezium.rest.SchemaResource;
 
@@ -38,7 +38,7 @@ public class DebeziumPostgresConnectorResource implements SchemaResource, Connec
 
     @Override
     public Connector getConnector() {
-        return new PostgresConnector();
+        return new PostgresConnector_V2();
     }
 
     @Override

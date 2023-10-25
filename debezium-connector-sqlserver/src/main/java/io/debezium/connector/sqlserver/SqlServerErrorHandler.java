@@ -22,7 +22,7 @@ public class SqlServerErrorHandler extends ErrorHandler {
 
     public SqlServerErrorHandler(SqlServerConnectorConfig connectorConfig, ChangeEventQueue<?> queue,
                                  SqlServerErrorHandler errorHandler) {
-        super(SqlServerConnector.class, connectorConfig, queue, errorHandler);
+        super(SqlServerConnector_V2.class, connectorConfig, queue, errorHandler);
     }
 
     @Override

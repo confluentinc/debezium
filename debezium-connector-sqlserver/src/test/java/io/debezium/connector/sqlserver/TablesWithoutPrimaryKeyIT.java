@@ -60,7 +60,7 @@ public class TablesWithoutPrimaryKeyIT extends AbstractConnectorTest {
         TestHelper.enableTableCdc(connection, "t2");
         TestHelper.enableTableCdc(connection, "t3");
 
-        start(SqlServerConnector.class, TestHelper.defaultConfig()
+        start(SqlServerConnector_V2.class, TestHelper.defaultConfig()
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
                 .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.t[123]")
                 .build());
@@ -88,7 +88,7 @@ public class TablesWithoutPrimaryKeyIT extends AbstractConnectorTest {
         TestHelper.waitForDisabledCdc(connection, "t2");
         TestHelper.waitForDisabledCdc(connection, "t3");
 
-        start(SqlServerConnector.class, TestHelper.defaultConfig()
+        start(SqlServerConnector_V2.class, TestHelper.defaultConfig()
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
                 .build());
         assertConnectorIsRunning();

@@ -7,9 +7,9 @@ package io.debezium.connector.sqlserver;
 
 import io.debezium.config.ConfigDefinitionMetadataTest;
 
-public class SqlServerConnectorConfigDefTest extends ConfigDefinitionMetadataTest {
+public class SqlServerConnectorV2ConfigDefTest extends ConfigDefinitionMetadataTest {
 
-    public SqlServerConnectorConfigDefTest() {
-        super(new SqlServerConnector());
+    public SqlServerConnectorV2ConfigDefTest() {
+        super(new SqlServerConnector_V2());
     }
 }

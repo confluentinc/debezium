@@ -343,7 +343,7 @@ metadata:
   labels:
     strimzi.io/cluster: debezium-connect-cluster
 spec:
-  class: io.debezium.connector.mysql.MySqlConnector
+  class: io.debezium.connector.mysql.MySqlConnector_V2
   tasksMax: 1
   config:
     tasks.max: 1

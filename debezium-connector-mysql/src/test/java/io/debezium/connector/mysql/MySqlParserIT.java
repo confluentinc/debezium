@@ -33,7 +33,7 @@ import io.debezium.testing.testcontainers.util.ContainerImageVersions;
 import io.debezium.util.Testing;
 
 /**
- * Integration test for {@link MySqlConnector} using Testcontainers infrastructure for testing column constraints supported in MySQL 8.0.x.
+ * Integration test for {@link MySqlConnector_V2} using Testcontainers infrastructure for testing column constraints supported in MySQL 8.0.x.
  */
 @SkipWhenSslModeIsNot(value = MySqlConnectorConfig.SecureConnectionMode.DISABLED, reason = "Only running with ssl disabled mode")
 public class MySqlParserIT extends AbstractConnectorTest {
@@ -109,7 +109,7 @@ public class MySqlParserIT extends AbstractConnectorTest {
         }
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         SourceRecords records = consumeRecordsByTopic(30);
         boolean statementFound = records.ddlRecordsForDatabase(DB_NAME)
@@ -143,7 +143,7 @@ public class MySqlParserIT extends AbstractConnectorTest {
         }
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         SourceRecords records = consumeRecordsByTopic(30);
         boolean statementFound = records.ddlRecordsForDatabase(DB_NAME)
@@ -179,7 +179,7 @@ public class MySqlParserIT extends AbstractConnectorTest {
         }
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
 
         SourceRecords records = consumeRecordsByTopic(30);
         boolean statementFound = records.ddlRecordsForDatabase(DB_NAME)

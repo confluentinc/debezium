@@ -76,8 +76,8 @@ public class BlockingSnapshotIT extends AbstractBlockingSnapshotTest {
     }
 
     @Override
-    protected Class<PostgresConnector> connectorClass() {
-        return PostgresConnector.class;
+    protected Class<PostgresConnector_V2> connectorClass() {
+        return PostgresConnector_V2.class;
     }
 
     @Override

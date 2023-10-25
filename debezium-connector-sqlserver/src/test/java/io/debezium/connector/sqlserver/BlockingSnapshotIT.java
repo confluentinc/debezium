@@ -54,8 +54,8 @@ public class BlockingSnapshotIT extends AbstractBlockingSnapshotTest {
     }
 
     @Override
-    protected Class<SqlServerConnector> connectorClass() {
-        return SqlServerConnector.class;
+    protected Class<SqlServerConnector_V2> connectorClass() {
+        return SqlServerConnector_V2.class;
     }
 
     @Override

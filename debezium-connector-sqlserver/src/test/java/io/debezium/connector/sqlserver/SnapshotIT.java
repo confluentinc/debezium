@@ -119,7 +119,7 @@ public class SnapshotIT extends AbstractConnectorTest {
                 .with(SNAPSHOT_ISOLATION_MODE.name(), lockingMode.getValue())
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         final SourceRecords records = consumeRecordsByTopic(INITIAL_RECORDS_PER_TABLE);
@@ -153,7 +153,7 @@ public class SnapshotIT extends AbstractConnectorTest {
     public void takeSnapshotAndStartStreaming() throws Exception {
         final Configuration config = TestHelper.defaultConfig().build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         // Ignore initial records
@@ -176,7 +176,7 @@ public class SnapshotIT extends AbstractConnectorTest {
                 .with(RelationalDatabaseConnectorConfig.SNAPSHOT_LOCK_TIMEOUT_MS, 1_000)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         connection.setAutoCommit(false).executeWithoutCommitting(
@@ -235,7 +235,7 @@ public class SnapshotIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.SCHEMA_ONLY)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
@@ -260,7 +260,7 @@ public class SnapshotIT extends AbstractConnectorTest {
         final Configuration config = TestHelper.defaultConfig()
                 .with(TABLE_INCLUDE_LIST, "dbo.User")
                 .build();
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         final SourceRecords records = consumeRecordsByTopic(INITIAL_RECORDS_PER_TABLE);
@@ -295,7 +295,7 @@ public class SnapshotIT extends AbstractConnectorTest {
                 .with(Heartbeat.HEARTBEAT_INTERVAL, 300_000)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         TestHelper.waitForSnapshotToBeCompleted();
@@ -322,7 +322,7 @@ public class SnapshotIT extends AbstractConnectorTest {
                 .with(CommonConnectorConfig.SNAPSHOT_MODE_TABLES, "[A-z].*dbo.table_a")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         SourceRecords records = consumeRecordsByTopic(1);
@@ -362,7 +362,7 @@ public class SnapshotIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.blacklist_column_table_a,dbo.blacklist_column_table_b")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         final SourceRecords records = consumeRecordsByTopic(2);
@@ -419,7 +419,7 @@ public class SnapshotIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.table_b,dbo.table_a")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         SourceRecords records = consumeRecordsByTopic(1);
@@ -454,7 +454,7 @@ public class SnapshotIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.table_ab,dbo.table_(.*)")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         SourceRecords records = consumeRecordsByTopic(1);
@@ -497,7 +497,7 @@ public class SnapshotIT extends AbstractConnectorTest {
 
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         SourceRecords records = consumeRecordsByTopic(1);
@@ -526,7 +526,7 @@ public class SnapshotIT extends AbstractConnectorTest {
     public void shouldOutputRecordsInCloudEventsFormat() throws Exception {
         final Configuration config = TestHelper.defaultConfig().build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         final SourceRecords snapshotRecords = consumeRecordsByTopic(INITIAL_RECORDS_PER_TABLE);
@@ -577,7 +577,7 @@ public class SnapshotIT extends AbstractConnectorTest {
                 .with(SqlServerConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE, "[dbo].[user detail]")
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         assertConnectorIsRunning();
 
         SourceRecords records = consumeRecordsByTopic(1);
@@ -599,7 +599,7 @@ public class SnapshotIT extends AbstractConnectorTest {
                 .with(Heartbeat.HEARTBEAT_INTERVAL, 100)
                 .build();
 
-        start(SqlServerConnector.class, config);
+        start(SqlServerConnector_V2.class, config);
         TestHelper.waitForSnapshotToBeCompleted();
 
         final AtomicInteger heartbeatCount = new AtomicInteger();

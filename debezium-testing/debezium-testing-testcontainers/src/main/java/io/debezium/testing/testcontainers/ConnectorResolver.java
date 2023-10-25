@@ -19,11 +19,11 @@ public class ConnectorResolver {
     static {
         Map<String, String> tmp = new HashMap<>();
 
-        tmp.put("org.postgresql.Driver", "io.debezium.connector.postgresql.PostgresConnector");
-        tmp.put("com.mysql.cj.jdbc.Driver", "io.debezium.connector.mysql.MySqlConnector");
-        tmp.put("com.mysql.jdbc.Driver", "io.debezium.connector.mysql.MySqlConnector");
+        tmp.put("org.postgresql.Driver", "io.debezium.connector.postgresql.PostgresConnector_V2");
+        tmp.put("com.mysql.cj.jdbc.Driver", "io.debezium.connector.mysql.MySqlConnector_V2");
+        tmp.put("com.mysql.jdbc.Driver", "io.debezium.connector.mysql.MySqlConnector_V2");
         tmp.put("com.microsoft.sqlserver.jdbc.SQLServerDriver",
-                "io.debezium.connector.sqlserver.SqlServerConnector");
+                "io.debezium.connector.sqlserver.SqlServerConnector_V2");
         tmp.put("oracle.jdbc.OracleDriver", "io.debezium.connector.oracle.OracleConnector");
         tmp.put("com.ibm.db2.jcc.DB2Driver", "io.debezium.connector.db2.Db2Connector");
 

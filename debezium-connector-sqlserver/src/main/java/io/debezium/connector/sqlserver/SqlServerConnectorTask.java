@@ -108,7 +108,7 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
         final SqlServerEventMetadataProvider metadataProvider = new SqlServerEventMetadataProvider();
 
         SignalProcessor<SqlServerPartition, SqlServerOffsetContext> signalProcessor = new SignalProcessor<>(
-                SqlServerConnector.class, connectorConfig, Map.of(),
+                SqlServerConnector_V2.class, connectorConfig, Map.of(),
                 getAvailableSignalChannels(),
                 DocumentReader.defaultReader(),
                 offsets);
@@ -130,7 +130,7 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
         ChangeEventSourceCoordinator<SqlServerPartition, SqlServerOffsetContext> coordinator = new SqlServerChangeEventSourceCoordinator(
                 offsets,
                 errorHandler,
-                SqlServerConnector.class,
+                SqlServerConnector_V2.class,
                 connectorConfig,
                 new SqlServerChangeEventSourceFactory(connectorConfig, connectionFactory, metadataConnection, errorHandler, dispatcher, clock, schema),
                 new SqlServerMetricsFactory(offsets.getPartitions()),

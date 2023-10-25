@@ -76,7 +76,7 @@ public class SnapshotParallelSourceIT extends SnapshotSourceIT {
         LogInterceptor logInterceptor = new LogInterceptor(MySqlSnapshotChangeEventSource.class);
 
         // Start the connector ...
-        start(MySqlConnector.class, config);
+        start(MySqlConnector_V2.class, config);
         waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
 
         SourceRecords sourceRecords = consumeRecordsByTopic(100);

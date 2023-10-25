@@ -22,7 +22,7 @@ import io.debezium.function.Predicates;
 import io.debezium.relational.TableId;
 
 /**
- * Class that records Replica Identity information for the {@link PostgresConnector}
+ * Class that records Replica Identity information for the {@link PostgresConnector_V2}
  * @author Ben White, Miguel Sotomayor
  */
 @Immutable

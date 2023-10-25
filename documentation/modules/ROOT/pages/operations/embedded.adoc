@@ -71,7 +71,7 @@ Here's an example of code that configures and runs an embedded xref:connectors/m
 Configuration config = Configuration.create()
         /* begin engine properties */
         .with("connector.class",
-              "io.debezium.connector.mysql.MySqlConnector")
+              "io.debezium.connector.mysql.MySqlConnector_V2")
         .with("offset.storage",
               "org.apache.kafka.connect.storage.FileOffsetBackingStore")
         .with("offset.storage.file.filename",
@@ -113,7 +113,7 @@ Let's look into this code in more detail, starting with the first few lines that
 Configuration config = Configuration.create()
         /* begin engine properties */
         .with("connector.class",
-              "io.debezium.connector.mysql.MySqlConnector")
+              "io.debezium.connector.mysql.MySqlConnector_V2")
         .with("offset.storage",
               "org.apache.kafka.connect.storage.FileOffsetBackingStore")
         .with("offset.storage.file.filename",
