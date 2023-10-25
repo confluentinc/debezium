@@ -134,6 +134,8 @@ xqshe,Xinquan She
 wangminchao,Wang Min Chao
 markallanson,Mark Allanson
 AlexMiroshnikov,Alexey Miroshnikov
+roeselert,Timo Roeseler
+troeselereos,Timo Roeseler
 Himanshu-LT,Himanshu Mishra
 roeselert,Timo Roeseler
 troeselereos,Timo Roeseler
