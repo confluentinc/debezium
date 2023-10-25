@@ -215,6 +215,10 @@ public class TypeRegistry {
         return r;
     }
 
+    public Map<String, PostgresType> getRegisteredTypes() {
+        return Collections.unmodifiableMap(nameToType);
+    }
+
     /**
      *
      * @return OID for {@code GEOMETRY} type of this PostgreSQL instance
