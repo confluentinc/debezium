@@ -3,15 +3,14 @@
  *
  * Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
  */
-
-package io.debezium.connector.postgresql;
+package io.debezium.connector.mysql;
 
 /**
- * A wrapper over PostgresConnector
+ * A wrapper over MySqlConnector
  * to allow multiple plugin versions support in CCloud
  */
-public class PostgresConnector_V2 extends PostgresConnector {
+public class MySqlConnector_V2 extends MySqlConnector {
 
-    public PostgresConnector_V2() {
+    public MySqlConnector_V2() {
     }
 }
