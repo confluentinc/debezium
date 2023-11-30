@@ -11,4 +11,6 @@ common {
   timeoutHours = 4
   mavenProfiles = 'assembly'
   mavenFlags = '-U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode -pl debezium-connector-mysql,debezium-connector-postgres,debezium-connector-sqlserver -am'
+  sonarqubeScannerEnable = true
+  sonarqubeQualityCheck = true
 }
