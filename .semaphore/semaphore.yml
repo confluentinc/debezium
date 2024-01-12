@@ -52,7 +52,7 @@ blocks:
   - name: Release
     dependencies: ["Test"]
     run:
-      when: "branch != 'master' and branch !~ '[0-9]+\\.[0-9]+\\.x' and branch !~ 'v\\d+\\.\\d+\\.\\d+\\-hotfix\\-x'"
+      when: "branch = 'master' or branch =~ '[0-9]+\\.[0-9]+\\.x' or branch =~ 'v\\d+\\.\\d+\\.\\d+\\-hotfix\\-x'"
     task:
       jobs:
         - name: Release
