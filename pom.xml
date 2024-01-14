@@ -367,6 +367,14 @@
                                     <pattern>io.debezium.connector</pattern>
                                     <shadedPattern>io.debezium.connector.v2</shadedPattern>
                                 </relocation>
+                                <relocation>
+                                    <pattern>io.debezium.transforms</pattern>
+                                    <shadedPattern>io.debezium.transforms.v2</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>io.debezium.converters</pattern>
+                                    <shadedPattern>io.debezium.converters.v2</shadedPattern>
+                                </relocation>
                             </relocations>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
