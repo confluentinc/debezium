@@ -90,6 +90,7 @@ public final class Tables {
          */
         public static ColumnNameFilter createIncludeListFilter(String fullyQualifiedColumnNames, ColumnFilterMode columnFilterMode) {
             Predicate<ColumnId> delegate = Predicates.includes(fullyQualifiedColumnNames, ColumnId::toString);
+
             return (catalogName, schemaName, tableName, columnName) -> delegate
                     .test(new ColumnId(columnFilterMode.getTableIdForFilter(catalogName, schemaName, tableName), columnName));
         }
