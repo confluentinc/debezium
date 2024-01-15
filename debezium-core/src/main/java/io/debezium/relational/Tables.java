@@ -273,6 +273,7 @@ public final class Tables {
      * @return the previous table definition, or null if there was no prior table definition
      */
     public Table updateTable(TableId tableId, Function<Table, Table> changer) {
+
         return lock.write(() -> {
             Table existing = tablesByTableId.get(tableId);
             Table updated = changer.apply(existing);
