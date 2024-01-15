@@ -25,8 +25,7 @@ global_job_config:
     commands:
       - checkout
       - sem-version java 11
-  rajdangwal marked this conversation as resolved.
-- . cache-maven restore
+      - . cache-maven restore
 
 blocks:
   - name: Test
@@ -38,7 +37,8 @@ blocks:
       jobs:
         - name: Test
           commands:
-            - mvn -Dcloud -Passembly -pl debezium-connector-mysql,debezium-connector-postgres,debezium-connector-sqlserver -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress clean verify install dependency:analyze validate
+            - mvn -Dcloud -Passembly -pl debezium-connector-mysql,debezium-connector-postgres,debezium-connector-sqlserver -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
+              clean verify install dependency:analyze validate
             - . cve-scan
             - . cache-maven store
       env_vars:
