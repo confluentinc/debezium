@@ -52,7 +52,6 @@ public class ExecuteSnapshot<P extends Partition> implements Signal.Action<P> {
         }
         SnapshotType type = getSnapshotType(signalPayload.data);
         LOGGER.info("Requested '{}' snapshot of data collections '{}'", type, dataCollections);
-        LOGGER.info("Requested '{}' snapshot of data collections '{}'", type, dataCollections);
         switch (type) {
             case INCREMENTAL:
                 dispatcher.getIncrementalSnapshotChangeEventSource().addDataCollectionNamesToSnapshot(
