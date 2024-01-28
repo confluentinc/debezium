@@ -24,17 +24,17 @@ public abstract class AbstractMessageDecoder implements MessageDecoder {
     private static final Logger LOGGER = LoggerFactory.getLogger(AbstractMessageDecoder.class);
 
     @Override
-    public void processMessage(ByteBuffer buffer, ReplicationMessageProcessor processor, TypeRegistry typeRegistry) throws SQLException, InterruptedException {
+    public void processMessage(ByteBuffer buffer, ReplicationMessageProcessor processor, TypeRegistry typeRegistry, Lsn lastReceivedLsn) throws SQLException, InterruptedException {
         // if message is empty pass control right to ReplicationMessageProcessor to update WAL position info
         if (buffer == null) {
-            processor.process(null);
+            processor.process(null, null);
         }
         else {
-            processNotEmptyMessage(buffer, processor, typeRegistry);
+            processNotEmptyMessage(buffer, processor, typeRegistry, lastReceivedLsn);
         }
     }
 
-    protected abstract void processNotEmptyMessage(ByteBuffer buffer, ReplicationMessageProcessor processor, TypeRegistry typeRegistry)
+    protected abstract void processNotEmptyMessage(ByteBuffer buffer, ReplicationMessageProcessor processor, TypeRegistry typeRegistry, Lsn lastReceivedLsn)
             throws SQLException, InterruptedException;
 
     @Override

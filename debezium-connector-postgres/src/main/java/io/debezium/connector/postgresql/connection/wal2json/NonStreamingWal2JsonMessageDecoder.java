@@ -5,6 +5,7 @@
  */
 package io.debezium.connector.postgresql.connection.wal2json;
 
+import io.debezium.connector.postgresql.connection.Lsn;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.sql.SQLException;
@@ -46,7 +47,7 @@ public class NonStreamingWal2JsonMessageDecoder extends AbstractMessageDecoder {
     private boolean containsMetadata = false;
 
     @Override
-    public void processNotEmptyMessage(ByteBuffer buffer, ReplicationMessageProcessor processor, TypeRegistry typeRegistry) throws SQLException, InterruptedException {
+    public void processNotEmptyMessage(ByteBuffer buffer, ReplicationMessageProcessor processor, TypeRegistry typeRegistry, Lsn lastReceivedLsn) throws SQLException, InterruptedException {
         try {
             if (!buffer.hasArray()) {
                 throw new IllegalStateException("Invalid buffer received from PG server during streaming replication");
@@ -63,17 +64,17 @@ public class NonStreamingWal2JsonMessageDecoder extends AbstractMessageDecoder {
             // WAL2JSON may send empty changes that still have a txid. These events are from things like vacuum,
             // materialized view, DDL, etc. They still need to be processed for the heartbeat to fire.
             if (changes.isEmpty()) {
-                processor.process(new TransactionMessage(Operation.BEGIN, txId, commitTime));
-                processor.process(new TransactionMessage(Operation.COMMIT, txId, commitTime));
+                processor.process(new TransactionMessage(Operation.BEGIN, txId, commitTime), null);
+                processor.process(new TransactionMessage(Operation.COMMIT, txId, commitTime), null);
             }
             else {
                 Iterator<Entry> it = changes.iterator();
-                processor.process(new TransactionMessage(Operation.BEGIN, txId, commitTime));
+                processor.process(new TransactionMessage(Operation.BEGIN, txId, commitTime), null);
                 while (it.hasNext()) {
                     Value value = it.next().getValue();
-                    processor.process(new Wal2JsonReplicationMessage(txId, commitTime, value.asDocument(), containsMetadata, !it.hasNext(), typeRegistry));
+                    processor.process(new Wal2JsonReplicationMessage(txId, commitTime, value.asDocument(), containsMetadata, !it.hasNext(), typeRegistry), null);
                 }
-                processor.process(new TransactionMessage(Operation.COMMIT, txId, commitTime));
+                processor.process(new TransactionMessage(Operation.COMMIT, txId, commitTime), null);
             }
         }
         catch (final IOException e) {

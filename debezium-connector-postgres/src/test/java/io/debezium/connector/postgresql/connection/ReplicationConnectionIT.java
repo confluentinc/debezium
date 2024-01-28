@@ -376,7 +376,7 @@ public class ReplicationConnectionIT {
             while (!Thread.interrupted()) {
                 for (;;) {
                     List<ReplicationMessage> message = new ArrayList<>();
-                    stream.read(x -> {
+                    stream.read((x, lsn)  -> {
                         // DBZ-2435 Explicitly remove transaction messages
                         // This helps situations where Pgoutput emits empty begin/commit blocks that can lead to
                         // inconsistent behavior with tests checking for replication stream state.

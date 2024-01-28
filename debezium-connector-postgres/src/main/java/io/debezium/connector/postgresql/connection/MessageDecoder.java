@@ -31,7 +31,7 @@ public interface MessageDecoder {
      * @param processor - message processing on arrival
      * @param typeRegistry - registry with known types
      */
-    void processMessage(ByteBuffer buffer, ReplicationMessageProcessor processor, TypeRegistry typeRegistry) throws SQLException, InterruptedException;
+    void processMessage(ByteBuffer buffer, ReplicationMessageProcessor processor, TypeRegistry typeRegistry, Lsn lastReceivedLsn) throws SQLException, InterruptedException;
 
     /**
      * Allows MessageDecoder to configure options with which the replication stream is started.
