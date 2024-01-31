@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.apache.kafka.connect.runtime.WorkerConfig;
 import org.apache.kafka.connect.storage.MemoryOffsetBackingStore;
@@ -195,5 +196,10 @@ public class RedisOffsetBackingStore extends MemoryOffsetBackingStore {
                             })
                     .await().indefinitely();
         }
+    }
+
+    @Override
+    public Set<Map<String, Object>> connectorPartitions(String s) {
+        return null;
     }
 }
