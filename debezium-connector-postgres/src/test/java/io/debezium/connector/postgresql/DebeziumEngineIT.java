@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import io.debezium.embedded.KafkaConnectUtil;
 import org.apache.kafka.connect.runtime.standalone.StandaloneConfig;
 import org.apache.kafka.connect.storage.Converter;
 import org.apache.kafka.connect.storage.FileOffsetBackingStore;
@@ -214,8 +215,8 @@ public class DebeziumEngineIT {
 
     public static class TestOffsetStore extends FileOffsetBackingStore {
 
-        public TestOffsetStore(Converter keyConverter) {
-            super(keyConverter);
+        public TestOffsetStore() {
+            super(KafkaConnectUtil.converterForOffsetStore());
         }
 
         @Override
