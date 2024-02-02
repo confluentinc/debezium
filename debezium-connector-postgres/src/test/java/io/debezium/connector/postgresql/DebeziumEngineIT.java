@@ -23,7 +23,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import io.debezium.embedded.KafkaConnectUtil;
 import org.apache.kafka.connect.runtime.standalone.StandaloneConfig;
+import org.apache.kafka.connect.storage.Converter;
 import org.apache.kafka.connect.storage.FileOffsetBackingStore;
 import org.apache.kafka.connect.util.Callback;
 import org.fest.assertions.Assertions;
@@ -212,6 +214,10 @@ public class DebeziumEngineIT {
     private static final AtomicInteger offsetStoreSetCalls = new AtomicInteger();
 
     public static class TestOffsetStore extends FileOffsetBackingStore {
+
+        public TestOffsetStore() {
+            super(KafkaConnectUtil.converterForOffsetStore());
+        }
 
         @Override
         public Future<Map<ByteBuffer, ByteBuffer>> get(Collection<ByteBuffer> keys) {
