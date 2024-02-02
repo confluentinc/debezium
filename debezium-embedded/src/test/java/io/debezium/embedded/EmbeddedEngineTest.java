@@ -645,6 +645,11 @@ class InterruptingOffsetStore implements OffsetBackingStore {
     }
 
     @Override
+    public Set<Map<String, Object>> connectorPartitions(String s) {
+        return null;
+    }
+
+    @Override
     public void configure(WorkerConfig workerConfig) {
     }
 }
