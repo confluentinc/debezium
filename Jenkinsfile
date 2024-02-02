@@ -10,6 +10,6 @@ common {
   downStreamValidate = false
   timeoutHours = 4
   mavenProfiles = 'assembly'
-  mavenFlags = '-U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode -pl debezium-connector-mysql -am'
+  mavenFlags = '-U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode -pl debezium-connector-sqlserver -am'
   mvnSkipDeploy = true
 }
