@@ -213,8 +213,8 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
         while (context.isRunning() && (offsetContext.getStreamingStoppingLsn() == null ||
                 (lastCompletelyProcessedLsn.compareTo(offsetContext.getStreamingStoppingLsn()) < 0))) {
 
-            boolean receivedMessage = stream.readPending(message -> {
-                final Lsn lsn = stream.lastReceivedLsn();
+            boolean receivedMessage = stream.readPending((message, lastReceivedLsn) -> {
+                final Lsn lsn = lastReceivedLsn == null ? stream.lastReceivedLsn() : lastReceivedLsn;
 
                 if (message.isLastEventForLsn()) {
                     lastCompletelyProcessedLsn = lsn;
@@ -327,8 +327,8 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
         LOGGER.info("Searching for WAL resume position");
         while (context.isRunning() && resumeLsn.get() == null) {
 
-            boolean receivedMessage = stream.readPending(message -> {
-                final Lsn lsn = stream.lastReceivedLsn();
+            boolean receivedMessage = stream.readPending((message, lastReceivedLsn) -> {
+                final Lsn lsn = lastReceivedLsn == null ? stream.lastReceivedLsn() : lastReceivedLsn;
                 resumeLsn.set(walPosition.resumeFromLsn(lsn, message).orElse(null));
             });
 

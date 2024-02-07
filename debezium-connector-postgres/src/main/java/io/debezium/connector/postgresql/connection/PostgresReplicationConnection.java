@@ -507,7 +507,7 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
             private void deserializeMessages(ByteBuffer buffer, ReplicationMessageProcessor processor) throws SQLException, InterruptedException {
                 lastReceivedLsn = Lsn.valueOf(stream.getLastReceiveLSN());
                 LOGGER.trace("Received message at LSN {}", lastReceivedLsn);
-                messageDecoder.processMessage(buffer, processor, typeRegistry);
+                messageDecoder.processMessage(buffer, processor, typeRegistry, lastReceivedLsn);
             }
 
             @Override
