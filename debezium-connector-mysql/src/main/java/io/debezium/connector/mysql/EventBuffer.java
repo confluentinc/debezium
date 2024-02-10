@@ -8,6 +8,7 @@ package io.debezium.connector.mysql;
 import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
 
+import com.github.shyiko.mysql.binlog.event.EventHeader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -91,7 +92,7 @@ class EventBuffer {
 
         if (event.getHeader().getEventType() == EventType.QUERY) {
             QueryEventData command = streamingChangeEventSource.unwrapData(event);
-            LOGGER.debug("Received query command: {}", event);
+            LOGGER.trace("Received query command: {}", (EventHeader) event.getHeader());
             String sql = command.getSql().trim();
             if (sql.equalsIgnoreCase("BEGIN")) {
                 beginTransaction(partition, offsetContext, event);
