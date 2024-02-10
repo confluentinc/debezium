@@ -129,7 +129,7 @@ public class MySqlConnection extends JdbcConnection {
                     String value = rs.getString(2);
                     if (varName != null && value != null) {
                         variables.put(varName, value);
-                        LOGGER.debug("\t{} = {}",
+                        LOGGER.trace("\t{} = {}",
                                 Strings.pad(varName, 45, ' '),
                                 Strings.pad(value, 45, ' '));
                     }
