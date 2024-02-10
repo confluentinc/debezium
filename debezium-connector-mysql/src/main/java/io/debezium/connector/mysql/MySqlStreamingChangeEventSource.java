@@ -327,7 +327,7 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
         long eventTs = event.getHeader().getTimestamp();
 
         if (eventTs == 0) {
-            LOGGER.trace("Received unexpected event with 0 timestamp: {}", event);
+            LOGGER.trace("Received unexpected event with 0 timestamp: {}", (EventHeader) event.getHeader());
             return;
         }
 
@@ -337,7 +337,7 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
     }
 
     protected void ignoreEvent(MySqlOffsetContext offsetContext, Event event) {
-        LOGGER.trace("Ignoring event due to missing handler: {}", event);
+        LOGGER.trace("Ignoring event due to missing handler: {}", (EventHeader) event.getHeader());
     }
 
     protected void handleEvent(MySqlPartition partition, MySqlOffsetContext offsetContext, Event event) {
@@ -550,7 +550,7 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
     protected void handleQueryEvent(MySqlPartition partition, MySqlOffsetContext offsetContext, Event event) throws InterruptedException {
         Instant eventTime = Conversions.toInstantFromMillis(eventTimestamp.toEpochMilli());
         QueryEventData command = unwrapData(event);
-        LOGGER.debug("Received query command: {}", event);
+        LOGGER.trace("Received query command: {}", (EventHeader) event.getHeader());
         String sql = command.getSql().trim();
         if (sql.equalsIgnoreCase("BEGIN")) {
             // We are starting a new transaction ...
@@ -577,11 +577,11 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
             return;
         }
         if (taskContext.getSchema().ddlFilter().test(sql)) {
-            LOGGER.debug("DDL '{}' was filtered out of processing", sql);
+            LOGGER.trace("DDL '{}' was filtered out of processing", sql);
             return;
         }
         if (upperCasedStatementBegin.equals("INSERT ") || upperCasedStatementBegin.equals("UPDATE ") || upperCasedStatementBegin.equals("DELETE ")) {
-            LOGGER.warn("Received DML '" + sql + "' for processing, binlog probably contains events generated with statement or mixed based replication format");
+            LOGGER.trace("Received DML of type {}, binlog probably contains events generated with statement or mixed based replication format", upperCasedStatementBegin.trim());
             return;
         }
         if (sql.equalsIgnoreCase("ROLLBACK")) {
@@ -695,7 +695,7 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
                 LOGGER.error(
                         "Encountered change event '{}' at offset {} for table {} whose schema isn't known to this connector. One possible cause is an incomplete database schema history topic. Take a new snapshot in this case.{}"
                                 + "Use the mysqlbinlog tool to view the problematic event: mysqlbinlog --start-position={} --stop-position={} --verbose {}",
-                        event, offsetContext.getOffset(), tableId, System.lineSeparator(), eventHeader.getPosition(),
+                        event.getHeader(), offsetContext.getOffset(), tableId, System.lineSeparator(), eventHeader.getPosition(),
                         eventHeader.getNextPosition(), offsetContext.getSource().binlogFilename());
                 throw new DebeziumException("Encountered change event for table " + tableId
                         + " whose schema isn't known to this connector");
@@ -705,7 +705,7 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
                         "Encountered change event '{}' at offset {} for table {} whose schema isn't known to this connector. One possible cause is an incomplete database schema history topic. Take a new snapshot in this case.{}"
                                 + "The event will be ignored.{}"
                                 + "Use the mysqlbinlog tool to view the problematic event: mysqlbinlog --start-position={} --stop-position={} --verbose {}",
-                        event, offsetContext.getOffset(), tableId, System.lineSeparator(), System.lineSeparator(),
+                        event.getHeader(), offsetContext.getOffset(), tableId, System.lineSeparator(), System.lineSeparator(),
                         eventHeader.getPosition(), eventHeader.getNextPosition(), offsetContext.getSource().binlogFilename());
             }
             else {
@@ -713,7 +713,7 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
                         "Encountered change event '{}' at offset {} for table {} whose schema isn't known to this connector. One possible cause is an incomplete database schema history topic. Take a new snapshot in this case.{}"
                                 + "The event will be ignored.{}"
                                 + "Use the mysqlbinlog tool to view the problematic event: mysqlbinlog --start-position={} --stop-position={} --verbose {}",
-                        event, offsetContext.getOffset(), tableId, System.lineSeparator(), System.lineSeparator(),
+                        event.getHeader(), offsetContext.getOffset(), tableId, System.lineSeparator(), System.lineSeparator(),
                         eventHeader.getPosition(), eventHeader.getNextPosition(), offsetContext.getSource().binlogFilename());
             }
         }
@@ -791,11 +791,11 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
             throws InterruptedException {
         if (skipEvent) {
             // We can skip this because we should already be at least this far ...
-            LOGGER.info("Skipping previously processed row event: {}", event);
+            LOGGER.info("Skipping previously processed row event: {}", (EventHeader) event.getHeader());
             return;
         }
         if (ignoreDmlEventByGtidSource) {
-            LOGGER.debug("Skipping DML event because this GTID source is filtered: {}", event);
+            LOGGER.debug("Skipping DML event because this GTID source is filtered: {}", (EventHeader) event.getHeader());
             return;
         }
         final T data = unwrapData(event);
@@ -826,7 +826,7 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
             }
             else {
                 // All rows were previously processed ...
-                LOGGER.debug("Skipping previously processed {} event: {}", changeType, event);
+                LOGGER.debug("Skipping previously processed {} event: {}", changeType, event.getHeader());
             }
         }
         else {
@@ -842,7 +842,7 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
      * @throws InterruptedException if this thread is interrupted while blocking
      */
     protected void viewChange(MySqlOffsetContext offsetContext, Event event) throws InterruptedException {
-        LOGGER.debug("View Change event: {}", event);
+        LOGGER.debug("View Change event: {}", (EventHeader) event.getHeader());
         // do nothing
     }
 
