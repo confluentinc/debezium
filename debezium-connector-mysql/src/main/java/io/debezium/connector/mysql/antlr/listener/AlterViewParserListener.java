@@ -45,7 +45,7 @@ public class AlterViewParserListener extends MySqlParserBaseListener {
             tableEditor = parser.databaseTables().editTable(tableId);
             if (tableEditor == null) {
                 throw new ParsingException(null, "Trying to alter view " + tableId.toString()
-                        + ", which does not exist. Query:" + AntlrDdlParser.getText(ctx));
+                        + ", which does not exist.");
             }
             // alter view will override existing columns for a new one
             tableEditor.columnNames().forEach(tableEditor::removeColumn);

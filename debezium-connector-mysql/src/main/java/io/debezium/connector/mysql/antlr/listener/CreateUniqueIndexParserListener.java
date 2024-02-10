@@ -51,8 +51,7 @@ public class CreateUniqueIndexParserListener extends MySqlParserBaseListener {
                 }
             }
             else {
-                throw new ParsingException(null, "Trying to create index on non existing table " + tableId.toString() + "."
-                        + "Query: " + getText(ctx));
+                throw new ParsingException(null, "Trying to create index on non existing table " + tableId.toString() + ".");
             }
         }
         super.enterCreateIndex(ctx);

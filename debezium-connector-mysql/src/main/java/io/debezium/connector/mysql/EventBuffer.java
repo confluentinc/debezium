@@ -91,7 +91,7 @@ class EventBuffer {
 
         if (event.getHeader().getEventType() == EventType.QUERY) {
             QueryEventData command = streamingChangeEventSource.unwrapData(event);
-            LOGGER.debug("Received query command: {}", event);
+            LOGGER.trace("Received query command: {}", event);
             String sql = command.getSql().trim();
             if (sql.equalsIgnoreCase("BEGIN")) {
                 beginTransaction(partition, offsetContext, event);
