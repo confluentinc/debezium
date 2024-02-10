@@ -129,7 +129,7 @@ public class MySqlConnection extends JdbcConnection {
                     String value = rs.getString(2);
                     if (varName != null && value != null) {
                         variables.put(varName, value);
-                        LOGGER.debug("\t{} = {}",
+                        LOGGER.trace("\t{} = {}",
                                 Strings.pad(varName, 45, ' '),
                                 Strings.pad(value, 45, ' '));
                     }
@@ -304,7 +304,7 @@ public class MySqlConnection extends JdbcConnection {
             return queryAndMap("SHOW GRANTS FOR CURRENT_USER", rs -> {
                 while (rs.next()) {
                     String grants = rs.getString(1);
-                    LOGGER.debug(grants);
+                    LOGGER.trace(grants);
                     if (grants == null) {
                         return false;
                     }
@@ -362,7 +362,7 @@ public class MySqlConnection extends JdbcConnection {
                 // For older versions, assume 'FULL'.
                 return "FULL";
             });
-            LOGGER.debug("binlog_row_image={}", rowImage);
+            LOGGER.trace("binlog_row_image={}", rowImage);
             return "FULL".equalsIgnoreCase(rowImage);
         }
         catch (SQLException e) {
@@ -378,7 +378,7 @@ public class MySqlConnection extends JdbcConnection {
     protected boolean isBinlogFormatRow() {
         try {
             final String mode = queryAndMap("SHOW GLOBAL VARIABLES LIKE 'binlog_format'", rs -> rs.next() ? rs.getString(2) : "");
-            LOGGER.debug("binlog_format={}", mode);
+            LOGGER.trace("binlog_format={}", mode);
             return "ROW".equalsIgnoreCase(mode);
         }
         catch (SQLException e) {
@@ -436,7 +436,7 @@ public class MySqlConnection extends JdbcConnection {
      * @return the map of database names with their default character sets; never null
      */
     protected Map<String, DatabaseLocales> readDatabaseCollations() {
-        LOGGER.debug("Reading default database charsets");
+        LOGGER.trace("Reading default database charsets");
         try {
             return queryAndMap("SELECT schema_name, default_character_set_name, default_collation_name FROM information_schema.schemata", rs -> {
                 final Map<String, DatabaseLocales> charsets = new HashMap<>();
@@ -446,7 +446,7 @@ public class MySqlConnection extends JdbcConnection {
                     String collation = rs.getString(3);
                     if (dbName != null && (charset != null || collation != null)) {
                         charsets.put(dbName, new DatabaseLocales(charset, collation));
-                        LOGGER.debug("\t{} = {}, {}",
+                        LOGGER.trace("\t{} = {}, {}",
                                 Strings.pad(dbName, 45, ' '),
                                 Strings.pad(charset, 45, ' '),
                                 Strings.pad(collation, 45, ' '));
