@@ -182,20 +182,20 @@ public class MySqlDatabaseSchema extends HistorizedRelationalDatabaseSchema {
         // - or DDLs for monitored objects
         if (!storeOnlyCapturedTables() || isGlobalSetVariableStatement(schemaChange.getDdl(), schemaChange.getDatabase())
                 || schemaChange.getTables().stream().map(Table::id).anyMatch(filters.dataCollectionFilter()::isIncluded)) {
-            LOGGER.debug("Recorded DDL statements for database '{}': {}", schemaChange.getDatabase(), schemaChange.getDdl());
+            LOGGER.trace("Recorded DDL statements for database '{}': {}", schemaChange.getDatabase(), schemaChange.getDdl());
             record(schemaChange, schemaChange.getTableChanges());
         }
     }
 
     public List<SchemaChangeEvent> parseSnapshotDdl(MySqlPartition partition, String ddlStatements, String databaseName,
                                                     MySqlOffsetContext offset, Instant sourceTime) {
-        LOGGER.debug("Processing snapshot DDL '{}' for database '{}'", ddlStatements, databaseName);
+        LOGGER.trace("Processing snapshot DDL '{}' for database '{}'", ddlStatements, databaseName);
         return parseDdl(partition, ddlStatements, databaseName, offset, sourceTime, true);
     }
 
     public List<SchemaChangeEvent> parseStreamingDdl(MySqlPartition partition, String ddlStatements, String databaseName,
                                                      MySqlOffsetContext offset, Instant sourceTime) {
-        LOGGER.debug("Processing streaming DDL '{}' for database '{}'", ddlStatements, databaseName);
+        LOGGER.trace("Processing streaming DDL '{}' for database '{}'", ddlStatements, databaseName);
         return parseDdl(partition, ddlStatements, databaseName, offset, sourceTime, false);
     }
 
@@ -214,7 +214,8 @@ public class MySqlDatabaseSchema extends HistorizedRelationalDatabaseSchema {
         }
         catch (ParsingException | MultipleParsingExceptions e) {
             if (skipUnparseableDdlStatements()) {
-                LOGGER.warn("Ignoring unparseable DDL statement '{}'", ddlStatements, e);
+                LOGGER.warn("Ignoring unparseable DDL statement: {}", e.getMessage());
+                LOGGER.trace("DDL statements: '{}'", ddlStatements, e);
             }
             else {
                 throw e;
@@ -288,7 +289,7 @@ public class MySqlDatabaseSchema extends HistorizedRelationalDatabaseSchema {
             }
         }
         else {
-            LOGGER.debug("Changes for DDL '{}' were filtered and not recorded in database schema history", ddlStatements);
+            LOGGER.trace("Changes for DDL '{}' were filtered and not recorded in database schema history", ddlStatements);
         }
         return schemaChangeEvents;
     }
@@ -429,7 +430,7 @@ public class MySqlDatabaseSchema extends HistorizedRelationalDatabaseSchema {
     public boolean skipSchemaChangeEvent(SchemaChangeEvent event) {
         if (storeOnlyCapturedDatabases() && !Strings.isNullOrEmpty(event.getDatabase())
                 && !connectorConfig.getTableFilters().databaseFilter().test(event.getDatabase())) {
-            LOGGER.debug("Skipping schema event as it belongs to a non-captured database: '{}'", event);
+            LOGGER.trace("Skipping schema event as it belongs to a non-captured database: '{}'", event);
             return true;
         }
         return false;

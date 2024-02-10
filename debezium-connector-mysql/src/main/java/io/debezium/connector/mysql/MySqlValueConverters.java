@@ -373,7 +373,7 @@ public class MySqlValueConverters extends JdbcValueConverters {
                         r.deliver(JsonBinary.parseAsString((byte[]) data));
                     }
                     catch (IOException e) {
-                        parsingErrorHandler.error("Failed to parse and read a JSON value on '" + column + "' value " + Arrays.toString((byte[]) data), e);
+                        parsingErrorHandler.error("Failed to parse and read a JSON value on '" + column + "'", e);
                         r.deliver(column.isOptional() ? null : "{}");
                     }
                 }
