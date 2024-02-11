@@ -195,11 +195,11 @@ public class SignalProcessor<P extends Partition, O extends OffsetContext> {
             LOGGER.warn("Signal '{}' has been received but the data '{}' cannot be parsed", signalRecord.getId(), signalRecord.getData(), e);
         }
         catch (InterruptedException e) {
-            LOGGER.warn("Action {} has been interrupted. The signal {} may not have been processed.", signalRecord.getType(), signalRecord);
+            LOGGER.warn("Action {} has been interrupted. The signal may not have been processed.", signalRecord.getType());
             Thread.currentThread().interrupt();
         }
         catch (Exception e) {
-            LOGGER.warn("Action {} failed. The signal {} may not have been processed.", signalRecord.getType(), signalRecord, e);
+            LOGGER.warn("Action {} failed. The signal may not have been processed.", signalRecord.getType(), e);
         }
     }
 

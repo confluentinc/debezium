@@ -56,7 +56,6 @@ public class Loggings {
      */
     public static void logErrorAndTraceRecord(Logger logger, Object record, String message, Object... arguments) {
         logger.error(message, arguments);
-        LOGGER.trace("Source of error is record '{}'", record);
     }
 
     /**
@@ -70,6 +69,5 @@ public class Loggings {
      */
     public static void logErrorAndTraceRecord(Logger logger, Object record, String message, Throwable t) {
         logger.error(message, t);
-        LOGGER.trace("Source of error is record '{}'", record);
     }
 }
