@@ -97,7 +97,7 @@ public class TransactionMonitor {
         final String txId = eventMetadataProvider.getTransactionId(source, offset, key, value);
         if (txId == null) {
             if (LOGGER.isTraceEnabled()) {
-                LOGGER.trace("Event '{}' has no transaction id", eventMetadataProvider.toSummaryString(source, offset, key, value));
+                LOGGER.trace("Event with context '{}' has no transaction id", transactionContext);
             }
             // Introduced for MongoDB, transactions are optional so non-transactional event should
             // commit transaction

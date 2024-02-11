@@ -51,11 +51,11 @@ public class SchemaChanges<P extends Partition> implements SignalAction<P> {
         final String schema = signalPayload.data.getString(FIELD_SCHEMA);
 
         if (changes == null || changes.isEmpty()) {
-            LOGGER.warn("Table changes signal '{}' has arrived but the requested field '{}' is missing from data", signalPayload, FIELD_CHANGES);
+            LOGGER.warn("Table changes signal '{}' has arrived but the requested field '{}' is missing from data", signalPayload.id, FIELD_CHANGES);
             return false;
         }
         if (database == null || database.isEmpty()) {
-            LOGGER.warn("Table changes signal '{}' has arrived but the requested field '{}' is missing from data", signalPayload, FIELD_DATABASE);
+            LOGGER.warn("Table changes signal '{}' has arrived but the requested field '{}' is missing from data", signalPayload.id, FIELD_DATABASE);
             return false;
         }
         for (TableChanges.TableChange tableChange : serializer.deserialize(changes, useCatalogBeforeSchema)) {

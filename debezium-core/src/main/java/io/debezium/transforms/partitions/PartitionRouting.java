@@ -169,7 +169,7 @@ public class PartitionRouting<R extends ConnectRecord<R>> implements Transformat
                     .collect(Collectors.toList());
 
             if (fieldsValue.isEmpty()) {
-                LOGGER.trace("None of the configured fields found on record {}. Skipping it.", envelope);
+                LOGGER.trace("None of the configured fields found on record. Skipping it.");
                 return originalRecord;
             }
 
@@ -179,7 +179,7 @@ public class PartitionRouting<R extends ConnectRecord<R>> implements Transformat
 
         }
         catch (Exception e) {
-            throw new DebeziumException(String.format("Unprocessable message %s", envelope), e);
+            throw new DebeziumException("Unprocessable message", e);
         }
     }
 
@@ -197,7 +197,7 @@ public class PartitionRouting<R extends ConnectRecord<R>> implements Transformat
             return Optional.ofNullable(lastStruct.get(subFields[subFields.length - 1]));
         }
         catch (DataException e) {
-            LOGGER.trace("Field {} not found on payload {}. It will not be considered", fieldName, envelope);
+            LOGGER.trace("Field {} not found on payload. It will not be considered", fieldName);
             return Optional.empty();
         }
 
@@ -225,7 +225,7 @@ public class PartitionRouting<R extends ConnectRecord<R>> implements Transformat
     }
 
     private R buildNewRecord(R originalRecord, Struct envelope, int partition) {
-        LOGGER.trace("Message {} will be sent to partition {}", envelope, partition);
+        LOGGER.trace("Message will be sent to partition {}", partition);
 
         return originalRecord.newRecord(originalRecord.topic(), partition,
                 originalRecord.keySchema(),

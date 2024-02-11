@@ -201,7 +201,7 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
         }
         if (key instanceof Struct) {
             if (window.remove((Struct) key) != null) {
-                LOGGER.info("Removed '{}' from window", key);
+                LOGGER.info("Removed conflicting record from window");
             }
         }
     }
@@ -630,8 +630,7 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
         LOGGER.debug("Exporting data chunk from table '{}' (total {} tables)", currentTable.id(), context.dataCollectionsToBeSnapshottedCount());
 
         final String selectStatement = buildChunkQuery(currentTable, context.currentDataCollectionId().getAdditionalCondition());
-        LOGGER.debug("\t For table '{}' using select statement: '{}', key: '{}', maximum key: '{}'", currentTable.id(),
-                selectStatement, context.chunkEndPosititon(), context.maximumKey().get());
+        LOGGER.debug("\t For table '{}' using select statement: '{}'", currentTable.id(), selectStatement);
 
         final TableSchema tableSchema = databaseSchema.schemaFor(currentTable.id());
 
