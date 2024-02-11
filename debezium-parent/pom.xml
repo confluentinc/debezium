@@ -221,12 +221,12 @@
                             <value>${project.build.directory}/data</value>
                         </property>
                     </systemProperties>
-                    <argLine>-Djava.awt.headless=true ${debug.argline} ${modules.argline}</argLine>
+<!--                    <argLine>${argLine} -Djava.awt.headless=true ${debug.argline} ${modules.argline}</argLine>-->
                     <!--runOrder>alphabetical</runOrder-->
                     <useFile>false</useFile>
                     <enableAssertions>true</enableAssertions>
-                    <forkCount>${forkCount}</forkCount>
-                    <reuseForks>${reuseForks}</reuseForks>
+<!--                    <forkCount>${forkCount}</forkCount>-->
+<!--                    <reuseForks>${reuseForks}</reuseForks>-->
                     <useSystemClassLoader>${useSystemClassLoader}</useSystemClassLoader>
                 </configuration>
             </plugin>
