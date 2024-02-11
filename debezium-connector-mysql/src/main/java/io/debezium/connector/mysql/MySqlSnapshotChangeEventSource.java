@@ -259,11 +259,11 @@ public class MySqlSnapshotChangeEventSource extends RelationalSnapshotChangeEven
                 for (final SchemaChangeEvent event : schemaEvents) {
                     if (databaseSchema.storeOnlyCapturedTables() && event.getDatabase() != null && event.getDatabase().length() != 0
                             && !connectorConfig.getTableFilters().databaseFilter().test(event.getDatabase())) {
-                        LOGGER.debug("Skipping schema event as it belongs to a non-captured database: '{}'", event);
+                        LOGGER.trace("Skipping schema event as it belongs to a non-captured database: '{}'", event);
                         continue;
                     }
 
-                    LOGGER.debug("Processing schema event {}", event);
+                    LOGGER.trace("Processing schema event {}", event);
 
                     final TableId tableId = event.getTables().isEmpty() ? null : event.getTables().iterator().next().id();
                     snapshotContext.offset.event(tableId, getClock().currentTime());
@@ -643,11 +643,11 @@ public class MySqlSnapshotChangeEventSource extends RelationalSnapshotChangeEven
                 continue;
             }
 
-            LOGGER.debug("Processing schema event {}", event);
+            LOGGER.trace("Processing schema event {}", event);
 
             final TableId tableId = event.getTables().isEmpty() ? null : event.getTables().iterator().next().id();
             if (snapshottingTask.isBlocking() && !snapshotContext.capturedTables.contains(tableId)) {
-                LOGGER.debug("Event {} will be skipped since it's not related to blocking snapshot captured table {}", event, snapshotContext.capturedTables);
+                LOGGER.trace("Event {} will be skipped since it's not related to blocking snapshot captured table {}", event, snapshotContext.capturedTables);
                 continue;
             }
             snapshotContext.offset.event(tableId, getClock().currentTime());

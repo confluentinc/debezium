@@ -1329,12 +1329,10 @@ public class JdbcValueConverters implements ValueConverterProvider {
             final Object schemaDefault = fieldDefn.schema().defaultValue();
             return schemaDefault != null ? schemaDefault : fallback;
         }
-        logger.trace("Value from data object: *** {} ***", data);
 
         final ResultReceiver r = ResultReceiver.create();
         callback.convert(r);
         logger.trace("Callback is: {}", callback);
-        logger.trace("Value from ResultReceiver: {}", r);
         return r.hasReceived() ? r.get() : handleUnknownData(column, fieldDefn, data);
     }
 
