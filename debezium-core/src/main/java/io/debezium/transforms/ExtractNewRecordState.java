@@ -171,7 +171,7 @@ public class ExtractNewRecordState<R extends ConnectRecord<R>> implements Transf
     public R apply(final R record) {
         if (record.value() == null) {
             if (dropTombstones) {
-                LOGGER.trace("Tombstone {} arrived and requested to be dropped", record.key());
+                LOGGER.trace("Tombstone arrived and requested to be dropped");
                 return null;
             }
             if (!additionalHeaders.isEmpty()) {
@@ -209,10 +209,10 @@ public class ExtractNewRecordState<R extends ConnectRecord<R>> implements Transf
             // Handling delete records
             switch (handleDeletes) {
                 case DROP:
-                    LOGGER.trace("Delete message {} requested to be dropped", record.key());
+                    LOGGER.trace("Delete message requested to be dropped");
                     return null;
                 case REWRITE:
-                    LOGGER.trace("Delete message {} requested to be rewritten", record.key());
+                    LOGGER.trace("Delete message requested to be rewritten");
                     R oldRecord = beforeDelegate.apply(record);
                     oldRecord = addFields(additionalFields, record, oldRecord);
 
@@ -238,7 +238,7 @@ public class ExtractNewRecordState<R extends ConnectRecord<R>> implements Transf
             // Handling insert and update records
             switch (handleDeletes) {
                 case REWRITE:
-                    LOGGER.trace("Insert/update message {} requested to be rewritten", record.key());
+                    LOGGER.trace("Insert/update message requested to be rewritten");
                     return updatedDelegate.apply(newRecord);
                 default:
                     return newRecord;

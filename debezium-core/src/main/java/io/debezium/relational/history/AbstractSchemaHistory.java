@@ -137,13 +137,14 @@ public abstract class AbstractSchemaHistory implements SchemaHistory {
                         return;
                     }
                     try {
-                        logger.debug("Applying: {}", ddl);
+                        logger.trace("Applying: {}", ddl);
                         ddlParser.parse(ddl, schema);
                         listener.onChangeApplied(recovered);
                     }
                     catch (final ParsingException | MultipleParsingExceptions e) {
                         if (skipUnparseableDDL) {
-                            logger.warn("Ignoring unparseable statements '{}' stored in database schema history", ddl, e);
+                            logger.warn("Ignoring unparseable statements stored in database schema history", e);
+                            logger.trace("Unparseable statements '{}'", ddl);
                         }
                         else {
                             throw e;
@@ -152,7 +153,7 @@ public abstract class AbstractSchemaHistory implements SchemaHistory {
                 }
             }
             else {
-                logger.debug("Skipping: {}", recovered.ddl());
+                logger.trace("Skipping: {}", recovered.ddl());
             }
         });
         listener.recoveryStopped();

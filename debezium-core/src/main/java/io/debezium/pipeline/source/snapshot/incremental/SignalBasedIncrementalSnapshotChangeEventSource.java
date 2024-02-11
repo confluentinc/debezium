@@ -52,7 +52,7 @@ public class SignalBasedIncrementalSnapshotChangeEventSource<P extends Partition
             LOGGER.warn("Context is null, skipping message processing");
             return;
         }
-        LOGGER.trace("Checking window for table '{}', key '{}', window contains '{}'", dataCollectionId, key, window);
+        LOGGER.trace("Checking window for table '{}'", dataCollectionId);
         if (!window.isEmpty() && context.deduplicationNeeded()) {
             deduplicateWindow(dataCollectionId, key);
         }

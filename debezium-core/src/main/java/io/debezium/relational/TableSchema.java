@@ -124,9 +124,6 @@ public class TableSchema implements DataCollectionSchema {
      * @return the key, or null if the {@code columnData}
      */
     public Struct keyFromColumnData(Object[] columnData) {
-        if (LOGGER.isTraceEnabled()) {
-            LOGGER.trace("columnData from current stack: {}", Arrays.toString(columnData));
-        }
         return columnData == null ? null : keyGenerator.generateValue(columnData);
     }
 

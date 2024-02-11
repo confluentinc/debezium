@@ -215,7 +215,7 @@ public class EventDispatcher<P extends Partition, T extends DataCollectionId> im
                                      ConnectHeaders headers)
                     throws InterruptedException {
 
-                LOGGER.trace("Received change record {} for {} operation on key {} with context {}", value, operation, key, offset);
+                LOGGER.trace("Received change record for {} operation with context {}", operation, offset);
 
                 eventListener.onEvent(partition, dataCollectionSchema.id(), offset, key, value, operation);
                 receiver.changeRecord(partition, dataCollectionSchema, operation, key, value, offset, headers);
@@ -272,7 +272,7 @@ public class EventDispatcher<P extends Partition, T extends DataCollectionId> im
                                              ConnectHeaders headers)
                             throws InterruptedException {
 
-                        LOGGER.trace("Received change record {} for {} operation on key {} with context {}", value, operation, key, offset);
+                        LOGGER.trace("Received change record for {} operation with context {}", operation, offset);
 
                         if (operation == Operation.CREATE && connectorConfig.isSignalDataCollection(dataCollectionId) && sourceSignalChannel != null) {
                             sourceSignalChannel.process(value);
@@ -461,7 +461,7 @@ public class EventDispatcher<P extends Partition, T extends DataCollectionId> im
 
             Objects.requireNonNull(value, "value must not be null");
 
-            LOGGER.trace("Received change record {} for {} operation on key {} with context {}", value, operation, key, offsetContext);
+            LOGGER.trace("Received change record for {} operation with context {}", operation, offsetContext);
 
             // Truncate events must have null key schema as they are sent to table topics without keys
             Schema keySchema = (key == null && operation == Operation.TRUNCATE) ? null
@@ -509,7 +509,7 @@ public class EventDispatcher<P extends Partition, T extends DataCollectionId> im
                 throws InterruptedException {
             Objects.requireNonNull(value, "value must not be null");
 
-            LOGGER.trace("Received change record for {} operation on key {}", operation, key);
+            LOGGER.trace("Received change record for {} operation", operation);
 
             BufferedDataChangeEvent nextBufferedEvent = new BufferedDataChangeEvent();
             nextBufferedEvent.offsetContext = offsetContext;
@@ -577,7 +577,7 @@ public class EventDispatcher<P extends Partition, T extends DataCollectionId> im
                 throws InterruptedException {
             Objects.requireNonNull(value, "value must not be null");
 
-            LOGGER.trace("Received change record for {} operation on key {}", operation, key);
+            LOGGER.trace("Received change record for {} operation", operation);
 
             Schema keySchema = dataCollectionSchema.keySchema();
             String topicName = topicNamingStrategy.dataChangeTopic((T) dataCollectionSchema.id());

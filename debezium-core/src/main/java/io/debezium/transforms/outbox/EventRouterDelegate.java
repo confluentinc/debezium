@@ -88,7 +88,7 @@ public class EventRouterDelegate<R extends ConnectRecord<R>> {
     public R apply(R r, RecordConverter<R> recordConverter) {
         // Ignoring tombstones
         if (r.value() == null) {
-            LOGGER.debug("Tombstone message ignored. Message key: \"{}\"", r.key());
+            LOGGER.debug("Tombstone message ignored.");
             return null;
         }
 
@@ -103,7 +103,7 @@ public class EventRouterDelegate<R extends ConnectRecord<R>> {
 
         // Skipping deletes
         if (op.equals(Envelope.Operation.DELETE.code())) {
-            LOGGER.debug("Delete message {} ignored", r.key());
+            LOGGER.debug("Delete message ignored");
             return null;
         }
 
@@ -155,7 +155,7 @@ public class EventRouterDelegate<R extends ConnectRecord<R>> {
         // Check to expand JSON string into real JSON.
         if (expandJsonPayload) {
             if (!(payload instanceof String)) {
-                LOGGER.warn("Expand JSON payload is turned on but payload is not a string in {}", r.key());
+                LOGGER.warn("Expand JSON payload is turned on but payload is not a string");
             }
             else {
                 final String payloadString = (String) payload;
@@ -230,7 +230,7 @@ public class EventRouterDelegate<R extends ConnectRecord<R>> {
                 timestamp,
                 headers);
 
-        LOGGER.debug("Message emitted with event id: \"{}\", event key: \"{}\"", eventId, recordKey);
+        LOGGER.debug("Message emitted with event id: \"{}\"", eventId);
 
         final Matcher matcher = routeTopicRegex.matcher(newRecord.topic());
         if (matcher.matches()) {
@@ -305,13 +305,13 @@ public class EventRouterDelegate<R extends ConnectRecord<R>> {
     private void handleUnexpectedOperation(R r) {
         switch (invalidOperationBehavior) {
             case SKIP_AND_WARN:
-                LOGGER.warn("Unexpected update message received {} and ignored", r.key());
+                LOGGER.warn("Unexpected update message received and ignored");
                 break;
             case SKIP_AND_ERROR:
-                LOGGER.error("Unexpected update message received {} and ignored", r.key());
+                LOGGER.error("Unexpected update message received and ignored");
                 break;
             case FATAL:
-                throw new IllegalStateException(String.format("Unexpected update message received %s, fail.", r.key()));
+                throw new IllegalStateException("Unexpected update message received, fail.");
         }
     }
 
