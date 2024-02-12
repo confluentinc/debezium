@@ -145,13 +145,13 @@ public class HeaderToValue<R extends ConnectRecord<R>> implements Transformation
     public R apply(R record) {
 
         if (record.value() == null) {
-            LOGGER.trace("Tombstone {} arrived and will be skipped", record.key());
+            LOGGER.trace("Tombstone arrived and will be skipped");
             return record;
         }
 
         final Struct value = requireStruct(record.value(), "Header field insertion");
 
-        LOGGER.trace("Processing record {}", value);
+        LOGGER.trace("Processing record");
         Map<String, Header> headerToProcess = StreamSupport.stream(record.headers().spliterator(), false)
                 .filter(header -> headers.contains(header.key()))
                 .collect(Collectors.toMap(Header::key, Function.identity()));
@@ -169,8 +169,6 @@ public class HeaderToValue<R extends ConnectRecord<R>> implements Transformation
         LOGGER.trace("Updated schema fields: {}", updatedSchema.fields());
 
         Struct updatedValue = makeUpdatedValue(value, headerToProcess, updatedSchema);
-
-        LOGGER.trace("Updated value: {}", updatedValue);
 
         Headers updatedHeaders = record.headers();
         if (MOVE.equals(operation)) {

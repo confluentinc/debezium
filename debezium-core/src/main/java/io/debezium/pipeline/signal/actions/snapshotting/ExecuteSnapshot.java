@@ -62,8 +62,7 @@ public class ExecuteSnapshot<P extends Partition> extends AbstractSnapshotSignal
         List<AdditionalCondition> additionalConditions = getAdditionalConditions(signalPayload.data, type);
         Optional<String> surrogateKey = getSurrogateKey(signalPayload.data);
 
-        LOGGER.info("Requested '{}' snapshot of data collections '{}' with additional conditions '{}' and surrogate key '{}'",
-                type, dataCollections, additionalConditions, surrogateKey.orElse("PK of table will be used"));
+        LOGGER.info("Requested '{}' snapshot of data collections '{}'", type, dataCollections);
 
         SnapshotConfiguration.Builder snapsthoConfigurationBuilder = SnapshotConfiguration.Builder.builder();
         snapsthoConfigurationBuilder.dataCollections(dataCollections);
@@ -115,8 +114,8 @@ public class ExecuteSnapshot<P extends Partition> extends AbstractSnapshotSignal
         final Array dataCollectionsArray = data.getArray(FIELD_DATA_COLLECTIONS);
         if (dataCollectionsArray == null || dataCollectionsArray.isEmpty()) {
             LOGGER.warn(
-                    "Execute snapshot signal '{}' has arrived but the requested field '{}' is missing from data or is empty",
-                    data, FIELD_DATA_COLLECTIONS);
+                    "Execute snapshot signal has arrived but the requested field '{}' is missing from data or is empty",
+                    FIELD_DATA_COLLECTIONS);
             return null;
         }
         return dataCollectionsArray.streamValues()
