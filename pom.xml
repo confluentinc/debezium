@@ -166,9 +166,6 @@
         <module>debezium-connector-mongodb</module>
         <module>debezium-connector-sqlserver</module>
         <module>debezium-microbenchmark</module>
-        <module>debezium-quarkus-outbox-common</module>
-        <module>debezium-quarkus-outbox</module>
-        <module>debezium-quarkus-outbox-reactive</module>
         <module>debezium-scripting</module>
         <module>debezium-testing</module>
         <module>debezium-connect-rest-extension</module>
