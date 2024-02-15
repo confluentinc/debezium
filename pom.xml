@@ -160,18 +160,13 @@
         <module>debezium-ddl-parser</module>
         <module>debezium-assembly-descriptors</module>
         <module>debezium-core</module>
-        <module>debezium-embedded</module>
         <module>debezium-connector-mysql</module>
         <module>debezium-connector-postgres</module>
         <module>debezium-connector-mongodb</module>
         <module>debezium-connector-sqlserver</module>
         <module>debezium-microbenchmark</module>
-        <module>debezium-quarkus-outbox-common</module>
-        <module>debezium-quarkus-outbox</module>
-        <module>debezium-quarkus-outbox-reactive</module>
         <module>debezium-scripting</module>
         <module>debezium-testing</module>
-        <module>debezium-connect-rest-extension</module>
         <module>debezium-schema-generator</module>
         <module>debezium-storage</module>
         <module>debezium-interceptor</module>
