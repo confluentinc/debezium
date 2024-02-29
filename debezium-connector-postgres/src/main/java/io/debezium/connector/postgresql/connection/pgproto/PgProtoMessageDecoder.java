@@ -5,7 +5,6 @@
  */
 package io.debezium.connector.postgresql.connection.pgproto;
 
-import io.debezium.connector.postgresql.connection.Lsn;
 import java.nio.ByteBuffer;
 import java.sql.SQLException;
 import java.util.Arrays;
@@ -42,7 +41,7 @@ public class PgProtoMessageDecoder extends AbstractMessageDecoder {
     private boolean warnedOnUnkownOp = false;
 
     @Override
-    public void processNotEmptyMessage(final ByteBuffer buffer, ReplicationMessageProcessor processor, TypeRegistry typeRegistry, Lsn lastReceivedLsn)
+    public void processNotEmptyMessage(final ByteBuffer buffer, ReplicationMessageProcessor processor, TypeRegistry typeRegistry)
             throws SQLException, InterruptedException {
         try {
             if (!buffer.hasArray()) {
@@ -66,7 +65,7 @@ public class PgProtoMessageDecoder extends AbstractMessageDecoder {
                 }
                 return;
             }
-            processor.process(new PgProtoReplicationMessage(message, typeRegistry), null);
+            processor.process(new PgProtoReplicationMessage(message, typeRegistry));
         }
         catch (InvalidProtocolBufferException e) {
             throw new ConnectException(e);

@@ -176,7 +176,7 @@ public class PgOutputMessageDecoder extends AbstractMessageDecoder {
     }
 
     @Override
-    public void processNotEmptyMessage(ByteBuffer buffer, ReplicationMessageProcessor processor, TypeRegistry typeRegistry, Lsn lastReceivedLsn) throws SQLException, InterruptedException {
+    public void processNotEmptyMessage(ByteBuffer buffer, ReplicationMessageProcessor processor, TypeRegistry typeRegistry) throws SQLException, InterruptedException {
         if (LOGGER.isTraceEnabled()) {
             if (!buffer.hasArray()) {
                 throw new IllegalStateException("Invalid buffer received from PG server during streaming replication");
@@ -263,7 +263,7 @@ public class PgOutputMessageDecoder extends AbstractMessageDecoder {
         LOGGER.trace("Final LSN of transaction: {}", lsn);
         LOGGER.trace("Commit timestamp of transaction: {}", commitTimestamp);
         LOGGER.trace("XID of transaction: {}", transactionId);
-        processor.process(new TransactionMessage(Operation.BEGIN, transactionId, commitTimestamp), null);
+        processor.process(new TransactionMessage(Operation.BEGIN, transactionId, commitTimestamp));
     }
 
     /**
@@ -282,7 +282,7 @@ public class PgOutputMessageDecoder extends AbstractMessageDecoder {
         LOGGER.trace("Commit LSN: {}", lsn);
         LOGGER.trace("End LSN of transaction: {}", endLsn);
         LOGGER.trace("Commit timestamp of transaction: {}", commitTimestamp);
-        processor.process(new TransactionMessage(Operation.COMMIT, transactionId, commitTimestamp), null);
+        processor.process(new TransactionMessage(Operation.COMMIT, transactionId, commitTimestamp));
     }
 
     /**
@@ -427,7 +427,7 @@ public class PgOutputMessageDecoder extends AbstractMessageDecoder {
 
         // non-captured table
         if (!resolvedTable.isPresent()) {
-            processor.process(new NoopMessage(transactionId, commitTimestamp), null);
+            processor.process(new NoopMessage(transactionId, commitTimestamp));
         }
         else {
             Table table = resolvedTable.get();
@@ -438,7 +438,7 @@ public class PgOutputMessageDecoder extends AbstractMessageDecoder {
                     commitTimestamp,
                     transactionId,
                     null,
-                    columns), null);
+                    columns));
         }
     }
 
@@ -458,7 +458,7 @@ public class PgOutputMessageDecoder extends AbstractMessageDecoder {
 
         // non-captured table
         if (!resolvedTable.isPresent()) {
-            processor.process(new NoopMessage(transactionId, commitTimestamp), null);
+            processor.process(new NoopMessage(transactionId, commitTimestamp));
         }
         else {
             Table table = resolvedTable.get();
@@ -485,7 +485,7 @@ public class PgOutputMessageDecoder extends AbstractMessageDecoder {
                     commitTimestamp,
                     transactionId,
                     oldColumns,
-                    columns), null);
+                    columns));
         }
     }
 
@@ -507,7 +507,7 @@ public class PgOutputMessageDecoder extends AbstractMessageDecoder {
 
         // non-captured table
         if (!resolvedTable.isPresent()) {
-            processor.process(new NoopMessage(transactionId, commitTimestamp), null);
+            processor.process(new NoopMessage(transactionId, commitTimestamp));
         }
         else {
             Table table = resolvedTable.get();
@@ -518,7 +518,7 @@ public class PgOutputMessageDecoder extends AbstractMessageDecoder {
                     commitTimestamp,
                     transactionId,
                     columns,
-                    null), null);
+                    null));
         }
     }
 
@@ -570,7 +570,7 @@ public class PgOutputMessageDecoder extends AbstractMessageDecoder {
                     table.id().toDoubleQuotedString(),
                     commitTimestamp,
                     transactionId,
-                    lastTableInTruncate), null);
+                    lastTableInTruncate));
         }
     }
 
@@ -636,7 +636,7 @@ public class PgOutputMessageDecoder extends AbstractMessageDecoder {
                 transactionId,
                 isTransactional,
                 prefix,
-                content), null);
+                content));
     }
 
     /**

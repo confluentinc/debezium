@@ -25,7 +25,7 @@ public interface ReplicationStream extends AutoCloseable {
          * Processes the given replication message.
          * @param message The replication message, never {@code null}.
          */
-        void process(ReplicationMessage message, Lsn lastReceivedLsn) throws SQLException, InterruptedException;
+        void process(ReplicationMessage message) throws SQLException, InterruptedException;
     }
 
     /**
