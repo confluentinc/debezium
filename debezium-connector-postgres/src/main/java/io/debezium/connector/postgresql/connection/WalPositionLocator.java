@@ -39,6 +39,7 @@ public class WalPositionLocator {
     private Lsn startStreamingLsn = null;
     private boolean storeLsnAfterLastEventStoredLsn = false;
     private Set<Lsn> lsnSeen = new HashSet<>(1_000);
+    private boolean filteringOn = true;
 
     public WalPositionLocator(Lsn lastCommitStoredLsn, Lsn lastEventStoredLsn, Operation lastProcessedMessageType) {
         this.lastCommitStoredLsn = lastCommitStoredLsn;
@@ -63,8 +64,6 @@ public class WalPositionLocator {
      */
     public Optional<Lsn> resumeFromLsn(Lsn currentLsn, ReplicationMessage message) {
         LOGGER.trace("Processing LSN '{}', operation '{}'", currentLsn, message.getOperation());
-
-        lsnSeen.add(currentLsn);
 
         if (firstLsnReceived == null) {
             firstLsnReceived = currentLsn;
@@ -146,12 +145,16 @@ public class WalPositionLocator {
      */
     public boolean skipMessage(Lsn lsn) {
         if (passMessages) {
+            if (filteringOn) {
+                lsnSeen.add(lsn);
+            }
             return false;
         }
         if (startStreamingLsn == null || startStreamingLsn.equals(lsn)) {
             LOGGER.info("Message with LSN '{}' arrived, switching off the filtering", lsn);
             passMessages = true;
             lsnSeen = new HashSet<>(); // Empty the Map as it might be large and is no longer needed
+            filteringOn = false;
             return false;
         }
         if (lsn.isValid() && !lsnSeen.contains(lsn)) {
