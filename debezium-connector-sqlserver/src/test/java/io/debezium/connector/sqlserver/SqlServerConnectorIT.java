@@ -2858,6 +2858,316 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
         });
     }
 
+    @Test
+    public void shouldNotUseOffsetWhenSnapshotIsAlways() throws Exception {
+
+        try {
+            Configuration config = TestHelper.defaultConfig()
+                    .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.ALWAYS)
+                    .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.always_snapshot")
+                    .with(SqlServerConnectorConfig.SNAPSHOT_MODE_TABLES, "[A-z].*dbo.always_snapshot")
+                    .with(SqlServerConnectorConfig.STORE_ONLY_CAPTURED_TABLES_DDL, true)
+                    .with(SqlServerConnectorConfig.INCLUDE_SCHEMA_CHANGES, false)
+                    .build();
+
+            connection.execute("CREATE TABLE always_snapshot ("
+                    + " id INT PRIMARY KEY NOT NULL,"
+                    + " data VARCHAR(50) NOT NULL);");
+            connection.execute("INSERT INTO always_snapshot VALUES (1,'Test1');");
+            connection.execute("INSERT INTO always_snapshot VALUES (2,'Test2');");
+
+            TestHelper.enableTableCdc(connection, "always_snapshot");
+
+            start(SqlServerConnector.class, config);
+
+            TestHelper.waitForStreamingStarted();
+
+            int expectedRecordCount = 2;
+            SourceRecords sourceRecords = consumeRecordsByTopic(expectedRecordCount);
+            assertThat(sourceRecords.recordsForTopic("server1.testDB1.dbo.always_snapshot")).hasSize(expectedRecordCount);
+            Struct struct = (Struct) ((Struct) sourceRecords.allRecordsInOrder().get(0).value()).get(AFTER);
+            TestCase.assertEquals(1, struct.get("id"));
+            TestCase.assertEquals("Test1", struct.get("data"));
+            struct = (Struct) ((Struct) sourceRecords.allRecordsInOrder().get(1).value()).get(AFTER);
+            TestCase.assertEquals(2, struct.get("id"));
+            TestCase.assertEquals("Test2", struct.get("data"));
+
+            stopConnector();
+
+            connection.execute("DELETE FROM always_snapshot WHERE id=1;");
+            connection.execute("INSERT INTO always_snapshot VALUES (3,'Test3');");
+
+            start(SqlServerConnector.class, config);
+            TestHelper.waitForStreamingStarted();
+            sourceRecords = consumeRecordsByTopic(expectedRecordCount);
+
+            // Check we get up-to-date data in the snapshot.
+            assertThat(sourceRecords.recordsForTopic("server1.testDB1.dbo.always_snapshot")).hasSize(expectedRecordCount);
+            struct = (Struct) ((Struct) sourceRecords.allRecordsInOrder().get(0).value()).get(AFTER);
+            TestCase.assertEquals(2, struct.get("id"));
+            TestCase.assertEquals("Test2", struct.get("data"));
+            struct = (Struct) ((Struct) sourceRecords.allRecordsInOrder().get(1).value()).get(AFTER);
+            TestCase.assertEquals(3, struct.get("id"));
+            TestCase.assertEquals("Test3", struct.get("data"));
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
+        finally {
+            connection.execute("DROP TABLE testDB1.dbo.always_snapshot");
+        }
+    }
+
+    @Test
+    public void shouldCreateSnapshotSchemaOnlyRecovery() throws Exception {
+
+        Configuration.Builder builder = TestHelper.defaultConfig()
+                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SqlServerConnectorConfig.SnapshotMode.INITIAL)
+                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.tablea")
+                .with(SqlServerConnectorConfig.SCHEMA_HISTORY, MemorySchemaHistory.class.getName());
+
+        Configuration config = builder.build();
+        // Start the connector ...
+        start(SqlServerConnector.class, config);
+
+        // Poll for records ...
+        // Testing.Print.enable();
+        int recordCount = 1;
+        SourceRecords sourceRecords = consumeRecordsByTopic(recordCount);
+        assertThat(sourceRecords.allRecordsInOrder()).hasSize(recordCount);
+        stopConnector();
+
+        builder.with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.RECOVERY);
+        config = builder.build();
+        start(SqlServerConnector.class, config);
+
+        connection.execute("INSERT INTO tablea VALUES (100,'100')");
+        connection.execute("INSERT INTO tablea VALUES (200,'200')");
+
+        recordCount = 2;
+        sourceRecords = consumeRecordsByTopic(recordCount);
+        assertThat(sourceRecords.allRecordsInOrder()).hasSize(recordCount);
+    }
+
+    @Test
+    public void shouldProcessPurgedLogsWhenDownAndSnapshotNeeded() throws SQLException, InterruptedException {
+
+        Testing.Files.delete(SCHEMA_HISTORY_PATH);
+
+        purgeDatabaseLogs();
+
+        // Use the DB configuration to define the connector's configuration ...
+        Configuration config = TestHelper.defaultConfig()
+                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.WHEN_NEEDED)
+                .with(SqlServerConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
+                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.tablea")
+                .build();
+
+        // Start the connector ...
+        start(SqlServerConnector.class, config);
+
+        // Consume the first records due to startup and initialization of the database ...
+        // Testing.Print.enable();
+        SourceRecords records = consumeRecordsByTopic(1 + 1); // CREATE 1 tables + 1 data
+        assertThat(records.recordsForTopic("server1.testDB1.dbo.tablea").size()).isEqualTo(1);
+        assertThat(records.topics().size()).isEqualTo(1 + 1);
+        assertThat(records.ddlRecordsForDatabase("testDB1").size()).isEqualTo(1);
+
+        // Check that all records are valid, can be serialized and deserialized ...
+        records.forEach(this::validate);
+
+        stopConnector();
+
+        connection.execute(
+                "INSERT INTO tablea VALUES(100,'100')",
+                "INSERT INTO tablea VALUES(200,'200')");
+
+        start(SqlServerConnector.class, config);
+        records = consumeRecordsByTopic(2);
+        stopConnector();
+
+        connection.execute(
+                "INSERT INTO tablea VALUES(300,'300')",
+                "INSERT INTO tablea VALUES(400,'400')");
+
+        purgeDatabaseLogs();
+
+        start(SqlServerConnector.class, config);
+        // CREATE 1 tables + 5 data
+        records = consumeRecordsByTopic(1 + 5);
+        assertThat(records.recordsForTopic("server1.testDB1.dbo.tablea").size()).isEqualTo(5);
+        assertThat(records.topics().size()).isEqualTo(1 + 1);
+        assertThat(records.ddlRecordsForDatabase("testDB1").size()).isEqualTo(1);
+        stopConnector();
+
+        connection.execute(
+                "INSERT INTO tablea VALUES(500,'500')",
+                "INSERT INTO tablea VALUES(600,'600')");
+
+        purgeDatabaseLogs();
+
+        connection.execute(
+                "INSERT INTO tablea VALUES(700,'700')",
+                "INSERT INTO tablea VALUES(800,'800')");
+
+        start(SqlServerConnector.class, config);
+        // CREATE 1 table + 9 data
+        records = consumeRecordsByTopic(1 + 9);
+        assertThat(records.recordsForTopic("server1.testDB1.dbo.tablea").size()).isEqualTo(9);
+        assertThat(records.topics().size()).isEqualTo(1 + 1);
+        assertThat(records.ddlRecordsForDatabase("testDB1").size()).isEqualTo(1);
+        stopConnector();
+    }
+
+    @Test
+    public void shouldAllowForCustomSnapshot() throws InterruptedException, SQLException {
+
+        final String pkField = "id";
+
+        Configuration config = TestHelper.defaultConfig()
+                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SqlServerConnectorConfig.SnapshotMode.CUSTOM.getValue())
+                .with(SqlServerConnectorConfig.SNAPSHOT_MODE_CUSTOM_NAME, CustomTestSnapshot.class.getName())
+                .with(CommonConnectorConfig.SNAPSHOT_QUERY_MODE, CommonConnectorConfig.SnapshotQueryMode.CUSTOM)
+                .with(CommonConnectorConfig.SNAPSHOT_QUERY_MODE_CUSTOM_NAME, CustomTestSnapshot.class.getName())
+                .build();
+
+        connection.execute("INSERT INTO tableb VALUES (1, '1');");
+
+        start(SqlServerConnector.class, config);
+        assertConnectorIsRunning();
+
+        SourceRecords actualRecords = consumeRecordsByTopic(2);
+
+        List<SourceRecord> s1recs = actualRecords.recordsForTopic("server1.testDB1.dbo.tablea");
+        List<SourceRecord> s2recs = actualRecords.recordsForTopic("server1.testDB1.dbo.tableb");
+
+        if (s2recs != null) { // Sometimes the record is processed by the stream so filtering it out
+            s2recs = s2recs.stream().filter(r -> "r".equals(((Struct) r.value()).get("op")))
+                    .collect(Collectors.toList());
+        }
+        assertThat(s1recs.size()).isEqualTo(1);
+        assertThat(s2recs).isEmpty();
+
+        SourceRecord record = s1recs.get(0);
+        VerifyRecord.isValidRead(record, pkField, 1);
+
+        connection.execute("INSERT INTO tablea VALUES (2, '1');");
+        connection.execute("INSERT INTO tableb VALUES (2, '1');");
+
+        actualRecords = consumeRecordsByTopic(2);
+
+        s1recs = actualRecords.recordsForTopic("server1.testDB1.dbo.tablea");
+        s2recs = actualRecords.recordsForTopic("server1.testDB1.dbo.tableb");
+        assertThat(s1recs.size()).isEqualTo(1);
+        assertThat(s2recs.size()).isEqualTo(1);
+        record = s1recs.get(0);
+        VerifyRecord.isValidInsert(record, pkField, 2);
+        record = s2recs.get(0);
+        VerifyRecord.isValidInsert(record, pkField, 2);
+        stopConnector();
+
+        config = TestHelper.defaultConfig()
+                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SqlServerConnectorConfig.SnapshotMode.CUSTOM.getValue())
+                .with(SqlServerConnectorConfig.SNAPSHOT_MODE_CUSTOM_NAME, CustomTestSnapshot.class.getName())
+                .with(CommonConnectorConfig.SNAPSHOT_QUERY_MODE, CommonConnectorConfig.SnapshotQueryMode.CUSTOM)
+                .with(CommonConnectorConfig.SNAPSHOT_QUERY_MODE_CUSTOM_NAME, CustomTestSnapshot.class.getName())
+                .build();
+
+        start(SqlServerConnector.class, config);
+        assertConnectorIsRunning();
+        actualRecords = consumeRecordsByTopic(4);
+
+        s1recs = actualRecords.recordsForTopic("server1.testDB1.dbo.tablea");
+        s2recs = actualRecords.recordsForTopic("server1.testDB1.dbo.tableb");
+        assertThat(s1recs.size()).isEqualTo(2);
+        assertThat(s2recs.size()).isEqualTo(2);
+        VerifyRecord.isValidRead(s1recs.get(0), pkField, 1);
+        VerifyRecord.isValidRead(s1recs.get(1), pkField, 2);
+        VerifyRecord.isValidRead(s2recs.get(0), pkField, 1);
+        VerifyRecord.isValidRead(s2recs.get(1), pkField, 2);
+    }
+
+    @Test
+    @FixFor("DBZ-7593")
+    public void shouldCaptureTableSchemaForAllTablesIncludingNonCaptured() throws Exception {
+        Configuration.Builder builder = TestHelper.defaultConfig()
+                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SqlServerConnectorConfig.SnapshotMode.INITIAL)
+                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.tablea")
+                .with(SqlServerConnectorConfig.STORE_ONLY_CAPTURED_TABLES_DDL, "false")
+                .with(SqlServerConnectorConfig.INCLUDE_SCHEMA_CHANGES, "true");
+
+        Configuration config = builder.build();
+        start(SqlServerConnector.class, config);
+
+        int recordCount = 3;
+        SourceRecords sourceRecords = consumeRecordsByTopic(recordCount);
+        assertThat(sourceRecords.allRecordsInOrder()).hasSize(recordCount);
+
+        final TableId tableA = TableId.parse("testDB1.dbo.tablea");
+        final TableId tableB = TableId.parse("testDB1.dbo.tableb");
+
+        List<SourceRecord> schemaChanges = sourceRecords.recordsForTopic("server1");
+        assertThat(schemaChanges).hasSize(2);
+        for (int i = 0; i < 2; i++) {
+            final SourceRecord record = schemaChanges.get(i);
+            assertThat(((Struct) record.key()).getString("databaseName")).isEqualTo("testDB1");
+
+            List<Struct> tableChanges = ((Struct) record.value()).getArray("tableChanges");
+            assertThat(tableChanges).hasSize(1);
+            assertThat(tableChanges.get(0).get("type")).isEqualTo("CREATE");
+
+            final TableId table = i == 0 ? tableA : tableB;
+            assertThat(tableChanges.get(0).get("id")).isEqualTo(table.toDoubleQuotedString());
+        }
+
+        List<SourceRecord> snapshot = sourceRecords.recordsForTopic("server1.testDB1.dbo.tablea");
+        assertThat(snapshot).hasSize(1);
+
+        assertNoRecordsToConsume();
+    }
+
+    @Test
+    @FixFor("DBZ-7593")
+    public void shouldOnlyCaptureTableSchemaForIncluded() throws Exception {
+        Configuration.Builder builder = TestHelper.defaultConfig()
+                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SqlServerConnectorConfig.SnapshotMode.INITIAL)
+                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.tablea")
+                .with(SqlServerConnectorConfig.STORE_ONLY_CAPTURED_TABLES_DDL, "true")
+                .with(SqlServerConnectorConfig.INCLUDE_SCHEMA_CHANGES, "true");
+
+        Configuration config = builder.build();
+        start(SqlServerConnector.class, config);
+
+        int recordCount = 2;
+        SourceRecords sourceRecords = consumeRecordsByTopic(recordCount);
+        assertThat(sourceRecords.allRecordsInOrder()).hasSize(recordCount);
+
+        final TableId tableA = TableId.parse("testDB1.dbo.tablea");
+
+        List<SourceRecord> schemaChanges = sourceRecords.recordsForTopic("server1");
+        assertThat(schemaChanges).hasSize(1);
+        for (int i = 0; i < schemaChanges.size(); i++) {
+            final SourceRecord record = schemaChanges.get(i);
+            assertThat(((Struct) record.key()).getString("databaseName")).isEqualTo("testDB1");
+
+            List<Struct> tableChanges = ((Struct) record.value()).getArray("tableChanges");
+            assertThat(tableChanges).hasSize(1);
+            assertThat(tableChanges.get(0).get("type")).isEqualTo("CREATE");
+
+            assertThat(tableChanges.get(0).get("id")).isEqualTo(tableA.toDoubleQuotedString());
+        }
+
+        List<SourceRecord> snapshot = sourceRecords.recordsForTopic("server1.testDB1.dbo.tablea");
+        assertThat(snapshot).hasSize(1);
+
+        assertNoRecordsToConsume();
+    }
+
+    private void purgeDatabaseLogs() throws SQLException {
+        connection.execute("ALTER DATABASE testDB1 SET RECOVERY SIMPLE");
+        connection.execute("DBCC SHRINKFILE (testDB1, 1)");
+    }
+
     private void shouldStopRetriableRestartsAtConfiguredMaximum(SqlRunnable scenario) throws Exception {
         TestHelper.createTestDatabase(TestHelper.TEST_DATABASE_2);
         connection = TestHelper.testConnection(TEST_DATABASE_2);
