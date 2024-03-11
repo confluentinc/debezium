@@ -7,6 +7,7 @@ package io.debezium.connector.mysql;
 
 import java.io.EOFException;
 import java.sql.SQLException;
+import java.util.Objects;
 
 import com.github.shyiko.mysql.binlog.network.ServerException;
 
@@ -40,10 +41,20 @@ public class MySqlErrorHandler extends ErrorHandler {
         else if (throwable instanceof EOFException) {
             // Retry with reading binlog error
             return throwable.getMessage().contains("Failed to read next byte from position")
-                || throwable.getMessage().contains("Failed to read remaining");
+                || checkMessageInExceptionChain(throwable,"Failed to read remaining");
         }
         else if (throwable instanceof DebeziumException && throwable.getCause() != null) {
             return isRetriable(throwable.getCause());
+        }
+        return false;
+    }
+
+    private boolean checkMessageInExceptionChain(Throwable ex, String message) {
+        while (!Objects.isNull(ex)) {
+            if (ex.getMessage().contains(message)) {
+                return true;
+            }
+            ex = ex.getCause();
         }
         return false;
     }
