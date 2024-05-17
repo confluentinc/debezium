@@ -646,7 +646,7 @@ public class MySqlSnapshotChangeEventSource extends RelationalSnapshotChangeEven
             LOGGER.trace("Processing schema event {}", event);
 
             final TableId tableId = event.getTables().isEmpty() ? null : event.getTables().iterator().next().id();
-            if (snapshottingTask.isBlocking() && !snapshotContext.capturedTables.contains(tableId)) {
+            if (snapshottingTask.isOnDemand() && !snapshotContext.capturedTables.contains(tableId)) {
                 LOGGER.trace("Event {} will be skipped since it's not related to blocking snapshot captured table {}", event, snapshotContext.capturedTables);
                 continue;
             }
