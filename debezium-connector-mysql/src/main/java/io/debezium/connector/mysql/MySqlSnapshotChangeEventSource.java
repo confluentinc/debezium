@@ -116,8 +116,8 @@ public class MySqlSnapshotChangeEventSource extends RelationalSnapshotChangeEven
     }
 
     @Override
-    protected SnapshotContext<MySqlPartition, MySqlOffsetContext> prepare(MySqlPartition partition) throws Exception {
-        return new MySqlSnapshotContext(partition);
+    protected SnapshotContext<MySqlPartition, MySqlOffsetContext> prepare(MySqlPartition partition, boolean onDemand) {
+        return new MySqlSnapshotContext(partition, onDemand);
     }
 
     @Override
@@ -357,7 +357,7 @@ public class MySqlSnapshotChangeEventSource extends RelationalSnapshotChangeEven
                 .collect(Collectors.groupingBy(TableId::catalog, LinkedHashMap::new, Collectors.toList()));
         final Set<String> databases = tablesToRead.keySet();
 
-        if (!snapshottingTask.isBlocking()) {
+        if (!snapshottingTask.isOnDemand()) {
             // Record default charset
             addSchemaEvent(snapshotContext, "", connection.setStatementFor(connection.readMySqlCharsetSystemVariables()));
         }
@@ -383,7 +383,7 @@ public class MySqlSnapshotChangeEventSource extends RelationalSnapshotChangeEven
                     throw new InterruptedException("Interrupted while reading structure of schema " + databases);
                 }
 
-                if (!snapshottingTask.isBlocking()) {
+                if (!snapshottingTask.isOnDemand()) {
                     // in case of blocking snapshot we want to read structures only for collections specified in the signal
                     LOGGER.info("Reading structure of database '{}'", database);
                     addSchemaEvent(snapshotContext, database, "DROP DATABASE IF EXISTS " + quote(database));
@@ -622,8 +622,8 @@ public class MySqlSnapshotChangeEventSource extends RelationalSnapshotChangeEven
      */
     private static class MySqlSnapshotContext extends RelationalSnapshotContext<MySqlPartition, MySqlOffsetContext> {
 
-        MySqlSnapshotContext(MySqlPartition partition) throws SQLException {
-            super(partition, "");
+        MySqlSnapshotContext(MySqlPartition partition, boolean onDemand) {
+            super(partition, "", onDemand);
         }
     }
 
@@ -646,7 +646,7 @@ public class MySqlSnapshotChangeEventSource extends RelationalSnapshotChangeEven
             LOGGER.trace("Processing schema event {}", event);
 
             final TableId tableId = event.getTables().isEmpty() ? null : event.getTables().iterator().next().id();
-            if (snapshottingTask.isBlocking() && !snapshotContext.capturedTables.contains(tableId)) {
+            if (snapshottingTask.isOnDemand() && !snapshotContext.capturedTables.contains(tableId)) {
                 LOGGER.trace("Event {} will be skipped since it's not related to blocking snapshot captured table {}", event, snapshotContext.capturedTables);
                 continue;
             }
