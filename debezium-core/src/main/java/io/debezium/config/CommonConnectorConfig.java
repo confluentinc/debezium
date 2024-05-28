@@ -402,7 +402,6 @@ public abstract class CommonConnectorConfig {
             .withWidth(Width.MEDIUM)
             .withImportance(Importance.HIGH)
             .withValidation(CommonConnectorConfig::validateTopicName)
-            .required()
             .withDescription("Topic prefix that identifies and provides a namespace for the particular database " +
                     "server/cluster is capturing changes. The topic prefix should be unique across all other connectors, " +
                     "since it is used as a prefix for all Kafka topic names that receive events emitted by this connector. " +
