@@ -171,8 +171,8 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
         assertConfigurationErrors(result, MySqlConnectorConfig.HOSTNAME, 1);
         assertNoConfigurationErrors(result, MySqlConnectorConfig.PORT);
         assertConfigurationErrors(result, MySqlConnectorConfig.USER, 1);
-        assertConfigurationErrors(result, CommonConnectorConfig.TOPIC_PREFIX, 1);
         assertConfigurationErrors(result, MySqlConnectorConfig.SERVER_ID);
+        assertNoConfigurationErrors(result, CommonConnectorConfig.TOPIC_PREFIX);
         assertNoConfigurationErrors(result, MySqlConnectorConfig.TABLES_IGNORE_BUILTIN);
         assertNoConfigurationErrors(result, MySqlConnectorConfig.DATABASE_INCLUDE_LIST);
         assertNoConfigurationErrors(result, MySqlConnectorConfig.DATABASE_EXCLUDE_LIST);
@@ -210,9 +210,9 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
         assertConfigurationErrors(result, MySqlConnectorConfig.HOSTNAME, 1);
         assertConfigurationErrors(result, MySqlConnectorConfig.USER, 1);
         assertConfigurationErrors(result, MySqlConnectorConfig.SERVER_ID, 1);
-        assertConfigurationErrors(result, CommonConnectorConfig.TOPIC_PREFIX, 1);
 
         // validate the non required fields
+        validateConfigField(result, CommonConnectorConfig.TOPIC_PREFIX, null);
         validateConfigField(result, MySqlConnectorConfig.PORT, 3306);
         validateConfigField(result, MySqlConnectorConfig.PASSWORD, null);
         validateConfigField(result, MySqlConnectorConfig.ON_CONNECT_STATEMENTS, null);
