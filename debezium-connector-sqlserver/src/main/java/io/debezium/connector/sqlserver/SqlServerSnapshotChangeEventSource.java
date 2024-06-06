@@ -10,6 +10,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Savepoint;
 import java.sql.Statement;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -89,9 +90,8 @@ public class SqlServerSnapshotChangeEventSource extends RelationalSnapshotChange
     }
 
     @Override
-    protected SnapshotContext<SqlServerPartition, SqlServerOffsetContext> prepare(SqlServerPartition partition)
-            throws Exception {
-        return new SqlServerSnapshotContext(partition);
+    protected SnapshotContext<SqlServerPartition, SqlServerOffsetContext> prepare(SqlServerPartition partition, boolean onDemand) {
+        return new SqlServerSnapshotContext(partition, onDemand);
     }
 
     @Override
@@ -186,7 +186,22 @@ public class SqlServerSnapshotChangeEventSource extends RelationalSnapshotChange
                                       SqlServerOffsetContext offsetContext, SnapshottingTask snapshottingTask)
             throws SQLException, InterruptedException {
 
-        Set<String> schemas = snapshotContext.capturedTables.stream()
+        final Set<TableId> capturedSchemaTables;
+        final Tables.TableFilter tableFilter;
+        if (sqlServerDatabaseSchema.storeOnlyCapturedTables()) {
+            capturedSchemaTables = snapshotContext.capturedTables;
+            LOGGER.info("Only captured tables schema should be captured, capturing: {}", capturedSchemaTables);
+            tableFilter = snapshottingTask.isOnDemand() ? Tables.TableFilter.fromPredicate(capturedSchemaTables::contains)
+                    : connectorConfig.getTableFilters().dataCollectionFilter();
+        }
+        else {
+            capturedSchemaTables = snapshotContext.capturedSchemaTables;
+            LOGGER.info("All eligible tables schema should be captured, capturing: {}", capturedSchemaTables);
+            tableFilter = snapshottingTask.isOnDemand() ? Tables.TableFilter.fromPredicate(capturedSchemaTables::contains)
+                    : connectorConfig.getTableFilters().eligibleForSchemaDataCollectionFilter();
+        }
+
+        Set<String> schemas = capturedSchemaTables.stream()
                 .map(TableId::schema)
                 .collect(Collectors.toSet());
 
@@ -208,9 +223,6 @@ public class SqlServerSnapshotChangeEventSource extends RelationalSnapshotChange
             }
 
             LOGGER.info("Reading structure of schema '{}'", snapshotContext.catalogName);
-
-            Tables.TableFilter tableFilter = snapshottingTask.isBlocking() ? Tables.TableFilter.fromPredicate(snapshotContext.capturedTables::contains)
-                    : connectorConfig.getTableFilters().dataCollectionFilter();
 
             jdbcConnection.readSchema(
                     snapshotContext.tables,
@@ -238,6 +250,11 @@ public class SqlServerSnapshotChangeEventSource extends RelationalSnapshotChange
         }
 
         changeTablesByPartition.put(snapshotContext.partition, changeTables);
+    }
+
+    @Override
+    protected Collection<TableId> getTablesForSchemaChange(RelationalSnapshotContext<SqlServerPartition, SqlServerOffsetContext> snapshotContext) {
+        return snapshotContext.capturedSchemaTables;
     }
 
     @Override
@@ -313,8 +330,8 @@ public class SqlServerSnapshotChangeEventSource extends RelationalSnapshotChange
         private int isolationLevelBeforeStart;
         private Savepoint preSchemaSnapshotSavepoint;
 
-        SqlServerSnapshotContext(SqlServerPartition partition) throws SQLException {
-            super(partition, partition.getDatabaseName());
+        SqlServerSnapshotContext(SqlServerPartition partition, boolean onDemand) {
+            super(partition, partition.getDatabaseName(), onDemand);
         }
     }
 
