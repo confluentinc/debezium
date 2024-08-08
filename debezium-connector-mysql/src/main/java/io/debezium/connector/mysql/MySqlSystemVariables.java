@@ -56,6 +56,12 @@ public class MySqlSystemVariables extends SystemVariables {
      */
     public static final String LOWER_CASE_TABLE_NAMES = "lower_case_table_names";
 
+    /**
+     * The system variable name to get the system time zone
+     */
+    public static final String TIME_ZONE = "time_zone";
+    public static final String SYSTEM_TIME_ZONE = "system_time_zone";
+
     public MySqlSystemVariables() {
         super(Arrays.asList(MySqlScope.SESSION, MySqlScope.GLOBAL));
     }

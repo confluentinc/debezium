@@ -90,6 +90,8 @@ public class MySqlConnectorTask extends BaseSourceTask<MySqlPartition, MySqlOffs
 
         final boolean tableIdCaseInsensitive = connection.isTableIdCaseSensitive();
 
+        LOGGER.info("The server time zone is {}, and offset is {}", connection.getServerTimeZone(), connection.getServerTimeZoneOffset());
+
         this.schema = new MySqlDatabaseSchema(connectorConfig, valueConverters, topicSelector, schemaNameAdjuster, tableIdCaseInsensitive);
 
         LOGGER.info("Closing connection before starting schema recovery");
