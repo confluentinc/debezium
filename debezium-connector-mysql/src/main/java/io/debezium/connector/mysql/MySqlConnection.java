@@ -431,6 +431,46 @@ public class MySqlConnection extends JdbcConnection {
     }
 
     /**
+     * Get the server time zone of MySql database server from system variables
+     * @return Server time zone value as a string (if offset is returned, converts to GMT+/-)
+     */
+    public String getServerTimeZone() {
+        Map<String, String> mySqlSystemVariables = readMySqlSystemVariables();
+        String timeZoneOnServer = mySqlSystemVariables.get(MySqlSystemVariables.TIME_ZONE);
+        if ("SYSTEM".equalsIgnoreCase(timeZoneOnServer)) {
+            timeZoneOnServer = mySqlSystemVariables.get(MySqlSystemVariables.SYSTEM_TIME_ZONE);
+        }
+
+        if (timeZoneOnServer == null) {
+            return null;
+        }
+
+        timeZoneOnServer = timeZoneOnServer.trim();
+
+        // handle '+/-hh:mm' form ...
+        if (timeZoneOnServer.length() > 2) {
+            if ((timeZoneOnServer.charAt(0) == '+' || timeZoneOnServer.charAt(0) == '-') && Character.isDigit(timeZoneOnServer.charAt(1))) {
+                return "GMT" + timeZoneOnServer;
+            }
+        }
+
+        return timeZoneOnServer;
+    }
+
+    /**
+     * Query the database and get the server time offset with UTC(GMT)
+     * @return The server time offset as a string
+     */
+    public String getServerTimeZoneOffset() {
+        try {
+            return queryAndMap("SELECT TIMEDIFF(NOW(), UTC_TIMESTAMP)", rs -> rs.next() ? rs.getString(1) : "");
+        }
+        catch (SQLException e) {
+            throw new DebeziumException("Unexpected error while connecting to MySQL and getting the time zone offset: ", e);
+        }
+    }
+
+    /**
      * Read the MySQL default character sets for exisiting databases.
      *
      * @return the map of database names with their default character sets; never null
