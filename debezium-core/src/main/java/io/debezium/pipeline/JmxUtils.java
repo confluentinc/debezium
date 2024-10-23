@@ -53,13 +53,13 @@ public class JmxUtils {
                 catch (InstanceAlreadyExistsException e) {
                     if (attempt < REGISTRATION_RETRIES) {
                         LOGGER.warn(
-                                "Unable to register metrics as an old set with the same name exists, retrying in {} (attempt {} out of {})",
+                                "Unable to register metrics MBean {} as an old set with the same name exists, retrying in {} (attempt {} out of {})", objectName,
                                 REGISTRATION_RETRY_DELAY, attempt, REGISTRATION_RETRIES);
                         final Metronome metronome = Metronome.sleeper(REGISTRATION_RETRY_DELAY, Clock.system());
                         metronome.pause();
                     }
                     else {
-                        LOGGER.error("Failed to register metrics MBean, metrics will not be available");
+                        LOGGER.error("Failed to register metrics MBean {}, metrics will not be available", objectName);
                     }
                 }
             }
