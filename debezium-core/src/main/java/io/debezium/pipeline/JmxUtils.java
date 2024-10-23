@@ -48,6 +48,7 @@ public class JmxUtils {
             for (int attempt = 1; attempt <= REGISTRATION_RETRIES; attempt++) {
                 try {
                     mBeanServer.registerMBean(mxBean, objectName);
+                    LOGGER.trace("Successfully registered MBean '{}'", objectName);
                     break;
                 }
                 catch (InstanceAlreadyExistsException e) {
@@ -92,6 +93,7 @@ public class JmxUtils {
             }
             try {
                 mBeanServer.unregisterMBean(objectName);
+                LOGGER.trace("Successfully unregistered MBean '{}'", objectName);
             }
             catch (InstanceNotFoundException e) {
                 LOGGER.info("Unable to unregister metrics MBean '{}' as it was not found", objectName);
@@ -110,7 +112,7 @@ public class JmxUtils {
             unregisterMXBean(objectName);
         }
         catch (MalformedObjectNameException e) {
-            LOGGER.info("Unable to unregister metrics MBean '{}' as it was not found", jmxObjectName);
+            LOGGER.info("Unable to unregister metrics MBean '{}' as it was not found '{}'", jmxObjectName, e.getMessage());
         }
     }
 
