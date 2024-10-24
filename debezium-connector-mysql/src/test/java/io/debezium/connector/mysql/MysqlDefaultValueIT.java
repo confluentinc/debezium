@@ -7,6 +7,7 @@ package io.debezium.connector.mysql;
 
 import static io.debezium.junit.EqualityCheck.LESS_THAN;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.Assert.assertThrows;
 
 import java.math.BigDecimal;
 import java.nio.file.Path;
@@ -877,10 +878,6 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
                 .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, true)
                 .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, false)
                 .build();
-        start(MySqlConnector.class, config);
-
-        waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
-        Testing.Print.enable();
 
         // Connect to the DB and issue our insert statement to test.
         try (MySqlTestConnection db = MySqlTestConnection.forTestDatabase(DATABASE.getDatabaseName())) {
@@ -890,6 +887,10 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
                 connection.execute("insert into ALTER_DATE_TIME values(1000, default, default);");
             }
         }
+
+        start(MySqlConnector.class, config);
+        waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
+        Testing.Print.enable();
 
         final SourceRecords records = consumeRecordsByTopic(1);
         final SourceRecord record = records.allRecordsInOrder().get(0);
@@ -913,9 +914,6 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.DECIMAL_HANDLING_MODE, RelationalDatabaseConnectorConfig.DecimalHandlingMode.STRING)
                 .build();
 
-        start(MySqlConnector.class, config);
-        waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
-
         // Connect to the DB and issue our alter statement to test.
         try (MySqlTestConnection db = MySqlTestConnection.forTestDatabase(DATABASE.getDatabaseName())) {
             try (JdbcConnection connection = db.connect()) {
@@ -932,9 +930,17 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
                         + "C8 DECIMAL(10, 2) DEFAULT false,\n"
                         + "C9 BIGINT DEFAULT false);";
                 connection.execute(addColumnDdl);
-                connection.execute("insert into DBZ_4822_DEFAULT_BOOLEAN (C0) values(1000);");
             }
         }
+
+        start(MySqlConnector.class, config);
+
+        try (MySqlTestConnection db = MySqlTestConnection.forTestDatabase(DATABASE.getDatabaseName())) {
+          try (JdbcConnection connection = db.connect()) {
+              connection.execute("insert into DBZ_4822_DEFAULT_BOOLEAN (C0) values(1000);");
+          }
+        }
+        waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
 
         SourceRecords records = consumeRecordsByTopic(100);
         assertThat(records).isNotNull();
@@ -958,14 +964,21 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, false)
                 .build();
 
+        //Creating the table such that when starting the connector, it doesn't fail
+        try (MySqlTestConnection db = MySqlTestConnection.forTestDatabase(DATABASE.getDatabaseName())) {
+            try (JdbcConnection connection = db.connect()) {
+                String addColumnDdl = "CREATE TABLE DBZ_5241_DEFAULT_CS_INTRO (\n"
+                                       + "ID INT NOT NULL AUTO_INCREMENT PRIMARY KEY);";
+                connection.execute(addColumnDdl);
+            }
+        }
         start(MySqlConnector.class, config);
         waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
 
         // Connect to the DB and create our table and insert a value
         try (MySqlTestConnection db = MySqlTestConnection.forTestDatabase(DATABASE.getDatabaseName())) {
             try (JdbcConnection connection = db.connect()) {
-                final String createTable = "CREATE TABLE DBZ_5241_DEFAULT_CS_INTRO (\n"
-                        + "ID INT NOT NULL AUTO_INCREMENT PRIMARY KEY, \n"
+                final String alterTable = "ALTER TABLE DBZ_5241_DEFAULT_CS_INTRO add column(\n"
                         + "C0 BIGINT NOT NULL, \n"
                         + "C1 TINYINT(4) UNSIGNED DEFAULT 0, \n"
                         + "C2 TINYINT(4) UNSIGNED DEFAULT _UTF8MB4'0' COMMENT 'c2', \n"
@@ -986,11 +999,10 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
                         + "C17 NUMERIC(3, 2) NOT NULL DEFAULT _UTF8MB4'1.23', \n"
                         + "C18 REAL DEFAULT _UTF8MB4'3.14', \n"
                         + "C19 REAL NOT NULL DEFAULT _UTF8MB4'3.14');";
-                connection.execute(createTable);
+                connection.execute(alterTable);
                 connection.execute("INSERT INTO DBZ_5241_DEFAULT_CS_INTRO (C0) values (1);");
             }
         }
-
         SourceRecords records = consumeRecordsByTopic(100);
 
         List<SourceRecord> events = records.recordsForTopic(DATABASE.topicForTable("DBZ_5241_DEFAULT_CS_INTRO"));
