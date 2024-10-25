@@ -9,6 +9,7 @@ import static io.debezium.connector.mysql.MySqlConnectorConfig.isBuiltInDatabase
 import static io.debezium.junit.EqualityCheck.LESS_THAN;
 import static junit.framework.TestCase.assertEquals;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.fail;
 
 import java.nio.file.Path;
@@ -903,6 +904,14 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
                 .build();
 
+        try (MySqlTestConnection db = MySqlTestConnection.forTestDatabase(DATABASE.getDatabaseName());) {
+            try (JdbcConnection connection = db.connect()) {
+                connection.execute(
+                 "create table migration_test (id varchar(20) null,mgb_no varchar(20) null)",
+                 "create unique index migration_test_mgb_no_uindex on migration_test (mgb_no)");
+            }
+        }
+
         // Start the connector ...
         start(MySqlConnector.class, config);
 
@@ -925,10 +934,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
 
         try (MySqlTestConnection db = MySqlTestConnection.forTestDatabase(DATABASE.getDatabaseName());) {
             try (JdbcConnection connection = db.connect()) {
-                connection.execute(
-                        "create table migration_test (id varchar(20) null,mgb_no varchar(20) null)",
-                        "create unique index migration_test_mgb_no_uindex on migration_test (mgb_no)",
-                        "insert into migration_test values(1,'2')");
+                connection.execute("insert into migration_test values(1,'2')");
             }
         }
 
@@ -2190,9 +2196,10 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("my_products"))
                 .build();
 
-        start(MySqlConnector.class, config);
-        assertConnectorIsRunning();
-        waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
+        assertThrows(RuntimeException.class, () -> {
+            start(MySqlConnector.class, config);
+            waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
+        });
 
         consumeRecordsByTopic(12);
         waitForAvailableRecords(100, TimeUnit.MILLISECONDS);
