@@ -881,12 +881,14 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, true)
                 .build();
 
+        Thread.sleep(5000L);
         // Start the connector ...
         start(MySqlConnector.class, config);
-
+        Thread.sleep(5000L);
         // Consume the first records due to startup and initialization of the database ...
         // Testing.Print.enable();
         SourceRecords records = consumeRecordsByTopic(1);
+        Thread.sleep(5000L);
         assertThat(records.ddlRecordsForDatabase("").size()).isEqualTo(1);
 
         stopConnector();
