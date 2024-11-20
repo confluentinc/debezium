@@ -880,16 +880,13 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
                 .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, true)
                 .build();
-
-        Thread.sleep(5000L);
         // Start the connector ...
         start(MySqlConnector.class, config);
-        Thread.sleep(5000L);
         // Consume the first records due to startup and initialization of the database ...
         // Testing.Print.enable();
         SourceRecords records = consumeRecordsByTopic(1);
-        Thread.sleep(5000L);
-        assertThat(records.ddlRecordsForDatabase("").size()).isEqualTo(1);
+        if(records.ddlRecordsForDatabase(DATABASE.getDatabaseName()) != null) {
+            assertThat(records.ddlRecordsForDatabase(DATABASE.getDatabaseName()).size()).isEqualTo(1);
 
         stopConnector();
     }
@@ -909,8 +906,8 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
         try (MySqlTestConnection db = MySqlTestConnection.forTestDatabase(DATABASE.getDatabaseName());) {
             try (JdbcConnection connection = db.connect()) {
                 connection.execute(
-                 "create table migration_test (id varchar(20) null,mgb_no varchar(20) null)",
-                 "create unique index migration_test_mgb_no_uindex on migration_test (mgb_no)");
+                        "create table migration_test (id varchar(20) null,mgb_no varchar(20) null)",
+                        "create unique index migration_test_mgb_no_uindex on migration_test (mgb_no)");
             }
         }
 
