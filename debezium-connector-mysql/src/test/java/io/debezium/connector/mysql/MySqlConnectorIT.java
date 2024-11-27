@@ -30,6 +30,7 @@ import java.util.stream.StreamSupport;
 
 import org.apache.kafka.common.config.Config;
 import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.header.Header;
 import org.apache.kafka.connect.source.SourceRecord;
@@ -885,7 +886,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
         // Consume the first records due to startup and initialization of the database ...
         // Testing.Print.enable();
         SourceRecords records = consumeRecordsByTopic(1);
-        if(records.ddlRecordsForDatabase("") != null) {
+        if (records.ddlRecordsForDatabase("") != null) {
             assertThat(records.ddlRecordsForDatabase("").size()).isEqualTo(1);
         }
         stopConnector();
@@ -2195,10 +2196,14 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("my_products"))
                 .build();
 
-        assertThrows(RuntimeException.class, () -> {
-            start(MySqlConnector.class, config);
+        start(MySqlConnector.class, config);
+        assertConnectorIsRunning();
+
+        ConnectException exception = assertThrows(ConnectException.class, () -> {
             waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
         });
+
+        assertEquals("After applying the include/exclude list filters, no changes will be captured. Please check your configuration!", exception.getMessage());
 
         consumeRecordsByTopic(12);
         waitForAvailableRecords(100, TimeUnit.MILLISECONDS);
