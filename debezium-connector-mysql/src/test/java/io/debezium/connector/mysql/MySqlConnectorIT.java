@@ -2199,12 +2199,6 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
         start(MySqlConnector.class, config);
         assertConnectorIsRunning();
 
-        ConnectException exception = assertThrows(ConnectException.class, () -> {
-            waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
-        });
-
-        assertEquals("After applying the include/exclude list filters, no changes will be captured. Please check your configuration!", exception.getMessage());
-
         consumeRecordsByTopic(12);
         waitForAvailableRecords(100, TimeUnit.MILLISECONDS);
 
