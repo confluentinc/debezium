@@ -2197,6 +2197,12 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         start(MySqlConnector.class, config);
+        Thread.sleep(1000);
+        assertThat(
+            logInterceptor.containsMessage(
+                "After applying the include/exclude list filters, no changes " +
+                 "will be captured. Please check your configuration!"))
+        .isTrue();
         consumeRecordsByTopic(12);
         waitForAvailableRecords(100, TimeUnit.MILLISECONDS);
 
