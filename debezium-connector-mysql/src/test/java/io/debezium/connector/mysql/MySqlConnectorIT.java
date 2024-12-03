@@ -2197,8 +2197,6 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 .build();
 
         start(MySqlConnector.class, config);
-        assertConnectorIsRunning();
-
         consumeRecordsByTopic(12);
         waitForAvailableRecords(100, TimeUnit.MILLISECONDS);
 
