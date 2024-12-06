@@ -1262,10 +1262,8 @@ public abstract class AbstractConnectorTest implements Testing {
                      Object attribute = mbeanServer.getAttribute(getSnapshotMetricsObjectName(connector, server, task, database), event);
                      if (attribute instanceof Long) {
                          return (Long) attribute == 1L;
-                     } else if (attribute instanceof Boolean) {
-                         return (Boolean) attribute;
                      } else {
-                         throw new IllegalStateException("Unexpected attribute type: " + attribute.getClass());
+                         return (Boolean) attribute;
                      }
                 });
     }
