@@ -1258,8 +1258,16 @@ public abstract class AbstractConnectorTest implements Testing {
                 .pollInterval(100, TimeUnit.MILLISECONDS)
                 .atMost(waitTimeForRecords() * 30L, TimeUnit.SECONDS)
                 .ignoreException(InstanceNotFoundException.class)
-                .until(() -> (boolean) mbeanServer
-                        .getAttribute(getSnapshotMetricsObjectName(connector, server, task, database), event));
+                .until(() -> {
+                     Object attribute = mbeanServer.getAttribute(getSnapshotMetricsObjectName(connector, server, task, database), event);
+                     if (attribute instanceof Long) {
+                         return (Long) attribute == 1L;
+                     } else if (attribute instanceof Boolean) {
+                         return (Boolean) attribute;
+                     } else {
+                         throw new IllegalStateException("Unexpected attribute type: " + attribute.getClass());
+                     }
+                });
     }
 
     public static void waitForStreamingRunning(String connector, String server) throws InterruptedException {
