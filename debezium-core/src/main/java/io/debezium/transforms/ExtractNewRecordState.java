@@ -421,6 +421,9 @@ public class ExtractNewRecordState<R extends ConnectRecord<R>> implements Transf
         Field.group(config, null, ExtractNewRecordStateConfigDefinition.DROP_TOMBSTONES,
                 ExtractNewRecordStateConfigDefinition.HANDLE_DELETES, ExtractNewRecordStateConfigDefinition.ADD_FIELDS,
                 ExtractNewRecordStateConfigDefinition.ADD_HEADERS,
+                ExtractNewRecordStateConfigDefinition.ROUTE_BY_FIELD,
+                ExtractNewRecordStateConfigDefinition.ADD_FIELDS_PREFIX,
+                ExtractNewRecordStateConfigDefinition.ADD_HEADERS_PREFIX,
                 ExtractNewRecordStateConfigDefinition.ROUTE_BY_FIELD);
         return config;
     }
