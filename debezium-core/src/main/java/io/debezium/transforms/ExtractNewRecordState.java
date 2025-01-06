@@ -423,8 +423,7 @@ public class ExtractNewRecordState<R extends ConnectRecord<R>> implements Transf
                 ExtractNewRecordStateConfigDefinition.ADD_HEADERS,
                 ExtractNewRecordStateConfigDefinition.ROUTE_BY_FIELD,
                 ExtractNewRecordStateConfigDefinition.ADD_FIELDS_PREFIX,
-                ExtractNewRecordStateConfigDefinition.ADD_HEADERS_PREFIX,
-                ExtractNewRecordStateConfigDefinition.ROUTE_BY_FIELD);
+                ExtractNewRecordStateConfigDefinition.ADD_HEADERS_PREFIX);
         return config;
     }
 
