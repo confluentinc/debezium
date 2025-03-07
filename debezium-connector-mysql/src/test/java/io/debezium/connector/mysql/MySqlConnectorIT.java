@@ -321,6 +321,44 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
         shouldConsumeAllEventsFromDatabaseUsingSnapshotByField(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, 18775);
     }
 
+    @Test
+    public void shouldUseAwsRdsIamCredentialsProvider() throws Exception {
+        config = DATABASE.defaultConfig()
+                .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.NEVER)
+                .with(MySqlConnectorConfig.CREDENTIALS_PROVIDER, "io.confluent.credentialprovider.aws.AwsRdsIamCredentialsProvider")
+                // AWS-specific configuration
+                .with("aws.region", "us-west-2")
+                .with("aws.customer.role.arn", "arn:aws:iam::037803949979:role/sangeet-customer-iam-role")
+                .with("aws.confluent.middleware.role.arn", "arn:aws:iam::581884925347:role/sangeet-middleware-role")
+                .with("aws.external.id", "testExternalId")
+                .build();
+
+        // Ensure the test is configured with the right details for your RDS instance
+        String dbHost = System.getProperty("database.hostname", "rkdmysqliam.c8knq4pq7aik.us-west-2.rds.amazonaws.com");
+        String dbUser = System.getProperty("database.user", "sangeet");
+
+        config = config
+                .edit()
+                .with(MySqlConnectorConfig.HOSTNAME, dbHost)
+                .with(MySqlConnectorConfig.USER, dbUser)
+                .build();
+
+        try {
+            start(MySqlConnector.class, config);
+
+            // If the connection is successful, the test passes
+            // You might want to consume initial records to verify connectivity
+            SourceRecords records = consumeRecordsByTopic(10);
+
+            // Add any additional verifications as needed
+        } catch (ConnectException e) {
+            // Connection failure could indicate configuration or credentials issue
+            fail("Failed to connect using AWS RDS IAM Credentials Provider: " + e.getMessage());
+        } finally {
+            stopConnector();
+        }
+    }
+
     private void shouldConsumeAllEventsFromDatabaseUsingSnapshotByField(Field dbIncludeListField, int serverId) throws SQLException, InterruptedException {
         String masterPort = System.getProperty("database.port", "3306");
         String replicaPort = System.getProperty("database.replica.port", "3306");
