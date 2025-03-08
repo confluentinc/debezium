@@ -626,7 +626,7 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
             .withValidation(Field::isClassName)
             .withDescription("JDBC Driver class name used to connect to the MySQL database server.");
 
-    public static final Field CREDENTIALS_PROVIDER = Field.create(DATABASE_CONFIG_PREFIX + "credentials.provider")
+    public static final Field CREDENTIALS_PROVIDER = Field.create("credentials.provider.class")
             .withDisplayName("JDBC Credentials Provider Class Name")
             .withType(Type.CLASS)
             .withGroup(Field.createGroupEntry(Field.Group.CONNECTION, 41))
