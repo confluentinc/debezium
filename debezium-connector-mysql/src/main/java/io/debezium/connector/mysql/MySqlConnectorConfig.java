@@ -631,7 +631,6 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
             .withType(Type.CLASS)
             .withGroup(Field.createGroupEntry(Field.Group.CONNECTION, 41))
             .withWidth(Width.MEDIUM)
-            .withDefault(com.mysql.cj.jdbc.Driver.class.getName())
             .withImportance(Importance.LOW)
             .withValidation(Field::isClassName)
             .withDescription("JDBC Driver class name used to connect to the MySQL database server.");
