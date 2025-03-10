@@ -494,8 +494,6 @@ public class MySqlConnection extends JdbcConnection {
         private final ConnectionFactory factory;
         private final Configuration config;
 
-        private JdbcCredentialsProvider credentialsProvider;
-
         public MySqlConnectionConfiguration(Configuration config) {
             // Set up the JDBC connection without actually connecting, with extra MySQL-specific properties
             // to give us better JDBC database metadata behavior, including using UTF-8 for the client-side character encoding
