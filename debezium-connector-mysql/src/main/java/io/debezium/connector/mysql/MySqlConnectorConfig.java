@@ -17,6 +17,8 @@ import org.apache.kafka.common.config.ConfigDef.Width;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.confluent.credentialprovider.JdbcCredentials;
+import io.confluent.credentialprovider.JdbcCredentialsProvider;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.ConfigDefinition;
 import io.debezium.config.Configuration;
@@ -624,6 +626,15 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
             .withValidation(Field::isClassName)
             .withDescription("JDBC Driver class name used to connect to the MySQL database server.");
 
+    public static final Field CREDENTIALS_PROVIDER = Field.create("credentials.provider.class")
+            .withDisplayName("JDBC Credentials Provider Class Name")
+            .withType(Type.CLASS)
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTION, 41))
+            .withWidth(Width.MEDIUM)
+            .withImportance(Importance.LOW)
+            .withValidation(Field::isClassName)
+            .withDescription("JDBC Driver class name used to connect to the MySQL database server.");
+
     public static final Field JDBC_PROTOCOL = Field.create(DATABASE_CONFIG_PREFIX + "protocol")
             .withDisplayName("JDBC Protocol")
             .withType(Type.STRING)
@@ -891,6 +902,7 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
                     ON_CONNECT_STATEMENTS,
                     SERVER_ID,
                     SERVER_ID_OFFSET,
+                    CREDENTIALS_PROVIDER,
                     SSL_MODE,
                     SSL_KEYSTORE,
                     SSL_KEYSTORE_PASSWORD,
@@ -960,6 +972,9 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
     private final EventProcessingFailureHandlingMode inconsistentSchemaFailureHandlingMode;
     private final boolean readOnlyConnection;
 
+    private JdbcCredentialsProvider credentialsProvider;
+    private JdbcCredentials cachedCredentials;
+
     public MySqlConnectorConfig(Configuration config) {
         super(
                 MySqlConnector.class,
@@ -991,6 +1006,20 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
                 : (gtidSetExcludes != null ? Predicates.excludesUuids(gtidSetExcludes) : null);
 
         this.storeOnlyCapturedDatabasesDdl = config.getBoolean(STORE_ONLY_CAPTURED_DATABASES_DDL);
+        try {
+            // try to get the credentials provider class from configuration
+            String credProviderClassName = config.getString(CREDENTIALS_PROVIDER);
+            if (credProviderClassName != null) {
+                Class<?> credProviderClass = Class.forName(credProviderClassName);
+                this.credentialsProvider = (JdbcCredentialsProvider) credProviderClass.getDeclaredConstructor().newInstance();
+
+                // Configure the credentials provider with the current configuration
+                this.credentialsProvider.configure(config.asMap());
+            }
+        } catch (Exception e) {
+            // Log or handle initialization error
+            LOGGER.error("Failed to initialize credentials provider", e);
+        }
     }
 
     public boolean useCursorFetch() {
@@ -1072,6 +1101,14 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
         return 0;
     }
 
+    // Synchronized method to ensure thread-safe credential caching
+    private synchronized JdbcCredentials getCredentials() {
+        if (cachedCredentials == null && credentialsProvider != null) {
+            cachedCredentials = credentialsProvider.getJdbcCreds();
+        }
+        return cachedCredentials;
+    }
+
     @Override
     protected SourceInfoStructMaker<? extends AbstractSourceInfo> getSourceInfoStructMaker(Version version) {
         return getSourceInfoStructMaker(SOURCE_INFO_STRUCT_MAKER, Module.name(), Module.version(), this);
@@ -1113,10 +1150,24 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
     }
 
     public String username() {
+
+        // this is only valid for the streaming part because binlog client uses this. for snapshot we need to tweak the JdbcConnection.java's pattern based factory
+        // here it should always call the credsProvider.getUsername(). The credsProvider in turn would be passed the config and the type of auth to use
+        // if it is iam or something, then it would return the username and the rds token generated for the user using the ChainedAssumeRoleProvider
+        if (credentialsProvider != null) {
+            JdbcCredentials creds = getCredentials();
+            return creds != null ? creds.user() : config.getString(USER);
+        }
         return config.getString(USER);
     }
 
     public String password() {
+        // this is only valid for the streaming part because binlog client uses this. for snapshot we need to tweak the JdbcConnection.java's pattern based factory
+        // here it should always call the credsProvider.getPassword()
+        if (credentialsProvider != null) {
+            JdbcCredentials creds = getCredentials();
+            return creds != null ? creds.password() : config.getString(PASSWORD);
+        }
         return config.getString(PASSWORD);
     }
 
