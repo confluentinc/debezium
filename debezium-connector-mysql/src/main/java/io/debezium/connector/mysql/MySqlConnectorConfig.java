@@ -18,7 +18,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.confluent.credentialprovider.JdbcCredentials;
-import io.confluent.credentialprovider.JdbcCredentialsProvider;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.ConfigDefinition;
 import io.debezium.config.Configuration;
@@ -972,9 +971,6 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
     private final EventProcessingFailureHandlingMode inconsistentSchemaFailureHandlingMode;
     private final boolean readOnlyConnection;
 
-    private JdbcCredentialsProvider credentialsProvider;
-    private JdbcCredentials cachedCredentials;
-
     public MySqlConnectorConfig(Configuration config) {
         super(
                 MySqlConnector.class,
@@ -1085,14 +1081,6 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
 
         // Everything checks out ok.
         return 0;
-    }
-
-    // Synchronized method to ensure thread-safe credential caching
-    private synchronized JdbcCredentials getCredentials() {
-        if (cachedCredentials == null && credentialsProvider != null) {
-            cachedCredentials = credentialsProvider.getJdbcCreds();
-        }
-        return cachedCredentials;
     }
 
     @Override
