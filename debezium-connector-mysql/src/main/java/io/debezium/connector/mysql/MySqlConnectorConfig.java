@@ -10,7 +10,6 @@ import java.time.Duration;
 import java.util.Set;
 import java.util.function.Predicate;
 
-import io.confluent.credentialprovider.JdbcCredentials;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigDef.Type;
@@ -18,6 +17,8 @@ import org.apache.kafka.common.config.ConfigDef.Width;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.confluent.credentialprovider.JdbcCredentials;
+import io.confluent.credentialprovider.JdbcCredentialsProvider;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.ConfigDefinition;
 import io.debezium.config.Configuration;
@@ -37,7 +38,6 @@ import io.debezium.relational.Tables.TableFilter;
 import io.debezium.relational.history.HistoryRecordComparator;
 import io.debezium.schema.DefaultTopicNamingStrategy;
 import io.debezium.util.Collect;
-import io.confluent.credentialprovider.JdbcCredentialsProvider;
 
 /**
  * The configuration properties.

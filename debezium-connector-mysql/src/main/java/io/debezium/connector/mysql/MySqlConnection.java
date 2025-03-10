@@ -12,20 +12,15 @@ import static io.debezium.config.CommonConnectorConfig.DRIVER_CONFIG_PREFIX;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.OptionalLong;
+import java.util.*;
 
-import io.confluent.credentialprovider.JdbcCredentials;
-import io.confluent.credentialprovider.JdbcCredentialsProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.mysql.cj.CharsetMapping;
 
+import io.confluent.credentialprovider.JdbcCredentials;
+import io.confluent.credentialprovider.JdbcCredentialsProvider;
 import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.CommonConnectorConfig.EventProcessingFailureHandlingMode;
@@ -498,7 +493,8 @@ public class MySqlConnection extends JdbcConnection {
             // Set up the JDBC connection without actually connecting, with extra MySQL-specific properties
             // to give us better JDBC database metadata behavior, including using UTF-8 for the client-side character encoding
             // per https://dev.mysql.com/doc/connector-j/5.1/en/connector-j-reference-charsets.html
-            this.config = injectCredentialsIfProvided(config);;
+            this.config = injectCredentialsIfProvided(config);
+            ;
             final boolean useSSL = sslModeEnabled();
             final Configuration dbConfig = config
                     .edit()
@@ -561,8 +557,7 @@ public class MySqlConnection extends JdbcConnection {
             try {
                 String providerClass = originalConfig.getString(MySqlConnectorConfig.CREDENTIALS_PROVIDER);
                 if (providerClass != null) {
-                    JdbcCredentialsProvider provider = (JdbcCredentialsProvider)
-                            Class.forName(providerClass).getDeclaredConstructor().newInstance();
+                    JdbcCredentialsProvider provider = (JdbcCredentialsProvider) Class.forName(providerClass).getDeclaredConstructor().newInstance();
                     provider.configure(originalConfig.asMap());
                     JdbcCredentials creds = provider.getJdbcCreds();
 
@@ -606,18 +601,29 @@ public class MySqlConnection extends JdbcConnection {
         }
 
         public ConnectionFactory factory() {
-            return factory;
+            // Create a decorator that ensures current credentials are used
+            return config -> {
+                // Get a copy of the original properties
+                Properties props = config.asProperties();
+
+                // Override with current username/password (which may come from credential provider)
+                props.setProperty(JdbcConfiguration.USER.name(), username());
+                props.setProperty(JdbcConfiguration.PASSWORD.name(), password());
+
+                // Use the original factory with updated properties
+                return factory.connect(JdbcConfiguration.adapt(Configuration.from(props)));
+            };
         }
 
         private synchronized JdbcCredentials getCredentials() {
+            // there might be an issue here, since we are caching and not refreshing expired creds
             if (cachedCredentials == null && credentialsProvider == null) {
                 // Try to initialize the credentials provider
                 if (config.hasKey(MySqlConnectorConfig.CREDENTIALS_PROVIDER.name())) {
                     try {
                         String providerClass = config.getString(MySqlConnectorConfig.CREDENTIALS_PROVIDER);
                         if (providerClass != null) {
-                            credentialsProvider = (JdbcCredentialsProvider)
-                                    Class.forName(providerClass).getDeclaredConstructor().newInstance();
+                            credentialsProvider = (JdbcCredentialsProvider) Class.forName(providerClass).getDeclaredConstructor().newInstance();
                             credentialsProvider.configure(config.asMap());
                             cachedCredentials = credentialsProvider.getJdbcCreds();
                         }
