@@ -25,7 +25,9 @@ import org.slf4j.LoggerFactory;
 
 import com.mysql.cj.CharsetMapping;
 
+import io.debezium.connector.mysql.JdbcCredentialsUtil;
 import io.confluent.credentialprovider.JdbcCredentials;
+import io.confluent.credentialprovider.DefaultJdbcCredentials;
 import io.confluent.credentialprovider.JdbcCredentialsProvider;
 import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
@@ -493,7 +495,6 @@ public class MySqlConnection extends JdbcConnection {
         private final Configuration config;
 
         private JdbcCredentialsProvider credentialsProvider;
-        private JdbcCredentials cachedCredentials;
 
         public MySqlConnectionConfiguration(Configuration config) {
             // Set up the JDBC connection without actually connecting, with extra MySQL-specific properties
@@ -559,11 +560,10 @@ public class MySqlConnection extends JdbcConnection {
 
             Configuration.Builder configBuilder = originalConfig.edit();
 
-            try {
-                String providerClass = originalConfig.getString(MySqlConnectorConfig.CREDENTIALS_PROVIDER);
-                if (providerClass != null) {
-                    JdbcCredentialsProvider provider = (JdbcCredentialsProvider) Class.forName(providerClass).getDeclaredConstructor().newInstance();
-                    provider.configure(originalConfig.asMap());
+            JdbcCredentialsProvider provider = JdbcCredentialsUtil.getCredentialsProvider(originalConfig);
+
+            if (provider != null) {
+                try {
                     JdbcCredentials creds = provider.getJdbcCreds();
 
                     // Inject the credentials into the configuration
@@ -577,12 +577,10 @@ public class MySqlConnection extends JdbcConnection {
                             LOGGER.debug("Injected password from credentials provider");
                         }
                     }
+                } catch (Exception e) {
+                    LOGGER.warn("Error getting credentials from provider, using default credentials", e);
                 }
             }
-            catch (Exception e) {
-                LOGGER.warn("Error getting credentials from provider, using default credentials", e);
-            }
-
             return configBuilder.build();
         }
 
@@ -620,49 +618,30 @@ public class MySqlConnection extends JdbcConnection {
             };
         }
 
-        private synchronized JdbcCredentials getCredentials() {
-            // there might be an issue here, since we are caching and not refreshing expired creds
-            if (cachedCredentials == null && credentialsProvider == null) {
-                // Try to initialize the credentials provider
-                if (config.hasKey(MySqlConnectorConfig.CREDENTIALS_PROVIDER.name())) {
-                    try {
-                        String providerClass = config.getString(MySqlConnectorConfig.CREDENTIALS_PROVIDER);
-                        if (providerClass != null) {
-                            credentialsProvider = (JdbcCredentialsProvider) Class.forName(providerClass).getDeclaredConstructor().newInstance();
-                            credentialsProvider.configure(config.asMap());
-                            cachedCredentials = credentialsProvider.getJdbcCreds();
-                        }
-                    }
-                    catch (Exception e) {
-                        LOGGER.warn("Error initializing credentials provider", e);
-                    }
-                }
-            }
-            else if (cachedCredentials == null && credentialsProvider != null) {
-                // We have a provider but no credentials yet
-                try {
-                    cachedCredentials = credentialsProvider.getJdbcCreds();
-                }
-                catch (Exception e) {
-                    LOGGER.warn("Error getting credentials from provider", e);
-                }
-            }
-            return cachedCredentials;
-        }
-
         public String username() {
-            JdbcCredentials creds = getCredentials();
-            if (creds != null && creds.user() != null) {
+            JdbcCredentials creds = JdbcCredentialsUtil.getCredentials(
+                    JdbcCredentialsUtil.getCredentialsProvider(config),
+                    config
+            );
+            if (creds.user() != null) {
                 return creds.user();
             }
+
+            // todo: this is probably redundant, as the fallback is handled in the getCredentials method of the util
             return config.getString(MySqlConnectorConfig.USER);
+
         }
 
         public String password() {
-            JdbcCredentials creds = getCredentials();
-            if (creds != null && creds.password() != null) {
+            JdbcCredentials creds = JdbcCredentialsUtil.getCredentials(
+                    JdbcCredentialsUtil.getCredentialsProvider(config),
+                    config
+            );
+            if (creds.password() != null) {
                 return creds.password();
             }
+
+            // todo: this is probably redundant, as the fallback is handled in the getCredentials method of the util
             return config.getString(MySqlConnectorConfig.PASSWORD);
         }
 

@@ -1006,20 +1006,6 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
                 : (gtidSetExcludes != null ? Predicates.excludesUuids(gtidSetExcludes) : null);
 
         this.storeOnlyCapturedDatabasesDdl = config.getBoolean(STORE_ONLY_CAPTURED_DATABASES_DDL);
-        try {
-            // try to get the credentials provider class from configuration
-            String credProviderClassName = config.getString(CREDENTIALS_PROVIDER);
-            if (credProviderClassName != null) {
-                Class<?> credProviderClass = Class.forName(credProviderClassName);
-                this.credentialsProvider = (JdbcCredentialsProvider) credProviderClass.getDeclaredConstructor().newInstance();
-
-                // Configure the credentials provider with the current configuration
-                this.credentialsProvider.configure(config.asMap());
-            }
-        } catch (Exception e) {
-            // Log or handle initialization error
-            LOGGER.error("Failed to initialize credentials provider", e);
-        }
     }
 
     public boolean useCursorFetch() {
@@ -1154,21 +1140,21 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
         // this is only valid for the streaming part because binlog client uses this. for snapshot we need to tweak the JdbcConnection.java's pattern based factory
         // here it should always call the credsProvider.getUsername(). The credsProvider in turn would be passed the config and the type of auth to use
         // if it is iam or something, then it would return the username and the rds token generated for the user using the ChainedAssumeRoleProvider
-        if (credentialsProvider != null) {
-            JdbcCredentials creds = getCredentials();
-            return creds != null ? creds.user() : config.getString(USER);
-        }
-        return config.getString(USER);
+        JdbcCredentials creds = JdbcCredentialsUtil.getCredentials(
+                JdbcCredentialsUtil.getCredentialsProvider(config),
+                config
+        );
+        return creds.user();
     }
 
     public String password() {
         // this is only valid for the streaming part because binlog client uses this. for snapshot we need to tweak the JdbcConnection.java's pattern based factory
         // here it should always call the credsProvider.getPassword()
-        if (credentialsProvider != null) {
-            JdbcCredentials creds = getCredentials();
-            return creds != null ? creds.password() : config.getString(PASSWORD);
-        }
-        return config.getString(PASSWORD);
+        JdbcCredentials creds = JdbcCredentialsUtil.getCredentials(
+                JdbcCredentialsUtil.getCredentialsProvider(config),
+                config
+        );
+        return creds.password();
     }
 
     public long serverId() {
