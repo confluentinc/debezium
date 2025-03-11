@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import io.debezium.DebeziumException;
 import io.debezium.annotation.ThreadSafe;
 import io.debezium.config.CommonConnectorConfig;
+import io.debezium.config.ConfigurationDefaults;
 import io.debezium.connector.base.ChangeEventQueueMetrics;
 import io.debezium.connector.common.CdcSourceTaskContext;
 import io.debezium.pipeline.metrics.SnapshotChangeEventSourceMetrics;
@@ -50,7 +51,9 @@ import io.debezium.pipeline.spi.SnapshotResult;
 import io.debezium.pipeline.spi.SnapshotResult.SnapshotResultStatus;
 import io.debezium.schema.DatabaseSchema;
 import io.debezium.spi.schema.DataCollectionId;
+import io.debezium.util.Clock;
 import io.debezium.util.LoggingContext;
+import io.debezium.util.Metronome;
 import io.debezium.util.Threads;
 
 /**
@@ -193,8 +196,37 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
         LOGGER.debug("Snapshot result {}", snapshotResult);
 
         if (running && snapshotResult.isCompletedOrSkipped()) {
+            if (snapshotResult.isCompleted()) {
+                delayStreamingIfNeeded(context);
+            }
             previousLogContext.set(taskContext.configureLoggingContext("streaming", partition));
             streamEvents(context, partition, snapshotResult.getOffset());
+        }
+    }
+
+    /**
+     * Delays streaming execution as per the {@link CommonConnectorConfig#STREAMING_DELAY_MS} parameter.
+     */
+    protected void delayStreamingIfNeeded(ChangeEventSourceContext context) throws InterruptedException {
+        if (snapshotterService != null && !snapshotterService.getSnapshotter().shouldStream()) {
+            return;
+        }
+
+        Duration streamingDelay = connectorConfig.getStreamingDelay();
+        if (streamingDelay.isZero() || streamingDelay.isNegative()) {
+            return;
+        }
+
+        Threads.Timer timer = Threads.timer(Clock.SYSTEM, streamingDelay);
+        Metronome metronome = Metronome.parker(ConfigurationDefaults.RETURN_CONTROL_INTERVAL, Clock.SYSTEM);
+
+        while (!timer.expired()) {
+            if (!context.isRunning()) {
+                throw new InterruptedException("Interrupted while awaiting streaming delay");
+            }
+
+            LOGGER.info("The connector will wait for {}s before initiating streaming", timer.remaining().getSeconds());
+            metronome.pause();
         }
     }
 
