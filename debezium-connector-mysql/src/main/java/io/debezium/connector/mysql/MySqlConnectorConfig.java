@@ -632,7 +632,7 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
             .withWidth(Width.MEDIUM)
             .withImportance(Importance.LOW)
             .withValidation(Field::isClassName)
-            .withDescription("JDBC Credentials Provider class name used to provide credentials for connecting to the MySQL database server.\"");
+            .withDescription("JDBC Credentials Provider class name used to provide credentials for connecting to the MySQL database server.");
 
     public static final Field JDBC_PROTOCOL = Field.create(DATABASE_CONFIG_PREFIX + "protocol")
             .withDisplayName("JDBC Protocol")

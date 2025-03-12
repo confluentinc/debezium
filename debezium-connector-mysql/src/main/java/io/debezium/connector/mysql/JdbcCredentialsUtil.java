@@ -1,12 +1,12 @@
 package io.debezium.connector.mysql;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.confluent.credentialprovider.DefaultJdbcCredentials;
 import io.confluent.credentialprovider.JdbcCredentials;
 import io.confluent.credentialprovider.JdbcCredentialsProvider;
 import io.debezium.config.Configuration;
-import io.debezium.connector.mysql.MySqlConnectorConfig;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Utility class for handling JDBC credential providers
@@ -30,7 +30,7 @@ public class JdbcCredentialsUtil {
             return null;
         }
 
-        // If we already have an instance and it's the same provider class, return it
+        // If we already have an instance, and it's the same provider class, return it
         if (PROVIDER_INSTANCE != null && providerClass.equals(configuredProviderClass)) {
             return PROVIDER_INSTANCE;
         }
