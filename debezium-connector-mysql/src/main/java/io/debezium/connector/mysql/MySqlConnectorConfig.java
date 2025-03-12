@@ -17,7 +17,7 @@ import org.apache.kafka.common.config.ConfigDef.Width;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.confluent.credentialprovider.JdbcCredentials;
+import io.confluent.credentialprovider.JdbcCredential;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.ConfigDefinition;
 import io.debezium.config.Configuration;
@@ -1128,7 +1128,7 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
         // this is only valid for the streaming part because binlog client uses this. for snapshot we need to tweak the JdbcConnection.java's pattern based factory
         // here it should always call the credsProvider.getUsername(). The credsProvider in turn would be passed the config and the type of auth to use
         // if it is iam or something, then it would return the username and the rds token generated for the user using the ChainedAssumeRoleProvider
-        JdbcCredentials creds = JdbcCredentialsUtil.getCredentials(
+        JdbcCredential creds = JdbcCredentialsUtil.getCredentials(
                 JdbcCredentialsUtil.getCredentialsProvider(config),
                 config
         );
@@ -1138,7 +1138,7 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
     public String password() {
         // this is only valid for the streaming part because binlog client uses this. for snapshot we need to tweak the JdbcConnection.java's pattern based factory
         // here it should always call the credsProvider.getPassword()
-        JdbcCredentials creds = JdbcCredentialsUtil.getCredentials(
+        JdbcCredential creds = JdbcCredentialsUtil.getCredentials(
                 JdbcCredentialsUtil.getCredentialsProvider(config),
                 config
         );
