@@ -3,8 +3,8 @@ package io.debezium.connector.mysql;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.confluent.credentialprovider.DefaultJdbcCredentials;
-import io.confluent.credentialprovider.JdbcCredentials;
+import io.confluent.credentialprovider.DefaultJdbcCredential;
+import io.confluent.credentialprovider.JdbcCredential;
 import io.confluent.credentialprovider.JdbcCredentialsProvider;
 import io.debezium.config.Configuration;
 
@@ -60,10 +60,10 @@ public class JdbcCredentialsUtil {
      * @param config the configuration
      * @return credentials object containing username and password
      */
-    public static JdbcCredentials getCredentials(JdbcCredentialsProvider provider, Configuration config) {
+    public static JdbcCredential getCredentials(JdbcCredentialsProvider provider, Configuration config) {
         if (provider != null) {
             try {
-                JdbcCredentials creds = provider.getJdbcCreds();
+                JdbcCredential creds = provider.getJdbcCreds();
                 if (creds != null) {
                     return creds;
                 }
@@ -75,7 +75,7 @@ public class JdbcCredentialsUtil {
         }
 
         // Fall back to config values
-        return new DefaultJdbcCredentials(
+        return new DefaultJdbcCredential(
                 config.getString(MySqlConnectorConfig.USER),
                 config.getString(MySqlConnectorConfig.PASSWORD)
         );
