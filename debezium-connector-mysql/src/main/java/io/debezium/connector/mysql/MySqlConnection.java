@@ -25,10 +25,7 @@ import org.slf4j.LoggerFactory;
 
 import com.mysql.cj.CharsetMapping;
 
-import io.debezium.connector.mysql.JdbcCredentialsUtil;
 import io.confluent.credentialprovider.JdbcCredentials;
-import io.confluent.credentialprovider.DefaultJdbcCredentials;
-import io.confluent.credentialprovider.JdbcCredentialsProvider;
 import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.CommonConnectorConfig.EventProcessingFailureHandlingMode;
@@ -498,7 +495,7 @@ public class MySqlConnection extends JdbcConnection {
             // Set up the JDBC connection without actually connecting, with extra MySQL-specific properties
             // to give us better JDBC database metadata behavior, including using UTF-8 for the client-side character encoding
             // per https://dev.mysql.com/doc/connector-j/5.1/en/connector-j-reference-charsets.html
-            this.config = injectCredentialsIfProvided(config);
+            this.config = config;
             final boolean useSSL = sslModeEnabled();
             final Configuration dbConfig = config
                     .edit()
@@ -542,44 +539,6 @@ public class MySqlConnection extends JdbcConnection {
             Field protocol = MySqlConnectorConfig.JDBC_PROTOCOL;
 
             factory = JdbcConnection.patternBasedFactory(MySqlConnection.URL_PATTERN, driverClassName, getClass().getClassLoader(), protocol);
-        }
-
-        /**
-         * Injects credentials from a credentials provider into the configuration if one is specified.
-         *
-         * @param originalConfig The original configuration
-         * @return A new configuration with credentials injected, or the original if no provider is configured
-         */
-        private Configuration injectCredentialsIfProvided(Configuration originalConfig) {
-            if (!originalConfig.hasKey(MySqlConnectorConfig.CREDENTIALS_PROVIDER.name())) {
-                LOGGER.info("No credentials provider specified, using default credentials");
-                return originalConfig; // No credential provider specified
-            }
-
-            Configuration.Builder configBuilder = originalConfig.edit();
-
-            JdbcCredentialsProvider provider = JdbcCredentialsUtil.getCredentialsProvider(originalConfig);
-
-            if (provider != null) {
-                try {
-                    JdbcCredentials creds = provider.getJdbcCreds();
-
-                    // Inject the credentials into the configuration
-                    if (creds != null) {
-                        if (creds.user() != null) {
-                            configBuilder.with(MySqlConnectorConfig.USER, creds.user());
-                            LOGGER.debug("Injected username from credentials provider");
-                        }
-                        if (creds.password() != null) {
-                            configBuilder.with(MySqlConnectorConfig.PASSWORD, creds.password());
-                            LOGGER.debug("Injected password from credentials provider");
-                        }
-                    }
-                } catch (Exception e) {
-                    LOGGER.warn("Error getting credentials from provider, using default credentials", e);
-                }
-            }
-            return configBuilder.build();
         }
 
         private static String determineConnectionTimeZone(final Configuration dbConfig) {
