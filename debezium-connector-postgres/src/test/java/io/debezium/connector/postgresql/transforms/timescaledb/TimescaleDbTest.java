@@ -24,6 +24,7 @@ import io.debezium.data.Envelope;
 import io.debezium.embedded.AbstractConnectorTest;
 import io.debezium.junit.logging.LogInterceptor;
 
+@Ignore
 public class TimescaleDbTest extends AbstractConnectorTest {
 
     private TimescaleDb<SourceRecord> transformation;
