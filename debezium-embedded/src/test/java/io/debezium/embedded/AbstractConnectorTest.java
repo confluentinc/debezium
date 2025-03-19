@@ -1246,8 +1246,16 @@ public abstract class AbstractConnectorTest implements Testing {
                 .pollInterval(100, TimeUnit.MILLISECONDS)
                 .atMost(waitTimeForRecords() * 30L, TimeUnit.SECONDS)
                 .ignoreException(InstanceNotFoundException.class)
-                .until(() -> (boolean) mbeanServer
-                        .getAttribute(getSnapshotMetricsObjectName(connector, server, props), "SnapshotCompleted"));
+                .until(() -> {
+                    Object attributeValue = mbeanServer.getAttribute(getSnapshotMetricsObjectName(connector, server, props), "SnapshotCompleted");
+                    if (attributeValue instanceof Boolean) {
+                        return (Boolean) attributeValue;
+                    }
+                    if (attributeValue instanceof Long) {
+                        return ((Long) attributeValue) == 1;
+                    }
+                    return false;
+                });
     }
 
     private static void waitForSnapshotEvent(String connector, String server, String event, String task, String database) throws InterruptedException {
