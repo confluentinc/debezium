@@ -2149,8 +2149,13 @@ public class PostgresConnectorIT extends AbstractConnectorTest {
                 .until(() -> {
                     // Required due to DBZ-3158, creates empty transaction
                     TestHelper.create().execute("vacuum full").close();
-                    return (boolean) ManagementFactory.getPlatformMBeanServer()
+                    Object attribute = ManagementFactory.getPlatformMBeanServer()
                             .getAttribute(getSnapshotMetricsObjectName("postgres", TestHelper.TEST_SERVER), "SnapshotCompleted");
+                    if (attribute instanceof Long) {
+                        return (Long) attribute == 1L;
+                    } else {
+                        return (Boolean) attribute;
+                    }
                 });
 
         // wait for the second streaming phase
