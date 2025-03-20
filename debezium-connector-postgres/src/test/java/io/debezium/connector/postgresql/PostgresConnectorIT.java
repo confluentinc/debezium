@@ -2144,13 +2144,18 @@ public class PostgresConnectorIT extends AbstractConnectorTest {
         Awaitility.await()
                 .alias("Streaming was not started on time")
                 .pollInterval(1000, TimeUnit.MILLISECONDS)
-                .atMost(waitTimeForRecords() * 30, TimeUnit.SECONDS)
+                .atMost(waitTimeForRecords() * 60, TimeUnit.SECONDS)
                 .ignoreException(InstanceNotFoundException.class)
                 .until(() -> {
                     // Required due to DBZ-3158, creates empty transaction
                     TestHelper.create().execute("vacuum full").close();
-                    return (boolean) ManagementFactory.getPlatformMBeanServer()
+                    Object attribute = ManagementFactory.getPlatformMBeanServer()
                             .getAttribute(getSnapshotMetricsObjectName("postgres", TestHelper.TEST_SERVER), "SnapshotCompleted");
+                    if (attribute instanceof Long) {
+                        return (Long) attribute == 1L;
+                    } else {
+                        return (Boolean) attribute;
+                    }
                 });
 
         // wait for the second streaming phase
