@@ -1248,13 +1248,11 @@ public abstract class AbstractConnectorTest implements Testing {
                 .ignoreException(InstanceNotFoundException.class)
                 .until(() -> {
                     Object attributeValue = mbeanServer.getAttribute(getSnapshotMetricsObjectName(connector, server, props), "SnapshotCompleted");
-                    if (attributeValue instanceof Boolean) {
-                        return (Boolean) attributeValue;
+                    if (attribute instanceof Long) {
+                        return (Long) attribute == 1L;
+                    } else {
+                        return (Boolean) attribute;
                     }
-                    if (attributeValue instanceof Long) {
-                        return ((Long) attributeValue) == 1;
-                    }
-                    return false;
                 });
     }
 
