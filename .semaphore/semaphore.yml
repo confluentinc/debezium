@@ -37,7 +37,7 @@ blocks:
       jobs:
         - name: Test
           commands:
-            - mvn -Dcloud -Passembly -pl debezium-connector-postgres -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress -Dit.test=PostgresMetricsIT#testSnapshotAndStreamingWithCustomMetrics,PostgresMetricsIT#testLifecycle,PostgresMetricsIT#testStreamingOnlyMetrics
+            - mvn -Dcloud -Passembly -pl debezium-connector-postgres -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress -Dit.test=PostgresMetricsIT#testLifecycle,PostgresDefaultValueConverterIT#shouldSetTheNullValueInStreaming, PostgresConnectorIT#shouldCloseTxAfterTypeQuery
               clean verify install dependency:analyze validate
             - . cve-scan
             - . cache-maven store
