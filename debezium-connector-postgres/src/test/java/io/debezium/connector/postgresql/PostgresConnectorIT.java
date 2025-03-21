@@ -2144,7 +2144,7 @@ public class PostgresConnectorIT extends AbstractConnectorTest {
         Awaitility.await()
                 .alias("Streaming was not started on time")
                 .pollInterval(1000, TimeUnit.MILLISECONDS)
-                .atMost(waitTimeForRecords() * 60, TimeUnit.SECONDS)
+                .atMost(waitTimeForRecords() * 30, TimeUnit.SECONDS)
                 .ignoreException(InstanceNotFoundException.class)
                 .until(() -> {
                     // Required due to DBZ-3158, creates empty transaction
