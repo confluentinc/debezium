@@ -462,7 +462,15 @@ public class TestHelper {
         try {
             Awaitility.await("Snapshot not completed").atMost(Duration.ofSeconds(60)).until(() -> {
                 try {
-                    return (boolean) mbeanServer.getAttribute(objectName, "SnapshotCompleted");
+                    Object attributeValue = mbeanServer.getAttribute(objectName, "SnapshotCompleted");
+                    if (attributeValue instanceof Boolean) {
+                        return (Boolean) attributeValue;
+                    }
+                    // Check if the value is Long and treat 1 as true, 0 as false
+                    if (attributeValue instanceof Long) {
+                        return ((Long) attributeValue) == 1;
+                    }
+                    return false;
                 }
                 catch (InstanceNotFoundException e) {
                     // Metrics has not started yet
