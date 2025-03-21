@@ -115,7 +115,7 @@ public class MySqlTestConnection extends JdbcConnection {
 
     }
 
-    protected static ConnectionFactory FACTORY = JdbcConnection.patternBasedFactory("jdbc:mysql://${hostname}:${port}/${dbname}?allowPublicKeyRetrieval=true&useSSL=false");
+    protected static ConnectionFactory FACTORY = JdbcConnection.patternBasedFactory("jdbc:mysql://${hostname}:${port}/${dbname}");
 
     /**
      * Create a new instance with the given configuration and connection factory.
