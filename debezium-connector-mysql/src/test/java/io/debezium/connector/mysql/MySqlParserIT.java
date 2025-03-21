@@ -87,7 +87,8 @@ public class MySqlParserIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.POLL_INTERVAL_MS, 10)
                 .with(MySqlConnectorConfig.SCHEMA_HISTORY, "io.debezium.relational.history.MemorySchemaHistory")
                 .with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, DB_NAME)
-                .with(MySqlConnectorConfig.BUFFER_SIZE_FOR_BINLOG_READER, 10_000);
+                .with(MySqlConnectorConfig.BUFFER_SIZE_FOR_BINLOG_READER, 10_000)
+                .with("driver.allowPublicKeyRetrieval", "true");
     }
 
     @Test
