@@ -31,7 +31,7 @@ public abstract class RelationalBaseSourceConnector extends SourceConnector {
     public Config validate(Map<String, String> connectorConfigs) {
         Configuration config = Configuration.from(connectorConfigs);
 
-        // Validate all of the individual fields, which is easy since don't make any of the fields invisible ...
+        // Validate all the individual fields, which is easy since don't make any of the fields invisible ...
         Map<String, ConfigValue> results = validateAllFields(config);
 
         ConfigValue topicPrefixValue = results.get(CommonConnectorConfig.TOPIC_PREFIX.name());
