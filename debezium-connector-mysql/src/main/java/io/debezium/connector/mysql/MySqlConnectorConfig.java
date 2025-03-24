@@ -1216,25 +1216,19 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
     }
 
     public String username() {
-
-        // this is only valid for the streaming part because binlog client uses this. for snapshot we need to tweak the JdbcConnection.java's pattern based factory
-        // here it should always call the credsProvider.getUsername(). The credsProvider in turn would be passed the config and the type of auth to use
-        // if it is iam or something, then it would return the username and the rds token generated for the user using the ChainedAssumeRoleProvider
-        JdbcCredentials creds = JdbcCredentialsUtil.getCredentials(
-                JdbcCredentialsUtil.getCredentialsProvider(config),
-                config
-        );
-        return creds.user();
+        String username = JdbcCredentialsUtil.getCredentials(config).user();
+        if (username != null) {
+            return username;
+        }
+        return config.getString(MySqlConnectorConfig.USER);
     }
 
     public String password() {
-        // this is only valid for the streaming part because binlog client uses this. for snapshot we need to tweak the JdbcConnection.java's pattern based factory
-        // here it should always call the credsProvider.getPassword()
-        JdbcCredentials creds = JdbcCredentialsUtil.getCredentials(
-                JdbcCredentialsUtil.getCredentialsProvider(config),
-                config
-        );
-        return creds.password();
+        String password = JdbcCredentialsUtil.getCredentials(config).password();
+        if (password != null) {
+            return password;
+        }
+        return config.getString(MySqlConnectorConfig.PASSWORD);
     }
 
     public long serverId() {

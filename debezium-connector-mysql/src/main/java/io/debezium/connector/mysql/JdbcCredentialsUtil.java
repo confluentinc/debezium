@@ -34,7 +34,6 @@ public class JdbcCredentialsUtil {
 
     // Single cached provider instance
     private static volatile JdbcCredentialsProvider PROVIDER_INSTANCE = null;
-    private static String configuredProviderClass = null;
 
     /**
      * Get or create a credentials provider for the given configuration
@@ -42,6 +41,10 @@ public class JdbcCredentialsUtil {
      * @return the credentials provider, or null if none configured
      */
     public static synchronized JdbcCredentialsProvider getCredentialsProvider(Configuration config) {
+        
+        if (PROVIDER_INSTANCE != null) {
+            return PROVIDER_INSTANCE;
+        }
 
         AuthenticationMethod authMethod = MySqlConnectorConfig.getAuthenticationMethod(config);
         
@@ -58,20 +61,12 @@ public class JdbcCredentialsUtil {
     }
 
     private static JdbcCredentialsProvider createProvider(String providerClass, Configuration config) {
-        // If we already have an instance, and it's the same provider class, return it
-        if (PROVIDER_INSTANCE != null && providerClass.equals(configuredProviderClass)) {
-            return PROVIDER_INSTANCE;
-        }
-
-        // Otherwise create a new instance
         try {
             JdbcCredentialsProvider provider = (JdbcCredentialsProvider) Class.forName(providerClass)
                     .getDeclaredConstructor().newInstance();
             provider.configure(config.asMap());
 
-            // Cache the new instance
             PROVIDER_INSTANCE = provider;
-            configuredProviderClass = providerClass;
 
             return provider;
         }
@@ -84,11 +79,11 @@ public class JdbcCredentialsUtil {
 
     /**
      * Get credentials from the provider or default values from config
-     * @param provider the credentials provider
      * @param config the configuration
      * @return credentials object containing username and password
      */
-    public static JdbcCredentials getCredentials(JdbcCredentialsProvider provider, Configuration config) {
+    public static JdbcCredentials getCredentials(Configuration config) {
+        JdbcCredentialsProvider provider = getCredentialsProvider(config);
         if (provider != null) {
             try {
                 JdbcCredentials creds = provider.getJdbcCreds();
@@ -102,7 +97,6 @@ public class JdbcCredentialsUtil {
             }
         }
 
-        // Fall back to config values
         return new DefaultJdbcCredentials(
                 config.getString(MySqlConnectorConfig.USER),
                 config.getString(MySqlConnectorConfig.PASSWORD)
