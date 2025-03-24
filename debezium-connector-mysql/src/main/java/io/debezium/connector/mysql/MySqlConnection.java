@@ -577,29 +577,18 @@ public class MySqlConnection extends JdbcConnection {
         }
 
         public String username() {
-            JdbcCredentials creds = JdbcCredentialsUtil.getCredentials(
-                    JdbcCredentialsUtil.getCredentialsProvider(config),
-                    config
-            );
-            if (creds.user() != null) {
-                return creds.user();
+            String username = JdbcCredentialsUtil.getCredentials(config).user();
+            if (username != null) {
+                return username;
             }
-
-            // todo: this is probably redundant, as the fallback is handled in the getCredentials method of the util
             return config.getString(MySqlConnectorConfig.USER);
-
         }
 
         public String password() {
-            JdbcCredentials creds = JdbcCredentialsUtil.getCredentials(
-                    JdbcCredentialsUtil.getCredentialsProvider(config),
-                    config
-            );
-            if (creds.password() != null) {
-                return creds.password();
+            String password = JdbcCredentialsUtil.getCredentials(config).password();
+            if (password != null) {
+                return password;
             }
-
-            // todo: this is probably redundant, as the fallback is handled in the getCredentials method of the util
             return config.getString(MySqlConnectorConfig.PASSWORD);
         }
 
