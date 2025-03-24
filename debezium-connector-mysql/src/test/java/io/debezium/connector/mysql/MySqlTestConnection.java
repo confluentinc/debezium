@@ -163,6 +163,18 @@ public class MySqlTestConnection extends JdbcConnection {
         return versionString;
     }
 
+    public String binaryLogStatusStatement() {
+        final var binaryLogStatus = "SHOW BINARY LOG STATUS";
+        try {
+            query(binaryLogStatus, rs -> {
+            });
+            return binaryLogStatus;
+        }
+        catch (SQLException e) {
+            return MySqlConnection.MASTER_STATUS_STATEMENT;
+        }
+    }
+
     public String getMySqlVersionComment() {
         String versionString;
         try {
