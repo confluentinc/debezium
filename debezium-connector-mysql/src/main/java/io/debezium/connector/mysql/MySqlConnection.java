@@ -18,12 +18,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
+import java.util.Properties;
+
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.mysql.cj.CharsetMapping;
 
+import io.confluent.credentialproviders.JdbcCredentials;
 import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.CommonConnectorConfig.EventProcessingFailureHandlingMode;
@@ -559,14 +562,33 @@ public class MySqlConnection extends JdbcConnection {
         }
 
         public ConnectionFactory factory() {
-            return factory;
+            // Create a decorator that ensures current credentials are used
+            return config -> {
+                // Get a copy of the original properties
+                Properties props = config.asProperties();
+
+                // Override with current username/password (which may come from credential provider)
+                props.setProperty(JdbcConfiguration.USER.name(), username());
+                props.setProperty(JdbcConfiguration.PASSWORD.name(), password());
+
+                // Use the original factory with updated properties
+                return factory.connect(JdbcConfiguration.adapt(Configuration.from(props)));
+            };
         }
 
         public String username() {
+            String username = JdbcCredentialsUtil.getCredentials(config).user();
+            if (username != null) {
+                return username;
+            }
             return config.getString(MySqlConnectorConfig.USER);
         }
 
         public String password() {
+            String password = JdbcCredentialsUtil.getCredentials(config).password();
+            if (password != null) {
+                return password;
+            }
             return config.getString(MySqlConnectorConfig.PASSWORD);
         }
 
