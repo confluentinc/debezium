@@ -18,10 +18,12 @@ package io.debezium.connector.mysql;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.confluent.credentialprovider.DefaultJdbcCredential;
-import io.confluent.credentialprovider.JdbcCredential;
-import io.confluent.credentialprovider.JdbcCredentialsProvider;
+import io.confluent.credentialproviders.DefaultJdbcCredentials;
+import io.confluent.credentialproviders.JdbcCredentials;
+import io.confluent.credentialproviders.JdbcCredentialsProvider;
+import io.confluent.credentialproviders.aws.AwsChainedAssumeRoleRdsCredsProvider;
 import io.debezium.config.Configuration;
+import io.debezium.connector.mysql.MySqlConnectorConfig.AuthenticationMethod;
 
 /**
  * Utility class for handling JDBC credential providers
@@ -40,11 +42,22 @@ public class JdbcCredentialsUtil {
      * @return the credentials provider, or null if none configured
      */
     public static synchronized JdbcCredentialsProvider getCredentialsProvider(Configuration config) {
+
+        AuthenticationMethod authMethod = MySqlConnectorConfig.getAuthenticationMethod(config);
+        
+        if (authMethod == AuthenticationMethod.IAM_ROLES) {
+            return createProvider(AwsChainedAssumeRoleRdsCredsProvider.class.getName(), config);
+        }
+        
         String providerClass = config.getString(MySqlConnectorConfig.CREDENTIALS_PROVIDER);
         if (providerClass == null) {
             return null;
         }
+        
+        return createProvider(providerClass, config);
+    }
 
+    private static JdbcCredentialsProvider createProvider(String providerClass, Configuration config) {
         // If we already have an instance, and it's the same provider class, return it
         if (PROVIDER_INSTANCE != null && providerClass.equals(configuredProviderClass)) {
             return PROVIDER_INSTANCE;
@@ -75,10 +88,10 @@ public class JdbcCredentialsUtil {
      * @param config the configuration
      * @return credentials object containing username and password
      */
-    public static JdbcCredential getCredentials(JdbcCredentialsProvider provider, Configuration config) {
+    public static JdbcCredentials getCredentials(JdbcCredentialsProvider provider, Configuration config) {
         if (provider != null) {
             try {
-                JdbcCredential creds = provider.getJdbcCreds();
+                JdbcCredentials creds = provider.getJdbcCreds();
                 if (creds != null) {
                     return creds;
                 }
@@ -90,7 +103,7 @@ public class JdbcCredentialsUtil {
         }
 
         // Fall back to config values
-        return new DefaultJdbcCredential(
+        return new DefaultJdbcCredentials(
                 config.getString(MySqlConnectorConfig.USER),
                 config.getString(MySqlConnectorConfig.PASSWORD)
         );

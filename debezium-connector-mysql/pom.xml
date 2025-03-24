@@ -59,7 +59,7 @@
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
-            <artifactId>credential-provider</artifactId>
+            <artifactId>credential-providers</artifactId>
             <version>0.1.0</version>
         </dependency>
 

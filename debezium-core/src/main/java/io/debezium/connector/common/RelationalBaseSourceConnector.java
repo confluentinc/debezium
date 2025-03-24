@@ -43,7 +43,7 @@ public abstract class RelationalBaseSourceConnector extends SourceConnector {
         final String passwordStringValue = config.getString(RelationalDatabaseConnectorConfig.PASSWORD);
 
         if (Strings.isNullOrEmpty(passwordStringValue)) {
-            LOGGER.debug("The connection password is empty");
+            LOGGER.info("The connection password is empty");
         }
 
         // If there are no errors on any of these ...

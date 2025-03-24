@@ -20,12 +20,13 @@ import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Properties;
 
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.mysql.cj.CharsetMapping;
 
-import io.confluent.credentialprovider.JdbcCredential;
+import io.confluent.credentialproviders.JdbcCredentials;
 import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.CommonConnectorConfig.EventProcessingFailureHandlingMode;
@@ -576,7 +577,7 @@ public class MySqlConnection extends JdbcConnection {
         }
 
         public String username() {
-            JdbcCredential creds = JdbcCredentialsUtil.getCredentials(
+            JdbcCredentials creds = JdbcCredentialsUtil.getCredentials(
                     JdbcCredentialsUtil.getCredentialsProvider(config),
                     config
             );
@@ -590,7 +591,7 @@ public class MySqlConnection extends JdbcConnection {
         }
 
         public String password() {
-            JdbcCredential creds = JdbcCredentialsUtil.getCredentials(
+            JdbcCredentials creds = JdbcCredentialsUtil.getCredentials(
                     JdbcCredentialsUtil.getCredentialsProvider(config),
                     config
             );
