@@ -39,6 +39,7 @@ public class PostgresConnectorTask extends BaseSourceTask {
     private static final String CONTEXT_NAME = "postgres-connector-task";
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final AtomicBoolean running = new AtomicBoolean(false);
+    private final AtomicBoolean performCommit = new AtomicBoolean(false);
 
     private PostgresTaskContext taskContext;
     private RecordsProducer producer;
@@ -149,15 +150,22 @@ public class PostgresConnectorTask extends BaseSourceTask {
 
     @Override
     public void commit() throws InterruptedException {
+        // commit() hook acts like a scheduler, will get invoked every OffsetCommitIntervalMs
         if (running.get()) {
-            if (lastCompletelyProcessedLsn != null) {
-                producer.commit(lastCompletelyProcessedLsn);
-            }
+            performCommit.set(true);
+        }
+    }
+
+    private void checkAndPerformCommit() {
+        if (performCommit.compareAndSet(true, false) && lastCompletelyProcessedLsn != null) {
+            producer.commit(lastCompletelyProcessedLsn);
         }
     }
 
     @Override
     public List<SourceRecord> poll() throws InterruptedException {
+        // check if its time to flush.
+        checkAndPerformCommit();
         List<ChangeEvent> events = changeEventQueue.poll();
 
         if (events.size() > 0) {
