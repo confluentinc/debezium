@@ -150,7 +150,7 @@
         <version.rocketmq>4.9.4</version.rocketmq>
 
          <!-- MySQL server image name -->
-         <mysql.server.image.source>mysql/mysql-server</mysql.server.image.source>
+         <mysql.server.image.source>container-registry.oracle.com/mysql/community-server</mysql.server.image.source>
     </properties>
 
     <modules>
