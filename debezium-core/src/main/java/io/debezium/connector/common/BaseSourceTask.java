@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -90,6 +91,7 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
 
     @SingleThreadAccess("polling thread")
     private int previousOutputBatchSize;
+    private final AtomicBoolean shouldPerformCommit = new AtomicBoolean(false);
 
     protected BaseSourceTask() {
         // Use exponential delay to log the progress frequently at first, but the quickly tapering off to once an hour...
@@ -157,6 +159,10 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
         }
 
         try {
+            // its safe to flush offsets here as we are in the running state
+            if (shouldPerformCommit.getAndSet(false)) {
+                performCommit();
+            }
             final List<SourceRecord> records = doPoll();
             logStatistics(records);
             return records;
@@ -273,7 +279,11 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
     }
 
     @Override
-    public void commit() throws InterruptedException {
+    public void commit() {
+        shouldPerformCommit.set(true);
+    }
+
+    public void performCommit() throws InterruptedException {
         boolean locked = stateLock.tryLock();
 
         if (locked) {
