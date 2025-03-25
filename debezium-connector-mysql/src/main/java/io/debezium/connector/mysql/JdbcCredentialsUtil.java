@@ -42,17 +42,20 @@ public class JdbcCredentialsUtil {
     public static synchronized JdbcCredentialsProvider getCredentialsProvider(Configuration config) {
         
         if (PROVIDER_INSTANCE != null) {
+             LOGGER.info("DEBUGIAMASSUMEROLE -Returning existing credentials provider");
             return PROVIDER_INSTANCE;
         }
 
         AuthenticationMethod authMethod = MySqlConnectorConfig.getAuthenticationMethod(config);
-        
+        LOGGER.info("DEBUGIAMASSUMEROLE -Authentication method: {}", authMethod);
         if (authMethod == AuthenticationMethod.IAM_ROLES) {
+            LOGGER.info("Creating IAM role provider");
             return createProvider(AwsChainedAssumeRoleRdsCredsProvider.class.getName(), config);
         }
-        
+
         String providerClass = config.getString(MySqlConnectorConfig.CREDENTIALS_PROVIDER);
         if (providerClass == null) {
+            LOGGER.info("DEBUGIAMASSUMEROLE -No credentials provider configured");
             return null;
         }
         
@@ -60,11 +63,12 @@ public class JdbcCredentialsUtil {
     }
 
     private static JdbcCredentialsProvider createProvider(String providerClass, Configuration config) {
+        LOGGER.info("DEBUGIAMASSUMEROLE -Creating credentials provider: {}", providerClass);
         try {
             JdbcCredentialsProvider provider = (JdbcCredentialsProvider) Class.forName(providerClass)
                     .getDeclaredConstructor().newInstance();
             provider.configure(config.asMap());
-
+            LOGGER.info("DEBUGIAMASSUMEROLE -Configured credentials provider: {}", provider);
             PROVIDER_INSTANCE = provider;
 
             return provider;
@@ -82,6 +86,7 @@ public class JdbcCredentialsUtil {
      * @return credentials object containing username and password
      */
     public static JdbcCredentials getCredentials(Configuration config) {
+        LOGGER.info("DEBUGIAMASSUMEROLE -Getting credentials for user '{}'", config.getString(MySqlConnectorConfig.USER));
         JdbcCredentialsProvider provider = getCredentialsProvider(config);
         if (provider != null) {
             try {

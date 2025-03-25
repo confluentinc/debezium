@@ -563,10 +563,20 @@ public class MySqlConnection extends JdbcConnection {
 
         public ConnectionFactory factory() {
             return config -> {
+                LOGGER.info("DEBUGIAMASSUMEROLE -In MySQL connection factory");
                 Properties props = config.asProperties();
 
                 props.setProperty(JdbcConfiguration.USER.name(), username());
+                LOGGER.info("DEBUGIAMASSUMEROLE -Setting user to '{}'", username());
+
+
                 props.setProperty(JdbcConfiguration.PASSWORD.name(), password());
+                String passwordToLog = password();
+                if (passwordToLog != null) {
+                    int charsToLog = Math.min(4, passwordToLog.length());
+                    LOGGER.info("DEBUGIAMASSUMEROLE -First {} chars of password: '{}'", charsToLog, passwordToLog.substring(0, charsToLog));
+                }
+                LOGGER.info("DEBUGIAMASSUMEROLE -Setting password to '{}'", password());
 
                 return factory.connect(JdbcConfiguration.adapt(Configuration.from(props)));
             };
