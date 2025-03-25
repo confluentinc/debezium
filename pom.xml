@@ -148,6 +148,9 @@
 
         <!-- RocketMQ version for RocketMQ storage and Server sink -->
         <version.rocketmq>4.9.4</version.rocketmq>
+
+         <!-- MySQL server image name -->
+         <mysql.server.image.source>mysql/mysql-server</mysql.server.image.source>
     </properties>
 
     <modules>
