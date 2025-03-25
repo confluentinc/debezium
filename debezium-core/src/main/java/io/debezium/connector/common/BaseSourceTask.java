@@ -279,11 +279,11 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
     }
 
     @Override
-    public void commit() {
+    public void commit() throws InterruptedException {
         shouldPerformCommit.set(true);
     }
 
-    public void performCommit() throws InterruptedException {
+    public void performCommit() {
         boolean locked = stateLock.tryLock();
 
         if (locked) {
