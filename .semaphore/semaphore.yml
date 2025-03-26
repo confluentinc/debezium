@@ -47,18 +47,18 @@ blocks:
               clean verify install dependency:analyze validate
             - . cve-scan
             - . cache-maven store
-#        - name: Postgres
-#          commands:
-#            - mvn -Dcloud -Passembly -pl debezium-connector-postgresql -am -U -D -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
-#              clean verify install dependency:analyze validate
-#            - . cve-scan
-#            - . cache-maven store
-#        - name: SqlServer
-#          commands:
-#            - mvn -Dcloud -Passembly -pl debezium-connector-sqlserver -am -U -D -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
-#              clean verify install dependency:analyze validate
-#            - . cve-scan
-#            - . cache-maven store
+        - name: Postgres
+          commands:
+            - mvn -Dcloud -Passembly -pl debezium-connector-postgres -am -U -D -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
+              clean verify install dependency:analyze validate
+            - . cve-scan
+            - . cache-maven store
+        - name: SqlServer
+          commands:
+            - mvn -Dcloud -Passembly -pl debezium-connector-sqlserver -am -U -D -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
+              clean verify install dependency:analyze validate
+            - . cve-scan
+            - . cache-maven store
       env_vars:
         - name: SEMAPHORE_AGENT_UPLOAD_JOB_LOGS
           value: when-trimmed
