@@ -18,7 +18,7 @@ GRANT ALL PRIVILEGES ON *.* TO 'mysqluser'@'%';
 -- DATABASE:  emptydb
 -- ----------------------------------------------------------------------------------------------------------------
 CREATE DATABASE emptydb;
-RESET BINARY LOGS AND GTIDS; -- MySQL >= 8.4.x and 9.x
+RESET MASTER;
 CREATE DATABASE testing;
 CREATE TABLE testing.testing (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY);
 INSERT INTO testing.testing VALUES ();
