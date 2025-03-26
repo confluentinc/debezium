@@ -18,4 +18,8 @@ GRANT ALL PRIVILEGES ON *.* TO 'mysqlreplica'@'%';
 CHANGE REPLICATION SOURCE TO SOURCE_HOST='database-gtids', SOURCE_PORT=3306, SOURCE_USER='replicator', SOURCE_PASSWORD = 'replpass', SOURCE_AUTO_POSITION=1, GET_SOURCE_PUBLIC_KEY=1;
 
 -- And start the replica ...
-START REPLICA;
+SET @version = (SELECT VERSION());
+SET @command = IF(@version REGEXP '^8\\.0\\.', 'START SLAVE;', 'START REPLICA;');
+PREPARE stmt FROM @command;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
