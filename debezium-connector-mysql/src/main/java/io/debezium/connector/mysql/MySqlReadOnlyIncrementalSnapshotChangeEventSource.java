@@ -80,10 +80,10 @@ import io.debezium.util.Clock;
 public class MySqlReadOnlyIncrementalSnapshotChangeEventSource<T extends DataCollectionId> extends AbstractIncrementalSnapshotChangeEventSource<MySqlPartition, T> {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MySqlReadOnlyIncrementalSnapshotChangeEventSource.class);
-    private static final String SHOW_MASTER_STMT = "SHOW MASTER STATUS";
+    private final MySqlConnection mySqlConnection;
 
     public MySqlReadOnlyIncrementalSnapshotChangeEventSource(RelationalDatabaseConnectorConfig config,
-                                                             JdbcConnection jdbcConnection,
+                                                             MySqlConnection jdbcConnection,
                                                              EventDispatcher<MySqlPartition, T> dispatcher,
                                                              DatabaseSchema<?> databaseSchema,
                                                              Clock clock,
@@ -91,6 +91,7 @@ public class MySqlReadOnlyIncrementalSnapshotChangeEventSource<T extends DataCol
                                                              DataChangeEventListener<MySqlPartition> dataChangeEventListener,
                                                              NotificationService<MySqlPartition, MySqlOffsetContext> notificationService) {
         super(config, jdbcConnection, dispatcher, databaseSchema, clock, progressListener, dataChangeEventListener, notificationService);
+        mySqlConnection = jdbcConnection;
     }
 
     @Override
@@ -176,7 +177,7 @@ public class MySqlReadOnlyIncrementalSnapshotChangeEventSource<T extends DataCol
 
     private void getExecutedGtidSet(Consumer<GtidSet> watermark) {
         try {
-            jdbcConnection.query(SHOW_MASTER_STMT, rs -> {
+            jdbcConnection.query(mySqlConnection.binaryLogStatusStatement(), rs -> {
                 if (rs.next()) {
                     if (rs.getMetaData().getColumnCount() > 4) {
                         // This column exists only in MySQL 5.6.5 or later ...
