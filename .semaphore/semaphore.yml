@@ -35,9 +35,9 @@ blocks:
       when: "change_in('/', {exclude: ['/.deployed-versions/', '.github/']})"
     task:
       jobs:
-        - name: Test
+        - name: Test 8.0
           commands:
-            - mvn -Dcloud -Passembly -pl debezium-connector-mysql,debezium-connector-postgres,debezium-connector-sqlserver -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
+            - mvn -Dcloud -Passembly -pl debezium-connector-mysql -am -U -D mysql.server.image.source=mysql/mysql-server -Dversion.mysql.server=8.0.13 -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
               clean verify install dependency:analyze validate
             - . cve-scan
             - . cache-maven store
