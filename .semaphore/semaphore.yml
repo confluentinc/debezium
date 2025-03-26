@@ -35,12 +35,30 @@ blocks:
       when: "change_in('/', {exclude: ['/.deployed-versions/', '.github/']})"
     task:
       jobs:
-        - name: Test 8.0
+        - name: Mysql 8.0
           commands:
-            - mvn -Dcloud -Passembly -pl debezium-connector-mysql -am -U -D mysql.server.image.source=mysql/mysql-server -Dversion.mysql.server=8.0.13 -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
+            - mvn -Dcloud -Passembly -pl debezium-connector-mysql -am -U -D mysql.server.image.source=mysql/mysql-server -Dit.test=MySqlConnectorIT -Dversion.mysql.server=8.0.13 -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
               clean verify install dependency:analyze validate
             - . cve-scan
             - . cache-maven store
+        - name: Mysql 8.4
+          commands:
+            - mvn -Dcloud -Passembly -pl debezium-connector-mysql -am -U -D mysql.server.image.source=container-registry.oracle.com/mysql/community-server -Dit.test=MySqlConnectorIT -Dversion.mysql.server=8.4 -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
+              clean verify install dependency:analyze validate
+            - . cve-scan
+            - . cache-maven store
+#        - name: Postgres
+#          commands:
+#            - mvn -Dcloud -Passembly -pl debezium-connector-postgresql -am -U -D -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
+#              clean verify install dependency:analyze validate
+#            - . cve-scan
+#            - . cache-maven store
+#        - name: SqlServer
+#          commands:
+#            - mvn -Dcloud -Passembly -pl debezium-connector-sqlserver -am -U -D -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
+#              clean verify install dependency:analyze validate
+#            - . cve-scan
+#            - . cache-maven store
       env_vars:
         - name: SEMAPHORE_AGENT_UPLOAD_JOB_LOGS
           value: when-trimmed
