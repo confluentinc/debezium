@@ -18,8 +18,13 @@ GRANT ALL PRIVILEGES ON *.* TO 'mysqluser'@'%';
 -- DATABASE:  emptydb
 -- ----------------------------------------------------------------------------------------------------------------
 CREATE DATABASE emptydb;
-RESET MASTER; -- MySQL 8.x
-RESET BINARY LOGS AND GTIDS; -- MySQL 9.x
+
+SET @version = (SELECT VERSION());
+SET @command = IF(@version REGEXP '^8\\.0\\.', 'RESET MASTER;', 'RESET BINARY LOGS AND GTIDS;');
+PREPARE stmt FROM @command;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 CREATE DATABASE testing;
 CREATE TABLE testing.testing (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY);
 INSERT INTO testing.testing VALUES ();
