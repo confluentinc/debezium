@@ -29,7 +29,7 @@
             <artifactId>debezium-ddl-parser</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.zendesk</groupId>
+            <groupId>io.debezium</groupId>
             <artifactId>mysql-binlog-connector-java</artifactId>
         </dependency>
         <dependency>
@@ -193,7 +193,7 @@
                     <imagePullPolicy>IfNotPresent</imagePullPolicy>
                     <images>
                         <!--
-                        Images based on "mysql/mysql-server" Docker image
+                        Images based on "${mysql.server.image.source}" Docker image
                         -->
                         <image>
                             <!-- A Docker image using a partial MySQL installation maintained by MySQL team. -->
