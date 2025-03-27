@@ -35,10 +35,24 @@ blocks:
       when: "change_in('/', {exclude: ['/.deployed-versions/', '.github/']})"
     task:
       jobs:
-        - name: Test
+        - name: MySQL 8.4 (mysql-ci-gtids)
           commands:
-            - mvn -DskipTests -Dcloud -Passembly -Ppgoutput-decoder -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
-              clean verify install validate
+            - mvn -DskipTests -Dcloud -Pmysql-ci-gtids -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
+            - . cve-scan
+            - . cache-maven store
+        - name: MySQL 8.4 (mysql-ci)
+          commands:
+            - mvn -DskipTests -Dcloud -Pmysql-ci -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
+            - . cve-scan
+            - . cache-maven store
+        - name: MySQL 8.4 (mysql-ci-percona)
+          commands:
+            - mvn -DskipTests -Dcloud -Pmysql-ci-percona -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
+            - . cve-scan
+            - . cache-maven store
+        - name: MySQL 8.4 (mysql-ci-ssl)
+          commands:
+            - mvn -DskipTests -Dcloud -Pmysql-ci-ssl -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
             - . cve-scan
             - . cache-maven store
       env_vars:
