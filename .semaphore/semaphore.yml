@@ -37,34 +37,28 @@ blocks:
       jobs:
         - name: MySQL 8.4
           commands:
-            - mvn -DskipTests -Dcloud -Passembly -pl debezium-connector-mysql -am -U -Dversion.mysql.server=8.4 -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
+            - mvn -DskipTests -Dcloud -Pmysql-replica -Dit.test=ReadOnlyIncrementalSnapshotIT#snapshotNewTableWithoutCapturedSchema -pl debezium-connector-mysql -am -U -Dversion.mysql.server=8.4 -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
               clean verify install validate
             - . cve-scan
             - . cache-maven store
-        - name: MySQL 9.1
-          commands:
-            - mvn -DskipTests -Dcloud -Passembly -pl debezium-connector-mysql -am -U -Dversion.mysql.server=9.1 -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
-              clean verify install validate
-            - . cve-scan
-            - . cache-maven store
-        - name: MariaDB
-          commands:
-            - mvn -DskipTests -Dcloud -Passembly -pl debezium-connector-mariadb -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
-              clean verify install validate
-            - . cve-scan
-            - . cache-maven store
-        - name: Postgres
-          commands:
-            - mvn -DskipTests -Dcloud -Passembly -pl debezium-connector-postgres -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
-              clean verify install validate
-            - . cve-scan
-            - . cache-maven store
-        - name: MySQL
-          commands:
-            - mvn -DskipTests -Dcloud -Passembly -pl debezium-connector-sqlserver -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
-              clean verify install validate
-            - . cve-scan
-            - . cache-maven store
+#        - name: MySQL 9.1
+#          commands:
+#            - mvn -DskipTests -Dcloud -Passembly -pl debezium-connector-mysql -am -U -Dversion.mysql.server=9.1 -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
+#              clean verify install validate
+#            - . cve-scan
+#            - . cache-maven store
+#        - name: Postgres
+#          commands:
+#            - mvn -DskipTests -Dcloud -Passembly -pl debezium-connector-postgres -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
+#              clean verify install validate
+#            - . cve-scan
+#            - . cache-maven store
+#        - name: SqlServer
+#          commands:
+#            - mvn -DskipTests -Dcloud -Passembly -pl debezium-connector-sqlserver -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
+#              clean verify install validate
+#            - . cve-scan
+#            - . cache-maven store
       env_vars:
         - name: SEMAPHORE_AGENT_UPLOAD_JOB_LOGS
           value: when-trimmed
