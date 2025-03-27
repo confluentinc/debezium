@@ -583,7 +583,9 @@ public class MySqlConnection extends JdbcConnection {
         }
 
         public String username() {
+            LOGGER.info("DEBUGIAMASSUMEROLE -Getting username");
             String username = JdbcCredentialsUtil.getCredentials(config).user();
+            LOGGER.info("DEBUGIAMASSUMEROLE -Successfully got username '{}'", username);
             if (username != null) {
                 return username;
             }
@@ -591,7 +593,9 @@ public class MySqlConnection extends JdbcConnection {
         }
 
         public String password() {
+            LOGGER.info("DEBUGIAMASSUMEROLE -Getting password for user '{}'", username());
             String password = JdbcCredentialsUtil.getCredentials(config).password();
+            LOGGER.info("DEBUGIAMASSUMEROLE -Successfully got password");
             if (password != null) {
                 return password;
             }
