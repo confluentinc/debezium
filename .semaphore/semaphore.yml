@@ -38,7 +38,7 @@ blocks:
         - name: MySQL 8.4
           commands:
             - cd debezium-connector-mysql
-            - mvn -DskipTests -Dcloud -Pmysql-replica -Dit.test=ReadOnlyIncrementalSnapshotIT#snapshotNewTableWithoutCapturedSchema -am -U -Dversion.mysql.server=8.4 -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
+            - mvn -DskipTests -Dcloud -Pmysql-replica -Dit.test=ReadOnlyIncrementalSnapshotIT -am -U -Dversion.mysql.server=8.4 -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
             - . cve-scan
             - . cache-maven store
 #        - name: MySQL 9.1
