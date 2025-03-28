@@ -118,7 +118,7 @@ public abstract class AbstractKafkaSchemaHistoryTest<P extends BinlogPartition, 
 
     protected abstract DdlParser getDdlParser();
 
-    private void testHistoryTopicContent(String topicName, boolean skipUnparseableDDL) {
+    private Configuration startHistory(String topicName, boolean skipUnparseableDDL) {
         interceptor = new LogInterceptor(KafkaSchemaHistory.class);
         // Start up the history ...
         Configuration config = Configuration.create()
@@ -150,6 +150,12 @@ public abstract class AbstractKafkaSchemaHistoryTest<P extends BinlogPartition, 
 
         // Calling it another time to ensure we can work with the DB history topic already existing
         history.initializeStorage();
+
+        return config;
+    }
+
+    private void testHistoryTopicContent(String topicName, boolean skipUnparseableDDL) {
+        Configuration config = startHistory(topicName, skipUnparseableDDL);
 
         DdlParser recoveryParser = getDdlParser();
         DdlParser ddlParser = getDdlParser();
@@ -362,6 +368,14 @@ public abstract class AbstractKafkaSchemaHistoryTest<P extends BinlogPartition, 
     }
 
     @Test
+    public void testEmptyHistoryExists() {
+        String topicName = "exists-schema-changes";
+        // Start up the history ...
+        startHistory(topicName, true);
+        assertTrue(history.exists());
+    }
+
+    @Test
     @FixFor("DBZ-1886")
     public void differentiateStorageExistsFromHistoryExists() {
         String topicName = "differentiate-storage-exists-schema-changes";
@@ -385,7 +399,6 @@ public abstract class AbstractKafkaSchemaHistoryTest<P extends BinlogPartition, 
         history.initializeStorage();
         assertTrue(history.storageExists());
 
-        assertFalse(history.exists());
         history.start();
         setLogPosition(0);
         String ddl = "CREATE TABLE foo ( name VARCHAR(255) NOT NULL PRIMARY KEY); \n" +
