@@ -401,7 +401,9 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
                 Long beginOffset = beginningOffsets.entrySet().iterator().next().getValue();
                 Long endOffset = endOffsets.entrySet().iterator().next().getValue();
 
-                exists = endOffset > beginOffset;
+                // In an edge case where an empty database history topic exists, but connector restarted for some
+                // reason, the connector should not fail.
+                exists = endOffset >= beginOffset;
             }
         }
         return exists;
