@@ -75,6 +75,21 @@ blocks:
             - mvn -DskipTests -Dcloud -Dversion.mysql.server=8.4 -Pmysql-ci-ssl -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
             - . cve-scan
             - . cache-maven store
+        - name: Postgres 12 (assembly,postgres-12)
+          commands:
+            - mvn -DskipTests -Dcloud -Passembly,postgres-12 -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-postgres -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
+            - . cve-scan
+            - . cache-maven store
+        - name: Postgres 17 (assembly,postgres-17,pgoutput-decoder)
+          commands:
+            - mvn -DskipTests -Dcloud -Passembly,postgres-17,pgoutput-decoder -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-postgres -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
+            - . cve-scan
+            - . cache-maven store
+        - name: SqlServer
+          commands:
+            - mvn -DskipTests -Dcloud -Passembly -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-sqlserver -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
+            - . cve-scan
+            - . cache-maven store
       env_vars:
         - name: SEMAPHORE_AGENT_UPLOAD_JOB_LOGS
           value: when-trimmed
