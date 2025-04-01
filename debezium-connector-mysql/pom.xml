@@ -29,8 +29,9 @@
             <artifactId>debezium-ddl-parser</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.zendesk</groupId>
+            <groupId>io.debezium</groupId>
             <artifactId>mysql-binlog-connector-java</artifactId>
+            <version>0.40.2</version>
         </dependency>
         <dependency>
             <groupId>mil.nga</groupId>
