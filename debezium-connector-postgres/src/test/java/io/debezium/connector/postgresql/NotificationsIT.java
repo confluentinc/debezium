@@ -21,6 +21,7 @@ public class NotificationsIT extends AbstractNotificationsIT<PostgresConnector> 
         TestHelper.dropDefaultReplicationSlot();
         TestHelper.dropAllSchemas();
         initializeConnectorTestFramework();
+        TestHelper.execute("CREATE TABLE test (pk SERIAL, aa isbn, PRIMARY KEY(pk));");
     }
 
     @After
