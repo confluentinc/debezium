@@ -58,6 +58,7 @@ public class PostgresMetricsIT extends AbstractRecordsProducerTest {
 
     @Test
     public void testLifecycle() throws Exception {
+        TestHelper.execute("CREATE TABLE test (pk SERIAL, aa isbn, PRIMARY KEY(pk));");
         // start connector
         start(PostgresConnector.class,
                 TestHelper.defaultConfig()

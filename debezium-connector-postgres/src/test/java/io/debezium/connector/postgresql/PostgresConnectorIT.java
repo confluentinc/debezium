@@ -1495,11 +1495,12 @@ public class PostgresConnectorIT extends AbstractConnectorTest {
                 .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "s1.b")
                 .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true);
 
+        TestHelper.execute("CREATE TABLE s1.b (pk SERIAL, aa isbn, PRIMARY KEY(pk));");
         start(PostgresConnector.class, configBuilder.build());
         assertConnectorIsRunning();
         waitForSnapshotToBeCompleted();
 
-        TestHelper.execute("CREATE TABLE s1.b (pk SERIAL, aa isbn, PRIMARY KEY(pk));", "INSERT INTO s1.b (aa) VALUES ('978-0-393-04002-9')");
+        TestHelper.execute("INSERT INTO s1.b (aa) VALUES ('978-0-393-04002-9');");
         SourceRecords actualRecords = consumeRecordsByTopic(1);
 
         List<SourceRecord> records = actualRecords.recordsForTopic(topicName("s1.b"));
