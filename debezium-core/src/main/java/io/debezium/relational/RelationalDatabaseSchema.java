@@ -10,6 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.errors.ConnectException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -67,9 +68,10 @@ public abstract class RelationalDatabaseSchema implements DatabaseSchema<TableId
     }
 
     @Override
-    public void assureNonEmptySchema() {
-        if (tableIds().isEmpty()) {
+    public void assureNonEmptySchema(boolean failOnNoTables) {
+        if (tableIds().isEmpty() && failOnNoTables) {
             LOG.warn(NO_CAPTURED_DATA_COLLECTIONS_WARNING);
+            throw new ConnectException(NO_CAPTURED_DATA_COLLECTIONS_WARNING);
         }
     }
 
