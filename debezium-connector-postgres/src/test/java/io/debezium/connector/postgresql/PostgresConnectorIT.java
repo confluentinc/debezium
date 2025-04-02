@@ -1488,6 +1488,7 @@ public class PostgresConnectorIT extends AbstractAsyncEngineConnectorTest {
         TestHelper.execute(setupStmt);
         Configuration.Builder configBuilder = TestHelper.defaultConfig()
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL.getValue())
+                .with(CommonConnectorConfig.FAIL_ON_NO_TABLES, false)
                 .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.TRUE)
                 .with(PostgresConnectorConfig.SCHEMA_INCLUDE_LIST, "s1")
                 .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "s1.b")
@@ -3620,6 +3621,7 @@ public class PostgresConnectorIT extends AbstractAsyncEngineConnectorTest {
         TestHelper.dropPublication("cdc");
 
         Configuration.Builder configBuilder = TestHelper.defaultConfig()
+                .with(CommonConnectorConfig.FAIL_ON_NO_TABLES, false)
                 .with(PostgresConnectorConfig.PUBLICATION_NAME, "cdc")
                 .with(PostgresConnectorConfig.PUBLICATION_AUTOCREATE_MODE, PostgresConnectorConfig.AutoCreateMode.NO_TABLES.getValue());
 
