@@ -63,11 +63,6 @@ public abstract class HistorizedRelationalDatabaseSchema extends RelationalDatab
             return;
         }
 
-        if (!schemaHistory.exists()) {
-            String msg = "The db history topic or its content is fully or partially missing. Please check database schema history topic configuration and re-execute the snapshot.";
-            throw new DebeziumException(msg);
-        }
-
         schemaHistory.recover(offsets, tables(), getDdlParser());
         recoveredTables = !tableIds().isEmpty();
         for (TableId tableId : tableIds()) {
