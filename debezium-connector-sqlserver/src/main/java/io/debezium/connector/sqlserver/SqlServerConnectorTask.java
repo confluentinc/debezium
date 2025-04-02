@@ -92,7 +92,7 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
                 new SqlServerPartition.Provider(connectorConfig),
                 new SqlServerOffsetContext.Loader(connectorConfig));
 
-        if (!schema.historyExists()) {
+        if (offsets.hasNonNullOffsets() && !schema.historyExists()) {
             String msg = "The db history topic or its content is fully or partially missing. Please check database schema history topic configuration and re-execute the snapshot.";
             throw new DebeziumException(msg);
         }

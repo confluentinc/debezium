@@ -53,12 +53,8 @@ public abstract class HistorizedRelationalDatabaseSchema extends RelationalDatab
 
     @Override
     public void recover(Offsets<?, ?> offsets) {
-        final boolean hasNonNullOffsets = offsets.getOffsets()
-                .values()
-                .stream()
-                .anyMatch(Objects::nonNull);
 
-        if (!hasNonNullOffsets) {
+        if (!offsets.hasNonNullOffsets()) {
             // there is nothing to recover
             return;
         }
