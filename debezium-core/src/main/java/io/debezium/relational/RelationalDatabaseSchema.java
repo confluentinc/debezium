@@ -68,8 +68,8 @@ public abstract class RelationalDatabaseSchema implements DatabaseSchema<TableId
     }
 
     @Override
-    public void assureNonEmptySchema() {
-        if (tableIds().isEmpty()) {
+    public void assureNonEmptySchema(boolean failOnNoTables) {
+        if (tableIds().isEmpty() && failOnNoTables) {
             LOG.warn(NO_CAPTURED_DATA_COLLECTIONS_WARNING);
             throw new ConnectException(NO_CAPTURED_DATA_COLLECTIONS_WARNING);
         }
