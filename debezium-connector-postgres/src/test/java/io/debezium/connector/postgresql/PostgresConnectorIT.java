@@ -3626,6 +3626,23 @@ public class PostgresConnectorIT extends AbstractAsyncEngineConnectorTest {
         });
     }
 
+    @Test
+    public void shouldFailIfNotTablesToCapture() throws Exception {
+        final LogInterceptor logInterceptor = new LogInterceptor(RelationalDatabaseSchema.class);
+        TestHelper.dropAllSchemas();
+        TestHelper.dropPublication("cdc");
+
+        Configuration.Builder configBuilder = TestHelper.defaultConfig()
+            .with(PostgresConnectorConfig.PUBLICATION_NAME, "cdc")
+            .with(PostgresConnectorConfig.PUBLICATION_AUTOCREATE_MODE, PostgresConnectorConfig.AutoCreateMode.NO_TABLES.getValue());
+
+        start(PostgresConnector.class, configBuilder.build());
+        assertConnectorIsRunning();
+        waitForSnapshotToBeCompleted();
+
+        assertThat(logInterceptor.containsMessage(DatabaseSchema.NO_CAPTURED_DATA_COLLECTIONS_WARNING)).isTrue();
+    }
+
     private Predicate<SourceRecord> stopOnPKPredicate(int pkValue) {
         return record -> {
             Struct key = (Struct) record.key();
