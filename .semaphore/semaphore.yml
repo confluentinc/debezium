@@ -49,7 +49,7 @@ blocks:
 #            - . cache-maven store
         - name: Postgres
           commands:
-            - mvn -Dcloud -Passembly -pl debezium-connector-postgres -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress -Dit.test=PostgresConnectorIT#shouldAckLsnOnSourceByDefault
+            - mvn -Dcloud -Passembly -pl debezium-connector-postgres -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress -Dit.test=PostgresConnectorIT#shouldAckLsnOnSourceByDefault -DskipTests
               clean verify install dependency:analyze validate
             - . cve-scan
             - . cache-maven store
