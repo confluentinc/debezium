@@ -48,18 +48,19 @@ public class JmxUtils {
             for (int attempt = 1; attempt <= REGISTRATION_RETRIES; attempt++) {
                 try {
                     mBeanServer.registerMBean(mxBean, objectName);
+                    LOGGER.trace("Successfully registered MBean '{}'", objectName);
                     break;
                 }
                 catch (InstanceAlreadyExistsException e) {
                     if (attempt < REGISTRATION_RETRIES) {
                         LOGGER.warn(
-                                "Unable to register metrics as an old set with the same name exists, retrying in {} (attempt {} out of {})",
+                                "Unable to register metrics MBean {} as an old set with the same name exists, retrying in {} (attempt {} out of {})", objectName,
                                 REGISTRATION_RETRY_DELAY, attempt, REGISTRATION_RETRIES);
                         final Metronome metronome = Metronome.sleeper(REGISTRATION_RETRY_DELAY, Clock.system());
                         metronome.pause();
                     }
                     else {
-                        LOGGER.error("Failed to register metrics MBean, metrics will not be available");
+                        LOGGER.error("Failed to register metrics MBean {}, metrics will not be available", objectName);
                     }
                 }
             }
@@ -92,6 +93,7 @@ public class JmxUtils {
             }
             try {
                 mBeanServer.unregisterMBean(objectName);
+                LOGGER.trace("Successfully unregistered MBean '{}'", objectName);
             }
             catch (InstanceNotFoundException e) {
                 LOGGER.info("Unable to unregister metrics MBean '{}' as it was not found", objectName);
@@ -110,7 +112,7 @@ public class JmxUtils {
             unregisterMXBean(objectName);
         }
         catch (MalformedObjectNameException e) {
-            LOGGER.info("Unable to unregister metrics MBean '{}' as it was not found", jmxObjectName);
+            LOGGER.info("Unable to unregister metrics MBean '{}' as it was not found '{}'", jmxObjectName, e.getMessage());
         }
     }
 
