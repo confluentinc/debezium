@@ -53,19 +53,10 @@ public abstract class HistorizedRelationalDatabaseSchema extends RelationalDatab
 
     @Override
     public void recover(Offsets<?, ?> offsets) {
-        final boolean hasNonNullOffsets = offsets.getOffsets()
-                .values()
-                .stream()
-                .anyMatch(Objects::nonNull);
 
-        if (!hasNonNullOffsets) {
+        if (!offsets.hasNonNullOffsets()) {
             // there is nothing to recover
             return;
-        }
-
-        if (!schemaHistory.exists()) {
-            String msg = "The db history topic or its content is fully or partially missing. Please check database schema history topic configuration and re-execute the snapshot.";
-            throw new DebeziumException(msg);
         }
 
         schemaHistory.recover(offsets, tables(), getDdlParser());
