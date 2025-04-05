@@ -293,8 +293,14 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
         }
     }
 
+    private void checkForInterruption() throws InterruptedException {
+        if (Thread.currentThread().isInterrupted()) {
+            throw new InterruptedException("Thread was interrupted during schema history recovery");
+        }
+    }
+
     @Override
-    protected void recoverRecords(Consumer<HistoryRecord> records) {
+    protected void recoverRecords(Consumer<HistoryRecord> records) throws InterruptedException {
         try (KafkaConsumer<String, String> historyConsumer = new KafkaConsumer<>(consumerConfig.asProperties())) {
             // Subscribe to the only partition for this topic, and seek to the beginning of that partition ...
             LOGGER.debug("Subscribing to database schema history topic '{}'", topicName);
@@ -312,13 +318,17 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
                             "The database schema history couldn't be recovered. Consider to increase the value for " + RECOVERY_POLL_INTERVAL_MS.name());
                 }
 
+                checkForInterruption();
                 endOffset = getEndOffsetOfDbHistoryTopic(endOffset, historyConsumer);
                 LOGGER.debug("End offset of database schema history topic is {}", endOffset);
-
+                
+                // DBZ-1361 not using poll(Duration) to keep compatibility with AK 1.x
+                checkForInterruption();
                 ConsumerRecords<String, String> recoveredRecords = historyConsumer.poll(this.pollInterval);
                 int numRecordsProcessed = 0;
 
                 for (ConsumerRecord<String, String> record : recoveredRecords) {
+                    checkForInterruption();
                     try {
                         if (lastProcessedOffset < record.offset()) {
                             if (record.value() == null) {
@@ -341,6 +351,8 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
                             lastProcessedOffset = record.offset();
                             ++numRecordsProcessed;
                         }
+                        LOGGER.info("Sleeping for {} seconds !", config.getLong(HistorizedRelationalDatabaseConnectorConfig.SCHEMA_HISTORY_RECOVERY_DELAY_MS));
+                        Thread.sleep(config.getLong(HistorizedRelationalDatabaseConnectorConfig.SCHEMA_HISTORY_RECOVERY_DELAY_MS) * 1000);
                     }
                     catch (final IOException e) {
                         Loggings.logErrorAndTraceRecord(LOGGER, record, "Error while deserializing history record", e);
@@ -359,6 +371,10 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
                     recoveryAttempts = 0;
                 }
             } while (lastProcessedOffset < endOffset - 1);
+        }
+        catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw e;
         }
     }
 

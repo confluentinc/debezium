@@ -70,7 +70,9 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
     /**
      * Waiting period for the polling loop to finish. Will be applied twice, once gracefully, once forcefully.
      */
-    public static final Duration SHUTDOWN_WAIT_TIMEOUT = Duration.ofSeconds(90);
+    // This should be less than the value of worker config task.shutdown.graceful.timeout.ms. On 
+    // CCloud, this is set to 30 seconds.
+    public static final Duration SHUTDOWN_WAIT_TIMEOUT = Duration.ofSeconds(10);
 
     protected final Offsets<P, O> previousOffsets;
     protected final ErrorHandler errorHandler;
@@ -138,7 +140,7 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
                     LOGGER.info("Context created");
 
                     if (schema.isHistorized()) {
-                        LOGGER.info("Recovering schema from previous offsets");
+                        LOGGER.info("Recovering schema history using offset : {}", previousOffsets);
                         ((HistorizedDatabaseSchema<?>) schema).recover(previousOffsets);
                     }
 
