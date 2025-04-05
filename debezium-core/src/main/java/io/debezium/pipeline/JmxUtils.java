@@ -30,7 +30,7 @@ public class JmxUtils {
     private static final String JMX_OBJECT_NAME_FORMAT = "debezium.%s:type=%s,context=%s,server=%s";
 
     // Total 1 minute attempting to retry metrics registration in case of errors
-    private static final int REGISTRATION_RETRIES = 0;
+    private static final int REGISTRATION_RETRIES = 12;
     private static final Duration REGISTRATION_RETRY_DELAY = Duration.ofSeconds(5);
 
     public static void registerMXBean(ObjectName objectName, Object mxBean) {
