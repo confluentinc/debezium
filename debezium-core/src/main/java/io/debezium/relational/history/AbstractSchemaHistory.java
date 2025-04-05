@@ -87,8 +87,7 @@ public abstract class AbstractSchemaHistory implements SchemaHistory {
     }
 
     @Override
-    public void recover(Map<Map<String, ?>, Map<String, ?>> offsets, Tables schema, DdlParser ddlParser) {
-        delayRecoveryIfNeeded();
+    public void recover(Map<Map<String, ?>, Map<String, ?>> offsets, Tables schema, DdlParser ddlParser) throws InterruptedException {
         listener.recoveryStarted();
         Map<Document, HistoryRecord> stopPoints = new HashMap<>();
         offsets.forEach((Map<String, ?> source, Map<String, ?> position) -> {
@@ -160,21 +159,9 @@ public abstract class AbstractSchemaHistory implements SchemaHistory {
         listener.recoveryStopped();
     }
 
-    private void delayRecoveryIfNeeded() {
-        if (config.getLong(SCHEMA_HISTORY_RECOVERY_DELAY_MS) > 0L) {
-            try {
-                logger.info("Delaying schema history recovery for {} ms", config.getLong(SCHEMA_HISTORY_RECOVERY_DELAY_MS));
-                Thread.sleep(config.getLong(SCHEMA_HISTORY_RECOVERY_DELAY_MS));
-            }
-            catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
-    }
-
     protected abstract void storeRecord(HistoryRecord record) throws SchemaHistoryException;
 
-    protected abstract void recoverRecords(Consumer<HistoryRecord> records);
+    protected abstract void recoverRecords(Consumer<HistoryRecord> records) throws InterruptedException;
 
     @Override
     public void stop() {

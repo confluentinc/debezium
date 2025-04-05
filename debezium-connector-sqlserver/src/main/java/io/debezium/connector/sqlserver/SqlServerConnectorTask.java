@@ -97,8 +97,6 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
             throw new DebeziumException(msg);
         }
         
-        schema.recover(offsets);
-
         taskContext = new SqlServerTaskContext(connectorConfig, schema);
 
         // Set up the task record queue ...

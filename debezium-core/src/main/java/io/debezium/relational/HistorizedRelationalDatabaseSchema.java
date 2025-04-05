@@ -52,7 +52,7 @@ public abstract class HistorizedRelationalDatabaseSchema extends RelationalDatab
     }
 
     @Override
-    public void recover(Offsets<?, ?> offsets) {
+    public void recover(Offsets<?, ?> offsets) throws InterruptedException {
 
         if (!offsets.hasNonNullOffsets()) {
             // there is nothing to recover
