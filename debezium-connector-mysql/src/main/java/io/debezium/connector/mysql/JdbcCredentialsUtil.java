@@ -15,6 +15,9 @@
 
 package io.debezium.connector.mysql;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,7 +35,7 @@ public class JdbcCredentialsUtil {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(JdbcCredentialsUtil.class);
 
-    private static volatile JdbcCredentialsProvider PROVIDER_INSTANCE = null;
+    private static final Map<String, JdbcCredentialsProvider> PROVIDER_CACHE = new ConcurrentHashMap<>();
 
     /**
      * Get or create a credentials provider for the given configuration
@@ -40,17 +43,23 @@ public class JdbcCredentialsUtil {
      * @return the credentials provider, or null if none configured
      */
     public static synchronized JdbcCredentialsProvider getCredentialsProvider(Configuration config) {
-        
-        if (PROVIDER_INSTANCE != null) {
-             LOGGER.info("DEBUGIAMASSUMEROLE -Returning existing credentials provider");
-            return PROVIDER_INSTANCE;
+        String cacheKey = generateCacheKey(config);
+
+        JdbcCredentialsProvider cachedProvider = PROVIDER_CACHE.get(cacheKey);
+        if (cachedProvider != null) {
+            LOGGER.info("DEBUGIAMASSUMEROLE -Returning existing credentials provider for key: {}", cacheKey);
+            return cachedProvider;
         }
 
         AuthenticationMethod authMethod = MySqlConnectorConfig.getAuthenticationMethod(config);
         LOGGER.info("DEBUGIAMASSUMEROLE -Authentication method: {}", authMethod);
         if (authMethod == AuthenticationMethod.IAM_ROLES) {
             LOGGER.info("Creating IAM role provider");
-            return createProvider(AwsChainedAssumeRoleRdsCredsProvider.class.getName(), config);
+            JdbcCredentialsProvider provider = createProvider(AwsChainedAssumeRoleRdsCredsProvider.class.getName(), config);
+            if (provider != null) {
+                PROVIDER_CACHE.put(cacheKey, provider);
+            }
+            return provider;
         }
 
         String providerClass = config.getString(MySqlConnectorConfig.CREDENTIALS_PROVIDER);
@@ -58,8 +67,19 @@ public class JdbcCredentialsUtil {
             LOGGER.info("DEBUGIAMASSUMEROLE -No credentials provider configured");
             return null;
         }
-        
-        return createProvider(providerClass, config);
+
+        JdbcCredentialsProvider provider = createProvider(providerClass, config);
+        if (provider != null) {
+            PROVIDER_CACHE.put(cacheKey, provider);
+        }
+        return provider;
+    }
+
+    private static String generateCacheKey(Configuration config) {
+        // Create a unique key based on the hostname and provider integration id
+        return String.format("%s:%s",
+                config.getString(MySqlConnectorConfig.HOSTNAME),
+                config.getString(MySqlConnectorConfig.PROVIDER_INTEGRATION_ID));
     }
 
     private static JdbcCredentialsProvider createProvider(String providerClass, Configuration config) {
@@ -69,11 +89,10 @@ public class JdbcCredentialsUtil {
             JdbcCredentialsProvider provider = (JdbcCredentialsProvider) Class.forName(providerClass)
                     .getDeclaredConstructor().newInstance();
 
-            LOGGER.info("Succesfully created a new isntance of credentials provider of type: {}", providerClass);
+            LOGGER.info("Successfully created a new instance of credentials provider of type: {}", providerClass);
             LOGGER.info("DEBUGIAMASSUMEROLE -Configuring credentials provider with config: {}", config.asMap());
             provider.configure(config.asMap());
             LOGGER.info("DEBUGIAMASSUMEROLE -Configured credentials provider: {}", provider);
-            PROVIDER_INSTANCE = provider;
 
             return provider;
         }
@@ -107,7 +126,6 @@ public class JdbcCredentialsUtil {
 
         return new DefaultJdbcCredentials(
                 config.getString(MySqlConnectorConfig.USER),
-                config.getString(MySqlConnectorConfig.PASSWORD)
-        );
+                config.getString(MySqlConnectorConfig.PASSWORD));
     }
 }
