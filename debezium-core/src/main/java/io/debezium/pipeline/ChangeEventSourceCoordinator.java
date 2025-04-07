@@ -71,7 +71,7 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
      * Waiting period for the polling loop to finish. Will be applied twice, once gracefully, once forcefully.
      */
     // This should be less than the value of worker config task.shutdown.graceful.timeout.ms. On 
-    // CCloud, this is set to 30 seconds.
+    // CCloud, this is set to 30 seconds. Hence setting this to 10 seconds.
     public static final Duration SHUTDOWN_WAIT_TIMEOUT = Duration.ofSeconds(10);
 
     protected final Offsets<P, O> previousOffsets;
