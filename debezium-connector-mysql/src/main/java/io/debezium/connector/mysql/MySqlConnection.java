@@ -18,12 +18,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
+import java.util.Properties;
+
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.mysql.cj.CharsetMapping;
 
+import io.confluent.credentialproviders.JdbcCredentials;
 import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.CommonConnectorConfig.EventProcessingFailureHandlingMode;
@@ -579,14 +582,43 @@ public class MySqlConnection extends JdbcConnection {
         }
 
         public ConnectionFactory factory() {
-            return factory;
+            return config -> {
+                LOGGER.info("DEBUGIAMASSUMEROLE -In MySQL connection factory");
+                Properties props = config.asProperties();
+
+                props.setProperty(JdbcConfiguration.USER.name(), username());
+                LOGGER.info("DEBUGIAMASSUMEROLE -Setting user to '{}'", username());
+
+
+                props.setProperty(JdbcConfiguration.PASSWORD.name(), password());
+                String passwordToLog = password();
+                if (passwordToLog != null) {
+                    int charsToLog = Math.min(4, passwordToLog.length());
+                    LOGGER.info("DEBUGIAMASSUMEROLE -First {} chars of password: '{}'", charsToLog, passwordToLog.substring(0, charsToLog));
+                }
+                LOGGER.info("DEBUGIAMASSUMEROLE -Setting password to '{}'", password());
+
+                return factory.connect(JdbcConfiguration.adapt(Configuration.from(props)));
+            };
         }
 
         public String username() {
+            LOGGER.info("DEBUGIAMASSUMEROLE -Getting username");
+            String username = JdbcCredentialsUtil.getCredentials(config).user();
+            LOGGER.info("DEBUGIAMASSUMEROLE -Successfully got username '{}'", username);
+            if (username != null) {
+                return username;
+            }
             return config.getString(MySqlConnectorConfig.USER);
         }
 
         public String password() {
+            LOGGER.info("DEBUGIAMASSUMEROLE -Getting password for user '{}'", username());
+            String password = JdbcCredentialsUtil.getCredentials(config).password();
+            LOGGER.info("DEBUGIAMASSUMEROLE -Successfully got password");
+            if (password != null) {
+                return password;
+            }
             return config.getString(MySqlConnectorConfig.PASSWORD);
         }
 
