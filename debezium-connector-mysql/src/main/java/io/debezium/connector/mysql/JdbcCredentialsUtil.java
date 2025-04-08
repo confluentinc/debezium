@@ -24,9 +24,7 @@ import org.slf4j.LoggerFactory;
 import io.confluent.credentialproviders.DefaultJdbcCredentials;
 import io.confluent.credentialproviders.JdbcCredentials;
 import io.confluent.credentialproviders.JdbcCredentialsProvider;
-import io.confluent.credentialproviders.aws.AwsChainedAssumeRoleRdsCredsProvider;
 import io.debezium.config.Configuration;
-import io.debezium.connector.mysql.MySqlConnectorConfig.AuthenticationMethod;
 
 /**
  * Utility class for handling JDBC credential providers
@@ -42,29 +40,19 @@ public class JdbcCredentialsUtil {
      * @param config the connector configuration
      * @return the credentials provider, or null if none configured
      */
-    public static synchronized JdbcCredentialsProvider getCredentialsProvider(Configuration config) {
+    private static synchronized JdbcCredentialsProvider getCredentialsProvider(Configuration config) {
         String cacheKey = generateCacheKey(config);
 
         JdbcCredentialsProvider cachedProvider = PROVIDER_CACHE.get(cacheKey);
         if (cachedProvider != null) {
-            LOGGER.info("DEBUGIAMASSUMEROLE -Returning existing credentials provider for key: {}", cacheKey);
+            LOGGER.debug("Returning existing credentials provider for key: {}", cacheKey);
             return cachedProvider;
         }
 
-        AuthenticationMethod authMethod = MySqlConnectorConfig.getAuthenticationMethod(config);
-        LOGGER.info("DEBUGIAMASSUMEROLE -Authentication method: {}", authMethod);
-        if (authMethod == AuthenticationMethod.IAM_ROLES) {
-            LOGGER.info("Creating IAM role provider");
-            JdbcCredentialsProvider provider = createProvider(AwsChainedAssumeRoleRdsCredsProvider.class.getName(), config);
-            if (provider != null) {
-                PROVIDER_CACHE.put(cacheKey, provider);
-            }
-            return provider;
-        }
-
         String providerClass = config.getString(MySqlConnectorConfig.CREDENTIALS_PROVIDER);
+        LOGGER.debug("Credentials provider class: {}", providerClass);
         if (providerClass == null) {
-            LOGGER.info("DEBUGIAMASSUMEROLE -No credentials provider configured");
+            LOGGER.debug("No credentials provider configured");
             return null;
         }
 
@@ -109,7 +97,7 @@ public class JdbcCredentialsUtil {
      * @return credentials object containing username and password
      */
     public static JdbcCredentials getCredentials(Configuration config) {
-        LOGGER.info("DEBUGIAMASSUMEROLE -Getting credentials for user '{}'", config.getString(MySqlConnectorConfig.USER));
+        LOGGER.debug("Getting credentials for user '{}'", config.getString(MySqlConnectorConfig.USER));
         JdbcCredentialsProvider provider = getCredentialsProvider(config);
         if (provider != null) {
             try {
