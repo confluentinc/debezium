@@ -71,16 +71,14 @@ public class JdbcCredentialsUtil {
     }
 
     private static JdbcCredentialsProvider createProvider(String providerClass, Configuration config) {
-        LOGGER.info("DEBUGIAMASSUMEROLE -Creating credentials provider: {}", providerClass);
+        LOGGER.debug("Creating credentials provider: {}", providerClass);
         try {
-            LOGGER.info("DEBUGIAMASSUMEROLE - Current config : {}", config.asMap());
             JdbcCredentialsProvider provider = (JdbcCredentialsProvider) Class.forName(providerClass)
                     .getDeclaredConstructor().newInstance();
 
             LOGGER.info("Successfully created a new instance of credentials provider of type: {}", providerClass);
-            LOGGER.info("DEBUGIAMASSUMEROLE -Configuring credentials provider with config: {}", config.asMap());
             provider.configure(config.asMap());
-            LOGGER.info("DEBUGIAMASSUMEROLE -Configured credentials provider: {}", provider);
+            LOGGER.info("Configured credentials provider: {}", provider);
 
             return provider;
         }
