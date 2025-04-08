@@ -1,16 +1,5 @@
 /*
- * Copyright 2018 Confluent Inc.
- *
- * Licensed under the Confluent Community License (the "License"); you may not use
- * this file except in compliance with the License.  You may obtain a copy of the
- * License at
- *
- * http://www.confluent.io/confluent-community-license
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OF ANY KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations under the License.
+ * Copyright [2025 - 2025] Confluent Inc.
  */
 
 package io.debezium.connector.mysql;
@@ -53,6 +42,7 @@ public class JdbcCredentialsUtil {
         LOGGER.debug("Credentials provider class: {}", providerClass);
         if (providerClass == null) {
             LOGGER.debug("No credentials provider configured");
+            // in this case, normal username/password will be used
             return null;
         }
 
@@ -64,7 +54,8 @@ public class JdbcCredentialsUtil {
     }
 
     private static String generateCacheKey(Configuration config) {
-        // Create a unique key based on the hostname and provider integration id
+        // since this is a static cache, we need to ensure that the key is unique for each connector instance
+        // otherwise all the connector instances will share the same provider and error out
         return String.format("%s:%s",
                 config.getString(MySqlConnectorConfig.HOSTNAME),
                 config.getString(MySqlConnectorConfig.PROVIDER_INTEGRATION_ID));
