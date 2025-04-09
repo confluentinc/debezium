@@ -541,7 +541,13 @@ public class MySqlConnection extends JdbcConnection {
             String driverClassName = this.config.getString(MySqlConnectorConfig.JDBC_DRIVER);
             Field protocol = MySqlConnectorConfig.JDBC_PROTOCOL;
 
-            factory = JdbcConnection.patternBasedFactory(MySqlConnection.URL_PATTERN, driverClassName, getClass().getClassLoader(), protocol);
+            ConnectionFactory baseFactory = JdbcConnection.patternBasedFactory(MySqlConnection.URL_PATTERN, driverClassName, getClass().getClassLoader(), protocol);
+            factory = jdbcConfig -> {
+                Properties props = jdbcConfig.asProperties();
+                props.setProperty(JdbcConfiguration.USER.name(), username());
+                props.setProperty(JdbcConfiguration.PASSWORD.name(), password());
+                return baseFactory.connect(JdbcConfiguration.adapt(Configuration.from(props)));
+            };
         }
 
         private static String determineConnectionTimeZone(final Configuration dbConfig) {
@@ -564,15 +570,7 @@ public class MySqlConnection extends JdbcConnection {
         }
 
         public ConnectionFactory factory() {
-            return config -> {
-                Properties props = config.asProperties();
-
-                props.setProperty(JdbcConfiguration.USER.name(), username());
-
-                props.setProperty(JdbcConfiguration.PASSWORD.name(), password());
-
-                return factory.connect(JdbcConfiguration.adapt(Configuration.from(props)));
-            };
+            return factory;
         }
 
         public String username() {

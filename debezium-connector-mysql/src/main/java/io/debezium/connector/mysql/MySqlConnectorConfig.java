@@ -59,7 +59,7 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
      */
     public enum BigIntUnsignedHandlingMode implements EnumeratedValue {
         /**
-         * Re present {@code BIGINT UNSIGNED} values as precise {@link BigDecimal} values, which are
+         * Represent {@code BIGINT UNSIGNED} values as precise {@link BigDecimal} values, which are
          * represented in change events in a binary form. This is precise but difficult to use.
          */
         PRECISE("precise"),

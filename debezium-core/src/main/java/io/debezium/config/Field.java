@@ -259,7 +259,6 @@ public final class Field {
     }
 
     public enum Group {
-        AUTH_MODE,
         CONNECTION,
         CONNECTION_ADVANCED_SSL,
         CONNECTION_ADVANCED,
