@@ -21,22 +21,13 @@ import io.debezium.config.Configuration;
 public class JdbcCredentialsUtil {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(JdbcCredentialsUtil.class);
-
-    private static final Map<String, JdbcCredentialsProvider> PROVIDER_CACHE = new ConcurrentHashMap<>();
-
+    
     /**
      * Get or create a credentials provider for the given configuration
      * @param config the connector configuration
      * @return the credentials provider, or null if none configured
      */
     private static synchronized JdbcCredentialsProvider getCredentialsProvider(Configuration config) {
-        String cacheKey = generateCacheKey(config);
-
-        JdbcCredentialsProvider cachedProvider = PROVIDER_CACHE.get(cacheKey);
-        if (cachedProvider != null) {
-            LOGGER.debug("Returning existing credentials provider for key: {}", cacheKey);
-            return cachedProvider;
-        }
 
         String providerClass = config.getString(MySqlConnectorConfig.CREDENTIALS_PROVIDER_CLASS_NAME);
         LOGGER.debug("Credentials provider class: {}", providerClass);
@@ -47,18 +38,7 @@ public class JdbcCredentialsUtil {
         }
 
         JdbcCredentialsProvider provider = createProvider(providerClass, config);
-        if (provider != null) {
-            PROVIDER_CACHE.put(cacheKey, provider);
-        }
         return provider;
-    }
-
-    private static String generateCacheKey(Configuration config) {
-        // since this is a static cache, we need to ensure that the key is unique for each connector instance
-        // otherwise all the connector instances will share the same provider and error out
-        return String.format("%s:%s",
-                config.getString(MySqlConnectorConfig.HOSTNAME),
-                config.getString(MySqlConnectorConfig.PROVIDER_INTEGRATION_ID));
     }
 
     private static JdbcCredentialsProvider createProvider(String providerClass, Configuration config) {
@@ -104,5 +84,10 @@ public class JdbcCredentialsUtil {
         return new DefaultJdbcCredentials(
                 config.getString(MySqlConnectorConfig.USER),
                 config.getString(MySqlConnectorConfig.PASSWORD));
+    }
+    
+    public static JdbcCredentialsProvider getCredentialsProviderPublic(Configuration config) {
+        // return a new object
+        return getCredentialsProvider(config);
     }
 }

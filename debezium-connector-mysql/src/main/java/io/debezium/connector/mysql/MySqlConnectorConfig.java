@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import io.confluent.credentialproviders.JdbcCredentialsProvider;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigDef.Type;
@@ -41,6 +42,8 @@ import io.debezium.util.Collect;
  * The configuration properties.
  */
 public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorConfig {
+    
+    private final JdbcCredentialsProvider credsProvider;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MySqlConnectorConfig.class);
 
@@ -1084,6 +1087,7 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
                 : (gtidSetExcludes != null ? Predicates.excludesUuids(gtidSetExcludes) : null);
 
         this.storeOnlyCapturedDatabasesDdl = config.getBoolean(STORE_ONLY_CAPTURED_DATABASES_DDL);
+        this.credsProvider = JdbcCredentialsUtil.getCredentialsProviderPublic(config);
     }
 
     public boolean useCursorFetch() {
@@ -1206,7 +1210,7 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
     }
 
     public String username() {
-        String username = JdbcCredentialsUtil.getCredentials(config).user();
+        String username = credsProvider.getJdbcCreds().user();
         if (username != null) {
             return username;
         }
@@ -1214,7 +1218,7 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
     }
 
     public String password() {
-        String password = JdbcCredentialsUtil.getCredentials(config).password();
+        String password = credsProvider.getJdbcCreds().password();
         if (password != null) {
             return password;
         }
