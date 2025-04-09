@@ -17,7 +17,6 @@ import org.apache.kafka.common.config.ConfigDef.Width;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.confluent.credentialproviders.JdbcCredentials;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.ConfigDefinition;
 import io.debezium.config.Configuration;
@@ -585,6 +584,14 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
             .withDescription("Select an existing integration that has access to your resource. "
                     + "In case you need to integrate a new IAM role, use provider integration");
 
+    public static final Field DATABASE_AWS_REGION = Field.create("database.aws.region")
+            .withDisplayName("Database AWS Region")
+            .withType(Type.STRING)
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTION, 3))
+            .withWidth(Width.MEDIUM)
+            .withImportance(Importance.HIGH)
+            .withDescription("The AWS region of the MySQL database server for RDS/Aurora.");
+
     public static final Field SSL_MODE = Field.create("database.ssl.mode")
             .withDisplayName("SSL mode")
             .withEnum(SecureConnectionMode.class, SecureConnectionMode.PREFERRED)
@@ -648,7 +655,7 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
             .withValidation(Field::isClassName)
             .withDescription("JDBC Driver class name used to connect to the MySQL database server.");
 
-    public static final Field CREDENTIALS_PROVIDER = Field.create("credentials.provider.class.name")
+    public static final Field CREDENTIALS_PROVIDER_CLASS_NAME = Field.create("credentials.provider.class.name")
             .withDisplayName("JDBC Credentials Provider Class Name")
             .withType(Type.STRING)
             .withGroup(Field.createGroupEntry(Field.Group.CONNECTION, 42))
@@ -973,7 +980,7 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
                     ON_CONNECT_STATEMENTS,
                     SERVER_ID,
                     SERVER_ID_OFFSET,
-                    CREDENTIALS_PROVIDER,
+                    CREDENTIALS_PROVIDER_CLASS_NAME,
                     SSL_MODE,
                     SSL_KEYSTORE,
                     SSL_KEYSTORE_PASSWORD,
@@ -981,7 +988,8 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
                     SSL_TRUSTSTORE_PASSWORD,
                     JDBC_DRIVER,
                     AUTHENTICATION_METHOD,
-                    PROVIDER_INTEGRATION_ID)
+                    PROVIDER_INTEGRATION_ID,
+                    DATABASE_AWS_REGION)
             .connector(
                     CONNECTION_TIMEOUT_MS,
                     KEEP_ALIVE,
@@ -1211,6 +1219,10 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
             return password;
         }
         return config.getString(MySqlConnectorConfig.PASSWORD);
+    }
+
+    public String awsRegion() {
+        return config.getString(DATABASE_AWS_REGION);
     }
 
     public long serverId() {

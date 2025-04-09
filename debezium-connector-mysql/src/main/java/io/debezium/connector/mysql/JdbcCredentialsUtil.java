@@ -38,7 +38,7 @@ public class JdbcCredentialsUtil {
             return cachedProvider;
         }
 
-        String providerClass = config.getString(MySqlConnectorConfig.CREDENTIALS_PROVIDER);
+        String providerClass = config.getString(MySqlConnectorConfig.CREDENTIALS_PROVIDER_CLASS_NAME);
         LOGGER.debug("Credentials provider class: {}", providerClass);
         if (providerClass == null) {
             LOGGER.debug("No credentials provider configured");
