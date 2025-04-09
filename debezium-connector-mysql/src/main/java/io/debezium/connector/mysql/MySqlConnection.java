@@ -491,12 +491,14 @@ public class MySqlConnection extends JdbcConnection {
         private final JdbcConfiguration jdbcConfig;
         private final ConnectionFactory factory;
         private final Configuration config;
+        private final MySqlConnectorConfig connectorConfig;
 
         public MySqlConnectionConfiguration(Configuration config) {
             // Set up the JDBC connection without actually connecting, with extra MySQL-specific properties
             // to give us better JDBC database metadata behavior, including using UTF-8 for the client-side character encoding
             // per https://dev.mysql.com/doc/connector-j/5.1/en/connector-j-reference-charsets.html
             this.config = config;
+            this.connectorConfig = new MySqlConnectorConfig(config);
             final boolean useSSL = sslModeEnabled();
             final Configuration dbConfig = config
                     .edit()
@@ -574,11 +576,11 @@ public class MySqlConnection extends JdbcConnection {
         }
 
         public String username() {
-            return ((MySqlConnectorConfig)config).username();
+            return connectorConfig.username();
         }
 
         public String password() {
-            return ((MySqlConnectorConfig)config).password();
+            return connectorConfig.password();
         }
 
         public String hostname() {

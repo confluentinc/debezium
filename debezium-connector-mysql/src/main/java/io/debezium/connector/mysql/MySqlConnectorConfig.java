@@ -564,37 +564,6 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
                     + "client, and they each need their own unique connection ID. This offset is "
                     + "used to generate those IDs from the base configured cluster ID.");
 
-    /**
-     * Redefining  the password field from RelationalDatabaseConnectorConfig to place it in the AUTH_MODE group
-     * instead of the default CONNECTION group. This allows the password field to be grouped with other
-     * authentication-related fields in the MySQL connector's configuration.
-     */
-    public static final Field PASSWORD = Field.create("database.password")
-            .withDisplayName("Password")
-            .withType(Type.PASSWORD)
-            .withGroup(Field.createGroupEntry(Field.Group.AUTH_MODE, 3))
-            .withWidth(Width.MEDIUM)
-            .withImportance(Importance.HIGH)
-            .withDescription("Password to be used when connecting to the database.");
-
-    public static final Field PROVIDER_INTEGRATION_ID = Field.create("provider.integration.id")
-            .withDisplayName("Provider Integration")
-            .withType(Type.STRING)
-            .withGroup(Field.createGroupEntry(Field.Group.AUTH_MODE, 2))
-            .withWidth(Width.MEDIUM)
-            .withImportance(Importance.MEDIUM)
-            .withDefault("")
-            .withDescription("Select an existing integration that has access to your resource. "
-                    + "In case you need to integrate a new IAM role, use provider integration");
-
-    public static final Field DATABASE_AWS_REGION = Field.create("database.aws.region")
-            .withDisplayName("Database AWS Region")
-            .withType(Type.STRING)
-            .withGroup(Field.createGroupEntry(Field.Group.CONNECTION, 3))
-            .withWidth(Width.MEDIUM)
-            .withImportance(Importance.HIGH)
-            .withDescription("The AWS region of the MySQL database server for RDS/Aurora.");
-
     public static final Field SSL_MODE = Field.create("database.ssl.mode")
             .withDisplayName("SSL mode")
             .withEnum(SecureConnectionMode.class, SecureConnectionMode.PREFERRED)
@@ -918,53 +887,6 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
     public static final Field STORE_ONLY_CAPTURED_DATABASES_DDL = HistorizedRelationalDatabaseConnectorConfig.STORE_ONLY_CAPTURED_DATABASES_DDL
             .withDefault(true);
 
-    public enum AuthenticationMethod implements EnumeratedValue {
-
-        IAM_ROLES("IAM Roles"),
-        PASSWORD("Password");
-
-        private final String value;
-
-        AuthenticationMethod(String value) {
-            this.value = value;
-        }
-
-        @Override
-        public String getValue() {
-            return value;
-        }
-
-        public static AuthenticationMethod parse(String value) {
-            if (value == null) {
-                return null;
-            }
-            value = value.trim();
-            for (AuthenticationMethod option : AuthenticationMethod.values()) {
-                if (option.getValue().equalsIgnoreCase(value)) {
-                    return option;
-                }
-            }
-            return null;
-        }
-
-        public static AuthenticationMethod parse(String value, String defaultValue) {
-            AuthenticationMethod method = parse(value);
-            if (method == null && defaultValue != null) {
-                method = parse(defaultValue);
-            }
-            return method;
-        }
-    }
-
-    public static final Field AUTHENTICATION_METHOD = Field.create("authentication.method")
-            .withDisplayName("Authentication method")
-            .withEnum(AuthenticationMethod.class, AuthenticationMethod.PASSWORD)
-            .withGroup(Field.createGroupEntry(Field.Group.AUTH_MODE, 1))
-            .withWidth(Width.MEDIUM)
-            .withImportance(Importance.HIGH)
-            .withDescription("Select how you want to authenticate with AWS. Options include: "
-                    + "'IAM Roles' to use IAM roles for authentication; "
-                    + "'Password' to use password for authentication.");
 
     private static final ConfigDefinition CONFIG_DEFINITION = HistorizedRelationalDatabaseConnectorConfig.CONFIG_DEFINITION.edit()
             .name("MySQL")
@@ -988,10 +910,7 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
                     SSL_KEYSTORE_PASSWORD,
                     SSL_TRUSTSTORE,
                     SSL_TRUSTSTORE_PASSWORD,
-                    JDBC_DRIVER,
-                    AUTHENTICATION_METHOD,
-                    PROVIDER_INTEGRATION_ID,
-                    DATABASE_AWS_REGION)
+                    JDBC_DRIVER)
             .connector(
                     CONNECTION_TIMEOUT_MS,
                     KEEP_ALIVE,
@@ -1247,10 +1166,6 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
         return config.getString(MySqlConnectorConfig.PASSWORD);
     }
 
-    public String awsRegion() {
-        return config.getString(DATABASE_AWS_REGION);
-    }
-
     public long serverId() {
         return config.getLong(SERVER_ID);
     }
@@ -1315,10 +1230,5 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
      */
     boolean useGlobalLock() {
         return !"true".equals(config.getString(TEST_DISABLE_GLOBAL_LOCKING));
-    }
-
-    public static AuthenticationMethod getAuthenticationMethod(Configuration config) {
-        String authMethod = config.getString(AUTHENTICATION_METHOD);
-        return authMethod != null ? AuthenticationMethod.parse(authMethod) : null;
     }
 }
