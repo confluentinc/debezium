@@ -1495,11 +1495,12 @@ public class PostgresConnectorIT extends AbstractConnectorTest {
                 .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "s1.b")
                 .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true);
 
+        TestHelper.execute("CREATE TABLE s1.b (pk SERIAL, aa isbn, PRIMARY KEY(pk));");
         start(PostgresConnector.class, configBuilder.build());
         assertConnectorIsRunning();
         waitForSnapshotToBeCompleted();
 
-        TestHelper.execute("CREATE TABLE s1.b (pk SERIAL, aa isbn, PRIMARY KEY(pk));", "INSERT INTO s1.b (aa) VALUES ('978-0-393-04002-9')");
+        TestHelper.execute("INSERT INTO s1.b (aa) VALUES ('978-0-393-04002-9');");
         SourceRecords actualRecords = consumeRecordsByTopic(1);
 
         List<SourceRecord> records = actualRecords.recordsForTopic(topicName("s1.b"));
@@ -2149,8 +2150,13 @@ public class PostgresConnectorIT extends AbstractConnectorTest {
                 .until(() -> {
                     // Required due to DBZ-3158, creates empty transaction
                     TestHelper.create().execute("vacuum full").close();
-                    return (boolean) ManagementFactory.getPlatformMBeanServer()
+                    Object attribute = ManagementFactory.getPlatformMBeanServer()
                             .getAttribute(getSnapshotMetricsObjectName("postgres", TestHelper.TEST_SERVER), "SnapshotCompleted");
+                    if (attribute instanceof Long) {
+                        return (Long) attribute == 1L;
+                    } else {
+                        return (Boolean) attribute;
+                    }
                 });
 
         // wait for the second streaming phase

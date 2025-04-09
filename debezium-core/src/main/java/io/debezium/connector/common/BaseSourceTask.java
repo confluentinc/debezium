@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
@@ -97,6 +98,7 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
 
     @SingleThreadAccess("polling thread")
     private int previousOutputBatchSize;
+    private final AtomicBoolean shouldPerformCommit = new AtomicBoolean(false);
 
     private final ServiceLoader<SignalChannelReader> availableSignalChannels = ServiceLoader.load(SignalChannelReader.class);
 
@@ -178,6 +180,10 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
                 return Collections.emptyList();
             }
 
+            // its safe to flush offsets here as we are in the running state
+            if (shouldPerformCommit.getAndSet(false)) {
+                performCommit();
+            }
             final List<SourceRecord> records = doPoll();
             logStatistics(records);
             return records;
@@ -326,6 +332,10 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
 
     @Override
     public void commit() throws InterruptedException {
+        shouldPerformCommit.set(true);
+    }
+
+    public void performCommit() {
         boolean locked = stateLock.tryLock();
 
         if (locked) {

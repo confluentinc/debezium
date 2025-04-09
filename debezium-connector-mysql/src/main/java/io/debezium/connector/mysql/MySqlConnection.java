@@ -55,6 +55,10 @@ public class MySqlConnection extends JdbcConnection {
     private static final String SQL_SHOW_SYSTEM_VARIABLES_CHARACTER_SET = "SHOW VARIABLES WHERE Variable_name IN ('character_set_server','collation_server')";
     private static final String SQL_SHOW_SESSION_VARIABLE_SSL_VERSION = "SHOW SESSION STATUS LIKE 'Ssl_version'";
     private static final String QUOTED_CHARACTER = "`";
+    public static final String MASTER_STATUS_STATEMENT = "SHOW MASTER STATUS";
+    public static final String BINARY_LOG_STATUS_STATEMENT = "SHOW BINARY LOG STATUS";
+     private final String binaryLogStatusStatement;
+
 
     protected static final String URL_PATTERN = "${protocol}://${hostname}:${port}/?useInformationSchema=true&nullCatalogMeansCurrent=false&useUnicode=true&characterEncoding=UTF-8&characterSetResults=UTF-8&zeroDateTimeBehavior=CONVERT_TO_NULL&connectTimeout=${connectTimeout}";
 
@@ -72,6 +76,22 @@ public class MySqlConnection extends JdbcConnection {
         super(connectionConfig.jdbcConfig, connectionConfig.factory(), QUOTED_CHARACTER, QUOTED_CHARACTER);
         this.connectionConfig = connectionConfig;
         this.mysqlFieldReader = fieldReader;
+
+        try {
+            query(BINARY_LOG_STATUS_STATEMENT, rs -> {
+            });
+        }
+        catch (SQLException e) {
+            LOGGER.info("Using '{}' to get binary log status", MASTER_STATUS_STATEMENT);
+            binaryLogStatusStatement = MASTER_STATUS_STATEMENT;
+            return;
+        }
+        LOGGER.info("Using '{}' to get binary log status", BINARY_LOG_STATUS_STATEMENT);
+        binaryLogStatusStatement = BINARY_LOG_STATUS_STATEMENT;
+    }
+
+    public String binaryLogStatusStatement() {
+        return binaryLogStatusStatement;
     }
 
     /**
@@ -240,7 +260,7 @@ public class MySqlConnection extends JdbcConnection {
      */
     public String knownGtidSet() {
         try {
-            return queryAndMap("SHOW MASTER STATUS", rs -> {
+            return queryAndMap(binaryLogStatusStatement(), rs -> {
                 if (rs.next() && rs.getMetaData().getColumnCount() > 4) {
                     return rs.getString(5); // GTID set, may be null, blank, or contain a GTID set
                 }

@@ -69,12 +69,11 @@ public class PostgresDefaultValueConverterIT extends AbstractConnectorTest {
         Configuration.Builder configBuilder = TestHelper.defaultConfig()
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL.getValue())
                 .with(PostgresConnectorConfig.SCHEMA_INCLUDE_LIST, "s1");
+        createTableAndInsertData();
         start(PostgresConnector.class, configBuilder.build());
         assertConnectorIsRunning();
 
         waitForSnapshotToBeCompleted("postgres", TestHelper.TEST_SERVER);
-
-        createTableAndInsertData();
 
         final SourceRecords records = consumeRecordsByTopic(1);
         assertThat(records.recordsForTopic("test_server.s1.a")).hasSize(1);
