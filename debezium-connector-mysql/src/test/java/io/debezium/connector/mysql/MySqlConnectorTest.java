@@ -38,12 +38,7 @@ public class MySqlConnectorTest {
             assertThat(key.documentation).isEqualTo(expected.description());
             assertThat(key.type).isEqualTo(expected.type());
             if (expected.type() == Type.CLASS) {
-                if (key.defaultValue != null) {
-                    assertThat(((Class<?>) key.defaultValue).getName()).isEqualTo((String) expected.defaultValue());
-                } else {
-                    // handle case where default value is null for a CLASS type like for credential provider class
-                    assertThat(expected.defaultValue()).isNull();
-                }
+                assertThat(((Class<?>) key.defaultValue).getName()).isEqualTo((String) expected.defaultValue());
             }
             else if (expected.type() == ConfigDef.Type.LIST && key.defaultValue != null) {
                 assertThat(key.defaultValue).isEqualTo(Arrays.asList(expected.defaultValue()));
