@@ -1148,19 +1148,11 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
     }
 
     public String username() {
-        String username = credsProvider.getJdbcCreds().user();
-        if (username != null) {
-            return username;
-        }
-        return config.getString(MySqlConnectorConfig.USER);
+        return credsProvider.getJdbcCreds().user();
     }
 
     public String password() {
-        String password = credsProvider.getJdbcCreds().password();
-        if (password != null) {
-            return password;
-        }
-        return config.getString(MySqlConnectorConfig.PASSWORD);
+        return credsProvider.getJdbcCreds().password();
     }
 
     public long serverId() {
