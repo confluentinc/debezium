@@ -567,7 +567,6 @@ public class MySqlConnection extends JdbcConnection {
 
                 props.setProperty(JdbcConfiguration.USER.name(), username());
 
-
                 props.setProperty(JdbcConfiguration.PASSWORD.name(), password());
 
                 return factory.connect(JdbcConfiguration.adapt(Configuration.from(props)));
@@ -575,19 +574,11 @@ public class MySqlConnection extends JdbcConnection {
         }
 
         public String username() {
-            String username = JdbcCredentialsUtil.getCredentials(config).user();
-            if (username != null) {
-                return username;
-            }
-            return config.getString(MySqlConnectorConfig.USER);
+            return ((MySqlConnectorConfig)config).username();
         }
 
         public String password() {
-            String password = JdbcCredentialsUtil.getCredentials(config).password();
-            if (password != null) {
-                return password;
-            }
-            return config.getString(MySqlConnectorConfig.PASSWORD);
+            return ((MySqlConnectorConfig)config).password();
         }
 
         public String hostname() {

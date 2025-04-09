@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import io.confluent.credentialproviders.JdbcCredentialsProvider;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigDef.Type;
@@ -41,6 +42,8 @@ import io.debezium.util.Collect;
  * The configuration properties.
  */
 public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorConfig {
+    
+    private final JdbcCredentialsProvider credsProvider;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MySqlConnectorConfig.class);
 
@@ -944,7 +947,6 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
             return null;
         }
 
-
         public static AuthenticationMethod parse(String value, String defaultValue) {
             AuthenticationMethod method = parse(value);
             if (method == null && defaultValue != null) {
@@ -1084,6 +1086,7 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
                 : (gtidSetExcludes != null ? Predicates.excludesUuids(gtidSetExcludes) : null);
 
         this.storeOnlyCapturedDatabasesDdl = config.getBoolean(STORE_ONLY_CAPTURED_DATABASES_DDL);
+        this.credsProvider = getCredentialsProvider(config);
     }
 
     public boolean useCursorFetch() {
@@ -1105,6 +1108,29 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
                     EVENT_PROCESSING_FAILURE_HANDLING_MODE.name());
         }
         return 0;
+    }
+
+    private JdbcCredentialsProvider getCredentialsProvider(Configuration config){
+        String providerClass = config.getString(MySqlConnectorConfig.CREDENTIALS_PROVIDER_CLASS_NAME);
+        LOGGER.info("Credentials provider class: {}", providerClass);
+        LOGGER.info("DEBUGIAMASSUMEROLE -Creating credentials provider: {}", providerClass);
+        try {
+            LOGGER.info("DEBUGIAMASSUMEROLE - Current config : {}", config.asMap());
+            JdbcCredentialsProvider provider = (JdbcCredentialsProvider) Class.forName(providerClass)
+                    .getDeclaredConstructor().newInstance();
+
+            LOGGER.info("Successfully created a new instance of credentials provider of type: {}", providerClass);
+            LOGGER.info("DEBUGIAMASSUMEROLE -Configuring credentials provider with config: {}", config.asMap());
+            provider.configure(config.asMap());
+            LOGGER.info("DEBUGIAMASSUMEROLE -Configured credentials provider: {}", provider);
+
+            return provider;
+        }
+        catch (Exception e) {
+            LOGGER.warn("Error initializing credentials provider {}: {}", providerClass, e.getMessage());
+            LOGGER.debug("Detailed provider initialization error", e);
+            return null;
+        }
     }
 
     private static int validateGtidSetExcludes(Configuration config, Field field, ValidationOutput problems) {
@@ -1206,7 +1232,7 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
     }
 
     public String username() {
-        String username = JdbcCredentialsUtil.getCredentials(config).user();
+        String username = credsProvider.getJdbcCreds().user();
         if (username != null) {
             return username;
         }
@@ -1214,7 +1240,7 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
     }
 
     public String password() {
-        String password = JdbcCredentialsUtil.getCredentials(config).password();
+        String password = credsProvider.getJdbcCreds().password();
         if (password != null) {
             return password;
         }
