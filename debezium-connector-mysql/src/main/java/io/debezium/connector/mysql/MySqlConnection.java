@@ -18,12 +18,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
+import java.util.Properties;
+
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.mysql.cj.CharsetMapping;
 
+import io.confluent.credentialproviders.JdbcCredentials;
 import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.CommonConnectorConfig.EventProcessingFailureHandlingMode;
@@ -579,15 +582,23 @@ public class MySqlConnection extends JdbcConnection {
         }
 
         public ConnectionFactory factory() {
-            return factory;
+            return config -> {
+                Properties props = config.asProperties();
+
+                props.setProperty(JdbcConfiguration.USER.name(), username());
+
+                props.setProperty(JdbcConfiguration.PASSWORD.name(), password());
+
+                return factory.connect(JdbcConfiguration.adapt(Configuration.from(props)));
+            };
         }
 
         public String username() {
-            return config.getString(MySqlConnectorConfig.USER);
+            return ((MySqlConnectorConfig)config).username();
         }
 
         public String password() {
-            return config.getString(MySqlConnectorConfig.PASSWORD);
+            return ((MySqlConnectorConfig)config).password();
         }
 
         public String hostname() {
