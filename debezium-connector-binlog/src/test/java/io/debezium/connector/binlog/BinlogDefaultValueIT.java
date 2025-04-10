@@ -779,6 +779,7 @@ public abstract class BinlogDefaultValueIT<C extends SourceConnector> extends Ab
     @SkipWhenKafkaVersion(check = EqualityCheck.EQUAL, value = KafkaVersion.KAFKA_1XX, description = "Not compatible with Kafka 1.x")
     public void timeTypeWithConnectModeWhenEventConvertingFail() throws Exception {
         config = DATABASE.defaultConfig()
+                .with(CommonConnectorConfig.FAIL_ON_NO_TABLES, false)
                 .with(BinlogConnectorConfig.SNAPSHOT_MODE, BinlogConnectorConfig.SnapshotMode.INITIAL)
                 .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("DATE_TIME_TABLE_CONNECT_FAIL"))
                 .with(BinlogConnectorConfig.TIME_PRECISION_MODE, TemporalPrecisionMode.CONNECT)
@@ -896,6 +897,7 @@ public abstract class BinlogDefaultValueIT<C extends SourceConnector> extends Ab
     @FixFor({ "DBZ-2267", "DBZ-6029" })
     public void alterDateAndTimeTest() throws Exception {
         config = DATABASE.defaultConfig()
+                .with(CommonConnectorConfig.FAIL_ON_NO_TABLES, false)
                 .with(BinlogConnectorConfig.SNAPSHOT_MODE, BinlogConnectorConfig.SnapshotMode.INITIAL)
                 .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("ALTER_DATE_TIME"))
                 .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, true)
@@ -930,6 +932,7 @@ public abstract class BinlogDefaultValueIT<C extends SourceConnector> extends Ab
     @FixFor("DBZ-4822")
     public void shouldConvertDefaultBoolean2Number() throws Exception {
         config = DATABASE.defaultConfig()
+                .with(CommonConnectorConfig.FAIL_ON_NO_TABLES, false)
                 .with(BinlogConnectorConfig.SNAPSHOT_MODE, BinlogConnectorConfig.SnapshotMode.NO_DATA)
                 .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("DBZ_4822_DEFAULT_BOOLEAN"))
                 .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, true)
@@ -976,6 +979,7 @@ public abstract class BinlogDefaultValueIT<C extends SourceConnector> extends Ab
     @FixFor("DBZ-5241")
     public void shouldConvertDefaultWithCharacterSetIntroducer() throws Exception {
         config = DATABASE.defaultConfig()
+                .with(CommonConnectorConfig.FAIL_ON_NO_TABLES, false)
                 .with(BinlogConnectorConfig.SNAPSHOT_MODE, BinlogConnectorConfig.SnapshotMode.NO_DATA)
                 .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("DBZ_5241_DEFAULT_CS_INTRO"))
                 .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, true)

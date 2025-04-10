@@ -84,6 +84,7 @@ public abstract class CommonConnectorConfig {
     protected final boolean isLogPositionCheckEnabled;
     protected final boolean isAdvancedMetricsEnabled;
     private final boolean isExtendedHeadersEnabled;
+    protected final boolean failOnNoTables;
 
     /**
      * The set of predefined versions e.g. for source struct maker version
@@ -1291,6 +1292,14 @@ public abstract class CommonConnectorConfig {
             .withValidation(Field::isBoolean)
             .withDescription(
                     "Enable/Disable Debezium context headers that provides essential metadata for tracking and identifying the source of CDC events in downstream processing systems.");
+    public static final Field FAIL_ON_NO_TABLES = Field.createInternal("fail.on.no.tables")
+            .withDisplayName("Fail if no tables are found")
+            .withType(Type.BOOLEAN)
+            .withGroup(Field.createGroupEntry(Field.Group.ADVANCED, 999))
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.LOW)
+            .withDescription("Fail if no tables are found that match the configured filters.")
+            .withDefault(true);
 
     protected static final ConfigDefinition CONFIG_DEFINITION = ConfigDefinition.editor()
             .connector(
@@ -1326,7 +1335,8 @@ public abstract class CommonConnectorConfig {
                     OPEN_LINEAGE_INTEGRATION_JOB_DESCRIPTION,
                     OPEN_LINEAGE_INTEGRATION_JOB_TAGS,
                     OPEN_LINEAGE_INTEGRATION_JOB_OWNERS,
-                    EXTENDED_HEADERS_ENABLED)
+                    EXTENDED_HEADERS_ENABLED,
+                    FAIL_ON_NO_TABLES)
             .events(
                     CUSTOM_CONVERTERS,
                     CUSTOM_POST_PROCESSORS,
@@ -1442,6 +1452,7 @@ public abstract class CommonConnectorConfig {
         this.isLogPositionCheckEnabled = config.getBoolean(LOG_POSITION_CHECK_ENABLED);
         this.isAdvancedMetricsEnabled = config.getBoolean(ADVANCED_METRICS_ENABLE);
         this.isExtendedHeadersEnabled = config.getBoolean(EXTENDED_HEADERS_ENABLED);
+        this.failOnNoTables = config.getBoolean(FAIL_ON_NO_TABLES);
 
         this.signalingDataCollectionId = !Strings.isNullOrBlank(this.signalingDataCollection)
                 ? TableId.parse(this.signalingDataCollection)
@@ -1575,6 +1586,10 @@ public abstract class CommonConnectorConfig {
 
     public boolean skipMessagesWithoutChange() {
         return skipMessagesWithoutChange;
+    }
+
+    public boolean failOnNoTables() {
+        return failOnNoTables;
     }
 
     public EventProcessingFailureHandlingMode getEventProcessingFailureHandlingMode() {

@@ -299,7 +299,7 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
         LOGGER.info("Snapshot ended with {}", snapshotResult);
 
         if (snapshotResult.getStatus() == SnapshotResultStatus.COMPLETED || schema.tableInformationComplete()) {
-            schema.assureNonEmptySchema();
+            schema.assureNonEmptySchema(connectorConfig.failOnNoTables());
         }
         return snapshotResult;
     }
