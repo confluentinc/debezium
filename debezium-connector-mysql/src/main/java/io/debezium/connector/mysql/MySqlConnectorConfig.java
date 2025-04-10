@@ -628,11 +628,12 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
             .withValidation(Field::isClassName)
             .withDescription("JDBC Driver class name used to connect to the MySQL database server.");
 
-    public static final Field CREDENTIALS_PROVIDER_CLASS_NAME = Field.create("credentials.provider.class.name")
+    public static final Field CREDENTIALS_PROVIDER_CLASS_NAME = Field.create("jdbc.creds.provider.class.name")
             .withDisplayName("JDBC Credentials Provider Class Name")
             .withType(Type.STRING)
             .withGroup(Field.createGroupEntry(Field.Group.CONNECTION, 42))
             .withWidth(Width.MEDIUM)
+            .withDefault("io.confluent.credentialproviders.DefaultJdbcCredentialsProvider")
             .withImportance(Importance.LOW)
             .withValidation(Field::isOptional)
             .withDescription("JDBC Credentials Provider class name used to provide credentials for connecting to the MySQL database server.");
