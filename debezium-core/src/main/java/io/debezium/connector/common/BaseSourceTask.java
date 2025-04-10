@@ -326,6 +326,11 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
                 performCommit();
             }
 
+            // it's safe to flush offsets here as we are in the running state
+            if (shouldPerformCommit.getAndSet(false)) {
+                performCommit();
+            }
+
             final List<SourceRecord> records = doPoll();
             logStatistics(records);
 
