@@ -10,7 +10,6 @@ import java.time.Duration;
 import java.util.Set;
 import java.util.function.Predicate;
 
-import io.confluent.credentialproviders.JdbcCredentialsProvider;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigDef.Type;
@@ -18,6 +17,8 @@ import org.apache.kafka.common.config.ConfigDef.Width;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.confluent.credentialproviders.JdbcCredentialsProvider;
+import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.ConfigDefinition;
 import io.debezium.config.Configuration;
@@ -37,13 +38,12 @@ import io.debezium.relational.Tables.TableFilter;
 import io.debezium.relational.history.HistoryRecordComparator;
 import io.debezium.schema.DefaultTopicNamingStrategy;
 import io.debezium.util.Collect;
-import io.debezium.DebeziumException;
 
 /**
  * The configuration properties.
  */
 public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorConfig {
-    
+
     private final JdbcCredentialsProvider credsProvider;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MySqlConnectorConfig.class);
@@ -889,7 +889,6 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
     public static final Field STORE_ONLY_CAPTURED_DATABASES_DDL = HistorizedRelationalDatabaseConnectorConfig.STORE_ONLY_CAPTURED_DATABASES_DDL
             .withDefault(true);
 
-
     private static final ConfigDefinition CONFIG_DEFINITION = HistorizedRelationalDatabaseConnectorConfig.CONFIG_DEFINITION.edit()
             .name("MySQL")
             .excluding(
@@ -975,8 +974,13 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
     private final Predicate<String> gtidSourceFilter;
     private final EventProcessingFailureHandlingMode inconsistentSchemaFailureHandlingMode;
     private final boolean readOnlyConnection;
-
+    
     public MySqlConnectorConfig(Configuration config) {
+        this(config, getCredentialsProvider(config));
+    }
+    
+    // visible for testing
+    public MySqlConnectorConfig(Configuration config, JdbcCredentialsProvider credsProvider) {
         super(
                 MySqlConnector.class,
                 config,
@@ -1007,7 +1011,7 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
                 : (gtidSetExcludes != null ? Predicates.excludesUuids(gtidSetExcludes) : null);
 
         this.storeOnlyCapturedDatabasesDdl = config.getBoolean(STORE_ONLY_CAPTURED_DATABASES_DDL);
-        this.credsProvider = getCredentialsProvider(config);
+        this.credsProvider = credsProvider;
     }
 
     public boolean useCursorFetch() {
@@ -1031,7 +1035,7 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
         return 0;
     }
 
-    private JdbcCredentialsProvider getCredentialsProvider(Configuration config){
+    private static JdbcCredentialsProvider getCredentialsProvider(Configuration config) {
         String providerClass = config.getString(MySqlConnectorConfig.CREDENTIALS_PROVIDER_CLASS_NAME);
         LOGGER.info("Using credentials provider class: {}", providerClass);
         try {
