@@ -1031,7 +1031,7 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
 
     private JdbcCredentialsProvider getCredentialsProvider(Configuration config){
         String providerClass = config.getString(MySqlConnectorConfig.CREDENTIALS_PROVIDER_CLASS_NAME);
-        LOGGER.info("Credentials provider class: {}", providerClass);
+        LOGGER.info("Using credentials provider class: {}", providerClass);
         try {
             JdbcCredentialsProvider provider = (JdbcCredentialsProvider) Class.forName(providerClass)
                     .getDeclaredConstructor().newInstance();
