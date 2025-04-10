@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
 
+import io.confluent.credentialproviders.DefaultJdbcCredentialsProvider;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
@@ -48,9 +49,14 @@ public class SourceInfoTest {
 
     @Before
     public void beforeEach() {
-        offsetContext = MySqlOffsetContext.initial(new MySqlConnectorConfig(Configuration.create()
-                .with(CommonConnectorConfig.TOPIC_PREFIX, "server")
-                .build()));
+        offsetContext = MySqlOffsetContext.initial(
+            new MySqlConnectorConfig(
+                Configuration.create()
+                    .with(CommonConnectorConfig.TOPIC_PREFIX, "server")
+                    .build(),
+                new DefaultJdbcCredentialsProvider()
+            )
+        );
         source = offsetContext.getSource();
         inTxn = false;
         positionOfBeginEvent = 0L;
@@ -448,9 +454,14 @@ public class SourceInfoTest {
     }
 
     protected SourceInfo sourceWith(Map<String, String> offset) {
-        offsetContext = (MySqlOffsetContext) new MySqlOffsetContext.Loader(new MySqlConnectorConfig(Configuration.create()
+        offsetContext = (MySqlOffsetContext) new MySqlOffsetContext.Loader(
+            new MySqlConnectorConfig(
+                Configuration.create()
                 .with(CommonConnectorConfig.TOPIC_PREFIX, SERVER_NAME)
-                .build())).load(offset);
+                .build(),
+            new DefaultJdbcCredentialsProvider()
+            )
+        ).load(offset);
         source = offsetContext.getSource();
         source.databaseEvent("mysql");
         return source;

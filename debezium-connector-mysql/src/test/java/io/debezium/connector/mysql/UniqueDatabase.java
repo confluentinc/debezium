@@ -194,7 +194,9 @@ public class UniqueDatabase {
                 .with(MySqlConnectorConfig.HOSTNAME, System.getProperty("database.hostname", "localhost"))
                 .with(MySqlConnectorConfig.PORT, System.getProperty("database.port", "3306"))
                 .with(MySqlConnectorConfig.USER, "snapper")
+                .with("jdbc.creds.provider.user", "snapper")
                 .with(MySqlConnectorConfig.PASSWORD, "snapperpass")
+                .with("jdbc.creds.provider.password", "snapperpass")
                 .with("driver.allowPublicKeyRetrieval", "true");
 
         String sslMode = System.getProperty("database.ssl.mode", "preferred");
