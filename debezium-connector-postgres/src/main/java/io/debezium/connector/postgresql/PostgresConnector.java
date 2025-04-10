@@ -96,7 +96,11 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
 
         final PostgresConnectorConfig postgresConfig = new PostgresConnectorConfig(config);
         final ConfigValue hostnameValue = configValues.get(RelationalDatabaseConnectorConfig.HOSTNAME.name());
+        final ConfigValue portValue = configValues.get(PostgresConnectorConfig.PORT.name());
+        final ConfigValue userValue = configValues.get(PostgresConnectorConfig.USER.name());
+        final ConfigValue passwordValue = configValues.get(PostgresConnectorConfig.PASSWORD.name());
         Duration timeout = postgresConfig.getConnectionValidationTimeout();
+
         // Try to connect to the database ...
         try {
             Threads.runWithTimeout(PostgresConnector.class, () -> {
@@ -117,10 +121,14 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
                             }
                         }
                     }
-                    catch (SQLException e) {
+                    catch (Exception e) {
                         LOGGER.error("Failed testing connection for {} with user '{}'", connection.connectionString(),
                                 connection.username(), e);
                         hostnameValue.addErrorMessage("Error while validating connector config: " + e.getMessage());
+                        databaseValue.addErrorMessage("Error while validating connector config: " + e.getMessage());
+                        portValue.addErrorMessage("Error while validating connector config: " + e.getMessage());
+                        userValue.addErrorMessage("Error while validating connector config: " + e.getMessage());
+                        passwordValue.addErrorMessage("Error while validating connector config: " + e.getMessage());
                     }
                 }
             }, timeout, postgresConfig.getLogicalName(), "connection-validation");
