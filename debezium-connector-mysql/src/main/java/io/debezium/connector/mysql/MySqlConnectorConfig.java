@@ -37,6 +37,7 @@ import io.debezium.relational.Tables.TableFilter;
 import io.debezium.relational.history.HistoryRecordComparator;
 import io.debezium.schema.DefaultTopicNamingStrategy;
 import io.debezium.util.Collect;
+import io.debezium.DebeziumException;
 
 /**
  * The configuration properties.
@@ -1045,7 +1046,7 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
         catch (Exception e) {
             LOGGER.warn("Error initializing credentials provider {}: {}", providerClass, e.getMessage());
             LOGGER.debug("Detailed provider initialization error", e);
-            return null;
+            throw new DebeziumException("Failed to initialize credentials provider: " + providerClass, e);
         }
     }
 
