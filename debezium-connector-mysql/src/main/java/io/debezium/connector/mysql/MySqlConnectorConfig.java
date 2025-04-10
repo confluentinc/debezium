@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import io.confluent.credentialproviders.JdbcCredentialsProvider;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigDef.Type;
@@ -36,11 +37,14 @@ import io.debezium.relational.Tables.TableFilter;
 import io.debezium.relational.history.HistoryRecordComparator;
 import io.debezium.schema.DefaultTopicNamingStrategy;
 import io.debezium.util.Collect;
+import io.debezium.DebeziumException;
 
 /**
  * The configuration properties.
  */
 public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorConfig {
+    
+    private final JdbcCredentialsProvider credsProvider;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MySqlConnectorConfig.class);
 
@@ -624,10 +628,20 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
             .withValidation(Field::isClassName)
             .withDescription("JDBC Driver class name used to connect to the MySQL database server.");
 
+    public static final Field CREDENTIALS_PROVIDER_CLASS_NAME = Field.create("jdbc.creds.provider.class.name")
+            .withDisplayName("JDBC Credentials Provider Class Name")
+            .withType(Type.STRING)
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTION, 42))
+            .withWidth(Width.MEDIUM)
+            .withDefault("io.confluent.credentialproviders.DefaultJdbcCredentialsProvider")
+            .withImportance(Importance.LOW)
+            .withValidation(Field::isOptional)
+            .withDescription("JDBC Credentials Provider class name used to provide credentials for connecting to the MySQL database server.");
+
     public static final Field JDBC_PROTOCOL = Field.create(DATABASE_CONFIG_PREFIX + "protocol")
             .withDisplayName("JDBC Protocol")
             .withType(Type.STRING)
-            .withGroup(Field.createGroupEntry(Field.Group.CONNECTION, 42))
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTION, 43))
             .withWidth(Width.MEDIUM)
             .withDefault("jdbc:mysql")
             .withImportance(Importance.LOW)
@@ -875,6 +889,7 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
     public static final Field STORE_ONLY_CAPTURED_DATABASES_DDL = HistorizedRelationalDatabaseConnectorConfig.STORE_ONLY_CAPTURED_DATABASES_DDL
             .withDefault(true);
 
+
     private static final ConfigDefinition CONFIG_DEFINITION = HistorizedRelationalDatabaseConnectorConfig.CONFIG_DEFINITION.edit()
             .name("MySQL")
             .excluding(
@@ -891,6 +906,7 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
                     ON_CONNECT_STATEMENTS,
                     SERVER_ID,
                     SERVER_ID_OFFSET,
+                    CREDENTIALS_PROVIDER_CLASS_NAME,
                     SSL_MODE,
                     SSL_KEYSTORE,
                     SSL_KEYSTORE_PASSWORD,
@@ -991,6 +1007,7 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
                 : (gtidSetExcludes != null ? Predicates.excludesUuids(gtidSetExcludes) : null);
 
         this.storeOnlyCapturedDatabasesDdl = config.getBoolean(STORE_ONLY_CAPTURED_DATABASES_DDL);
+        this.credsProvider = getCredentialsProvider(config);
     }
 
     public boolean useCursorFetch() {
@@ -1012,6 +1029,26 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
                     EVENT_PROCESSING_FAILURE_HANDLING_MODE.name());
         }
         return 0;
+    }
+
+    private JdbcCredentialsProvider getCredentialsProvider(Configuration config){
+        String providerClass = config.getString(MySqlConnectorConfig.CREDENTIALS_PROVIDER_CLASS_NAME);
+        LOGGER.info("Using credentials provider class: {}", providerClass);
+        try {
+            JdbcCredentialsProvider provider = (JdbcCredentialsProvider) Class.forName(providerClass)
+                    .getDeclaredConstructor().newInstance();
+
+            LOGGER.info("Successfully created a new instance of credentials provider of type: {}", providerClass);
+            provider.configure(config.asMap());
+            LOGGER.info("Configured credentials provider: {}", provider);
+
+            return provider;
+        }
+        catch (Exception e) {
+            LOGGER.warn("Error initializing credentials provider {}: {}", providerClass, e.getMessage());
+            LOGGER.debug("Detailed provider initialization error", e);
+            throw new DebeziumException("Failed to initialize credentials provider: " + providerClass, e);
+        }
     }
 
     private static int validateGtidSetExcludes(Configuration config, Field field, ValidationOutput problems) {
@@ -1113,11 +1150,11 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
     }
 
     public String username() {
-        return config.getString(USER);
+        return credsProvider.getJdbcCreds().user();
     }
 
     public String password() {
-        return config.getString(PASSWORD);
+        return credsProvider.getJdbcCreds().password();
     }
 
     public long serverId() {
