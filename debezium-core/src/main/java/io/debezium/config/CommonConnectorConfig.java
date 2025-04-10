@@ -83,6 +83,7 @@ public abstract class CommonConnectorConfig {
     private final boolean isExtendedHeadersEnabled;
     protected final int guardrailCollectionsMax;
     protected final GuardrailCollectionsLimitAction guardrailCollectionsLimitAction;
+    protected final boolean failOnNoTables;
 
     /**
      * The set of predefined versions e.g. for source struct maker version
@@ -1375,6 +1376,14 @@ public abstract class CommonConnectorConfig {
             .withValidation(Field::isBoolean)
             .withDescription(
                     "Enable/Disable Debezium context headers that provides essential metadata for tracking and identifying the source of CDC events in downstream processing systems.");
+    public static final Field FAIL_ON_NO_TABLES = Field.createInternal("fail.on.no.tables")
+            .withDisplayName("Fail if no tables are found")
+            .withType(Type.BOOLEAN)
+            .withGroup(Field.createGroupEntry(Field.Group.ADVANCED, 999))
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.LOW)
+            .withDescription("Fail if no tables are found that match the configured filters.")
+            .withDefault(true);
 
     public static final Field GUARDRAIL_COLLECTIONS_MAX = Field.create("guardrail.collections.max")
             .withDisplayName("Maximum number of collections or tables")
@@ -1435,7 +1444,8 @@ public abstract class CommonConnectorConfig {
                     OPEN_LINEAGE_INTEGRATION_DATASET_KAFKA_BOOTSTRAP_SERVER,
                     EXTENDED_HEADERS_ENABLED,
                     GUARDRAIL_COLLECTIONS_MAX,
-                    GUARDRAIL_COLLECTIONS_LIMIT_ACTION)
+                    GUARDRAIL_COLLECTIONS_LIMIT_ACTION,
+                    FAIL_ON_NO_TABLES)
             .events(
                     CUSTOM_CONVERTERS,
                     CUSTOM_POST_PROCESSORS,
@@ -1551,6 +1561,7 @@ public abstract class CommonConnectorConfig {
         this.isExtendedHeadersEnabled = config.getBoolean(EXTENDED_HEADERS_ENABLED);
         this.guardrailCollectionsMax = config.getInteger(GUARDRAIL_COLLECTIONS_MAX);
         this.guardrailCollectionsLimitAction = GuardrailCollectionsLimitAction.parse(config.getString(GUARDRAIL_COLLECTIONS_LIMIT_ACTION));
+        this.failOnNoTables = config.getBoolean(FAIL_ON_NO_TABLES);
 
         this.signalingDataCollectionId = !Strings.isNullOrBlank(this.signalingDataCollection)
                 ? TableId.parse(this.signalingDataCollection)
@@ -1684,6 +1695,10 @@ public abstract class CommonConnectorConfig {
 
     public boolean skipMessagesWithoutChange() {
         return skipMessagesWithoutChange;
+    }
+
+    public boolean failOnNoTables() {
+        return failOnNoTables;
     }
 
     public int getGuardrailCollectionsMax() {
