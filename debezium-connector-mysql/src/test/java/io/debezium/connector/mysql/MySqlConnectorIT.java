@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import io.confluent.credentialproviders.DefaultJdbcCredentialsProvider;
 import org.apache.kafka.common.config.Config;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.ConnectException;
@@ -658,7 +659,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
         final String serverName = config.getString(CommonConnectorConfig.TOPIC_PREFIX);
         final MySqlOffsetContext.Loader loader = new MySqlOffsetContext.Loader(new MySqlConnectorConfig(Configuration.create()
                 .with(CommonConnectorConfig.TOPIC_PREFIX, serverName)
-                .build()));
+                .build(), new DefaultJdbcCredentialsProvider()));
         final Map<String, String> partition = new MySqlPartition(serverName, DATABASE.getDatabaseName()).getSourcePartition();
         Map<String, ?> lastCommittedOffset = readLastCommittedOffset(config, partition);
         final MySqlOffsetContext offsetContext = loader.load(lastCommittedOffset);
