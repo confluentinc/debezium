@@ -81,6 +81,7 @@ public class MySqlConnector extends RelationalBaseSourceConnector {
         ConfigValue hostnameValue = configValues.get(RelationalDatabaseConnectorConfig.HOSTNAME.name());
         // Try to connect to the database ...
         final MySqlConnectionConfiguration connectionConfig = new MySqlConnectionConfiguration(config);
+
         try (MySqlConnection connection = new MySqlConnection(connectionConfig)) {
             try {
                 connection.connect();

@@ -57,6 +57,12 @@
                 </exclusion>
             </exclusions>
         </dependency>
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>credential-providers</artifactId>
+            <version>${credential.providers.version}</version>
+        </dependency>
+
 
         <!-- Testing -->
         <dependency>
@@ -172,6 +178,8 @@
         <mysql.init.timeout>60000</mysql.init.timeout> <!-- 60 seconds -->
         <apicurio.port>8080</apicurio.port>
         <apicurio.init.timeout>60000</apicurio.init.timeout> <!-- 60 seconds -->
+        <credential.providers.version>0.1.0</credential.providers.version>
+
         <!--
         By default, we should use the docker image maintained by the MySQL team. This property is changed with different profiles.
         However, we run one container with GTIDs and one without.
