@@ -26,8 +26,6 @@ import java.util.function.IntSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 
 import javax.lang.model.SourceVersion;
@@ -40,6 +38,9 @@ import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.config.ConfigValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.re2j.Pattern;
+import com.google.re2j.PatternSyntaxException;
 
 import io.debezium.annotation.Immutable;
 import io.debezium.function.Predicates;
