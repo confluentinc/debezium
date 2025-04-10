@@ -5,7 +5,6 @@
  */
 package io.debezium.relational;
 
-import java.util.Arrays;
 import java.util.Objects;
 
 import org.apache.kafka.connect.data.Schema;
