@@ -18,12 +18,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
+import java.util.Properties;
+
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.mysql.cj.CharsetMapping;
 
+import io.confluent.credentialproviders.JdbcCredentials;
 import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.CommonConnectorConfig.EventProcessingFailureHandlingMode;
@@ -508,12 +511,14 @@ public class MySqlConnection extends JdbcConnection {
         private final JdbcConfiguration jdbcConfig;
         private final ConnectionFactory factory;
         private final Configuration config;
+        private final MySqlConnectorConfig connectorConfig;
 
         public MySqlConnectionConfiguration(Configuration config) {
             // Set up the JDBC connection without actually connecting, with extra MySQL-specific properties
             // to give us better JDBC database metadata behavior, including using UTF-8 for the client-side character encoding
             // per https://dev.mysql.com/doc/connector-j/5.1/en/connector-j-reference-charsets.html
             this.config = config;
+            this.connectorConfig = new MySqlConnectorConfig(config);
             final boolean useSSL = sslModeEnabled();
             final Configuration dbConfig = config
                     .edit()
@@ -556,7 +561,13 @@ public class MySqlConnection extends JdbcConnection {
             String driverClassName = this.config.getString(MySqlConnectorConfig.JDBC_DRIVER);
             Field protocol = MySqlConnectorConfig.JDBC_PROTOCOL;
 
-            factory = JdbcConnection.patternBasedFactory(MySqlConnection.URL_PATTERN, driverClassName, getClass().getClassLoader(), protocol);
+            ConnectionFactory baseFactory = JdbcConnection.patternBasedFactory(MySqlConnection.URL_PATTERN, driverClassName, getClass().getClassLoader(), protocol);
+            factory = jdbcConfig -> {
+                Properties props = jdbcConfig.asProperties();
+                props.setProperty(JdbcConfiguration.USER.name(), username());
+                props.setProperty(JdbcConfiguration.PASSWORD.name(), password());
+                return baseFactory.connect(JdbcConfiguration.adapt(Configuration.from(props)));
+            };
         }
 
         private static String determineConnectionTimeZone(final Configuration dbConfig) {
@@ -583,11 +594,11 @@ public class MySqlConnection extends JdbcConnection {
         }
 
         public String username() {
-            return config.getString(MySqlConnectorConfig.USER);
+            return connectorConfig.username();
         }
 
         public String password() {
-            return config.getString(MySqlConnectorConfig.PASSWORD);
+            return connectorConfig.password();
         }
 
         public String hostname() {
