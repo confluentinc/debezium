@@ -153,7 +153,9 @@ public class StreamingSourceIT extends AbstractConnectorTest {
     protected Configuration.Builder simpleConfig() {
         return DATABASE.defaultConfig()
                 .with(MySqlConnectorConfig.USER, "replicator")
+                .with("jdbc.creds.provider.user", "replicator")
                 .with(MySqlConnectorConfig.PASSWORD, "replpass")
+                .with("jdbc.creds.provider.password", "replpass")
                 .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, false)
                 .with(MySqlConnectorConfig.INCLUDE_SQL_QUERY, false)
                 .with(MySqlConnectorConfig.SNAPSHOT_MODE, MySqlConnectorConfig.SnapshotMode.NEVER);
@@ -509,7 +511,9 @@ public class StreamingSourceIT extends AbstractConnectorTest {
 
         config = simpleConfig()
                 .with(MySqlConnectorConfig.USER, "snapper")
+                .with("jdbc.creds.provider.user", "snapper")
                 .with(MySqlConnectorConfig.PASSWORD, "snapperpass")
+                .with("jdbc.creds.provider.password", "snapperpass")
                 .with(AbstractTopicNamingStrategy.DEFAULT_HEARTBEAT_TOPIC_PREFIX, HEARTBEAT_TOPIC_PREFIX_VALUE)
                 .with(Heartbeat.HEARTBEAT_INTERVAL, "100")
                 .with(DatabaseHeartbeatImpl.HEARTBEAT_ACTION_QUERY_PROPERTY_NAME,
