@@ -140,7 +140,9 @@ public class SnapshotSourceIT extends AbstractConnectorTest {
         if (!useGlobalLock) {
             builder
                     .with(MySqlConnectorConfig.USER, "cloud")
+                    .with("jdbc.creds.provider.user", "cloud")
                     .with(MySqlConnectorConfig.PASSWORD, "cloudpass")
+                    .with("jdbc.creds.provider.password", "cloudpass")
                     .with(MySqlConnectorConfig.TEST_DISABLE_GLOBAL_LOCKING, "true")
                     .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, storeOnlyCapturedTables);
         }
@@ -266,7 +268,9 @@ public class SnapshotSourceIT extends AbstractConnectorTest {
     public void snapshotWithBackupLocksShouldNotWaitForReads() throws Exception {
         config = simpleConfig()
                 .with(MySqlConnectorConfig.USER, "cloud")
+                .with("jdbc.creds.provider.user", "cloud")
                 .with(MySqlConnectorConfig.PASSWORD, "cloudpass")
+                .with("jdbc.creds.provider.password", "cloudpass")
                 .with(MySqlConnectorConfig.SNAPSHOT_LOCKING_MODE, MySqlConnectorConfig.SnapshotLockingMode.MINIMAL_PERCONA)
                 .build();
 
