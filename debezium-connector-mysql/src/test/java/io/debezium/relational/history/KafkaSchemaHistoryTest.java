@@ -14,6 +14,7 @@ import java.io.File;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
+import io.confluent.credentialproviders.DefaultJdbcCredentialsProvider;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -91,7 +92,7 @@ public class KafkaSchemaHistoryTest {
                 .with(CommonConnectorConfig.TOPIC_PREFIX, "dbserver1").build();
 
         position = new MySqlOffsetContext(false, true, new TransactionContext(), new MySqlReadOnlyIncrementalSnapshotContext<>(),
-                new SourceInfo(new MySqlConnectorConfig(config)));
+                new SourceInfo(new MySqlConnectorConfig(config, new DefaultJdbcCredentialsProvider())));
         offsets = Offsets.of(source, position);
 
         setLogPosition(0);
