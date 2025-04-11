@@ -974,7 +974,6 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
     private final Predicate<String> gtidSourceFilter;
     private final EventProcessingFailureHandlingMode inconsistentSchemaFailureHandlingMode;
     private final boolean readOnlyConnection;
-    
     public MySqlConnectorConfig(Configuration config) {
         this(config, getCredentialsProvider(config));
     }
@@ -1037,20 +1036,17 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
 
     private static JdbcCredentialsProvider getCredentialsProvider(Configuration config) {
         String providerClass = config.getString(MySqlConnectorConfig.CREDENTIALS_PROVIDER_CLASS_NAME);
-        LOGGER.info("Using credentials provider class: {}", providerClass);
         try {
             JdbcCredentialsProvider provider = (JdbcCredentialsProvider) Class.forName(providerClass)
                     .getDeclaredConstructor().newInstance();
 
-            LOGGER.info("Successfully created a new instance of credentials provider of type: {}", providerClass);
             provider.configure(config.asMap());
             LOGGER.info("Configured credentials provider: {}", provider);
 
             return provider;
         }
         catch (Exception e) {
-            LOGGER.warn("Error initializing credentials provider {}: {}", providerClass, e.getMessage());
-            LOGGER.debug("Detailed provider initialization error", e);
+            LOGGER.error("Error initializing credentials provider", e);
             throw new DebeziumException("Failed to initialize credentials provider: " + providerClass, e);
         }
     }
