@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 
 import io.debezium.DebeziumException;
@@ -44,6 +45,10 @@ public final class Offsets<P extends Partition, O extends OffsetContext> impleme
 
     public Map<P, O> getOffsets() {
         return offsets;
+    }
+    
+    public boolean hasNonNullOffsets(){
+        return offsets.values().stream().anyMatch(Objects::nonNull);
     }
 
     @Override

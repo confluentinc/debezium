@@ -43,6 +43,7 @@ public abstract class HistorizedRelationalDatabaseConnectorConfig extends Relati
     protected boolean skipUnparseableDDL;
     protected boolean storeOnlyCapturedTablesDdl;
     protected boolean storeOnlyCapturedDatabasesDdl;
+    protected long recoveryDelayMs;
 
     /**
      * The database schema history class is hidden in the {@link #configDef()} since that is designed to work with a user interface,
@@ -62,6 +63,7 @@ public abstract class HistorizedRelationalDatabaseConnectorConfig extends Relati
     public static final Field SKIP_UNPARSEABLE_DDL_STATEMENTS = SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS;
 
     public static final Field STORE_ONLY_CAPTURED_TABLES_DDL = SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL;
+    public static final Field SCHEMA_HISTORY_RECOVERY_DELAY_MS = SchemaHistory.SCHEMA_HISTORY_RECOVERY_DELAY_MS;
 
     public static final Field STORE_ONLY_CAPTURED_DATABASES_DDL = SchemaHistory.STORE_ONLY_CAPTURED_DATABASES_DDL;
 
@@ -111,6 +113,7 @@ public abstract class HistorizedRelationalDatabaseConnectorConfig extends Relati
         this.skipUnparseableDDL = config.getBoolean(SKIP_UNPARSEABLE_DDL_STATEMENTS);
         this.storeOnlyCapturedTablesDdl = config.getBoolean(STORE_ONLY_CAPTURED_TABLES_DDL);
         this.storeOnlyCapturedDatabasesDdl = config.getBoolean(STORE_ONLY_CAPTURED_DATABASES_DDL);
+        this.recoveryDelayMs = config.getLong(SCHEMA_HISTORY_RECOVERY_DELAY_MS);
     }
 
     /**
