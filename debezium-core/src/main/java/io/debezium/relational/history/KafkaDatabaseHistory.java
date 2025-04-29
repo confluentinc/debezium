@@ -308,8 +308,7 @@ public class KafkaDatabaseHistory extends AbstractDatabaseHistory {
                 endOffset = getEndOffsetOfDbHistoryTopic(endOffset, historyConsumer);
                 LOGGER.debug("End offset of database history topic is {}", endOffset);
 
-                // DBZ-1361 not using poll(Duration) to keep compatibility with AK 1.x
-                ConsumerRecords<String, String> recoveredRecords = historyConsumer.poll(this.pollInterval.toMillis());
+                ConsumerRecords<String, String> recoveredRecords = historyConsumer.poll(this.pollInterval);
                 int numRecordsProcessed = 0;
 
                 for (ConsumerRecord<String, String> record : recoveredRecords) {
@@ -448,11 +447,11 @@ public class KafkaDatabaseHistory extends AbstractDatabaseHistory {
                 }
 
                 final DescribeTopicsResult result = admin.describeTopics(Collections.singleton(topicName));
-                if (result.values().size() != 1) {
-                    LOGGER.info("Expected one topic '{}' to match the query but got {}", topicName, result.values().size());
+                if (result.topicNameValues().size() != 1) {
+                    LOGGER.info("Expected one topic '{}' to match the query but got {}", topicName, result.topicNameValues().size());
                     return;
                 }
-                final TopicDescription topicDesc = result.values().values().iterator().next().get();
+                final TopicDescription topicDesc = result.topicNameValues().values().iterator().next().get();
                 if (topicDesc == null) {
                     LOGGER.info("Could not get description for topic '{}'", topicName);
                     return;

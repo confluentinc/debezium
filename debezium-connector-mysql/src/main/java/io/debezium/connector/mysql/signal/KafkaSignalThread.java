@@ -118,8 +118,7 @@ public class KafkaSignalThread<T extends DataCollectionId> {
 
     private void monitorSignals() {
         while (true) {
-            // DBZ-1361 not using poll(Duration) to keep compatibility with AK 1.x
-            ConsumerRecords<String, String> recoveredRecords = signalsConsumer.poll(pollTimeoutMs.toMillis());
+            ConsumerRecords<String, String> recoveredRecords = signalsConsumer.poll(pollTimeoutMs);
             for (ConsumerRecord<String, String> record : recoveredRecords) {
                 try {
                     processSignal(record);
