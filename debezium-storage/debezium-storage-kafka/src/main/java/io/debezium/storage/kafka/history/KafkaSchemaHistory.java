@@ -351,7 +351,7 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
                             lastProcessedOffset = record.offset();
                             ++numRecordsProcessed;
                         }
-                        LOGGER.info("Sleeping for {} seconds !", config.getLong(HistorizedRelationalDatabaseConnectorConfig.SCHEMA_HISTORY_RECOVERY_DELAY_MS));
+                        LOGGER.info("Sleeping for {} seconds !", config.getLong(HistorizedRelationalDatabaseConnectorConfig.SCHEMA_HISTORY_RECOVERY_DELAY_MS)/1000);
                         Thread.sleep(config.getLong(HistorizedRelationalDatabaseConnectorConfig.SCHEMA_HISTORY_RECOVERY_DELAY_MS) * 1000);
                     }
                     catch (final IOException e) {
