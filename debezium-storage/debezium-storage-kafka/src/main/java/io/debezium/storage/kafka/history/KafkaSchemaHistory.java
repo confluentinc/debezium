@@ -294,7 +294,8 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
     }
 
     @Override
-    protected void recoverRecords(Consumer<HistoryRecord> records) {
+    protected void 
+    recoverRecords(Consumer<HistoryRecord> records) {
         try (KafkaConsumer<String, String> historyConsumer = new KafkaConsumer<>(consumerConfig.asProperties())) {
             // Subscribe to the only partition for this topic, and seek to the beginning of that partition ...
             LOGGER.debug("Subscribing to database schema history topic '{}'", topicName);
@@ -323,23 +324,27 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
                         if (lastProcessedOffset < record.offset()) {
                             if (record.value() == null) {
                                 LOGGER.warn("Skipping null database schema history record. " +
-                                        "This is often not an issue, but if it happens repeatedly please check the '{}' topic.", topicName);
-                            }
-                            else {
+                                    "This is often not an issue, but if it happens repeatedly please check the '{}' topic.", topicName);
+                            } else {
                                 HistoryRecord recordObj = new HistoryRecord(reader.read(record.value()));
                                 LOGGER.trace("Recovering database schema history: {}", recordObj);
                                 if (recordObj == null || !recordObj.isValid()) {
                                     LOGGER.warn("Skipping invalid database schema history record '{}'. " +
                                             "This is often not an issue, but if it happens repeatedly please check the '{}' topic.",
-                                            recordObj, topicName);
-                                }
-                                else {
+                                        recordObj, topicName);
+                                } else {
                                     records.accept(recordObj);
                                     LOGGER.trace("Recovered database schema history: {}", recordObj);
                                 }
                             }
                             lastProcessedOffset = record.offset();
                             ++numRecordsProcessed;
+                        }
+                        LOGGER.info("Sleeping for {} seconds !", config.getLong(SCHEMA_HISTORY_RECOVERY_DELAY_MS)/1000);
+                        try {
+                            Thread.sleep(config.getLong(SCHEMA_HISTORY_RECOVERY_DELAY_MS) * 1000);
+                        } catch (Exception e){
+                            // ignore
                         }
                     }
                     catch (final IOException e) {

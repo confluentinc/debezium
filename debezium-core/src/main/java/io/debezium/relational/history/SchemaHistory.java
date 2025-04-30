@@ -52,6 +52,15 @@ public interface SchemaHistory {
                     + "By default the connector will stop operating but by changing the setting it can ignore the statements "
                     + "which it cannot parse. If skipping is enabled then Debezium can miss metadata changes.")
             .withDefault(false);
+    
+    Field SCHEMA_HISTORY_RECOVERY_DELAY_MS = Field.create(CONFIGURATION_FIELD_PREFIX_STRING + "recovery.delay.ms")
+    .withDisplayName("Schema history recovery delay in milliseconds")
+    .withType(Type.LONG)
+    .withWidth(Width.SHORT)
+    .withImportance(Importance.LOW)
+    .withDescription("Specifies the amount of time in milliseconds to wait before starting schema history recovery.")
+    .withDefault(0L);
+    
 
     Field STORE_ONLY_CAPTURED_TABLES_DDL = Field.create(CONFIGURATION_FIELD_PREFIX_STRING + "store.only.captured.tables.ddl")
             .withDisplayName("Store only DDL that modifies tables that are captured based on include/exclude lists")
