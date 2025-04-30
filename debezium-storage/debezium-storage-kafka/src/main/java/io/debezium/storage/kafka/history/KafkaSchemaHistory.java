@@ -352,7 +352,7 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
                             ++numRecordsProcessed;
                         }
                         LOGGER.info("Sleeping for {} seconds !", config.getLong(HistorizedRelationalDatabaseConnectorConfig.SCHEMA_HISTORY_RECOVERY_DELAY_MS)/1000);
-                        Thread.sleep(config.getLong(HistorizedRelationalDatabaseConnectorConfig.SCHEMA_HISTORY_RECOVERY_DELAY_MS) * 1000);
+                        Thread.sleep(config.getLong(HistorizedRelationalDatabaseConnectorConfig.SCHEMA_HISTORY_RECOVERY_DELAY_MS));
                     }
                     catch (final IOException e) {
                         Loggings.logErrorAndTraceRecord(LOGGER, record, "Error while deserializing history record", e);
