@@ -19,9 +19,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import io.debezium.config.ConfigurationDefaults;
-import io.debezium.util.Clock;
-import io.debezium.util.Metronome;
 import org.apache.kafka.connect.source.SourceConnector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import io.debezium.DebeziumException;
 import io.debezium.annotation.ThreadSafe;
 import io.debezium.config.CommonConnectorConfig;
+import io.debezium.config.ConfigurationDefaults;
 import io.debezium.connector.base.ChangeEventQueueMetrics;
 import io.debezium.connector.common.CdcSourceTaskContext;
 import io.debezium.pipeline.metrics.SnapshotChangeEventSourceMetrics;
@@ -52,8 +50,11 @@ import io.debezium.pipeline.spi.Partition;
 import io.debezium.pipeline.spi.SnapshotResult;
 import io.debezium.pipeline.spi.SnapshotResult.SnapshotResultStatus;
 import io.debezium.schema.DatabaseSchema;
+import io.debezium.schema.HistorizedDatabaseSchema;
 import io.debezium.spi.schema.DataCollectionId;
+import io.debezium.util.Clock;
 import io.debezium.util.LoggingContext;
+import io.debezium.util.Metronome;
 import io.debezium.util.Threads;
 
 /**
@@ -69,7 +70,9 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
     /**
      * Waiting period for the polling loop to finish. Will be applied twice, once gracefully, once forcefully.
      */
-    public static final Duration SHUTDOWN_WAIT_TIMEOUT = Duration.ofSeconds(90);
+    // This should be less than the value of worker config task.shutdown.graceful.timeout.ms. On 
+    // CCloud, this is set to 30 seconds. Hence setting this to 10 seconds.
+    public static final Duration SHUTDOWN_WAIT_TIMEOUT = Duration.ofSeconds(10);
 
     protected final Offsets<P, O> previousOffsets;
     protected final ErrorHandler errorHandler;
@@ -135,6 +138,10 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
 
                     context = new ChangeEventSourceContextImpl();
                     LOGGER.info("Context created");
+
+                    if (schema.isHistorized()) {
+                        ((HistorizedDatabaseSchema<?>) schema).recover(previousOffsets);
+                    }
 
                     snapshotSource = changeEventSourceFactory.getSnapshotChangeEventSource(snapshotMetrics, notificationService);
                     executeChangeEventSources(taskContext, snapshotSource, previousOffsets, previousLogContext, context);
