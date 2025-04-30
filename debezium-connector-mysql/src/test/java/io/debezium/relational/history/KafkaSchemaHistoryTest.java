@@ -156,7 +156,7 @@ public class KafkaSchemaHistoryTest {
         return config;
     }
 
-    private void testHistoryTopicContent(String topicName, boolean skipUnparseableDDL) {
+    private void testHistoryTopicContent(String topicName, boolean skipUnparseableDDL) throws InterruptedException {
         Configuration config = startHistory(topicName, skipUnparseableDDL);
 
         DdlParser recoveryParser = new MySqlAntlrDdlParser();
@@ -343,7 +343,7 @@ public class KafkaSchemaHistoryTest {
     }
 
     @Test
-    public void testExists() {
+    public void testExists() throws InterruptedException {
         String topicName = "exists-schema-changes";
 
         // happy path

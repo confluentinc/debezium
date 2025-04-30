@@ -7,6 +7,7 @@ package io.debezium.connector.mysql;
 
 import static io.debezium.connector.mysql.MySqlConnectorConfig.isBuiltInDatabase;
 import static io.debezium.junit.EqualityCheck.LESS_THAN;
+import static io.debezium.relational.history.SchemaHistory.SCHEMA_HISTORY_RECOVERY_DELAY_MS;
 import static junit.framework.TestCase.assertEquals;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertThrows;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -35,6 +37,7 @@ import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.header.Header;
 import org.apache.kafka.connect.source.SourceRecord;
+import org.awaitility.Awaitility;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -2617,6 +2620,47 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
         assertThat(changeEvents.size()).isEqualTo(2);
 
         stopConnector();
+    }
+    
+    @Test
+    public void taskStartShouldNotWaitOnSchemaHistoryRecovery () throws InterruptedException {
+        // Introduce a delay of 10 seconds in recovering every record in schema history. This is 
+        // done to increase the time taken to recovery schema history.
+        Configuration config = DATABASE.defaultConfig()
+            .with(SCHEMA_HISTORY_RECOVERY_DELAY_MS, 10_000)
+            .build();
+
+        start(MySqlConnector.class, config);
+        logger.info("Sleeping for 10 seconds to allow connector to start and commit an offset");
+        Thread.sleep(10_000);
+
+        stopConnector();
+
+        CountDownLatch tastStartLatch = new CountDownLatch(1);
+
+        Thread startConnectorThread = new Thread(() -> {
+            logger.info("Starting connector again");
+            start(MySqlConnector.class, config, new DebeziumEngine.ConnectorCallback() {
+                @Override
+                public void taskStarted() {
+                    tastStartLatch.countDown();
+                }
+            });
+        });
+        
+        startConnectorThread.start();
+        
+        logger.info("Waiting for task to start");
+        
+        // Wait for 5 seconds for the task to be started
+        Awaitility.await().atMost(5, TimeUnit.SECONDS).until(() -> tastStartLatch.getCount() == 0);
+        
+        // fail the test if task did not start in 5 seconds
+        if (tastStartLatch.getCount() != 0) {
+            throw new AssertionError("Task did not start in 5 seconds after " +
+                "connector was started. Task's start method should be lightweight and " +
+                "hence this is not expected.");
+        }
     }
 
     private static class NoTombStonesHandler implements DebeziumEngine.ChangeConsumer<SourceRecord> {
