@@ -33,9 +33,11 @@ import java.util.Set;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.CountDownLatch;
 
 import javax.management.InstanceNotFoundException;
 
+import io.debezium.engine.DebeziumEngine;
 import org.apache.kafka.common.config.Config;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
@@ -3015,12 +3017,12 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
         }
 
         @Override
-        public void recover(Offsets<?, ?> offsets, Tables schema, DdlParser ddlParser) {
+        public void recover(Offsets<?, ?> offsets, Tables schema, DdlParser ddlParser) throws InterruptedException {
             delegate.recover(offsets, schema, ddlParser);
         }
 
         @Override
-        public void recover(Map<Map<String, ?>, Map<String, ?>> offsets, Tables schema, DdlParser ddlParser) {
+        public void recover(Map<Map<String, ?>, Map<String, ?>> offsets, Tables schema, DdlParser ddlParser) throws InterruptedException {
             delegate.recover(offsets, schema, ddlParser);
         }
 
@@ -3043,5 +3045,46 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
     @FunctionalInterface
     interface SqlRunnable {
         void run() throws SQLException;
+    }
+
+    @Test
+    public void taskStartShouldNotWaitOnSchemaHistoryRecovery() throws InterruptedException {
+        // Introduce a delay of 10 seconds in recovering every record in schema history. This is 
+        // done to increase the time taken to recovery schema history.
+        Configuration config = TestHelper.defaultConfig()
+            .with(SqlServerConnectorConfig.SCHEMA_HISTORY_RECOVERY_DELAY_MS, 10_000)
+            .build();
+
+        start(SqlServerConnector.class, config);
+        logger.info("Sleeping for 10 seconds to allow connector to start and commit an offset");
+        Thread.sleep(10_000);
+
+        stopConnector();
+
+        CountDownLatch taskStartLatch = new CountDownLatch(1);
+
+        Thread startConnectorThread = new Thread(() -> {
+            logger.info("Starting connector again");
+            start(SqlServerConnector.class, config, new DebeziumEngine.ConnectorCallback() {
+                @Override
+                public void taskStarted() {
+                    taskStartLatch.countDown();
+                }
+            });
+        });
+        
+        startConnectorThread.start();
+        
+        logger.info("Waiting for task to start");
+        
+        // Wait for 5 seconds for the task to be started
+        Awaitility.await().atMost(5, TimeUnit.SECONDS).until(() -> taskStartLatch.getCount() == 0);
+        
+        // fail the test if task did not start in 5 seconds
+        if (taskStartLatch.getCount() != 0) {
+            throw new AssertionError("Task did not start in 5 seconds after " +
+                "connector was started. Task's start method should be lightweight and " +
+                "hence this is not expected.");
+        }
     }
 }
