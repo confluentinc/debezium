@@ -12,10 +12,12 @@ import org.apache.kafka.connect.connector.Connector;
 
 import io.debezium.rest.model.FilterValidationResults;
 import io.debezium.rest.model.ValidationResults;
+import org.slf4j.LoggerFactory;
 
 public class ConnectorConfigValidator {
 
     public static ValidationResults validateConfig(Connector connector, Map<String, ?> properties) {
+        LoggerFactory.getLogger(ConnectorConfigValidator.class).info("inside validate configuration <c1>");
         return new ValidationResults(connector.validate(convertPropertiesToStrings(properties)));
     }
 

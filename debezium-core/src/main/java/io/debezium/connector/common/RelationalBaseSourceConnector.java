@@ -32,10 +32,15 @@ public abstract class RelationalBaseSourceConnector extends BaseSourceConnector 
 
         // Validate all the individual fields, which is easy since don't make any of the fields invisible ...
         Map<String, ConfigValue> results = validateAllFields(config);
+        LoggerFactory.getLogger(getClass()).info("validated  all fields <c 3>");
 
         if (Strings.isNullOrEmpty(config.getString(RelationalDatabaseConnectorConfig.PASSWORD))) {
             LOGGER.debug("The connection password is empty");
         }
+
+        results.values().stream()
+                .filter(configValue -> !configValue.errorMessages().isEmpty())
+                .forEach(configValue -> LOGGER.warn(" <c 4> ConfigValue '{}' has errors: {}", configValue.name(), configValue.errorMessages()));
 
         // Only if there are no config errors ...
         if (results.values().stream()

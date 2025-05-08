@@ -57,6 +57,7 @@ public abstract class BinlogConnector<T extends BinlogConnectorConfig> extends R
 
     @Override
     protected void validateConnection(Map<String, ConfigValue> configValues, Configuration config) {
+        LoggerFactory.getLogger(getClass()).info("inside validate Connector <c 4b>");
         ConfigValue hostnameValue = configValues.get(RelationalDatabaseConnectorConfig.HOSTNAME.name());
         final T connectorConfig = createConnectorConfig(config);
         try (BinlogConnectorConnection connection = createConnection(config, connectorConfig)) {
@@ -73,6 +74,7 @@ public abstract class BinlogConnector<T extends BinlogConnectorConfig> extends R
             }
         }
         catch (SQLException e) {
+            hostnameValue.addErrorMessage("Unable to connect: " + e.getMessage());
             LOGGER.error("Unexpected error shutting down the database connection", e);
         }
     }

@@ -43,6 +43,7 @@ import com.google.re2j.PatternSyntaxException;
 import io.debezium.annotation.Immutable;
 import io.debezium.function.Predicates;
 import io.debezium.util.Strings;
+import org.slf4j.LoggerFactory;
 
 /**
  * An immutable definition of a field that make appear within a {@link Configuration} instance.
@@ -134,6 +135,7 @@ public final class Field {
          * @param consumer the function; may not be null
          */
         public void forEachTopLevelField(Consumer<Field> consumer) {
+            LoggerFactory.getLogger(getClass()).info("validating top level field <c 3>");
             Collection<String> namesOfDependents = fieldsByName.values().stream()
                     .map(Field::dependents)
                     .flatMap(Collection::stream)

@@ -1992,6 +1992,7 @@ public interface Configuration {
      * @return the {@link ConfigValue} for each of the fields; never null
      */
     default Map<String, ConfigValue> validate(Field.Set fields) {
+        LoggerFactory.getLogger(getClass()).info("inside validate <c 2>");
         // Create a map of configuration values for each field ...
         Map<String, ConfigValue> configValuesByFieldName = new HashMap<>();
         fields.forEach(field -> configValuesByFieldName.put(field.name(), new ConfigValue(field.name())));

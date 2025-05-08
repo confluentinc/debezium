@@ -15,6 +15,7 @@ import io.debezium.config.Configuration;
 import io.debezium.config.Field;
 import io.debezium.connector.binlog.BinlogConnectorIT;
 import io.debezium.connector.mariadb.MariaDbConnectorConfig.SnapshotLockingMode;
+import org.slf4j.LoggerFactory;
 
 /**
  * @author Chris Cranford
