@@ -390,6 +390,7 @@ public abstract class CommonConnectorConfig {
     public static final long DEFAULT_RETRIABLE_RESTART_WAIT = 10000L;
     public static final long DEFAULT_MAX_QUEUE_SIZE_IN_BYTES = 0; // In case we don't want to pass max.queue.size.in.bytes;
     public static final String NOTIFICATION_CONFIGURATION_FIELD_PREFIX_STRING = "notification.";
+    public static final long DEFAULT_CONNECTION_VALIDATION_TIMEOUT_MS = 60000L; // 60 seconds default timeout
 
     public static final int DEFAULT_MAX_RETRIES = ErrorHandler.RETRIES_UNLIMITED;
     public static final String ERRORS_MAX_RETRIES = "errors.max.retries";
@@ -727,6 +728,16 @@ public abstract class CommonConnectorConfig {
             .withDefault(0L)
             .withValidation(Field::isNonNegativeLong);
 
+    public static final Field CONNECTION_VALIDATION_TIMEOUT_MS = Field.create("connection.validation.timeout.ms")
+            .withDisplayName("Connection validation timeout (ms)")
+            .withType(Type.LONG)
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTION, 13))
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.LOW)
+            .withDefault(DEFAULT_CONNECTION_VALIDATION_TIMEOUT_MS)
+            .withDescription("The maximum time in milliseconds to wait for connection validation to complete. Defaults to 60 seconds.")
+            .withValidation(Field::isPositiveLong);
+
     protected static final ConfigDefinition CONFIG_DEFINITION = ConfigDefinition.editor()
             .connector(
                     EVENT_PROCESSING_FAILURE_HANDLING_MODE,
@@ -743,7 +754,8 @@ public abstract class CommonConnectorConfig {
                     SNAPSHOT_MAX_THREADS,
                     RETRIABLE_RESTART_WAIT,
                     QUERY_FETCH_SIZE,
-                    MAX_RETRIES_ON_ERROR)
+                    MAX_RETRIES_ON_ERROR,
+                    CONNECTION_VALIDATION_TIMEOUT_MS)
             .events(
                     CUSTOM_CONVERTERS,
                     TOMBSTONES_ON_DELETE,
@@ -1021,6 +1033,10 @@ public abstract class CommonConnectorConfig {
 
     public Map<String, String> getCustomMetricTags() {
         return customMetricTags;
+    }
+
+    public Duration getConnectionValidationTimeout() {
+        return Duration.ofMillis(config.getLong(CONNECTION_VALIDATION_TIMEOUT_MS));
     }
 
     public Map<String, String> createCustomMetricTags(Configuration config) {

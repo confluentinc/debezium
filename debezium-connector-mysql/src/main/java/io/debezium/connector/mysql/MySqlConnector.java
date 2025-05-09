@@ -6,10 +6,12 @@
 package io.debezium.connector.mysql;
 
 import java.sql.SQLException;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigValue;
@@ -22,6 +24,7 @@ import io.debezium.config.Configuration;
 import io.debezium.connector.common.RelationalBaseSourceConnector;
 import io.debezium.connector.mysql.MySqlConnection.MySqlConnectionConfiguration;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
+import io.debezium.util.Threads;
 
 /**
  * A Kafka Connect source connector that creates tasks that read the MySQL binary log and generate the corresponding
@@ -81,20 +84,32 @@ public class MySqlConnector extends RelationalBaseSourceConnector {
         ConfigValue hostnameValue = configValues.get(RelationalDatabaseConnectorConfig.HOSTNAME.name());
         // Try to connect to the database ...
         final MySqlConnectionConfiguration connectionConfig = new MySqlConnectionConfiguration(config);
+        final MySqlConnectorConfig connectorConfig = new MySqlConnectorConfig(config);
+        Duration timeout = connectorConfig.getConnectionValidationTimeout();
 
-        try (MySqlConnection connection = new MySqlConnection(connectionConfig)) {
-            try {
-                connection.connect();
-                connection.execute("SELECT version()");
-                LOGGER.info("Successfully tested connection for {} with user '{}'", connection.connectionString(), connectionConfig.username());
-            }
-            catch (SQLException e) {
-                LOGGER.error("Failed testing connection for {} with user '{}'", connection.connectionString(), connectionConfig.username(), e);
-                hostnameValue.addErrorMessage("Unable to connect: " + e.getMessage());
-            }
+        try {
+            Threads.runWithTimeout(this.getClass(), () -> {
+                try (MySqlConnection connection = new MySqlConnection(connectionConfig)) {
+                    try {
+                        connection.connect();
+                        connection.execute("SELECT version()");
+                        LOGGER.info("Successfully tested connection for {} with user '{}'", connection.connectionString(), connectionConfig.username());
+                    }
+                    catch (SQLException e) {
+                        LOGGER.error("Failed testing connection for {} with user '{}'", connection.connectionString(), connectionConfig.username(), e);
+                        hostnameValue.addErrorMessage("Unable to connect: " + e.getMessage());
+                    }
+                }
+                catch (SQLException e) {
+                    LOGGER.error("Unexpected error shutting down the database connection", e);
+                }
+            }, timeout, connectorConfig.getLogicalName(), "connection-validation");
         }
-        catch (SQLException e) {
-            LOGGER.error("Unexpected error shutting down the database connection", e);
+        catch (TimeoutException e) {
+            hostnameValue.addErrorMessage("Connection validation timed out after " + timeout.toMillis() + " ms");
+        }
+        catch (Exception e) {
+            hostnameValue.addErrorMessage("Error during connection validation: " + e.getMessage());
         }
     }
 
