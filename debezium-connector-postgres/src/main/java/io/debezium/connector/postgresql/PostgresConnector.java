@@ -7,10 +7,12 @@
 package io.debezium.connector.postgresql;
 
 import java.sql.SQLException;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigValue;
@@ -26,6 +28,7 @@ import io.debezium.connector.common.RelationalBaseSourceConnector;
 import io.debezium.connector.postgresql.PostgresConnectorConfig.LogicalDecoder;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
+import io.debezium.util.Threads;
 
 /**
  * A Kafka Connect source connector that creates tasks which use Postgresql streaming replication off a logical replication slot
@@ -90,33 +93,44 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         final ConfigValue portValue = configValues.get(PostgresConnectorConfig.PORT.name());
         final ConfigValue userValue = configValues.get(PostgresConnectorConfig.USER.name());
         final ConfigValue passwordValue = configValues.get(PostgresConnectorConfig.PASSWORD.name());
+        Duration timeout = postgresConfig.getConnectionValidationTimeout();
         // Try to connect to the database ...
-        try (PostgresConnection connection = new PostgresConnection(postgresConfig.getJdbcConfig(), PostgresConnection.CONNECTION_VALIDATE_CONNECTION)) {
-            try {
-                // Prepare connection without initial statement execution
-                connection.connection(false);
-                testConnection(connection);
-                checkWalLevel(connection, postgresConfig);
-                checkLoginReplicationRoles(connection);
-                if (LogicalDecoder.PGOUTPUT.equals(postgresConfig.plugin())) {
-                    int pgversion = checkPostgresVersionForPgoutputSupport(connection, postgresConfig);
-                    if (ServerVersion.v10.getVersionNum() > pgversion) {
-                        final String errorMessage = "PGOUTPUT plugin is only supported on postgres server version 10+";
-                        LOGGER.error(errorMessage);
-                        hostnameValue.addErrorMessage(errorMessage);
-                        pluginNameValue.addErrorMessage(errorMessage);
+        try {
+            Threads.runWithTimeout(PostgresConnector.class, () -> {
+                try (PostgresConnection connection = new PostgresConnection(postgresConfig.getJdbcConfig(), PostgresConnection.CONNECTION_VALIDATE_CONNECTION)) {
+                    try {
+                        // Prepare connection without initial statement execution
+                        connection.connection(false);
+                        testConnection(connection);
+                        checkWalLevel(connection, postgresConfig);
+                        checkLoginReplicationRoles(connection);
+                        if (LogicalDecoder.PGOUTPUT.equals(postgresConfig.plugin())) {
+                            int pgversion = checkPostgresVersionForPgoutputSupport(connection, postgresConfig);
+                            if (ServerVersion.v10.getVersionNum() > pgversion) {
+                                final String errorMessage = "PGOUTPUT plugin is only supported on postgres server version 10+";
+                                LOGGER.error(errorMessage);
+                                hostnameValue.addErrorMessage(errorMessage);
+                                pluginNameValue.addErrorMessage(errorMessage);
+                            }
+                        }
+                    }
+                    catch (Exception e) {
+                        LOGGER.error("Failed testing connection for {} with user '{}'", connection.connectionString(),
+                                connection.username(), e);
+                        hostnameValue.addErrorMessage("Error while validating connector config: " + e.getMessage());
+                        databaseValue.addErrorMessage("Error while validating connector config: " + e.getMessage());
+                        portValue.addErrorMessage("Error while validating connector config: " + e.getMessage());
+                        userValue.addErrorMessage("Error while validating connector config: " + e.getMessage());
+                        passwordValue.addErrorMessage("Error while validating connector config: " + e.getMessage());
                     }
                 }
-            }
-            catch (Exception e) {
-                LOGGER.error("Failed testing connection for {} with user '{}'", connection.connectionString(),
-                        connection.username(), e);
-                hostnameValue.addErrorMessage("Error while validating connector config: " + e.getMessage());
-                databaseValue.addErrorMessage("Error while validating connector config: " + e.getMessage());
-                portValue.addErrorMessage("Error while validating connector config: " + e.getMessage());
-                userValue.addErrorMessage("Error while validating connector config: " + e.getMessage());
-                passwordValue.addErrorMessage("Error while validating connector config: " + e.getMessage());
-            }
+            }, timeout, postgresConfig.getLogicalName(), "connection-validation");
+        }
+        catch (TimeoutException e) {
+            hostnameValue.addErrorMessage("Connection validation timed out after " + timeout.toMillis() + " ms");
+        }
+        catch (Exception e) {
+            hostnameValue.addErrorMessage("Error during connection validation: " + e.getMessage());
         }
     }
 
