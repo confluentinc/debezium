@@ -253,7 +253,7 @@ public class MySqlDatabaseSchemaTest {
 
     @Test
     @FixFor("DBZ-3622")
-    public void shouldStoreNonCapturedDatabase() throws Exception {
+    public void shouldStoreNonCapturedDatabase() throws InterruptedException {
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfig()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
@@ -285,7 +285,7 @@ public class MySqlDatabaseSchemaTest {
 
     @Test
     @FixFor("DBZ-3622")
-    public void shouldNotStoreNonCapturedDatabase() throws Exception {
+    public void shouldNotStoreNonCapturedDatabase() throws InterruptedException {
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfig()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
@@ -318,7 +318,7 @@ public class MySqlDatabaseSchemaTest {
 
     @Test
     @FixFor("DBZ-3622")
-    public void shouldStoreNonCapturedTable() throws Exception {
+    public void shouldStoreNonCapturedTable() throws InterruptedException {
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfigWithoutDatabaseFilter()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
@@ -350,7 +350,7 @@ public class MySqlDatabaseSchemaTest {
 
     @Test
     @FixFor("DBZ-3622")
-    public void shouldNotStoreNonCapturedTable() throws Exception {
+    public void shouldNotStoreNonCapturedTable() throws InterruptedException {
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfigWithoutDatabaseFilter()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
