@@ -230,7 +230,7 @@ public class MySqlDatabaseSchemaTest {
     }
 
     @Test
-    public void shouldAllowDecimalPrecision() {
+    public void shouldAllowDecimalPrecision() throws InterruptedException {
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfig()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
@@ -253,7 +253,7 @@ public class MySqlDatabaseSchemaTest {
 
     @Test
     @FixFor("DBZ-3622")
-    public void shouldStoreNonCapturedDatabase() {
+    public void shouldStoreNonCapturedDatabase() throws InterruptedException {
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfig()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
@@ -285,7 +285,7 @@ public class MySqlDatabaseSchemaTest {
 
     @Test
     @FixFor("DBZ-3622")
-    public void shouldNotStoreNonCapturedDatabase() {
+    public void shouldNotStoreNonCapturedDatabase() throws InterruptedException {
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfig()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
@@ -318,7 +318,7 @@ public class MySqlDatabaseSchemaTest {
 
     @Test
     @FixFor("DBZ-3622")
-    public void shouldStoreNonCapturedTable() {
+    public void shouldStoreNonCapturedTable() throws InterruptedException {
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfigWithoutDatabaseFilter()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
@@ -350,7 +350,7 @@ public class MySqlDatabaseSchemaTest {
 
     @Test
     @FixFor("DBZ-3622")
-    public void shouldNotStoreNonCapturedTable() {
+    public void shouldNotStoreNonCapturedTable() throws InterruptedException {
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfigWithoutDatabaseFilter()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
@@ -459,7 +459,7 @@ public class MySqlDatabaseSchemaTest {
         assertThat(mysql.tableIds().stream().filter(id -> id.catalog().equals(dbName)).count()).isGreaterThan(0);
     }
 
-    protected void assertHistoryRecorded(Configuration config, MySqlPartition partition, OffsetContext offset) {
+    protected void assertHistoryRecorded(Configuration config, MySqlPartition partition, OffsetContext offset) throws InterruptedException {
         try (MySqlDatabaseSchema duplicate = getSchema(config)) {
             duplicate.recover(Offsets.of(partition, offset));
 
