@@ -90,7 +90,7 @@ public class MySqlDatabaseSchemaTest {
     }
 
     @Test
-    public void shouldApplyDdlStatementsAndRecover() throws Exception {
+    public void shouldApplyDdlStatementsAndRecover() throws InterruptedException {
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfig().build();
         mysql = getSchema(config);
@@ -115,7 +115,7 @@ public class MySqlDatabaseSchemaTest {
     }
 
     @Test
-    public void shouldIgnoreUnparseableDdlAndRecover() throws Exception {
+    public void shouldIgnoreUnparseableDdlAndRecover() throws InterruptedException {
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfig()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, true)
@@ -163,7 +163,7 @@ public class MySqlDatabaseSchemaTest {
     }
 
     @Test
-    public void shouldLoadSystemAndNonSystemTablesAndConsumeOnlyFilteredDatabases() throws Exception {
+    public void shouldLoadSystemAndNonSystemTablesAndConsumeOnlyFilteredDatabases() throws InterruptedException {
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfigWithoutDatabaseFilter()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, true)
@@ -196,7 +196,7 @@ public class MySqlDatabaseSchemaTest {
     }
 
     @Test
-    public void shouldLoadSystemAndNonSystemTablesAndConsumeAllDatabases() throws Exception {
+    public void shouldLoadSystemAndNonSystemTablesAndConsumeAllDatabases() throws InterruptedException {
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfigWithoutDatabaseFilter()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, true)
@@ -230,7 +230,7 @@ public class MySqlDatabaseSchemaTest {
     }
 
     @Test
-    public void shouldAllowDecimalPrecision() throws Exception {
+    public void shouldAllowDecimalPrecision() throws InterruptedException {
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfig()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
@@ -459,7 +459,7 @@ public class MySqlDatabaseSchemaTest {
         assertThat(mysql.tableIds().stream().filter(id -> id.catalog().equals(dbName)).count()).isGreaterThan(0);
     }
 
-    protected void assertHistoryRecorded(Configuration config, MySqlPartition partition, OffsetContext offset) throws Exception {
+    protected void assertHistoryRecorded(Configuration config, MySqlPartition partition, OffsetContext offset) throws InterruptedException {
         try (MySqlDatabaseSchema duplicate = getSchema(config)) {
             duplicate.recover(Offsets.of(partition, offset));
 
