@@ -3057,8 +3057,8 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
             .build();
 
         start(SqlServerConnector.class, config);
-        logger.info("Sleeping for 10 seconds to allow connector to start and commit an offset");
-        Thread.sleep(10_000);
+        logger.info("Sleeping for 2 seconds to allow connector to start and commit an offset");
+        Thread.sleep(2_000);
 
         stopConnector();
 

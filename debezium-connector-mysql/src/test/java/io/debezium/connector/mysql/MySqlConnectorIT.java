@@ -33,7 +33,6 @@ import java.util.stream.StreamSupport;
 import io.confluent.credentialproviders.DefaultJdbcCredentialsProvider;
 import org.apache.kafka.common.config.Config;
 import org.apache.kafka.connect.data.Struct;
-import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.header.Header;
 import org.apache.kafka.connect.source.SourceRecord;
@@ -2631,19 +2630,19 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
             .build();
 
         start(MySqlConnector.class, config);
-        logger.info("Sleeping for 10 seconds to allow connector to start and commit an offset");
-        Thread.sleep(10_000);
+        logger.info("Sleeping for 2 seconds to allow connector to start and commit an offset");
+        Thread.sleep(2_000);
 
         stopConnector();
 
-        CountDownLatch tastStartLatch = new CountDownLatch(1);
+        CountDownLatch taskStartLatch = new CountDownLatch(1);
 
         Thread startConnectorThread = new Thread(() -> {
             logger.info("Starting connector again");
             start(MySqlConnector.class, config, new DebeziumEngine.ConnectorCallback() {
                 @Override
                 public void taskStarted() {
-                    tastStartLatch.countDown();
+                    taskStartLatch.countDown();
                 }
             });
         });
@@ -2653,10 +2652,10 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
         logger.info("Waiting for task to start");
         
         // Wait for 5 seconds for the task to be started
-        Awaitility.await().atMost(5, TimeUnit.SECONDS).until(() -> tastStartLatch.getCount() == 0);
+        Awaitility.await().atMost(5, TimeUnit.SECONDS).until(() -> taskStartLatch.getCount() == 0);
         
         // fail the test if task did not start in 5 seconds
-        if (tastStartLatch.getCount() != 0) {
+        if (taskStartLatch.getCount() != 0) {
             throw new AssertionError("Task did not start in 5 seconds after " +
                 "connector was started. Task's start method should be lightweight and " +
                 "hence this is not expected.");

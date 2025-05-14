@@ -53,7 +53,8 @@ public interface SchemaHistory {
                     + "which it cannot parse. If skipping is enabled then Debezium can miss metadata changes.")
             .withDefault(false);
 
-    Field SCHEMA_HISTORY_RECOVERY_DELAY_MS = Field.create(CONFIGURATION_FIELD_PREFIX_STRING + "recovery.delay.ms")
+    // Not intended to be used in production code. This is only for testing.
+    Field SCHEMA_HISTORY_RECOVERY_DELAY_MS = Field.createInternal(CONFIGURATION_FIELD_PREFIX_STRING + "recovery.delay.ms")
             .withDisplayName("Schema history recovery delay in milliseconds")
             .withType(Type.LONG)
             .withWidth(Width.SHORT)

@@ -323,7 +323,6 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
                 LOGGER.debug("End offset of database schema history topic is {}", endOffset);
                 
                 checkForInterruption();
-                // DBZ-1361 not using poll(Duration) to keep compatibility with AK 1.x
                 ConsumerRecords<String, String> recoveredRecords = historyConsumer.poll(this.pollInterval);
                 int numRecordsProcessed = 0;
 
@@ -351,8 +350,6 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
                             lastProcessedOffset = record.offset();
                             ++numRecordsProcessed;
                         }
-                        LOGGER.info("Sleeping for {} seconds !", config.getLong(SCHEMA_HISTORY_RECOVERY_DELAY_MS)/1000);
-                        Thread.sleep(config.getLong(SCHEMA_HISTORY_RECOVERY_DELAY_MS));
                     }
                     catch (final IOException e) {
                         Loggings.logErrorAndTraceRecord(LOGGER, record, "Error while deserializing history record", e);
