@@ -419,6 +419,7 @@ public abstract class BinlogDefaultValueConverter implements DefaultValueConvert
             }
         }
         if (!parsedDate) {
+            // doubtful on this one
             throw new java.lang.IllegalArgumentException("Cannot parse the date from " + s);
         }
 
