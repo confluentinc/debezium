@@ -902,6 +902,7 @@ public abstract class BinlogValueConverters extends JdbcValueConverters {
     public static Duration stringToDuration(String timeString) {
         final Matcher matcher = TIME_FIELD_PATTERN.matcher(timeString);
         if (!matcher.matches()) {
+            // doubtful on this one
             throw new DebeziumException("Unexpected format for TIME column: " + timeString);
         }
 
@@ -946,6 +947,7 @@ public abstract class BinlogValueConverters extends JdbcValueConverters {
     public static LocalDate stringToLocalDate(String dateString, Column column, Table table) {
         final Matcher matcher = DATE_FIELD_PATTERN.matcher(dateString);
         if (!matcher.matches()) {
+            // doubtful on this one
             throw new RuntimeException("Unexpected format for DATE column: " + dateString);
         }
 
@@ -954,6 +956,7 @@ public abstract class BinlogValueConverters extends JdbcValueConverters {
         final int day = Integer.parseInt(matcher.group(3));
 
         if (month == 0 || day == 0) {
+            // doubtful on this one
             INVALID_VALUE_LOGGER.warn("Invalid value '{}' stored in column '{}' of table '{}' converted to empty value",
                     dateString, column.name(), table.id());
             return null;
@@ -973,6 +976,7 @@ public abstract class BinlogValueConverters extends JdbcValueConverters {
     public static boolean containsZeroValuesInDatePart(String timestampString, Column column, Table table) {
         final Matcher matcher = TIMESTAMP_FIELD_PATTERN.matcher(timestampString);
         if (!matcher.matches()) {
+            // doubtful on this one
             throw new RuntimeException("Unexpected format for DATE column: " + timestampString);
         }
 
@@ -981,6 +985,7 @@ public abstract class BinlogValueConverters extends JdbcValueConverters {
         final int day = Integer.parseInt(matcher.group(3));
 
         if (month == 0 || day == 0) {
+            // doubtful on this one
             INVALID_VALUE_LOGGER.warn("Invalid value '{}' stored in column '{}' of table '{}' converted to empty value",
                     timestampString, column.name(), table.id());
             return true;

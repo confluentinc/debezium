@@ -789,6 +789,7 @@ public final class Strings {
         Matcher matcher = TIME_PATTERN.matcher(timeString);
 
         if (!matcher.matches()) {
+            // doubtful on this one
             throw new RuntimeException("Unexpected format for TIME column: " + timeString);
         }
 
