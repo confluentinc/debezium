@@ -277,7 +277,7 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
             throws SQLException, InterruptedException {
 
         final Lsn lsn = stream.lastReceivedLsn();
-        LOGGER.trace("Processing replication message {}", message);
+        LOGGER.trace("Processing replication message.");
         if (message.isLastEventForLsn()) {
             lastCompletelyProcessedLsn = lsn;
         }
