@@ -11,3 +11,9 @@ semaphore:
   cve_scan: true
   extra_build_args: "-Dcloud -Passembly -pl debezium-connector-mysql,debezium-connector-postgres,debezium-connector-sqlserver -am"
   extra_deploy_args: "-Dcloud -Passembly -pl debezium-connector-mysql,debezium-connector-postgres,debezium-connector-sqlserver -am"
+  branches:
+  - master
+  - main
+  - /^\d+\.\d+\.x$/
+  - /v\d+\.\d+\.\d+\-hotfix\-x/
+  - /^gh-readonly-queue.*/
