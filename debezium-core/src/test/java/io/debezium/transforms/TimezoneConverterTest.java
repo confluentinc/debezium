@@ -416,7 +416,6 @@ public class TimezoneConverterTest {
         assertThat(transformedAfter.get("order_date")).isEqualTo(io.debezium.time.Date.toEpochDay(LocalDate.parse("2016-11-04"), null));
     }
 
-
     @Test
     public void testExcludeListWithNoPrefix() {
         final Map<String, String> props = new HashMap<>();

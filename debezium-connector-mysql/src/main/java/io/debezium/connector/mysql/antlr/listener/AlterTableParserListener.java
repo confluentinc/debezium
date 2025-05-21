@@ -54,7 +54,7 @@ public class AlterTableParserListener extends TableCommonParserListener {
         tableEditor = parser.databaseTables().editTable(tableId);
         if (tableEditor == null) {
             LOG.trace("Trying to alter table " + tableId.toString() + ", which does not" +
-              " exist. Query: " + getText(ctx));
+                    " exist. Query: " + getText(ctx));
             throw new ParsingException(null, "Trying to alter table " + tableId.toString()
                     + ", which does not exist.");
         }
@@ -166,7 +166,7 @@ public class AlterTableParserListener extends TableCommonParserListener {
             }
             else {
                 LOG.trace("Trying to change column " + oldColumnName + " in " + tableEditor.tableId().toString()
-                  + " table, which does not exist. Query: " + getText(ctx));
+                        + " table, which does not exist. Query: " + getText(ctx));
                 throw new ParsingException(null, "Trying to change column " + oldColumnName + " in "
                         + tableEditor.tableId().toString() + " table, which does not exist.");
             }
@@ -209,7 +209,7 @@ public class AlterTableParserListener extends TableCommonParserListener {
             }
             else {
                 LOG.trace("Trying to change column " + columnName + " in " + tableEditor.tableId().toString()
-                  + " table, which does not exist. Query: " + getText(ctx));
+                        + " table, which does not exist. Query: " + getText(ctx));
                 throw new ParsingException(null, "Trying to change column " + columnName + " in "
                         + tableEditor.tableId().toString() + " table, which does not exist.");
             }
@@ -332,7 +332,7 @@ public class AlterTableParserListener extends TableCommonParserListener {
             }
             else {
                 LOG.trace("Trying to change column " + oldColumnName + " in " + tableEditor.tableId().toString()
-                  + " table, which does not exist. Query: " + getText(ctx));
+                        + " table, which does not exist. Query: " + getText(ctx));
                 throw new ParsingException(null, "Trying to change column " + oldColumnName + " in "
                         + tableEditor.tableId().toString() + " table, which does not exist.");
             }

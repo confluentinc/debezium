@@ -10,12 +10,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import io.debezium.DebeziumException;
-import io.debezium.schema.HistorizedDatabaseSchema;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.config.Field;
@@ -96,7 +95,7 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
             String msg = "The db history topic or its content is fully or partially missing. Please check database schema history topic configuration and re-execute the snapshot.";
             throw new DebeziumException(msg);
         }
-        
+
         taskContext = new SqlServerTaskContext(connectorConfig, schema);
 
         // Set up the task record queue ...
