@@ -359,14 +359,7 @@ public class MySqlDatabaseSchema extends HistorizedRelationalDatabaseSchema {
     protected DdlParser getDdlParser() {
         return ddlParser;
     }
-
-    /**
-     * Return true if the database schema history entity exists
-     */
-    public boolean historyExists() {
-        return schemaHistory.exists();
-    }
-
+    
     /**
      * Assign the given table number to the table with the specified {@link TableId table ID}.
      *

@@ -70,9 +70,5 @@ public class SqlServerDatabaseSchema extends HistorizedRelationalDatabaseSchema 
     protected DdlParser getDdlParser() {
         return null;
     }
-    
-    public boolean historyExists() {
-        return schemaHistory.exists();
-    }
 
 }
