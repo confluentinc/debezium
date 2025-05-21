@@ -139,7 +139,7 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
                     context = new ChangeEventSourceContextImpl();
                     LOGGER.info("Context created");
 
-                    if (schema.isHistorized()) {
+                    if (schema.isHistorized() && ((HistorizedDatabaseSchema) schema).historyExists()) {
                         ((HistorizedDatabaseSchema<?>) schema).recover(previousOffsets);
                     }
 
