@@ -31,7 +31,6 @@ import io.debezium.testing.testcontainers.ConnectorConfiguration;
 import io.debezium.testing.testcontainers.testhelper.RestExtensionTestInfrastructure;
 import io.restassured.http.ContentType;
 
-
 @Ignore
 public class DebeziumSqlServerConnectorResourceIT {
 

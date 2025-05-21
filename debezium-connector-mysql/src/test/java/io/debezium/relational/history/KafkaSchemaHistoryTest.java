@@ -14,7 +14,6 @@ import java.io.File;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
-import io.confluent.credentialproviders.DefaultJdbcCredentialsProvider;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -27,6 +26,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import io.confluent.credentialproviders.DefaultJdbcCredentialsProvider;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.connector.mysql.MySqlConnectorConfig;
@@ -124,24 +124,24 @@ public class KafkaSchemaHistoryTest {
         interceptor = new LogInterceptor(KafkaSchemaHistory.class);
         // Start up the history ...
         Configuration config = Configuration.create()
-            .with(KafkaSchemaHistory.BOOTSTRAP_SERVERS, kafka.brokerList())
-            .with(KafkaSchemaHistory.TOPIC, topicName)
-            .with(SchemaHistory.NAME, "my-db-history")
-            .with(KafkaSchemaHistory.RECOVERY_POLL_INTERVAL_MS, 500)
-            // new since 0.10.1.0 - we want a low value because we're running everything locally
-            // in this test. However, it can't be so low that the broker returns the same
-            // messages more than once.
-            .with(KafkaSchemaHistory.consumerConfigPropertyName(
-                    ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG),
-                100)
-            .with(KafkaSchemaHistory.consumerConfigPropertyName(
-                    ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG),
-                50000)
-            .with(KafkaSchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, skipUnparseableDDL)
-            .with(KafkaSchemaHistory.DDL_FILTER, "CREATE\\s+ROLE.*")
-            .with(KafkaSchemaHistory.INTERNAL_CONNECTOR_CLASS, "org.apache.kafka.connect.source.SourceConnector")
-            .with(KafkaSchemaHistory.INTERNAL_CONNECTOR_ID, "dbz-test")
-            .build();
+                .with(KafkaSchemaHistory.BOOTSTRAP_SERVERS, kafka.brokerList())
+                .with(KafkaSchemaHistory.TOPIC, topicName)
+                .with(SchemaHistory.NAME, "my-db-history")
+                .with(KafkaSchemaHistory.RECOVERY_POLL_INTERVAL_MS, 500)
+                // new since 0.10.1.0 - we want a low value because we're running everything locally
+                // in this test. However, it can't be so low that the broker returns the same
+                // messages more than once.
+                .with(KafkaSchemaHistory.consumerConfigPropertyName(
+                        ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG),
+                        100)
+                .with(KafkaSchemaHistory.consumerConfigPropertyName(
+                        ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG),
+                        50000)
+                .with(KafkaSchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, skipUnparseableDDL)
+                .with(KafkaSchemaHistory.DDL_FILTER, "CREATE\\s+ROLE.*")
+                .with(KafkaSchemaHistory.INTERNAL_CONNECTOR_CLASS, "org.apache.kafka.connect.source.SourceConnector")
+                .with(KafkaSchemaHistory.INTERNAL_CONNECTOR_ID, "dbz-test")
+                .build();
         history.configure(config, null, SchemaHistoryMetrics.NOOP, true);
         history.start();
 

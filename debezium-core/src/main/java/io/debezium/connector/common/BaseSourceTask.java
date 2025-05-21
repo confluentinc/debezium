@@ -323,7 +323,7 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
     @Override
     public void commitRecord(SourceRecord record, RecordMetadata metadata) throws InterruptedException {
         LOGGER.trace("Committing record with source partition '{}' and source offset '{}'",
-            record.sourcePartition(), record.sourceOffset());
+                record.sourcePartition(), record.sourceOffset());
 
         Map<String, ?> currentOffset = record.sourceOffset();
         if (currentOffset != null) {

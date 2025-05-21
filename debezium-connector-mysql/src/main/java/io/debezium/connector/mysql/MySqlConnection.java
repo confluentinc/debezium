@@ -20,13 +20,11 @@ import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Properties;
 
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.mysql.cj.CharsetMapping;
 
-import io.confluent.credentialproviders.JdbcCredentials;
 import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.CommonConnectorConfig.EventProcessingFailureHandlingMode;
@@ -57,8 +55,7 @@ public class MySqlConnection extends JdbcConnection {
     private static final String QUOTED_CHARACTER = "`";
     public static final String MASTER_STATUS_STATEMENT = "SHOW MASTER STATUS";
     public static final String BINARY_LOG_STATUS_STATEMENT = "SHOW BINARY LOG STATUS";
-     private final String binaryLogStatusStatement;
-
+    private final String binaryLogStatusStatement;
 
     protected static final String URL_PATTERN = "${protocol}://${hostname}:${port}/?useInformationSchema=true&nullCatalogMeansCurrent=false&useUnicode=true&characterEncoding=UTF-8&characterSetResults=UTF-8&zeroDateTimeBehavior=CONVERT_TO_NULL&connectTimeout=${connectTimeout}";
 

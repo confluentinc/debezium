@@ -5,13 +5,11 @@
  */
 package io.debezium.relational;
 
-import java.util.Objects;
 import java.util.function.Predicate;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.debezium.DebeziumException;
 import io.debezium.pipeline.spi.Offsets;
 import io.debezium.relational.Key.KeyMapper;
 import io.debezium.relational.Tables.ColumnNameFilter;

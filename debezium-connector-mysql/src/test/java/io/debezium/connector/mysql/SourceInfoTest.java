@@ -15,7 +15,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
 
-import io.confluent.credentialproviders.DefaultJdbcCredentialsProvider;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
@@ -24,6 +23,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import io.confluent.connect.avro.AvroData;
+import io.confluent.credentialproviders.DefaultJdbcCredentialsProvider;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.connector.AbstractSourceInfoStructMaker;
@@ -50,13 +50,11 @@ public class SourceInfoTest {
     @Before
     public void beforeEach() {
         offsetContext = MySqlOffsetContext.initial(
-            new MySqlConnectorConfig(
-                Configuration.create()
-                    .with(CommonConnectorConfig.TOPIC_PREFIX, "server")
-                    .build(),
-                new DefaultJdbcCredentialsProvider()
-            )
-        );
+                new MySqlConnectorConfig(
+                        Configuration.create()
+                                .with(CommonConnectorConfig.TOPIC_PREFIX, "server")
+                                .build(),
+                        new DefaultJdbcCredentialsProvider()));
         source = offsetContext.getSource();
         inTxn = false;
         positionOfBeginEvent = 0L;
@@ -455,13 +453,12 @@ public class SourceInfoTest {
 
     protected SourceInfo sourceWith(Map<String, String> offset) {
         offsetContext = (MySqlOffsetContext) new MySqlOffsetContext.Loader(
-            new MySqlConnectorConfig(
-                Configuration.create()
-                .with(CommonConnectorConfig.TOPIC_PREFIX, SERVER_NAME)
-                .build(),
-            new DefaultJdbcCredentialsProvider()
-            )
-        ).load(offset);
+                new MySqlConnectorConfig(
+                        Configuration.create()
+                                .with(CommonConnectorConfig.TOPIC_PREFIX, SERVER_NAME)
+                                .build(),
+                        new DefaultJdbcCredentialsProvider()))
+                .load(offset);
         source = offsetContext.getSource();
         source.databaseEvent("mysql");
         return source;

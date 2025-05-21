@@ -581,7 +581,8 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
             return;
         }
         if (upperCasedStatementBegin.equals("INSERT ") || upperCasedStatementBegin.equals("UPDATE ") || upperCasedStatementBegin.equals("DELETE ")) {
-            LOGGER.warn("Received DML of type {}, binlog probably contains events generated with statement or mixed based replication format", upperCasedStatementBegin.trim());
+            LOGGER.warn("Received DML of type {}, binlog probably contains events generated with statement or mixed based replication format",
+                    upperCasedStatementBegin.trim());
             return;
         }
         if (sql.equalsIgnoreCase("ROLLBACK")) {
@@ -1031,7 +1032,8 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
                 }
                 catch (AuthenticationException e) {
                     throw new DebeziumException("Failed to authenticate to the MySQL database at " +
-                            connectorConfig.hostname() + ":" + connectorConfig.port() + " with user '" + connectorConfig.username() + "'", sanitizeAuthenticationException(e));
+                            connectorConfig.hostname() + ":" + connectorConfig.port() + " with user '" + connectorConfig.username() + "'",
+                            sanitizeAuthenticationException(e));
                 }
                 catch (Throwable e) {
                     throw new DebeziumException("Unable to connect to the MySQL database at " +
@@ -1060,9 +1062,9 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
 
     static AuthenticationException sanitizeAuthenticationException(AuthenticationException e) {
         String sanitizedError = e.getMessage()
-            .replaceAll("[^\\P{Cc}\t\r\n]", "");
+                .replaceAll("[^\\P{Cc}\t\r\n]", "");
         AuthenticationException sanitized = new AuthenticationException(sanitizedError,
-            e.getErrorCode(), e.getSqlState());
+                e.getErrorCode(), e.getSqlState());
         sanitized.setStackTrace(e.getStackTrace());
         return sanitized;
     }

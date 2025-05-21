@@ -46,8 +46,8 @@ public final class Offsets<P extends Partition, O extends OffsetContext> impleme
     public Map<P, O> getOffsets() {
         return offsets;
     }
-    
-    public boolean hasNonNullOffsets(){
+
+    public boolean hasNonNullOffsets() {
         return offsets.values().stream().anyMatch(Objects::nonNull);
     }
 

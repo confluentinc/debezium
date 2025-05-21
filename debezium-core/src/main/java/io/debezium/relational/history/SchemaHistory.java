@@ -61,7 +61,6 @@ public interface SchemaHistory {
             .withImportance(Importance.LOW)
             .withDescription("Specifies the amount of time in milliseconds to wait between processing schema history records.")
             .withDefault(0L);
-    
 
     Field STORE_ONLY_CAPTURED_TABLES_DDL = Field.create(CONFIGURATION_FIELD_PREFIX_STRING + "store.only.captured.tables.ddl")
             .withDisplayName("Store only DDL that modifies tables that are captured based on include/exclude lists")
