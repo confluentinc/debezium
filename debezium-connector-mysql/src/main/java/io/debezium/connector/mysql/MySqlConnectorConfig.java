@@ -974,10 +974,11 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
     private final Predicate<String> gtidSourceFilter;
     private final EventProcessingFailureHandlingMode inconsistentSchemaFailureHandlingMode;
     private final boolean readOnlyConnection;
+
     public MySqlConnectorConfig(Configuration config) {
         this(config, getCredentialsProvider(config));
     }
-    
+
     // visible for testing
     public MySqlConnectorConfig(Configuration config, JdbcCredentialsProvider credsProvider) {
         super(

@@ -10,7 +10,6 @@ import static io.debezium.junit.EqualityCheck.LESS_THAN;
 import static io.debezium.relational.history.SchemaHistory.SCHEMA_HISTORY_RECOVERY_DELAY_MS;
 import static junit.framework.TestCase.assertEquals;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.fail;
 
 import java.nio.file.Path;
@@ -30,7 +29,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import io.confluent.credentialproviders.DefaultJdbcCredentialsProvider;
 import org.apache.kafka.common.config.Config;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.DataException;
@@ -41,6 +39,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import io.confluent.credentialproviders.DefaultJdbcCredentialsProvider;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.config.EnumeratedValue;
@@ -911,8 +910,8 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
         try (MySqlTestConnection db = MySqlTestConnection.forTestDatabase(DATABASE.getDatabaseName());) {
             try (JdbcConnection connection = db.connect()) {
                 connection.execute(
-                 "create table migration_test (id varchar(20) null,mgb_no varchar(20) null)",
-                 "create unique index migration_test_mgb_no_uindex on migration_test (mgb_no)");
+                        "create table migration_test (id varchar(20) null,mgb_no varchar(20) null)",
+                        "create unique index migration_test_mgb_no_uindex on migration_test (mgb_no)");
             }
         }
 
@@ -2203,10 +2202,10 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
         start(MySqlConnector.class, config);
         Thread.sleep(1000);
         assertThat(
-            logInterceptor.containsMessage(
-                "After applying the include/exclude list filters, no changes " +
-                 "will be captured. Please check your configuration!"))
-        .isTrue();
+                logInterceptor.containsMessage(
+                        "After applying the include/exclude list filters, no changes " +
+                                "will be captured. Please check your configuration!"))
+                .isTrue();
         consumeRecordsByTopic(12);
         waitForAvailableRecords(100, TimeUnit.MILLISECONDS);
 
@@ -2620,14 +2619,14 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
 
         stopConnector();
     }
-    
+
     @Test
-    public void taskStartShouldNotWaitOnSchemaHistoryRecovery () throws InterruptedException {
-        // Introduce a delay of 10 seconds in recovering every record in schema history. This is 
+    public void taskStartShouldNotWaitOnSchemaHistoryRecovery() throws InterruptedException {
+        // Introduce a delay of 10 seconds in recovering every record in schema history. This is
         // done to increase the time taken to recovery schema history.
         Configuration config = DATABASE.defaultConfig()
-            .with(SCHEMA_HISTORY_RECOVERY_DELAY_MS, 10_000)
-            .build();
+                .with(SCHEMA_HISTORY_RECOVERY_DELAY_MS, 10_000)
+                .build();
 
         start(MySqlConnector.class, config);
         logger.info("Sleeping for 2 seconds to allow connector to start and commit an offset");
@@ -2646,19 +2645,19 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                 }
             });
         });
-        
+
         startConnectorThread.start();
-        
+
         logger.info("Waiting for task to start");
-        
+
         // Wait for 5 seconds for the task to be started
         Awaitility.await().atMost(5, TimeUnit.SECONDS).until(() -> taskStartLatch.getCount() == 0);
-        
+
         // fail the test if task did not start in 5 seconds
         if (taskStartLatch.getCount() != 0) {
             throw new AssertionError("Task did not start in 5 seconds after " +
-                "connector was started. Task's start method should be lightweight and " +
-                "hence this is not expected.");
+                    "connector was started. Task's start method should be lightweight and " +
+                    "hence this is not expected.");
         }
     }
 

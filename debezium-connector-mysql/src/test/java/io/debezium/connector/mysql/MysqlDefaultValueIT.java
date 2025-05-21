@@ -7,7 +7,6 @@ package io.debezium.connector.mysql;
 
 import static io.debezium.junit.EqualityCheck.LESS_THAN;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.assertThrows;
 
 import java.math.BigDecimal;
 import java.nio.file.Path;
@@ -936,9 +935,9 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
         start(MySqlConnector.class, config);
 
         try (MySqlTestConnection db = MySqlTestConnection.forTestDatabase(DATABASE.getDatabaseName())) {
-          try (JdbcConnection connection = db.connect()) {
-              connection.execute("insert into DBZ_4822_DEFAULT_BOOLEAN (C0) values(1000);");
-          }
+            try (JdbcConnection connection = db.connect()) {
+                connection.execute("insert into DBZ_4822_DEFAULT_BOOLEAN (C0) values(1000);");
+            }
         }
         waitForSnapshotToBeCompleted("mysql", DATABASE.getServerName());
 
@@ -964,11 +963,11 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
                 .with(MySqlConnectorConfig.INCLUDE_SCHEMA_CHANGES, false)
                 .build();
 
-        //Creating the table such that when starting the connector, it doesn't fail
+        // Creating the table such that when starting the connector, it doesn't fail
         try (MySqlTestConnection db = MySqlTestConnection.forTestDatabase(DATABASE.getDatabaseName())) {
             try (JdbcConnection connection = db.connect()) {
                 String addColumnDdl = "CREATE TABLE DBZ_5241_DEFAULT_CS_INTRO (\n"
-                                       + "ID INT NOT NULL AUTO_INCREMENT PRIMARY KEY);";
+                        + "ID INT NOT NULL AUTO_INCREMENT PRIMARY KEY);";
                 connection.execute(addColumnDdl);
             }
         }

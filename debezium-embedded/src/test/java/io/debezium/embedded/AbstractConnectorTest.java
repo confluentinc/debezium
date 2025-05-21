@@ -323,7 +323,7 @@ public abstract class AbstractConnectorTest implements Testing {
         start(connectorClass, connectorConfig, callback, isStopRecord, x -> {
         }, true);
     }
-    
+
     /**
      * Start the connector using the supplied connector configuration.
      *
@@ -333,10 +333,10 @@ public abstract class AbstractConnectorTest implements Testing {
      *            this record; may be null if not needed
      * @param callback the function that will be called when the engine fails to start the connector or when the connector
      *            stops running after completing successfully or due to an error; may be null
-     * @param connectorCallback {@link io.debezium.engine.DebeziumEngine.ConnectorCallback} instance; may be null                 
+     * @param connectorCallback {@link io.debezium.engine.DebeziumEngine.ConnectorCallback} instance; may be null
      */
     protected void start(Class<? extends SourceConnector> connectorClass, Configuration connectorConfig,
-                         DebeziumEngine.CompletionCallback callback, Predicate<SourceRecord> isStopRecord, 
+                         DebeziumEngine.CompletionCallback callback, Predicate<SourceRecord> isStopRecord,
                          DebeziumEngine.ConnectorCallback connectorCallback) {
         start(connectorClass, connectorConfig, callback, isStopRecord, x -> {
         }, true, connectorCallback);
@@ -372,7 +372,7 @@ public abstract class AbstractConnectorTest implements Testing {
                          Consumer<SourceRecord> recordArrivedListener, boolean ignoreRecordsAfterStop) {
         start(connectorClass, connectorConfig, callback, isStopRecord, recordArrivedListener, ignoreRecordsAfterStop, null, null);
     }
-    
+
     /**
      * Start the connector using the supplied connector configuration.
      *
@@ -384,7 +384,7 @@ public abstract class AbstractConnectorTest implements Testing {
      *            stops running after completing successfully or due to an error; may be null
      * @param recordArrivedListener function invoked when a record arrives and is stored in the queue
      * @param ignoreRecordsAfterStop {@code true} if records arriving after stop should be ignored
-     * @param connectorCallback {@link io.debezium.engine.DebeziumEngine.ConnectorCallback} instance; may be null                                           
+     * @param connectorCallback {@link io.debezium.engine.DebeziumEngine.ConnectorCallback} instance; may be null
      */
     protected void start(Class<? extends SourceConnector> connectorClass, Configuration connectorConfig,
                          DebeziumEngine.CompletionCallback callback, Predicate<SourceRecord> isStopRecord,
@@ -404,11 +404,11 @@ public abstract class AbstractConnectorTest implements Testing {
      * @param recordArrivedListener function invoked when a record arrives and is stored in the queue
      * @param ignoreRecordsAfterStop {@code true} if records arriving after stop should be ignored
      * @param changeConsumer {@link io.debezium.engine.DebeziumEngine.ChangeConsumer} invoked when a record arrives and is stored in the queue
-     * @param connectorCallback {@link io.debezium.engine.DebeziumEngine.ConnectorCallback} instance; may be null                                                                               
+     * @param connectorCallback {@link io.debezium.engine.DebeziumEngine.ConnectorCallback} instance; may be null
      */
     protected void start(Class<? extends SourceConnector> connectorClass, Configuration connectorConfig,
                          DebeziumEngine.CompletionCallback callback, Predicate<SourceRecord> isStopRecord,
-                         Consumer<SourceRecord> recordArrivedListener, boolean ignoreRecordsAfterStop, 
+                         Consumer<SourceRecord> recordArrivedListener, boolean ignoreRecordsAfterStop,
                          DebeziumEngine.ChangeConsumer changeConsumer, DebeziumEngine.ConnectorCallback connectorCallback) {
         Configuration config = Configuration.copy(connectorConfig)
                 .with(EmbeddedEngine.ENGINE_NAME, "testing-connector")
@@ -1304,7 +1304,8 @@ public abstract class AbstractConnectorTest implements Testing {
                     Object attribute = mbeanServer.getAttribute(getSnapshotMetricsObjectName(connector, server, props), "SnapshotCompleted");
                     if (attribute instanceof Long) {
                         return (Long) attribute == 1L;
-                    } else {
+                    }
+                    else {
                         return (Boolean) attribute;
                     }
                 });
@@ -1319,12 +1320,13 @@ public abstract class AbstractConnectorTest implements Testing {
                 .atMost(waitTimeForRecords() * 30L, TimeUnit.SECONDS)
                 .ignoreException(InstanceNotFoundException.class)
                 .until(() -> {
-                     Object attribute = mbeanServer.getAttribute(getSnapshotMetricsObjectName(connector, server, task, database), event);
-                     if (attribute instanceof Long) {
-                         return (Long) attribute == 1L;
-                     } else {
-                         return (Boolean) attribute;
-                     }
+                    Object attribute = mbeanServer.getAttribute(getSnapshotMetricsObjectName(connector, server, task, database), event);
+                    if (attribute instanceof Long) {
+                        return (Long) attribute == 1L;
+                    }
+                    else {
+                        return (Boolean) attribute;
+                    }
                 });
     }
 

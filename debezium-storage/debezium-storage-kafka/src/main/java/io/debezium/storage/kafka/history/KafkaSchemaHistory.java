@@ -321,7 +321,7 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
                 checkForInterruption();
                 endOffset = getEndOffsetOfDbHistoryTopic(endOffset, historyConsumer);
                 LOGGER.debug("End offset of database schema history topic is {}", endOffset);
-                
+
                 checkForInterruption();
                 ConsumerRecords<String, String> recoveredRecords = historyConsumer.poll(this.pollInterval);
                 int numRecordsProcessed = 0;

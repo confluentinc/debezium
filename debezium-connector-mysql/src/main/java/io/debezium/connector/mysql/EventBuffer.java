@@ -8,11 +8,11 @@ package io.debezium.connector.mysql;
 import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
 
-import com.github.shyiko.mysql.binlog.event.EventHeader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.github.shyiko.mysql.binlog.event.Event;
+import com.github.shyiko.mysql.binlog.event.EventHeader;
 import com.github.shyiko.mysql.binlog.event.EventType;
 import com.github.shyiko.mysql.binlog.event.QueryEventData;
 

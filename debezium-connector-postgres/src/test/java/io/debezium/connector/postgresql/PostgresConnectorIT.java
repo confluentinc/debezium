@@ -2154,7 +2154,8 @@ public class PostgresConnectorIT extends AbstractConnectorTest {
                             .getAttribute(getSnapshotMetricsObjectName("postgres", TestHelper.TEST_SERVER), "SnapshotCompleted");
                     if (attribute instanceof Long) {
                         return (Long) attribute == 1L;
-                    } else {
+                    }
+                    else {
                         return (Boolean) attribute;
                     }
                 });
