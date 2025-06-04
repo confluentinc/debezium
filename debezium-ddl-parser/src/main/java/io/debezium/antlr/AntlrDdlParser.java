@@ -50,11 +50,12 @@ public abstract class AntlrDdlParser<L extends Lexer, P extends Parser> extends 
     private AntlrDdlParserListener antlrDdlParserListener;
 
     protected Tables databaseTables;
-    protected DataTypeResolver dataTypeResolver;
+    protected final DataTypeResolver dataTypeResolver;
 
     public AntlrDdlParser(boolean throwErrorsFromTreeWalk, boolean includeViews, boolean includeComments) {
         super(includeViews, includeComments);
         this.throwErrorsFromTreeWalk = throwErrorsFromTreeWalk;
+        this.dataTypeResolver = initializeDataTypeResolver();
     }
 
     @Override
@@ -64,8 +65,6 @@ public abstract class AntlrDdlParser<L extends Lexer, P extends Parser> extends 
         CodePointCharStream ddlContentCharStream = CharStreams.fromString(ddlContent);
         L lexer = createNewLexerInstance(new CaseChangingCharStream(ddlContentCharStream, isGrammarInUpperCase()));
         P parser = createNewParserInstance(new CommonTokenStream(lexer));
-
-        dataTypeResolver = initializeDataTypeResolver();
 
         // remove default console output printing error listener
         parser.removeErrorListener(ConsoleErrorListener.INSTANCE);
