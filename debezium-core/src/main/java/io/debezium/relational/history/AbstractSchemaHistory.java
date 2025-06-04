@@ -9,18 +9,14 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.re2j.Pattern;
 
 import io.debezium.config.Configuration;
 import io.debezium.config.Field;
 import io.debezium.document.Array;
 import io.debezium.document.Document;
-import io.debezium.function.Predicates;
 import io.debezium.relational.Tables;
 import io.debezium.relational.ddl.DdlParser;
 import io.debezium.relational.history.TableChanges.TableChange;
@@ -43,7 +39,6 @@ public abstract class AbstractSchemaHistory implements SchemaHistory {
     protected Configuration config;
     private HistoryRecordComparator comparator = HistoryRecordComparator.INSTANCE;
     private boolean skipUnparseableDDL;
-    private Predicate<String> ddlFilter = x -> false;
     private SchemaHistoryListener listener = SchemaHistoryListener.NOOP;
     private boolean useCatalogBeforeSchema;
     private boolean preferDdl = false;
@@ -58,8 +53,6 @@ public abstract class AbstractSchemaHistory implements SchemaHistory {
         this.comparator = comparator != null ? comparator : HistoryRecordComparator.INSTANCE;
         this.skipUnparseableDDL = config.getBoolean(SKIP_UNPARSEABLE_DDL_STATEMENTS);
 
-        final String ddlFilter = config.getString(DDL_FILTER);
-        this.ddlFilter = (ddlFilter != null) ? Predicates.includes(ddlFilter, Pattern.CASE_INSENSITIVE | Pattern.DOTALL) : (x -> false);
         this.listener = listener;
         this.useCatalogBeforeSchema = useCatalogBeforeSchema;
         this.preferDdl = config.getBoolean(INTERNAL_PREFER_DDL);
@@ -130,11 +123,6 @@ public abstract class AbstractSchemaHistory implements SchemaHistory {
                     }
                     if (recovered.schemaName() != null) {
                         ddlParser.setCurrentSchema(recovered.schemaName()); // may be null
-                    }
-                    if (ddlFilter.test(ddl)) {
-                        logger.info("a DDL '{}' was filtered out of processing by regular expression '{}'", ddl,
-                                config.getString(DDL_FILTER));
-                        return;
                     }
                     try {
                         logger.debug("Applying: {}", ddl);
