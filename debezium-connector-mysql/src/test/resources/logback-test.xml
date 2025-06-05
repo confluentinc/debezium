@@ -18,6 +18,9 @@
     </logger>
 
     <!-- Reduced to manage verbosity on CI -->
+    <logger name="io.debezium.connector.binlog.BinlogStreamingChangeEventSource" level="debug" additivity="false">
+        <appender-ref ref="CONSOLE" />
+    </logger>
     <logger name="io.debezium.connector.mysql.MySqlSnapshotChangeEventSource" level="warn" additivity="false">
         <appender-ref ref="CONSOLE" />
     </logger>
