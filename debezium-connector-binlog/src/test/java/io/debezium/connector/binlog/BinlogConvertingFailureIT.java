@@ -68,7 +68,6 @@ public abstract class BinlogConvertingFailureIT<C extends SourceConnector> exten
 
     @Test
     @FixFor("DBZ-7143")
-    @Ignore("CC-33133")
     public void shouldRecoverToSyncSchemaWhenFailedValueConvertByDdlWithSqlLogBinIsOff() throws Exception {
         // Use the DB configuration to define the connector's configuration to use the "replica"
         // which may be the same as the "master" ...
