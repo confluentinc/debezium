@@ -157,6 +157,8 @@ public abstract class BinlogStreamingSourceIT<C extends SourceConnector> extends
         return DATABASE.defaultConfig()
                 .with(BinlogConnectorConfig.USER, "replicator")
                 .with(BinlogConnectorConfig.PASSWORD, "replpass")
+                .with("jdbc.creds.provider.user", "replicator")
+                .with("jdbc.creds.provider.password", "replpass")
                 .with(BinlogConnectorConfig.INCLUDE_SCHEMA_CHANGES, false)
                 .with(BinlogConnectorConfig.INCLUDE_SQL_QUERY, false)
                 .with(BinlogConnectorConfig.SNAPSHOT_MODE, BinlogConnectorConfig.SnapshotMode.NEVER);
