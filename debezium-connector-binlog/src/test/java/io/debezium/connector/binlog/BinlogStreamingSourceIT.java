@@ -540,6 +540,8 @@ public abstract class BinlogStreamingSourceIT<C extends SourceConnector> extends
         config = simpleConfig()
                 .with(BinlogConnectorConfig.USER, "snapper")
                 .with(BinlogConnectorConfig.PASSWORD, "snapperpass")
+                .with("jdbc.creds.provider.user", "snapper")
+                .with("jdbc.creds.provider.password", "snapperpass")
                 .with(AbstractTopicNamingStrategy.DEFAULT_HEARTBEAT_TOPIC_PREFIX, HEARTBEAT_TOPIC_PREFIX_VALUE)
                 .with(Heartbeat.HEARTBEAT_INTERVAL, "100")
                 .with(DatabaseHeartbeatImpl.HEARTBEAT_ACTION_QUERY_PROPERTY_NAME,
