@@ -18,7 +18,6 @@ import org.apache.kafka.connect.source.SourceConnector;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import io.debezium.config.CommonConnectorConfig;
@@ -123,6 +122,9 @@ public abstract class BinlogConvertingFailureIT<C extends SourceConnector> exten
                 .build();
 
         start(getConnectorClass(), config, (success, message, error) -> exception.set(error));
+        
+        logger.info("TEMP -- sleep 5 seconds to wait for the connector to recover");
+        Thread.sleep(5000L);
 
         // origin initial event
         SourceRecords records = consumeRecordsByTopic(INITIAL_EVENT_COUNT);

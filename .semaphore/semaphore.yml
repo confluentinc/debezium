@@ -37,7 +37,7 @@ blocks:
       jobs:
         - name: MySQL 8.4 (mysql-ci-gtids)
           commands:
-            - mvn -pl debezium-connector-mysql -am -Dit.test=MySqlConnectorConvertingFailureIT#shouldRecoverToSyncSchemaWhenFailedValueConvertByDdlWithSqlLogBinIsOff -Pmysql-ci-gtids integration-test -DskipTests -Dfailsafe.failIfNoSpecifiedTests=false
+            - mvn -Dcloud -Dversion.mysql.server=8.4 -Pmysql-ci-gtids -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
             - . cve-scan
             - . cache-maven store
 #        - name: MySQL 8.4 (mysql-ci)
