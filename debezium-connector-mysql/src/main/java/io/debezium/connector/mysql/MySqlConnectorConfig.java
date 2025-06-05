@@ -483,10 +483,24 @@ public class MySqlConnectorConfig extends BinlogConnectorConfig {
     }
 
     public String username() {
+        // this is for snapshot phase
         return credsProvider.getJdbcCreds().user();
     }
 
     public String password() {
+        // this is for snapshot phase
         return credsProvider.getJdbcCreds().password();
+    }
+
+    @Override
+    public String getUserName() {
+        // this is for streaming phase
+        return username();
+    }
+
+    @Override
+    public String getPassword() {
+        // this is for streaming phase
+        return password();
     }
 }

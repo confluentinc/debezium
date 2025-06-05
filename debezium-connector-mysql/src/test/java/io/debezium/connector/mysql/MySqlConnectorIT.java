@@ -18,6 +18,7 @@ import io.debezium.config.Configuration;
 import io.debezium.config.Field;
 import io.debezium.connector.binlog.BinlogConnectorIT;
 import io.debezium.connector.mysql.MySqlConnectorConfig.SnapshotLockingMode;
+import io.confluent.credentialproviders.DefaultJdbcCredentialsProvider;
 
 /**
  * @author Randall Hauch
@@ -101,7 +102,7 @@ public class MySqlConnectorIT extends BinlogConnectorIT<MySqlConnector, MySqlPar
 
     @Override
     protected MySqlOffsetContext loadOffsets(Configuration configuration, Map<String, ?> offsets) {
-        return new MySqlOffsetContext.Loader(new MySqlConnectorConfig(configuration)).load(offsets);
+        return new MySqlOffsetContext.Loader(new MySqlConnectorConfig(configuration, new DefaultJdbcCredentialsProvider())).load(offsets);
     }
 
     @Override

@@ -55,11 +55,15 @@ public class MySqlConnectionConfiguration extends BinlogConnectionConfiguration 
 
     @Override
     public String username() {
+        // this was earlier in MySqlConnection.java, it has been moved here in v3
+        // overridden because the implementation in BinlogConnectionConfiguration fetches the
+        // username from the static configuration, we need it from the credsProvider supplied configuration
         return connectorConfig.username();
     }
 
     @Override
     public String password() {
+        // same as username, overridden to fetch the password from the credsProvider supplied password
         return connectorConfig.password();
     }
 
