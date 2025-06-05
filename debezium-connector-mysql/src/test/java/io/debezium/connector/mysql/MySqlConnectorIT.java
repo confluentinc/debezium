@@ -92,7 +92,7 @@ public class MySqlConnectorIT extends BinlogConnectorIT<MySqlConnector, MySqlPar
 
     @Override
     protected void assertSnapshotLockingModeIsNone(Configuration config) {
-        assertThat(new MySqlConnectorConfig(config).getSnapshotLockingMode().get()).isEqualTo(SnapshotLockingMode.NONE);
+        assertThat(new MySqlConnectorConfig(config, new DefaultJdbcCredentialsProvider()).getSnapshotLockingMode().get()).isEqualTo(SnapshotLockingMode.NONE);
     }
 
     @Override

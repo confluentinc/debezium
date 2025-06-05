@@ -24,6 +24,7 @@ import io.debezium.relational.history.AbstractSchemaHistory;
 import io.debezium.schema.DefaultTopicNamingStrategy;
 import io.debezium.schema.SchemaNameAdjuster;
 import io.debezium.spi.topic.TopicNamingStrategy;
+import io.confluent.credentialproviders.DefaultJdbcCredentialsProvider;
 
 /**
  * @author Randall Hauch
@@ -32,7 +33,7 @@ public class MySqlDatabaseSchemaTest extends BinlogDatabaseSchemaTest<MySqlConne
     @Override
     protected MySqlConnectorConfig getConnectorConfig(Configuration config) {
         config = config.edit().with(AbstractSchemaHistory.INTERNAL_PREFER_DDL, true).build();
-        return new MySqlConnectorConfig(config);
+        return new MySqlConnectorConfig(config, new DefaultJdbcCredentialsProvider());
     }
 
     @Override
