@@ -37,12 +37,12 @@ blocks:
       jobs:
         - name: MySQL 9.1 (mysql-ci-gtids)
           commands:
-            - mvn -Dcloud -Dversion.mysql.server=9.1 -Pmysql-ci-gtids -Dit.test=MySqlConnectorConvertingFailureIT -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress integration-test -DskipTests -Dfailsafe.failIfNoSpecifiedTests=false
+            - mvn -Dcloud -Dversion.mysql.server=9.1 -Pmysql-ci-gtids -Dit.test=MySqlConnectorConvertingFailureIT -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
             - . cve-scan
             - . cache-maven store
         - name: MySQL 8.4 (mysql-ci-gtids)
           commands:
-            - mvn -Dcloud -Dversion.mysql.server=8.4 -Pmysql-ci-gtids -Dit.test=MySqlConnectorConvertingFailureIT -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress integration-test -DskipTests -Dfailsafe.failIfNoSpecifiedTests=false
+            - mvn -Dcloud -Dversion.mysql.server=8.4 -Pmysql-ci-gtids -Dit.test=MySqlConnectorConvertingFailureIT -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
             - . cve-scan
             - . cache-maven store
       env_vars:
