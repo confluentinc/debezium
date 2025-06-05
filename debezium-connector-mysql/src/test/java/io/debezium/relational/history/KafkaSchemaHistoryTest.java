@@ -14,6 +14,7 @@ import io.debezium.connector.mysql.SourceInfo;
 import io.debezium.connector.mysql.antlr.MySqlAntlrDdlParser;
 import io.debezium.pipeline.txmetadata.TransactionContext;
 import io.debezium.relational.ddl.DdlParser;
+import io.confluent.credentialproviders.DefaultJdbcCredentialsProvider;
 
 /**
  * @author Randall Hauch
@@ -31,7 +32,7 @@ public class KafkaSchemaHistoryTest extends AbstractKafkaSchemaHistoryTest<MySql
                 true,
                 new TransactionContext(),
                 new MySqlReadOnlyIncrementalSnapshotContext<>(),
-                new SourceInfo(new MySqlConnectorConfig(config)));
+                new SourceInfo(new MySqlConnectorConfig(config, new DefaultJdbcCredentialsProvider())));
     }
 
     @Override
