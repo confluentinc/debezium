@@ -8,12 +8,12 @@ package io.debezium.connector.mysql;
 import java.util.Map;
 import java.util.function.Predicate;
 
+import io.confluent.credentialproviders.DefaultJdbcCredentialsProvider;
 import io.debezium.config.Configuration;
 import io.debezium.connector.binlog.BinlogSourceInfoTest;
 import io.debezium.connector.binlog.history.BinlogHistoryRecordComparator;
 import io.debezium.connector.mysql.gtid.MySqlGtidSetFactory;
 import io.debezium.connector.mysql.history.MySqlHistoryRecordComparator;
-import io.confluent.credentialproviders.DefaultJdbcCredentialsProvider;
 
 public class SourceInfoTest extends BinlogSourceInfoTest<SourceInfo, MySqlOffsetContext> {
     @Override

@@ -9,6 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Set;
 
+import io.confluent.credentialproviders.DefaultJdbcCredentialsProvider;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.CommonConnectorConfig.BinaryHandlingMode;
 import io.debezium.config.Configuration;
@@ -24,7 +25,6 @@ import io.debezium.relational.history.AbstractSchemaHistory;
 import io.debezium.schema.DefaultTopicNamingStrategy;
 import io.debezium.schema.SchemaNameAdjuster;
 import io.debezium.spi.topic.TopicNamingStrategy;
-import io.confluent.credentialproviders.DefaultJdbcCredentialsProvider;
 
 /**
  * @author Randall Hauch

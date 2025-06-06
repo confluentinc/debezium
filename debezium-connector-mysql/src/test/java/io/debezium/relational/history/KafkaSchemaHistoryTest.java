@@ -5,6 +5,7 @@
  */
 package io.debezium.relational.history;
 
+import io.confluent.credentialproviders.DefaultJdbcCredentialsProvider;
 import io.debezium.config.Configuration;
 import io.debezium.connector.mysql.MySqlConnectorConfig;
 import io.debezium.connector.mysql.MySqlOffsetContext;
@@ -14,7 +15,6 @@ import io.debezium.connector.mysql.SourceInfo;
 import io.debezium.connector.mysql.antlr.MySqlAntlrDdlParser;
 import io.debezium.pipeline.txmetadata.TransactionContext;
 import io.debezium.relational.ddl.DdlParser;
-import io.confluent.credentialproviders.DefaultJdbcCredentialsProvider;
 
 /**
  * @author Randall Hauch

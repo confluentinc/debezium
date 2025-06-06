@@ -7,11 +7,11 @@ package io.debezium.connector.mysql.util;
 
 import java.time.temporal.TemporalAdjuster;
 
+import io.confluent.credentialproviders.DefaultJdbcCredentialsProvider;
 import io.debezium.config.Configuration;
 import io.debezium.connector.binlog.util.BinlogValueConvertersFactory;
 import io.debezium.connector.mysql.MySqlConnectorConfig;
 import io.debezium.connector.mysql.jdbc.MySqlValueConverters;
-import io.confluent.credentialproviders.DefaultJdbcCredentialsProvider;
 
 /**
  * Implementation of {@link BinlogValueConvertersFactory} for MySQL.

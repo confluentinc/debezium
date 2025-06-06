@@ -5,14 +5,15 @@
  */
 package io.debezium.connector.mysql.jdbc;
 
+import java.util.Properties;
+
 import io.debezium.config.Configuration;
 import io.debezium.connector.binlog.BinlogConnectorConfig;
 import io.debezium.connector.binlog.jdbc.BinlogConnectionConfiguration;
 import io.debezium.connector.mysql.MySqlConnectorConfig;
+import io.debezium.jdbc.JdbcConfiguration;
 import io.debezium.jdbc.JdbcConnection;
 import io.debezium.util.Strings;
-import io.debezium.jdbc.JdbcConfiguration;
-import java.util.Properties;
 
 /**
  * An {@link BinlogConnectionConfiguration} implementation for MySQL.

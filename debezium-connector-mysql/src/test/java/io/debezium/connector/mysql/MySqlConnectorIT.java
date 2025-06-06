@@ -14,11 +14,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.kafka.common.config.Config;
 import org.junit.Test;
 
+import io.confluent.credentialproviders.DefaultJdbcCredentialsProvider;
 import io.debezium.config.Configuration;
 import io.debezium.config.Field;
 import io.debezium.connector.binlog.BinlogConnectorIT;
 import io.debezium.connector.mysql.MySqlConnectorConfig.SnapshotLockingMode;
-import io.confluent.credentialproviders.DefaultJdbcCredentialsProvider;
 
 /**
  * @author Randall Hauch

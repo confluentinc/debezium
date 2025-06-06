@@ -8,7 +8,6 @@ package io.debezium.connector.mysql;
 import java.util.Optional;
 import java.util.function.Predicate;
 
-import io.debezium.DebeziumException;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigDef.Type;
@@ -16,6 +15,8 @@ import org.apache.kafka.common.config.ConfigDef.Width;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.confluent.credentialproviders.JdbcCredentialsProvider;
+import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.ConfigDefinition;
 import io.debezium.config.Configuration;
@@ -31,7 +32,6 @@ import io.debezium.connector.mysql.gtid.MySqlGtidSetFactory;
 import io.debezium.connector.mysql.history.MySqlHistoryRecordComparator;
 import io.debezium.function.Predicates;
 import io.debezium.relational.history.HistoryRecordComparator;
-import io.confluent.credentialproviders.JdbcCredentialsProvider;
 
 /**
  * The configuration properties.
