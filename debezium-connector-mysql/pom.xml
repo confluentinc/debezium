@@ -66,6 +66,11 @@
                 </exclusion>
             </exclusions>
         </dependency>
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>credential-providers</artifactId>
+            <version>${credential.providers.version}</version>
+        </dependency>
 
         <!-- Testing -->
         <dependency>
@@ -206,6 +211,7 @@
         <mysql.server.image.source>container-registry.oracle.com/mysql/community-server</mysql.server.image.source>
         <mysql.database.protocol>jdbc:mysql</mysql.database.protocol>
         <mysql.database.jdbc.driver>com.mysql.cj.jdbc.Driver</mysql.database.jdbc.driver>
+        <credential.providers.version>0.14.0</credential.providers.version>
         <mysql.replica.fileset.path>${project.basedir}/src/test/docker/init-replica</mysql.replica.fileset.path>
         <percona.server.image.source>quay.io/debezium</percona.server.image.source>
         <!--
