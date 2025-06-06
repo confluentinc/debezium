@@ -725,7 +725,6 @@ public abstract class BinlogConnectorConfig extends HistorizedRelationalDatabase
     /**
      * @return the database connection username
      */
-    // todo: do we need to override for mysql to fetch from credsProvider config
     public String getUserName() {
         return config.getString(USER);
     }
@@ -733,7 +732,6 @@ public abstract class BinlogConnectorConfig extends HistorizedRelationalDatabase
     /**
      * @return the database connection credentials
      */
-    // todo: do we need to override for mysql to fetch from credsProvider config
     public String getPassword() {
         return config.getString(PASSWORD);
     }
