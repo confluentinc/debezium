@@ -78,7 +78,7 @@ public final class Tables {
         private final TableFilter delegate;
         private final ConcurrentMap<TableId, Boolean> cache = new ConcurrentHashMap<>();
 
-        public CachingTableFilter(TableFilter delegate) {
+        CachingTableFilter(TableFilter delegate) {
             this.delegate = Objects.requireNonNull(delegate);
         }
 
