@@ -660,8 +660,6 @@ public abstract class BinlogSourceInfoTest<S extends BinlogSourceInfo, O extends
                 .field("snapshot", SchemaFactory.get().snapshotRecordSchema())
                 .field("db", Schema.STRING_SCHEMA)
                 .field("sequence", Schema.OPTIONAL_STRING_SCHEMA)
-                .field("ts_us", Schema.OPTIONAL_INT64_SCHEMA)
-                .field("ts_ns", Schema.OPTIONAL_INT64_SCHEMA)
                 .field("table", Schema.OPTIONAL_STRING_SCHEMA)
                 .field("server_id", Schema.INT64_SCHEMA)
                 .field("gtid", Schema.OPTIONAL_STRING_SCHEMA)

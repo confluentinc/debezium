@@ -63,9 +63,7 @@ public abstract class AbstractExtractStateTest {
 
     protected final Schema sourceSchema = SchemaBuilder.struct()
             .field("lsn", Schema.INT32_SCHEMA)
-            .field("ts_ms", Schema.OPTIONAL_INT64_SCHEMA)
-            .field("ts_us", Schema.OPTIONAL_INT64_SCHEMA)
-            .field("ts_ns", Schema.OPTIONAL_INT64_SCHEMA)
+            .field("ts_ms", Schema.OPTIONAL_INT32_SCHEMA)
             .field("db", Schema.OPTIONAL_STRING_SCHEMA)
             .field("table", Schema.OPTIONAL_STRING_SCHEMA)
             .build();
@@ -108,19 +106,21 @@ public abstract class AbstractExtractStateTest {
     }
 
     protected SourceRecord createTruncateRecord() {
-        final Struct source = createSource();
+        final Struct source = new Struct(sourceSchema);
         source.put("lsn", 1234);
+        source.put("ts_ms", 12836);
         final Struct truncate = envelope.truncate(source, Instant.ofEpochMilli(System.currentTimeMillis()));
         return new SourceRecord(new HashMap<>(), new HashMap<>(), "dummy", envelope.schema(), truncate);
     }
 
     protected SourceRecord createCreateRecord() {
         final Struct after = new Struct(recordSchema);
-        final Struct source = createSource();
+        final Struct source = new Struct(sourceSchema);
 
         after.put("id", (byte) 1);
         after.put("name", "myRecord");
         source.put("lsn", 1234);
+        source.put("ts_ms", 12836);
         source.put("db", "test_db");
         source.put("table", "test_table");
         final Struct payload = envelope.create(after, source, Instant.now());
@@ -135,13 +135,14 @@ public abstract class AbstractExtractStateTest {
                 .build();
 
         final Struct after = new Struct(recordSchema);
-        final Struct source = createSource();
+        final Struct source = new Struct(sourceSchema);
 
         after.put("id", (byte) 1);
         after.put("name", "myRecord");
         after.put(columnName, columnValue);
 
         source.put("lsn", 1234);
+        source.put("ts_ms", 12836);
 
         final Envelope envelope = Envelope.defineSchema()
                 .withName("dummy.Envelope")
@@ -190,11 +191,12 @@ public abstract class AbstractExtractStateTest {
                 .build();
 
         final Struct after = new Struct(recordSchema);
-        final Struct source = createSource();
+        final Struct source = new Struct(sourceSchema);
 
         after.put("id", (byte) 1);
         after.put("name", null);
         source.put("lsn", 1234);
+        source.put("ts_ms", 12836);
         final Struct payload = envelope.create(after, source, Instant.now());
         return new SourceRecord(new HashMap<>(), new HashMap<>(), "dummy", envelope.schema(), payload);
     }
@@ -217,12 +219,13 @@ public abstract class AbstractExtractStateTest {
 
         final Struct key = new Struct(keySchema);
         final Struct after = new Struct(recordSchema);
-        final Struct source = createSource();
+        final Struct source = new Struct(sourceSchema);
 
         key.put("id", (byte) 1);
         after.put("id", (byte) 1);
         after.put("name", null);
         source.put("lsn", 1234);
+        source.put("ts_ms", 12836);
         final Struct payload = envelope.create(after, source, Instant.now());
         return new SourceRecord(new HashMap<>(), new HashMap<>(), "dummy", keySchema, key, envelope.schema(), payload);
     }
@@ -230,7 +233,7 @@ public abstract class AbstractExtractStateTest {
     protected SourceRecord createUpdateRecord() {
         final Struct before = new Struct(recordSchema);
         final Struct after = new Struct(recordSchema);
-        final Struct source = createSource();
+        final Struct source = new Struct(sourceSchema);
         final Struct transaction = new Struct(TransactionMonitor.TRANSACTION_BLOCK_SCHEMA);
 
         before.put("id", (byte) 1);
@@ -256,7 +259,7 @@ public abstract class AbstractExtractStateTest {
 
         final Struct before = new Struct(recordSchema);
         final Struct after = new Struct(recordSchema);
-        final Struct source = createSource();
+        final Struct source = new Struct(sourceSchema);
         final Struct transaction = new Struct(TransactionMonitor.TRANSACTION_BLOCK_SCHEMA);
 
         final Envelope envelope = Envelope.defineSchema()
@@ -290,7 +293,7 @@ public abstract class AbstractExtractStateTest {
 
         final Struct before = new Struct(recordSchema);
         final Struct after = new Struct(recordSchema);
-        final Struct source = createSource();
+        final Struct source = new Struct(sourceSchema);
         final Struct key = new Struct(keySchema);
         final Struct transaction = new Struct(TransactionMonitor.TRANSACTION_BLOCK_SCHEMA);
 
@@ -328,7 +331,7 @@ public abstract class AbstractExtractStateTest {
                 .withSource(sourceSchema)
                 .build();
         final Struct before = new Struct(recordSchema);
-        final Struct source = createSource(sourceSchema);
+        final Struct source = new Struct(sourceSchema);
 
         before.put("id", (byte) 1);
         source.put("lsn", 1234);
@@ -376,7 +379,7 @@ public abstract class AbstractExtractStateTest {
 
         final Struct before = new Struct(recordSchema);
         final Struct after = new Struct(recordSchema);
-        final Struct source = createSource();
+        final Struct source = new Struct(sourceSchema);
         final Struct transaction = new Struct(TransactionMonitor.TRANSACTION_BLOCK_SCHEMA);
         final List<String> changes = new ArrayList<>();
         changes.add("name");
@@ -418,45 +421,5 @@ public abstract class AbstractExtractStateTest {
                 .build();
         record.headers().add(name, values, dropFieldsSchema);
         return record;
-    }
-
-    protected SourceRecord createCreateRecordWithCreateTime(Instant creationTime) {
-        final Schema keySchema = SchemaBuilder.struct()
-                .field("id", Schema.INT8_SCHEMA)
-                .build();
-
-        final Schema recordSchema = SchemaBuilder.struct()
-                .field("id", Schema.INT8_SCHEMA)
-                .field("name", SchemaBuilder.string().optional().defaultValue("default_str").build())
-                .build();
-
-        final Envelope envelope = Envelope.defineSchema()
-                .withName("dummy.Envelope")
-                .withRecord(recordSchema)
-                .withSource(sourceSchema)
-                .build();
-
-        final Struct key = new Struct(keySchema);
-        final Struct after = new Struct(recordSchema);
-        final Struct source = createSource();
-
-        key.put("id", (byte) 1);
-        after.put("id", (byte) 1);
-        after.put("name", null);
-        source.put("lsn", 1234);
-        final Struct payload = envelope.create(after, source, creationTime);
-        return new SourceRecord(new HashMap<>(), new HashMap<>(), "dummy", keySchema, key, envelope.schema(), payload);
-    }
-
-    private Struct createSource() {
-        return createSource(sourceSchema);
-    }
-
-    private Struct createSource(Schema sourceSchema) {
-        final Struct source = new Struct(sourceSchema);
-        source.put("ts_ms", 1588252618953L);
-        source.put("ts_us", 1588252618953000L);
-        source.put("ts_ns", 1588252618953000000L);
-        return source;
     }
 }

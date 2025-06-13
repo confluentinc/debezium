@@ -46,9 +46,7 @@ public abstract class AbstractSourceInfoStructMaker<T extends AbstractSourceInfo
                 .put(AbstractSourceInfo.DEBEZIUM_CONNECTOR_KEY, connector)
                 .put(AbstractSourceInfo.SERVER_NAME_KEY, serverName)
                 .put(AbstractSourceInfo.TIMESTAMP_KEY, timestamp.toEpochMilli())
-                .put(AbstractSourceInfo.DATABASE_NAME_KEY, database)
-                .put(AbstractSourceInfo.TIMESTAMP_US_KEY, (timestamp.getEpochSecond() * 1_000_000) + (timestamp.getNano() / 1_000))
-                .put(AbstractSourceInfo.TIMESTAMP_NS_KEY, (timestamp.getEpochSecond() * 1_000_000_000L) + timestamp.getNano());
+                .put(AbstractSourceInfo.DATABASE_NAME_KEY, database);
         final String sequence = sourceInfo.sequence();
         if (sequence != null) {
             ret.put(AbstractSourceInfo.SEQUENCE_KEY, sequence);
