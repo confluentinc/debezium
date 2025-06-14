@@ -18,10 +18,19 @@
     </logger>
 
     <!-- Reduced to manage verbosity on CI -->
-    <logger name="io.debezium.connector.mysql.MySqlSnapshotChangeEventSource" level="warn" additivity="false">
+    <logger name="io.debezium" level="debug" additivity="false">
         <appender-ref ref="CONSOLE" />
     </logger>
-    <logger name="io.debezium.relational.BinlogSnapshotChangeEventSource" level="warn" additivity="false">
+    <logger name="io.debezium.connector.mysql.MySqlSnapshotChangeEventSource" level="debug" additivity="false">
+        <appender-ref ref="CONSOLE" />
+    </logger>
+    <logger name="io.debezium.relational.BinlogSnapshotChangeEventSource" level="debug" additivity="false">
+        <appender-ref ref="CONSOLE" />
+    </logger>
+    <logger name="io.debezium.connector.common.BaseSourceTask" level="debug" additivity="false">
+        <appender-ref ref="CONSOLE" />
+    </logger>
+    <logger name="io.debezium.connector.base.ChangeEventQueue" level="trace" additivity="false">
         <appender-ref ref="CONSOLE" />
     </logger>
     <logger name="io.debezium.relational.RelationalSnapshotChangeEventSource" level="debug" additivity="false">
