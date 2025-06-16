@@ -1006,6 +1006,100 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
             .withDescription("Frequency for sending replication connection status updates to the server, given in milliseconds. Defaults to 10 seconds (10,000 ms).")
             .withValidation(Field::isPositiveInteger);
 
+    public static final Field LSN_FLUSH_TIMEOUT_MS = Field.create("lsn.flush.timeout.ms")
+            .withDisplayName("LSN flush timeout (ms)")
+            .withType(Type.LONG)
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTION_ADVANCED_REPLICATION, 10))
+            .withDefault(30_000)
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.MEDIUM)
+            .withDescription("Maximum time in milliseconds to wait for LSN flush operation to complete. " +
+                    "If the flush operation does not complete within this timeout, a warning will be logged " +
+                    "and the connector will continue without waiting. Defaults to 30 seconds (30,000 ms).")
+            .withValidation(Field::isPositiveInteger);
+
+    public static final Field LSN_FLUSH_CONSECUTIVE_TIMEOUT_COUNT = Field.create("lsn.flush.consecutive.timeout.count")
+            .withDisplayName("LSN flush consecutive timeout count")
+            .withType(Type.INT)
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTION_ADVANCED_REPLICATION, 11))
+            .withDefault(3)
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.MEDIUM)
+            .withDescription("Number of consecutive LSN flush timeouts before taking action as specified by " +
+                    "lsn.flush.consecutive.timeout.action. Defaults to 3.")
+            .withValidation(Field::isPositiveInteger);
+
+    /**
+     * The set of predefined LSN flush consecutive timeout action options
+     */
+    public enum LsnFlushConsecutiveTimeoutAction implements EnumeratedValue {
+        /**
+         * Fail the connector when consecutive timeout threshold is reached
+         */
+        FAIL("fail"),
+
+        /**
+         * Continue processing and ignore consecutive timeouts
+         */
+        IGNORE("ignore");
+
+        private final String value;
+
+        LsnFlushConsecutiveTimeoutAction(String value) {
+            this.value = value;
+        }
+
+        @Override
+        public String getValue() {
+            return value;
+        }
+
+        /**
+         * Determine if the supplied value is one of the predefined options.
+         *
+         * @param value the configuration property value; may not be null
+         * @return the matching option, or null if no match is found
+         */
+        public static LsnFlushConsecutiveTimeoutAction parse(String value) {
+            if (value == null) {
+                return null;
+            }
+            value = value.trim();
+            for (LsnFlushConsecutiveTimeoutAction option : LsnFlushConsecutiveTimeoutAction.values()) {
+                if (option.getValue().equalsIgnoreCase(value)) {
+                    return option;
+                }
+            }
+            return null;
+        }
+
+        /**
+         * Determine if the supplied value is one of the predefined options.
+         *
+         * @param value the configuration property value; may not be null
+         * @param defaultValue the default value; may be null
+         * @return the matching option, or null if no match is found and the non-null default is invalid
+         */
+        public static LsnFlushConsecutiveTimeoutAction parse(String value, String defaultValue) {
+            LsnFlushConsecutiveTimeoutAction action = parse(value);
+            if (action == null && defaultValue != null) {
+                action = parse(defaultValue);
+            }
+            return action;
+        }
+    }
+
+    public static final Field LSN_FLUSH_CONSECUTIVE_TIMEOUT_ACTION = Field.create("lsn.flush.consecutive.timeout.action")
+            .withDisplayName("LSN flush consecutive timeout action")
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTION_ADVANCED_REPLICATION, 12))
+            .withEnum(LsnFlushConsecutiveTimeoutAction.class, LsnFlushConsecutiveTimeoutAction.FAIL)
+            .withWidth(Width.MEDIUM)
+            .withImportance(Importance.MEDIUM)
+            .withDescription("Action to take when the number of consecutive LSN flush timeouts reaches the threshold " +
+                    "specified by lsn.flush.consecutive.timeout.count. Options include: " +
+                    "'fail' (default) to fail the connector; " +
+                    "'ignore' to continue processing and ignore the consecutive timeout condition.");
+
     public static final Field TCP_KEEPALIVE = Field.create(DATABASE_CONFIG_PREFIX + "tcpKeepAlive")
             .withDisplayName("TCP keep-alive probe")
             .withType(Type.BOOLEAN)
@@ -1098,6 +1192,7 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
     private final IntervalHandlingMode intervalHandlingMode;
     private final SnapshotMode snapshotMode;
     private final SchemaRefreshMode schemaRefreshMode;
+    private final LsnFlushConsecutiveTimeoutAction lsnFlushConsecutiveTimeoutAction;
 
     public PostgresConnectorConfig(Configuration config) {
         super(
@@ -1116,6 +1211,7 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
         this.intervalHandlingMode = IntervalHandlingMode.parse(config.getString(PostgresConnectorConfig.INTERVAL_HANDLING_MODE));
         this.snapshotMode = SnapshotMode.parse(config.getString(SNAPSHOT_MODE));
         this.schemaRefreshMode = SchemaRefreshMode.parse(config.getString(SCHEMA_REFRESH_MODE));
+        this.lsnFlushConsecutiveTimeoutAction = LsnFlushConsecutiveTimeoutAction.parse(config.getString(LSN_FLUSH_CONSECUTIVE_TIMEOUT_ACTION));
     }
 
     protected String hostname() {
@@ -1178,6 +1274,18 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
 
     protected Duration statusUpdateInterval() {
         return Duration.ofMillis(getConfig().getLong(PostgresConnectorConfig.STATUS_UPDATE_INTERVAL_MS));
+    }
+
+    protected Duration lsnFlushTimeout() {
+        return Duration.ofMillis(getConfig().getLong(PostgresConnectorConfig.LSN_FLUSH_TIMEOUT_MS));
+    }
+
+    protected int lsnFlushConsecutiveTimeoutCount() {
+        return getConfig().getInteger(PostgresConnectorConfig.LSN_FLUSH_CONSECUTIVE_TIMEOUT_COUNT);
+    }
+
+    protected LsnFlushConsecutiveTimeoutAction lsnFlushConsecutiveTimeoutAction() {
+        return lsnFlushConsecutiveTimeoutAction;
     }
 
     public LogicalDecodingMessageFilter getMessageFilter() {
@@ -1263,6 +1371,9 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
                     RETRY_DELAY_MS,
                     SSL_SOCKET_FACTORY,
                     STATUS_UPDATE_INTERVAL_MS,
+                    LSN_FLUSH_TIMEOUT_MS,
+                    LSN_FLUSH_CONSECUTIVE_TIMEOUT_COUNT,
+                    LSN_FLUSH_CONSECUTIVE_TIMEOUT_ACTION,
                     TCP_KEEPALIVE,
                     XMIN_FETCH_INTERVAL,
                     // Use this connector's implementation rather than common connector's flavor
