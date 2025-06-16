@@ -9,6 +9,10 @@ import java.sql.SQLException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalLong;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.kafka.connect.errors.ConnectException;
@@ -79,6 +83,7 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
      */
     private long numberOfEventsSinceLastEventSentOrWalGrowingWarning = 0;
     private Lsn lastCompletelyProcessedLsn;
+    private int consecutiveLsnFlushTimeouts = 0;
 
     public PostgresStreamingChangeEventSource(PostgresConnectorConfig connectorConfig, Snapshotter snapshotter,
                                               PostgresConnection connection, PostgresEventDispatcher<TableId> dispatcher, ErrorHandler errorHandler, Clock clock,
@@ -398,34 +403,93 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
         }
     }
 
+    /**
+     * Handles the scenario when consecutive LSN flush timeouts reach the configured threshold.
+     * 
+     * @param lsn the LSN that failed to flush
+     */
+    private void handleConsecutiveTimeoutThreshold(Lsn lsn) {
+        String action = connectorConfig.lsnFlushConsecutiveTimeoutAction().getValue();
+
+        if ("fail".equals(action)) {
+            LOGGER.error("LSN flush operation has timed out {} consecutive times for LSN '{}', which has reached the configured threshold. " +
+                    "Failing the connector as configured by lsn.flush.consecutive.timeout.action=fail.",
+                    consecutiveLsnFlushTimeouts, lsn);
+            throw new ConnectException(String.format(
+                    "LSN flush operation timed out %d consecutive times for LSN '%s', exceeding the configured threshold of %d. " +
+                            "Connector is configured to fail on consecutive timeout threshold (lsn.flush.consecutive.timeout.action=fail).",
+                    consecutiveLsnFlushTimeouts, lsn, connectorConfig.lsnFlushConsecutiveTimeoutCount()));
+        }
+        else {
+            LOGGER.warn("LSN flush operation has timed out {} consecutive times for LSN '{}', which has reached the configured threshold. " +
+                    "Continuing to process as configured by lsn.flush.consecutive.timeout.action=ignore. " +
+                    "Resetting consecutive timeout counter.",
+                    consecutiveLsnFlushTimeouts, lsn);
+            // Reset the counter when ignoring to avoid repeatedly logging this warning
+            consecutiveLsnFlushTimeouts = 0;
+        }
+    }
+
     @Override
     public void commitOffset(Map<String, ?> offset) {
-        try {
-            ReplicationStream replicationStream = this.replicationStream.get();
-            final Lsn commitLsn = Lsn.valueOf((Long) offset.get(PostgresOffsetContext.LAST_COMMIT_LSN_KEY));
-            final Lsn changeLsn = Lsn.valueOf((Long) offset.get(PostgresOffsetContext.LAST_COMPLETELY_PROCESSED_LSN_KEY));
-            final Lsn lsn = (commitLsn != null) ? commitLsn : changeLsn;
+        ReplicationStream replicationStream = this.replicationStream.get();
+        final Lsn commitLsn = Lsn.valueOf((Long) offset.get(PostgresOffsetContext.LAST_COMMIT_LSN_KEY));
+        final Lsn changeLsn = Lsn.valueOf((Long) offset.get(PostgresOffsetContext.LAST_COMPLETELY_PROCESSED_LSN_KEY));
+        final Lsn lsn = (commitLsn != null) ? commitLsn : changeLsn;
 
-            LOGGER.debug("Received offset commit request on commit LSN '{}' and change LSN '{}'", commitLsn, changeLsn);
+        LOGGER.debug("Received offset commit request on commit LSN '{}' and change LSN '{}'", commitLsn, changeLsn);
 
-            if (replicationStream != null && lsn != null) {
-                if (!lsnFlushingAllowed) {
-                    LOGGER.info("Received offset commit request on '{}', but ignoring it. LSN flushing is not allowed yet", lsn);
-                    return;
-                }
-
-                if (LOGGER.isDebugEnabled()) {
-                    LOGGER.debug("Flushing LSN to server: {}", lsn);
-                }
-                // tell the server the point up to which we've processed data, so it can be free to recycle WAL segments
-                replicationStream.flushLsn(lsn);
+        if (replicationStream != null && lsn != null) {
+            if (!lsnFlushingAllowed) {
+                LOGGER.info("Received offset commit request on '{}', but ignoring it. LSN flushing is not allowed yet", lsn);
+                return;
             }
-            else {
-                LOGGER.debug("Streaming has already stopped, ignoring commit callback...");
+
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("Flushing LSN to server: {}", lsn);
+            }
+            // tell the server the point up to which we've processed data, so it can be free to recycle WAL segments
+            CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+                try {
+                    replicationStream.flushLsn(lsn);
+                }
+                catch (SQLException e) {
+                    throw new ConnectException(e);
+                }
+            });
+
+            try {
+                future.get(connectorConfig.lsnFlushTimeout().toMillis(), TimeUnit.MILLISECONDS);
+                // Reset consecutive timeout counter on successful flush
+                consecutiveLsnFlushTimeouts = 0;
+            }
+            catch (TimeoutException e) {
+                consecutiveLsnFlushTimeouts++;
+                LOGGER.warn("LSN flush operation for '{}' did not complete within the configured timeout of {} ms. " +
+                        "Continuing without waiting for flush completion to avoid blocking the connector. " +
+                        "Consecutive timeout count: {}/{}",
+                        lsn, connectorConfig.lsnFlushTimeout().toMillis(), consecutiveLsnFlushTimeouts,
+                        connectorConfig.lsnFlushConsecutiveTimeoutCount());
+
+                // Check if we've reached the consecutive timeout threshold
+                if (consecutiveLsnFlushTimeouts >= connectorConfig.lsnFlushConsecutiveTimeoutCount()) {
+                    handleConsecutiveTimeoutThreshold(lsn);
+                }
+            }
+            catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                LOGGER.warn("LSN flush operation for '{}' was interrupted. Continuing without waiting for flush completion.", lsn);
+            }
+            catch (ExecutionException e) {
+                Throwable cause = e.getCause();
+                if (cause instanceof ConnectException) {
+                    throw (ConnectException) cause;
+                }
+                throw new ConnectException("LSN flush operation failed", cause);
             }
         }
-        catch (SQLException e) {
-            throw new ConnectException(e);
+        else {
+            LOGGER.debug("Streaming has already stopped, ignoring commit callback...");
         }
     }
 
