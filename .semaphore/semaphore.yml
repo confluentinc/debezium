@@ -77,17 +77,20 @@ blocks:
             - . cache-maven store
         - name: MariaDB 11.4 (mariadb-ci)
           commands:
-            - mvn -Dcloud -Pmariadb-ci -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mariadb -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
+            - mvn -Dcloud -Pmariadb-ci -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mariadb -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress jacoco:prepare-agent verify
+            - mvn jacoco:report
             - . cve-scan
             - . cache-maven store
         - name: MariaDB 11.4 (mariadb-ci-ssl)
           commands:
-            - mvn -Dcloud -Pmariadb-ci-ssl -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mariadb -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
+            - mvn -Dcloud -Pmariadb-ci-ssl -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mariadb -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress jacoco:prepare-agent verify
+            - mvn jacoco:report
             - . cve-scan
             - . cache-maven store
         - name: MariaDB 11.4 (mariadb-ci-gtids)
           commands:
-            - mvn -Dcloud -Pmariadb-ci-gtids -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mariadb -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
+            - mvn -Dcloud -Pmariadb-ci-gtids -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mariadb -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress jacoco:prepare-agent verify
+            - mvn jacoco:report
             - . cve-scan
             - . cache-maven store
         - name: Postgres 12 (assembly,postgres-12)
@@ -113,6 +116,7 @@ blocks:
           commands:
             - . publish-test-results
             - artifact push workflow target/test-results
+            - artifact push job target/site/jacoco jacoco-reports
 
 after_pipeline:
   task:
