@@ -131,7 +131,19 @@ public abstract class AbstractSchemaHistory implements SchemaHistory {
                     if (recovered.schemaName() != null) {
                         ddlParser.setCurrentSchema(recovered.schemaName()); // may be null
                     }
-                    if (ddlFilter.test(ddl)) {
+                    // Fast-path: only run expensive regex if DDL likely matches filter patterns
+                    String ddlUpper = ddl.trim().toUpperCase();
+                    boolean likelyFiltered = ddlUpper.startsWith("DROP TEMPORARY TABLE IF EXISTS") ||
+                            ddlUpper.startsWith("(SET STATEMENT") ||
+                            (ddlUpper.startsWith("INSERT INTO")
+                                    && (ddlUpper.contains("RDS_HEARTBEAT") || ddlUpper.contains("RDS_SYSINFO") || ddlUpper.contains("RDS_MONITOR")))
+                            ||
+                            (ddlUpper.startsWith("DELETE FROM") && (ddlUpper.contains("RDS_SYSINFO") || ddlUpper.contains("RDS_MONITOR"))) ||
+                            ddlUpper.startsWith("FLUSH RELAY LOGS") ||
+                            ddlUpper.startsWith("SAVEPOINT ") ||
+                            (ddlUpper.startsWith("#") && ddlUpper.contains("DUMMY EVENT"));
+
+                    if (likelyFiltered && ddlFilter.test(ddl)) {
                         logger.info("a DDL '{}' was filtered out of processing by regular expression '{}'", ddl,
                                 config.getString(DDL_FILTER));
                         return;
