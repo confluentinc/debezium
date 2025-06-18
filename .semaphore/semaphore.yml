@@ -87,6 +87,10 @@ blocks:
             - . cache-maven store
             - ls -l
             - pwd
+            - cd debezium-connector-mariadb && ls -l
+            - cd target && ls -l
+            - cd ../..
+            - cd target && ls -l
             - artifact push job debezium-connector-mariadb/target/jacoco-reports
         - name: MariaDB 11.4 (mariadb-ci-gtids)
           commands:
