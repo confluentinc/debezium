@@ -80,6 +80,26 @@ blocks:
             - mvn -Dcloud -Pmariadb-ci -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mariadb -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
             - . cve-scan
             - . cache-maven store
+            - |
+    if [ -f target/jacoco-reports/jacoco.xml ]; then
+      python3 - <<EOF
+import xml.etree.ElementTree as ET
+tree = ET.parse('target/jacoco-reports/jacoco.xml')
+root = tree.getroot()
+print('File-wise Line Coverage:')
+for pkg in root.findall('.//package'):
+    pkgname = pkg.get('name')
+    for srcfile in pkg.findall('sourcefile'):
+        fname = srcfile.get('name')
+        lines = srcfile.findall('line')
+        covered = sum(1 for l in lines if int(l.get('ci', 0)) > 0)
+        total = len(lines)
+        percent = (covered / total * 100) if total else 0
+        print(f'{pkgname}/{fname}: {covered}/{total} lines ({percent:.2f}%)')
+EOF
+    else
+      echo "No JaCoCo XML report found."
+    fi
         - name: MariaDB 11.4 (mariadb-ci-ssl)
           commands:
             - mvn -Dcloud -Pmariadb-ci-ssl -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mariadb -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
