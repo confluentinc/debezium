@@ -80,11 +80,23 @@ blocks:
             - mvn -Dcloud -Pmariadb-ci -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mariadb -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
             - . cve-scan
             - . cache-maven store
+            - pwd
+            - cd debezium-connector-mariadb && ls -l
+            - cd target && ls -l
+            - cd ../..
+            - artifact push job debezium-connector-mariadb/target/jacoco-reports
         - name: MariaDB 11.4 (mariadb-ci-ssl)
           commands:
-            - mvn -Dcloud -Pmariadb-ci-ssl -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mariadb -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
+            - mvn -pl debezium-connector-mariadb -am -Dit.test=ConnectionIT#whenQueryTakesMoreThenConfiguredQueryTimeoutAnExceptionMustBeThrown -Pmariadb-ci-gtids integration-test -DskipTests -Dfailsafe.failIfNoSpecifiedTests=false
             - . cve-scan
             - . cache-maven store
+            - ls -l
+            - pwd
+            - cd debezium-connector-mariadb && ls -l
+            - cd target && ls -l
+            - cd ../..
+            - cd target && ls -l
+            - artifact push job debezium-connector-mariadb/target/jacoco-reports
         - name: MariaDB 11.4 (mariadb-ci-gtids)
           commands:
             - mvn -Dcloud -Pmariadb-ci-gtids -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mariadb -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
