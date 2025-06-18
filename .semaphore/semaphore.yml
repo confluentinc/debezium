@@ -82,9 +82,13 @@ blocks:
             - . cache-maven store
         - name: MariaDB 11.4 (mariadb-ci-ssl)
           commands:
-            - mvn -Dcloud -Pmariadb-ci-ssl -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mariadb -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
+            - mvn -Pmariadb-ci-ssl -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mariadb -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify -Dit.test=ConnectionIT#
             - . cve-scan
             - . cache-maven store
+            - ls -l
+            - ls -l target/test-results
+            - pwd
+            - artifact push job debezium-connector-mariadb/target/jacoco-reports
         - name: MariaDB 11.4 (mariadb-ci-gtids)
           commands:
             - mvn -Dcloud -Pmariadb-ci-gtids -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mariadb -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
