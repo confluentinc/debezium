@@ -82,7 +82,7 @@ blocks:
             - . cache-maven store
         - name: MariaDB 11.4 (mariadb-ci-ssl)
           commands:
-            - mvn -Dcloud -Pmariadb-ci-ssl -Dit.test=ConnectionIT#whenQueryTakesMoreThenConfiguredQueryTimeoutAnExceptionMustBeThrown integration-test -DskipTests -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mariadb -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
+            - mvn -Pmariadb-ci-ssl -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mariadb -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify -Dit.test=ConnectionIT#
             - . cve-scan
             - . cache-maven store
             - ls -l
