@@ -734,7 +734,9 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
             LOGGER.trace("DDL '{}' was filtered out of processing", sql);
             return;
         }
-        if (upperCasedStatementBegin.equals("INSERT ") || upperCasedStatementBegin.equals("UPDATE ") || upperCasedStatementBegin.equals("DELETE ")) {
+        // Check and exclude DML statements from DDL statements handling logic.Add commentMore actions
+        Set<String> DML_STATEMENTS = Set.of("INSERT ", "UPDATE ", "DELETE ", "REPLACE ");
+        if (DML_STATEMENTS.contains(upperCasedStatementBegin)) {
             LOGGER.warn("Received DML of type {}, binlog probably contains events generated with statement or mixed based replication format",
                     upperCasedStatementBegin.trim());
             return;
@@ -758,15 +760,16 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
                         && schemaChangeEvent.getType().equals(SchemaChangeEvent.SchemaChangeEventType.TRUNCATE)) {
                     eventDispatcher.dispatchDataChangeEvent(partition, tableId,
                             new BinlogChangeRecordEmitter<>(partition, offsetContext, clock, Envelope.Operation.TRUNCATE, null, null, connectorConfig));
+                } else {
+                    eventDispatcher.dispatchSchemaChangeEvent(partition, offsetContext, tableId, (receiver) -> {
+                        try {
+                            receiver.schemaChangeEvent(schemaChangeEvent);
+                        } catch (Exception e) {
+                            throw new DebeziumException(e);
+                        }
+                    });
                 }
-                eventDispatcher.dispatchSchemaChangeEvent(partition, offsetContext, tableId, (receiver) -> {
-                    try {
-                        receiver.schemaChangeEvent(schemaChangeEvent);
-                    }
-                    catch (Exception e) {
-                        throw new DebeziumException(e);
-                    }
-                });
+
             }
         }
         catch (InterruptedException e) {
