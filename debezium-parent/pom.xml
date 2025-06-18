@@ -303,6 +303,10 @@
                                     <goal>report</goal>
                                 </goals>
                                 <configuration>
+                                    <xml>
+                                        <enabled>true</enabled>
+                                        <outputDirectory>${project.basedir}/target/jacoco-reports/xml</outputDirectory>
+                                    </xml>
                                     <dataFile>${project.basedir}/target/jacoco-aggregate.exec</dataFile>
                                     <outputDirectory>${project.basedir}/target/jacoco-reports</outputDirectory>
                                 </configuration>

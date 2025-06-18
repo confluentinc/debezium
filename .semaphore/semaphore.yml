@@ -83,7 +83,7 @@ blocks:
             - artifact push job debezium-connector-mariadb/target/jacoco-reports
         - name: MariaDB 11.4 (mariadb-ci-ssl)
           commands:
-            - mvn -pl debezium-connector-mariadb -am -Dit.test=ConnectionIT#whenQueryTakesMoreThenConfiguredQueryTimeoutAnExceptionMustBeThrown -Pmariadb-ci-gtids integration-test -DskipTests -Dfailsafe.failIfNoSpecifiedTests=false
+            - mvn -Dcloud -Pmariadb-ci-ssl -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mariadb -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
             - . cve-scan
             - . cache-maven store
             - artifact push workflow debezium-connector-mariadb/target/jacoco-reports
@@ -92,6 +92,7 @@ blocks:
             - mvn -Dcloud -Pmariadb-ci-gtids -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mariadb -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
             - . cve-scan
             - . cache-maven store
+            - artifact push workflow debezium-connector-mariadb/target/jacoco-reports
         - name: Postgres 12 (assembly,postgres-12)
           commands:
             - mvn -Dcloud -Passembly,postgres-12 -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-postgres -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
@@ -132,4 +133,4 @@ after_pipeline:
         commands:
           - checkout
           - sem-version java 21
-          - emit-sonarqube-data -a test-results
+          - emit-sonarqube-data --run_only_sonar_scan
