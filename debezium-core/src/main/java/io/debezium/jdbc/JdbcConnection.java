@@ -748,12 +748,33 @@ public class JdbcConnection implements AutoCloseable {
      * @see #execute(Operations)
      */
     public JdbcConnection prepareUpdate(String stmt, StatementPreparer preparer) throws SQLException {
-        final PreparedStatement statement = createPreparedStatement(stmt);
+        PreparedStatement statement = createPreparedStatement(stmt);
         if (preparer != null) {
             preparer.accept(statement);
         }
         LOGGER.trace("Executing statement '{}'", stmt);
-        statement.execute();
+        try {
+            statement.execute();
+        }
+        catch (SQLException e) {
+            // Check if this is a connection-related error
+            if (e.getMessage() != null && e.getMessage().contains("connection closed")) {
+                LOGGER.warn("Connection was closed, reconnecting and retrying", e);
+                // Close the connection (this will clear the statement cache)
+                close();
+                // Reconnect
+                connect();
+                // Create a new statement and retry
+                statement = createPreparedStatement(stmt);
+                if (preparer != null) {
+                    preparer.accept(statement);
+                }
+                statement.execute();
+            }
+            else {
+                throw e;
+            }
+        }
         return this;
     }
 
