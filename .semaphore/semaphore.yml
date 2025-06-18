@@ -86,7 +86,6 @@ blocks:
             - . cve-scan
             - . cache-maven store
             - ls -l
-            - ls -l target/test-results
             - pwd
             - artifact push job debezium-connector-mariadb/target/jacoco-reports
         - name: MariaDB 11.4 (mariadb-ci-gtids)
