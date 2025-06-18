@@ -305,8 +305,6 @@
                                 <configuration>
                                     <dataFile>${project.basedir}/target/jacoco-aggregate.exec</dataFile>
                                     <outputDirectory>${project.basedir}/target/jacoco-reports</outputDirectory>
-                                    <xml>true</xml>
-                                    <html>true</html>
                                 </configuration>
                             </execution>
                         </executions>
