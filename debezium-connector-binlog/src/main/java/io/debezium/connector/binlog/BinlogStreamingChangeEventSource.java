@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
@@ -107,6 +108,9 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
 
     private static final String KEEPALIVE_THREAD_NAME = "blc-keepalive";
     private static final String SET_STATEMENT_REGEX = "SET STATEMENT .* FOR";
+    private static final Pattern DDL_SKIP_PATTERN = Pattern.compile(
+            "^(CREATE|ALTER|DROP)\\b.*?\\b(VIEW|FUNCTION|PROCEDURE|TRIGGER)\\b.*",
+            Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
     private final BinaryLogClient client;
     private final BinlogStreamingChangeEventSourceMetrics<?, P> metrics;
@@ -721,6 +725,11 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
         }
         if (sql.equalsIgnoreCase("COMMIT")) {
             handleTransactionCompletion(partition, offsetContext, event);
+            return;
+        }
+
+        if (DDL_SKIP_PATTERN.matcher(sql).matches()) {
+            LOGGER.debug("Skipping DDL statement from schema history: '{}'", sql);
             return;
         }
 
