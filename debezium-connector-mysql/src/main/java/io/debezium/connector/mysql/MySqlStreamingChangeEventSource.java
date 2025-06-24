@@ -21,6 +21,7 @@ import com.github.shyiko.mysql.binlog.event.EventType;
 import com.github.shyiko.mysql.binlog.event.GtidEventData;
 import com.github.shyiko.mysql.binlog.event.RowsQueryEventData;
 import com.github.shyiko.mysql.binlog.network.SSLMode;
+import com.google.re2j.Pattern;
 
 import io.debezium.connector.binlog.BinlogConnectorConfig;
 import io.debezium.connector.binlog.BinlogStreamingChangeEventSource;
@@ -41,6 +42,10 @@ public class MySqlStreamingChangeEventSource extends BinlogStreamingChangeEventS
 
     private final MySqlConnectorConfig connectorConfig;
     private GtidSet gtidSet;
+
+    private static final Pattern DDL_SKIP_PATTERN = Pattern.compile(
+            "^(CREATE|ALTER|DROP)\\b.*?\\b(VIEW|FUNCTION|PROCEDURE|TRIGGER)\\b.*",
+            Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
     public MySqlStreamingChangeEventSource(MySqlConnectorConfig connectorConfig,
                                            BinlogConnectorConnection connection,
@@ -147,6 +152,11 @@ public class MySqlStreamingChangeEventSource extends BinlogStreamingChangeEventS
     @Override
     protected void initializeGtidSet(String value) {
         this.gtidSet = new GtidSet(value);
+    }
+
+    @Override
+    protected Pattern getDdlSkipPattern() {
+        return DDL_SKIP_PATTERN;
     }
 
     @Override

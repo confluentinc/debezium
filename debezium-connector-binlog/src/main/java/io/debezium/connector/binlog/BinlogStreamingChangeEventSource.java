@@ -65,6 +65,7 @@ import com.github.shyiko.mysql.binlog.network.DefaultSSLSocketFactory;
 import com.github.shyiko.mysql.binlog.network.SSLMode;
 import com.github.shyiko.mysql.binlog.network.SSLSocketFactory;
 import com.github.shyiko.mysql.binlog.network.ServerException;
+import com.google.re2j.Pattern;
 
 import io.debezium.DebeziumException;
 import io.debezium.annotation.SingleThreadAccess;
@@ -724,6 +725,11 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
             return;
         }
 
+        if (getDdlSkipPattern().matcher(sql).matches()) {
+            LOGGER.debug("Skipping DDL statement from schema history: '{}'", sql);
+            return;
+        }
+
         String upperCasedStatementBegin = Strings.getBegin(removeSetStatement(sql), 7).toUpperCase();
 
         if (upperCasedStatementBegin.startsWith("XA ")) {
@@ -964,6 +970,11 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
      * @param value the value to initialize the set based upon
      */
     protected abstract void initializeGtidSet(String value);
+
+    /**
+     * Get the pattern used to skip DDL statements from the schema history.
+     */
+    protected abstract Pattern getDdlSkipPattern();
 
     private Predicate<String> getGtidDmlSourceFilter() {
         if (connectorConfig.getConfig().getBoolean(BinlogConnectorConfig.GTID_SOURCE_FILTER_DML_EVENTS)) {
