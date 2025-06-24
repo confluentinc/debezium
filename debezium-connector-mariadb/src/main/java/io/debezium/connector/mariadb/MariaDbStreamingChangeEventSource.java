@@ -21,6 +21,7 @@ import com.github.shyiko.mysql.binlog.event.EventData;
 import com.github.shyiko.mysql.binlog.event.EventType;
 import com.github.shyiko.mysql.binlog.event.MariadbGtidEventData;
 import com.github.shyiko.mysql.binlog.network.SSLMode;
+import com.google.re2j.Pattern;
 
 import io.debezium.connector.binlog.BinlogConnectorConfig;
 import io.debezium.connector.binlog.BinlogStreamingChangeEventSource;
@@ -159,6 +160,12 @@ public class MariaDbStreamingChangeEventSource extends BinlogStreamingChangeEven
     @Override
     protected void initializeGtidSet(String value) {
         this.gtidSet = new MariadbGtidSet(value);
+    }
+
+    @Override
+    protected Pattern getDdlSkipPattern() {
+        // return pattern which doesn't match anything, so all DDLs are processed
+        return Pattern.compile("^$a");
     }
 
     @Override
