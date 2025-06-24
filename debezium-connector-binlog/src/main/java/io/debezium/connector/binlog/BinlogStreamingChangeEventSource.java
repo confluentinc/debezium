@@ -108,6 +108,9 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
 
     private static final String KEEPALIVE_THREAD_NAME = "blc-keepalive";
     private static final String SET_STATEMENT_REGEX = "SET STATEMENT .* FOR";
+    private static final Pattern DDL_SKIP_PATTERN = Pattern.compile(
+            ".*\\b(CREATE|ALTER|DROP)\\b.*?\\b(VIEW|FUNCTION|PROCEDURE|TRIGGER)\\b.*",
+            Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
     private final BinaryLogClient client;
     private final BinlogStreamingChangeEventSourceMetrics<?, P> metrics;
@@ -725,7 +728,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
             return;
         }
 
-        if (getDdlSkipPattern().matcher(sql).matches()) {
+        if (DDL_SKIP_PATTERN.matcher(sql).matches()) {
             LOGGER.debug("Skipping DDL statement from schema history: '{}'", sql);
             return;
         }
@@ -965,12 +968,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
      * @param value the value to initialize the set based upon
      */
     protected abstract void initializeGtidSet(String value);
-
-    /**
-     * Get the pattern used to skip DDL statements from the schema history.
-     */
-    protected abstract Pattern getDdlSkipPattern();
-
+    
     private Predicate<String> getGtidDmlSourceFilter() {
         if (connectorConfig.getConfig().getBoolean(BinlogConnectorConfig.GTID_SOURCE_FILTER_DML_EVENTS)) {
             return connectorConfig.getGtidSourceFilter();

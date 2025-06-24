@@ -42,11 +42,7 @@ public class MySqlStreamingChangeEventSource extends BinlogStreamingChangeEventS
 
     private final MySqlConnectorConfig connectorConfig;
     private GtidSet gtidSet;
-
-    private static final Pattern DDL_SKIP_PATTERN = Pattern.compile(
-            "^(CREATE|ALTER|DROP)\\b.*?\\b(VIEW|FUNCTION|PROCEDURE|TRIGGER)\\b.*",
-            Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-
+    
     public MySqlStreamingChangeEventSource(MySqlConnectorConfig connectorConfig,
                                            BinlogConnectorConnection connection,
                                            EventDispatcher<MySqlPartition, TableId> dispatcher,
@@ -152,11 +148,6 @@ public class MySqlStreamingChangeEventSource extends BinlogStreamingChangeEventS
     @Override
     protected void initializeGtidSet(String value) {
         this.gtidSet = new GtidSet(value);
-    }
-
-    @Override
-    protected Pattern getDdlSkipPattern() {
-        return DDL_SKIP_PATTERN;
     }
 
     @Override

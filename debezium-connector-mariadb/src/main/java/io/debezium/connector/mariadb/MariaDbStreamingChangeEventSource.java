@@ -163,12 +163,6 @@ public class MariaDbStreamingChangeEventSource extends BinlogStreamingChangeEven
     }
 
     @Override
-    protected Pattern getDdlSkipPattern() {
-        // return pattern which doesn't match anything, so all DDLs are processed
-        return Pattern.compile("^$a");
-    }
-
-    @Override
     protected SSLMode sslModeFor(BinlogConnectorConfig.SecureConnectionMode mode) {
         switch ((MariaDbConnectorConfig.MariaDbSecureConnectionMode) mode) {
             case DISABLE:
