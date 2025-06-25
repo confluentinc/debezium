@@ -346,7 +346,7 @@ public abstract class BinlogSchemaHistoryIT<C extends SourceConnector> extends A
     }
 
     @Test
-    public void shouldNotStoreTruncateIfNotSkipped() throws SQLException, InterruptedException {
+    public void shouldStoreTruncateIfNotSkipped() throws SQLException, InterruptedException {
         skipAvroValidation();
         config = DATABASE.defaultConfig()
                 .with(BinlogConnectorConfig.SNAPSHOT_MODE, BinlogConnectorConfig.SnapshotMode.NO_DATA)

@@ -36,6 +36,7 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 
+import com.google.re2j.Pattern;
 import org.apache.kafka.connect.source.SourceConnector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -106,6 +107,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
 
     private static final String KEEPALIVE_THREAD_NAME = "blc-keepalive";
     private static final String SET_STATEMENT_REGEX = "SET STATEMENT .* FOR";
+    private static final Pattern TRUNCATE_STATEMENT_PATTERN = Pattern.compile("(SET STATEMENT .*)?TRUNCATE TABLE .*", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
     private final BinaryLogClient client;
     private final BinlogStreamingChangeEventSourceMetrics<?, P> metrics;
@@ -729,7 +731,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
             // This is an XA transaction, and we currently ignore these and do nothing ...
             return;
         }
-        if (!sql.contains("TRUNCATE") && schema.ddlFilter().test(sql)) {
+        if (!TRUNCATE_STATEMENT_PATTERN.matches(sql) && schema.ddlFilter().test(sql)) {
             LOGGER.trace("DDL '{}' was filtered out of processing", sql);
             return;
         }
