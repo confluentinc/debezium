@@ -101,7 +101,8 @@ public interface SchemaHistory {
                             "^\\s*#\\s*Dummy event.*," +
                             "(SET STATEMENT .*)?TRUNCATE TABLE .*," +
                             "(SET STATEMENT .*)?REPLACE INTO .*," +
-                            "(SET STATEMENT .*)?(CREATE|ALTER|DROP)\\b.*\\b(VIEW|FUNCTION|PROCEDURE|TRIGGER)\\b.*")
+                            "^(SET STATEMENT\\s+.*?FOR\\s+)?(CREATE|ALTER|DROP)\\s+(OR\\s+REPLACE\\s+)?(DEFINER\\s*=.*?\\s+)?(?:\\w+\\s*=.*?\\s+)*(VIEW|FUNCTION|PROCEDURE|TRIGGER)\\b.*"
+            )
             .withWidth(Width.LONG)
             .withImportance(Importance.LOW)
             .withDescription("A regular expression to filter out a subset of incoming DDL statements "
