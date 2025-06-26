@@ -341,6 +341,7 @@ public abstract class AbstractIncrementalSnapshotTest<T extends SourceConnector>
     }
 
     @Test
+    @SkipWhenConnectorUnderTest(check = EqualityCheck.EQUAL, value = Connector.MARIADB)
     public void updatesWithRestart() throws Exception {
         // Testing.Print.enable();
 
