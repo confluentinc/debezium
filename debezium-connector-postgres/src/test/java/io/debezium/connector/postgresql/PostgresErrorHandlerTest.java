@@ -8,7 +8,6 @@ package io.debezium.connector.postgresql;
 import static io.debezium.config.CommonConnectorConfig.DEFAULT_MAX_QUEUE_SIZE;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.google.re2j.Pattern;
 import org.junit.Test;
 import org.postgresql.util.PSQLException;
 import org.postgresql.util.PSQLState;
