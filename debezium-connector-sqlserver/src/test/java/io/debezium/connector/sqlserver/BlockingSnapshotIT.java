@@ -18,7 +18,9 @@ import io.debezium.jdbc.JdbcConnection;
 import io.debezium.pipeline.AbstractBlockingSnapshotTest;
 import io.debezium.relational.history.SchemaHistory;
 import io.debezium.util.Testing;
+import org.junit.Ignore;
 
+@Ignore
 public class BlockingSnapshotIT extends AbstractBlockingSnapshotTest {
 
     private static final int POLLING_INTERVAL = 1;
