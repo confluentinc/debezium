@@ -29,6 +29,7 @@ import io.debezium.relational.history.TableChanges.TableChangesSerializer;
 import io.debezium.text.MultipleParsingExceptions;
 import io.debezium.text.ParsingException;
 import io.debezium.util.Clock;
+import io.debezium.util.Strings;
 
 /**
  * @author Randall Hauch
@@ -160,26 +161,31 @@ public abstract class AbstractSchemaHistory implements SchemaHistory {
     }
 
     private boolean likelyFiltered(String ddl) {
-        String ddlNormalized = ddl.trim().toUpperCase().replaceAll("\\s+", " ");
-        String ddlUpper = ddlNormalized.trim().toUpperCase();
-        return ddlUpper.startsWith("DROP TEMPORARY TABLE IF EXISTS") ||
-                ddlUpper.startsWith("(SET STATEMENT") ||
-                (ddlUpper.startsWith("INSERT INTO") &&
-                        (ddlUpper.contains("RDS_HEARTBEAT") ||
-                                ddlUpper.contains("RDS_SYSINFO") ||
-                                ddlUpper.contains("RDS_MONITOR")))
+        String ddlWork = Strings.removeSetStatement(ddl).trim().toUpperCase();
+
+        String ddlNormalized = ddlWork.replaceAll("\\s+", " ");
+
+        return ddlNormalized.startsWith("DROP TEMPORARY TABLE IF EXISTS") ||
+                (ddlNormalized.startsWith("INSERT INTO") &&
+                        (ddlNormalized.contains("RDS_HEARTBEAT2") ||
+                                ddlNormalized.contains("RDS_SYSINFO") ||
+                                ddlNormalized.contains("RDS_MONITOR")))
                 ||
-                (ddlUpper.startsWith("DELETE FROM") &&
-                        (ddlUpper.contains("RDS_SYSINFO") ||
-                                ddlUpper.contains("RDS_MONITOR")))
+                (ddlNormalized.startsWith("DELETE FROM") &&
+                        (ddlNormalized.contains("RDS_SYSINFO") ||
+                                ddlNormalized.contains("RDS_MONITOR")))
                 ||
-                ddlUpper.startsWith("FLUSH RELAY LOGS") ||
-                ddlUpper.startsWith("SAVEPOINT ") ||
-                (ddlUpper.startsWith("#") && ddlUpper.contains("DUMMY EVENT")) ||
+                ddlNormalized.startsWith("FLUSH RELAY LOGS") ||
+                ddlNormalized.startsWith("SAVEPOINT ") ||
+                (ddlNormalized.startsWith("#") && ddlNormalized.contains("DUMMY EVENT")) ||
+                ddlNormalized.startsWith("TRUNCATE TABLE") ||
+                ddlNormalized.startsWith("REPLACE INTO") ||
+                ((ddlNormalized.startsWith("CREATE") || ddlNormalized.startsWith("ALTER") || ddlNormalized.startsWith("DROP")) &&
+                        (ddlNormalized.contains(" VIEW") || ddlNormalized.contains(" FUNCTION") || ddlNormalized.contains(" PROCEDURE")
+                                || ddlNormalized.contains(" TRIGGER")))
+                ||
                 // Inspired from tests
-                ddlNormalized.startsWith("CREATE ROLE") ||
-                (ddlNormalized.startsWith("CREATE") &&
-                        ddlNormalized.contains("VIEW"));
+                ddlNormalized.startsWith("CREATE ROLE");
     }
 
     protected abstract void storeRecord(HistoryRecord record) throws SchemaHistoryException;

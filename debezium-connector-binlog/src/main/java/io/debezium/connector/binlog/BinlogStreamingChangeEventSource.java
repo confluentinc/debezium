@@ -36,7 +36,6 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 
-import com.google.re2j.Pattern;
 import org.apache.kafka.connect.source.SourceConnector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,6 +65,7 @@ import com.github.shyiko.mysql.binlog.network.DefaultSSLSocketFactory;
 import com.github.shyiko.mysql.binlog.network.SSLMode;
 import com.github.shyiko.mysql.binlog.network.SSLSocketFactory;
 import com.github.shyiko.mysql.binlog.network.ServerException;
+import com.google.re2j.Pattern;
 
 import io.debezium.DebeziumException;
 import io.debezium.annotation.SingleThreadAccess;
@@ -92,6 +92,7 @@ import io.debezium.snapshot.mode.NeverSnapshotter;
 import io.debezium.time.Conversions;
 import io.debezium.util.Clock;
 import io.debezium.util.Metronome;
+import io.debezium.util.Strings;
 import io.debezium.util.Threads;
 
 /**
@@ -106,7 +107,6 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
     private static final Logger LOGGER = LoggerFactory.getLogger(BinlogStreamingChangeEventSource.class);
 
     private static final String KEEPALIVE_THREAD_NAME = "blc-keepalive";
-    private static final String SET_STATEMENT_REGEX = "SET STATEMENT .* FOR";
     private static final Pattern TRUNCATE_STATEMENT_PATTERN = Pattern.compile("(SET STATEMENT .*)?TRUNCATE TABLE .*", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
     private final BinaryLogClient client;
@@ -725,7 +725,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
             return;
         }
 
-        String upperCasedStatementBegin = removeSetStatement(sql).toUpperCase();
+        String upperCasedStatementBegin = Strings.removeSetStatement(sql).toUpperCase();
 
         if (upperCasedStatementBegin.startsWith("XA ")) {
             // This is an XA transaction, and we currently ignore these and do nothing ...
@@ -778,10 +778,6 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
         catch (InterruptedException e) {
             LOGGER.info("Processing interrupted");
         }
-    }
-
-    private String removeSetStatement(String sql) {
-        return sql.replaceAll(SET_STATEMENT_REGEX, "").trim();
     }
 
     /**

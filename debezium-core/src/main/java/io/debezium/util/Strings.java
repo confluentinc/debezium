@@ -44,6 +44,7 @@ import io.debezium.text.TokenStream.Tokens;
 public final class Strings {
 
     private static final Pattern TIME_PATTERN = Pattern.compile("([0-9]*):([0-9]*):([0-9]*)(\\.([0-9]*))?");
+    private static final Pattern SET_STATEMENT_FOR_PATTERN = Pattern.compile("^SET STATEMENT .*? FOR ", Pattern.CASE_INSENSITIVE);
 
     /**
      * Generate the set of values that are included in the list.
@@ -1290,5 +1291,15 @@ public final class Strings {
             return "";
         }
         return Character.toUpperCase(word.charAt(0)) + word.substring(1).toLowerCase();
+    }
+
+    /**
+     * Removes from the given SQL statement any `SET STATEMENT ... FOR` prefix.
+     *
+     * @param sql The SQL statement; may not be null
+     * @return The SQL statement without a `SET` prefix
+     */
+    public static String removeSetStatement(String sql) {
+        return SET_STATEMENT_FOR_PATTERN.matcher(sql).replaceFirst("");
     }
 }
