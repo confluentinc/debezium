@@ -172,7 +172,7 @@
                                 </log>
                                 <wait>
                                     <time>60000</time> <!-- 60 seconds max -->
-                                    <log>Always On: The availability replica manager is starting</log>
+                                    <log>SQL Server is now ready for client connections</log>
                                 </wait>
                             </run>
                             <external>

@@ -24,12 +24,12 @@ public class BlockingSnapshotIT extends AbstractBlockingSnapshotTest {
     private static final int POLLING_INTERVAL = 1;
 
     private SqlServerConnection connection;
-    private static final String dummyDatabaseName = "test" + System.nanoTime();
+    private boolean firstRun = false;
     @Before
     public void before() throws SQLException {
-
-        TestHelper.createTestDatabase(dummyDatabaseName);
-        connection = TestHelper.testConnection(dummyDatabaseName);
+        sleepIfRunningForTheFirstTime();
+        TestHelper.createTestDatabase();
+        connection = TestHelper.testConnection();
         connection.execute(
                 "CREATE TABLE a (pk int primary key, aa int)",
                 "CREATE TABLE b (pk int primary key, aa int)",
@@ -66,23 +66,22 @@ public class BlockingSnapshotIT extends AbstractBlockingSnapshotTest {
 
     @Override
     protected String topicName() {
-        return "server1." + dummyDatabaseName + ".dbo.a";
+        return "server1.testDB1.dbo.a";
     }
 
     @Override
     protected List<String> topicNames() {
-        return List.of(
-            "server1." + dummyDatabaseName + ".dbo.a",
-            "server1." + dummyDatabaseName + ".dbo.b"
-        );
+        return List.of("server1.testDB1.dbo.a", "server1.testDB1.dbo.b");
     }
 
     @Override
-    protected String tableName() {return dummyDatabaseName + ".dbo.a";}
+    protected String tableName() {
+        return "testDB1.dbo.a";
+    }
 
     @Override
     protected List<String> tableNames() {
-        return List.of(dummyDatabaseName + ".dbo.a", dummyDatabaseName + ".dbo.b");
+        return List.of("testDB1.dbo.a", "testDB1.dbo.b");
     }
 
     @Override
@@ -92,32 +91,29 @@ public class BlockingSnapshotIT extends AbstractBlockingSnapshotTest {
 
     @Override
     protected String escapedTableDataCollectionId() {
-      return "\\\"" + dummyDatabaseName + "\\\".\\\"dbo\\\".\\\"a\\\"";
+        return "\\\"testDB1\\\".\\\"dbo\\\".\\\"a\\\"";
     }
 
     @Override
     protected Configuration.Builder config() {
-        return TestHelper.defaultConfig(dummyDatabaseName)
+        return TestHelper.defaultConfig()
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SqlServerConnectorConfig.SnapshotMode.INITIAL)
-                .with(SqlServerConnectorConfig.SIGNAL_DATA_COLLECTION,
-                    dummyDatabaseName + ".dbo.debezium_signal"
-                );
+                .with(SqlServerConnectorConfig.SIGNAL_DATA_COLLECTION, "testDB1.dbo.debezium_signal");
     }
 
     @Override
     protected Configuration.Builder mutableConfig(boolean signalTableOnly, boolean storeOnlyCapturedDdl) {
 
-        return TestHelper.defaultConfig(dummyDatabaseName)
+        return TestHelper.defaultConfig()
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SqlServerConnectorConfig.SnapshotMode.INITIAL)
-                .with(SqlServerConnectorConfig.SIGNAL_DATA_COLLECTION,
-                    dummyDatabaseName + ".dbo.debezium_signal")
+                .with(SqlServerConnectorConfig.SIGNAL_DATA_COLLECTION, "testDB1.dbo.debezium_signal")
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE_TABLES, tableName())
                 .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, storeOnlyCapturedDdl);
     }
 
     @Override
     protected void waitForCdcTransactionPropagation(int expectedTransactions) throws Exception {
-        TestHelper.waitForCdcTransactionPropagation(connection, dummyDatabaseName, expectedTransactions);
+        TestHelper.waitForCdcTransactionPropagation(connection, TestHelper.TEST_DATABASE_1, expectedTransactions);
     }
 
     @Override
@@ -137,11 +133,23 @@ public class BlockingSnapshotIT extends AbstractBlockingSnapshotTest {
 
     @Override
     protected String database() {
-        return dummyDatabaseName;
+        return TestHelper.TEST_DATABASE_1;
     }
 
     @Override
     protected int insertMaxSleep() {
         return 100;
+    }
+
+    private void sleepIfRunningForTheFirstTime() {
+        // This is done to ensure that the Sql Server is in state to serve requests.
+        if (!firstRun) {
+            try {
+                Thread.sleep(3000); // Sleep for 3 seconds
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            firstRun = true;
+        }
     }
 }
