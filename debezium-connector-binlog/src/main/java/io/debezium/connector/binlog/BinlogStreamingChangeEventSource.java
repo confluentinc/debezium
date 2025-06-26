@@ -92,6 +92,7 @@ import io.debezium.snapshot.mode.NeverSnapshotter;
 import io.debezium.time.Conversions;
 import io.debezium.util.Clock;
 import io.debezium.util.Metronome;
+import io.debezium.util.Strings;
 import io.debezium.util.Threads;
 
 /**
@@ -106,10 +107,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
     private static final Logger LOGGER = LoggerFactory.getLogger(BinlogStreamingChangeEventSource.class);
 
     private static final String KEEPALIVE_THREAD_NAME = "blc-keepalive";
-    private static final String SET_STATEMENT_REGEX = "SET STATEMENT .* FOR";
-    private static final Pattern DDL_SKIP_PATTERN = Pattern.compile(
-            ".*\\b(CREATE|ALTER|DROP)\\b.*?\\b(VIEW|FUNCTION|PROCEDURE|TRIGGER)\\b.*",
-            Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    private static final Pattern TRUNCATE_STATEMENT_PATTERN = Pattern.compile("(SET STATEMENT .*)?TRUNCATE TABLE .*", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
     private final BinaryLogClient client;
     private final BinlogStreamingChangeEventSourceMetrics<?, P> metrics;
@@ -727,18 +725,13 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
             return;
         }
 
-        if (DDL_SKIP_PATTERN.matcher(sql).matches()) {
-            LOGGER.debug("Skipping DDL statement from schema history: '{}'", sql);
-            return;
-        }
-
-        String upperCasedStatementBegin = removeSetStatement(sql).toUpperCase();
+        String upperCasedStatementBegin = Strings.removeSetStatement(sql).toUpperCase();
 
         if (upperCasedStatementBegin.startsWith("XA ")) {
             // This is an XA transaction, and we currently ignore these and do nothing ...
             return;
         }
-        if (schema.ddlFilter().test(sql)) {
+        if (!TRUNCATE_STATEMENT_PATTERN.matches(sql) && schema.ddlFilter().test(sql)) {
             LOGGER.trace("DDL '{}' was filtered out of processing", sql);
             return;
         }
@@ -785,10 +778,6 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
         catch (InterruptedException e) {
             LOGGER.info("Processing interrupted");
         }
-    }
-
-    private String removeSetStatement(String sql) {
-        return sql.replaceAll(SET_STATEMENT_REGEX, "").trim();
     }
 
     /**
