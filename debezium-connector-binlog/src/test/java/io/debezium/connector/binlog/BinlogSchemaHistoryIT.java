@@ -338,7 +338,7 @@ public abstract class BinlogSchemaHistoryIT<C extends SourceConnector> extends A
                     ");");
         }
 
-        // no DDLs should be received
+        // no DDLs corresponding to TRUNCATE should be received
         records = consumeRecordsByTopic(1);
         List<SourceRecord> ddlRecords = records.recordsForTopic(DATABASE.getServerName());
         assertThat(ddlRecords).hasSize(1);
