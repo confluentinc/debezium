@@ -102,7 +102,7 @@ blocks:
             - . cache-maven store
         - name: SqlServer
           commands:
-            - mvn -Dcloud -Passembly -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-sqlserver -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
+            - mvn -Dcloud -Passembly -Dcheckstyle.skip=true -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-sqlserver -am -U -Dmaven.wagon.http.retryHandler.count=2 --batch-mode --no-transfer-progress verify
             - . cve-scan
             - . cache-maven store
       env_vars:
