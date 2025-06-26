@@ -24,9 +24,10 @@ public class BlockingSnapshotIT extends AbstractBlockingSnapshotTest {
     private static final int POLLING_INTERVAL = 1;
 
     private SqlServerConnection connection;
-
+    private boolean firstRun = false;
     @Before
     public void before() throws SQLException {
+        sleepIfRunningForTheFirstTime();
         TestHelper.createTestDatabase();
         connection = TestHelper.testConnection();
         connection.execute(
@@ -138,5 +139,17 @@ public class BlockingSnapshotIT extends AbstractBlockingSnapshotTest {
     @Override
     protected int insertMaxSleep() {
         return 100;
+    }
+
+    private void sleepIfRunningForTheFirstTime() {
+        // This is done to ensure that the Sql Server is in state to serve requests.
+        if (!firstRun) {
+            try {
+                Thread.sleep(3000); // Sleep for 3 seconds
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            firstRun = true;
+        }
     }
 }
