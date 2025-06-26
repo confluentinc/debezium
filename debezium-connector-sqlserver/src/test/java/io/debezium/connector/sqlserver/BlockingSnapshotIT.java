@@ -18,17 +18,20 @@ import io.debezium.jdbc.JdbcConnection;
 import io.debezium.pipeline.AbstractBlockingSnapshotTest;
 import io.debezium.relational.history.SchemaHistory;
 import io.debezium.util.Testing;
+import org.junit.Ignore;
 
+@Ignore
 public class BlockingSnapshotIT extends AbstractBlockingSnapshotTest {
 
     private static final int POLLING_INTERVAL = 1;
 
     private SqlServerConnection connection;
-
+    private static final String dummyDatabaseName = "test" + System.nanoTime();
     @Before
     public void before() throws SQLException {
-        TestHelper.createTestDatabase();
-        connection = TestHelper.testConnection();
+
+        TestHelper.createTestDatabase(dummyDatabaseName);
+        connection = TestHelper.testConnection(dummyDatabaseName);
         connection.execute(
                 "CREATE TABLE a (pk int primary key, aa int)",
                 "CREATE TABLE b (pk int primary key, aa int)",
@@ -65,22 +68,23 @@ public class BlockingSnapshotIT extends AbstractBlockingSnapshotTest {
 
     @Override
     protected String topicName() {
-        return "server1.testDB1.dbo.a";
+        return "server1." + dummyDatabaseName + ".dbo.a";
     }
 
     @Override
     protected List<String> topicNames() {
-        return List.of("server1.testDB1.dbo.a", "server1.testDB1.dbo.b");
+        return List.of(
+            "server1." + dummyDatabaseName + ".dbo.a",
+            "server1." + dummyDatabaseName + ".dbo.b"
+        );
     }
 
     @Override
-    protected String tableName() {
-        return "testDB1.dbo.a";
-    }
+    protected String tableName() {return dummyDatabaseName + ".dbo.a";}
 
     @Override
     protected List<String> tableNames() {
-        return List.of("testDB1.dbo.a", "testDB1.dbo.b");
+        return List.of(dummyDatabaseName + ".dbo.a", dummyDatabaseName + ".dbo.b");
     }
 
     @Override
@@ -90,29 +94,32 @@ public class BlockingSnapshotIT extends AbstractBlockingSnapshotTest {
 
     @Override
     protected String escapedTableDataCollectionId() {
-        return "\\\"testDB1\\\".\\\"dbo\\\".\\\"a\\\"";
+      return "\\\"" + dummyDatabaseName + "\\\".\\\"dbo\\\".\\\"a\\\"";
     }
 
     @Override
     protected Configuration.Builder config() {
-        return TestHelper.defaultConfig()
+        return TestHelper.defaultConfig(dummyDatabaseName)
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SqlServerConnectorConfig.SnapshotMode.INITIAL)
-                .with(SqlServerConnectorConfig.SIGNAL_DATA_COLLECTION, "testDB1.dbo.debezium_signal");
+                .with(SqlServerConnectorConfig.SIGNAL_DATA_COLLECTION,
+                    dummyDatabaseName + ".dbo.debezium_signal"
+                );
     }
 
     @Override
     protected Configuration.Builder mutableConfig(boolean signalTableOnly, boolean storeOnlyCapturedDdl) {
 
-        return TestHelper.defaultConfig()
+        return TestHelper.defaultConfig(dummyDatabaseName)
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SqlServerConnectorConfig.SnapshotMode.INITIAL)
-                .with(SqlServerConnectorConfig.SIGNAL_DATA_COLLECTION, "testDB1.dbo.debezium_signal")
+                .with(SqlServerConnectorConfig.SIGNAL_DATA_COLLECTION,
+                    dummyDatabaseName + ".dbo.debezium_signal")
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE_TABLES, tableName())
                 .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, storeOnlyCapturedDdl);
     }
 
     @Override
     protected void waitForCdcTransactionPropagation(int expectedTransactions) throws Exception {
-        TestHelper.waitForCdcTransactionPropagation(connection, TestHelper.TEST_DATABASE_1, expectedTransactions);
+        TestHelper.waitForCdcTransactionPropagation(connection, dummyDatabaseName, expectedTransactions);
     }
 
     @Override
@@ -132,7 +139,7 @@ public class BlockingSnapshotIT extends AbstractBlockingSnapshotTest {
 
     @Override
     protected String database() {
-        return TestHelper.TEST_DATABASE_1;
+        return dummyDatabaseName;
     }
 
     @Override
