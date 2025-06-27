@@ -392,6 +392,9 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
                         getConnectorClass(),
                         connectorConfig.getLogicalName(),
                         "binlog-client",
+                        connectorConfig.connectorName(),
+                        connectorConfig.getConnectorThreadNamePattern(),
+                        connectorConfig.getTaskId(),
                         false,
                         false,
                         x -> clientThreads.put(x.getName(), x)));
