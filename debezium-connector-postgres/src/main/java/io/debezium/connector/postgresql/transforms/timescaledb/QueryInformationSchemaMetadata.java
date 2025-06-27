@@ -1,4 +1,4 @@
-/*
+Times/*
  * Copyright Debezium Authors.
  *
  * Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
@@ -52,7 +52,7 @@ public class QueryInformationSchemaMetadata extends AbstractTimescaleDbMetadata 
         connection = new PostgresConnection(
                 JdbcConfiguration.adapt(config.subset(CommonConnectorConfig.DATABASE_CONFIG_PREFIX, true)
                         .merge(config.subset(CommonConnectorConfig.DRIVER_CONFIG_PREFIX, true))),
-                "Debezium TimescaleDB metadata");
+                "Debezium TimescaleDB metadata", "", "", "");
     }
 
     @Override
