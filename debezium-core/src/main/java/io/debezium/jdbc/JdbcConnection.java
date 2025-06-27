@@ -325,7 +325,7 @@ public class JdbcConnection implements AutoCloseable {
     private final String closingQuoteCharacter;
     private final String connectorName;
     private final String connectorThreadNamePattern;
-    private final String taskName;
+    private final String taskId;
     private volatile Connection conn;
     private final int queryTimeout;
 
@@ -350,7 +350,7 @@ public class JdbcConnection implements AutoCloseable {
      * @param closingQuotingChar the closing quoting character
      */
     protected JdbcConnection(JdbcConfiguration config, ConnectionFactory connectionFactory, Operations initialOperations,
-                             String openingQuotingChar, String closingQuotingChar, String connectorName, String connectorThreadNamePattern, String taskName) {
+                             String openingQuotingChar, String closingQuotingChar, String connectorName, String connectorThreadNamePattern, String taskId) {
         this.config = config;
         this.factory = new ConnectionFactoryDecorator(connectionFactory);
         this.initialOps = initialOperations;
@@ -358,7 +358,7 @@ public class JdbcConnection implements AutoCloseable {
         this.closingQuoteCharacter = closingQuotingChar;
         this.connectorName = connectorName;
         this.connectorThreadNamePattern = connectorThreadNamePattern;
-        this.taskName = taskName;
+        this.taskId = taskId;
         this.conn = null;
         this.queryTimeout = (int) config.getQueryTimeout().toSeconds();
     }
@@ -990,7 +990,7 @@ public class JdbcConnection implements AutoCloseable {
                     throw new RuntimeException(e);
                 }
             }, Duration.ofSeconds(WAIT_FOR_CLOSE_SECONDS), JdbcConnection.class.getSimpleName(), "jdbc-connection-close", connectorName, connectorThreadNamePattern,
-                    taskName);
+                    taskId);
         }
         catch (TimeoutException | InterruptedException e) {
             LOGGER.warn("Failed to close database connection by calling close(), attempting abort()");
