@@ -167,7 +167,9 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
                             case DISABLED:
                                 throw new ConnectException("Publication autocreation is disabled, please create one and restart the connector.");
                             case ALL_TABLES:
-                                String createPublicationStmt = String.format("CREATE PUBLICATION %s FOR ALL TABLES;", publicationName);
+                                String createPublicationStmt = connectorConfig.isPublishViaPartitionRoot()
+                                        ? String.format("CREATE PUBLICATION %s FOR ALL TABLES WITH (publish_via_partition_root = true);", publicationName)
+                                        : String.format("CREATE PUBLICATION %s FOR ALL TABLES;", publicationName);
                                 LOGGER.info("Creating Publication with statement '{}'", createPublicationStmt);
                                 // Publication doesn't exist, create it.
                                 stmt.execute(createPublicationStmt);
@@ -176,7 +178,9 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
                                 createOrUpdatePublicationModeFiltered(stmt, false);
                                 break;
                             case NO_TABLES:
-                                final String createPublicationWithNoTablesStmt = String.format("CREATE PUBLICATION %s;", publicationName);
+                                final String createPublicationWithNoTablesStmt = connectorConfig.isPublishViaPartitionRoot()
+                                        ? String.format("CREATE PUBLICATION %s WITH (publish_via_partition_root = true);", publicationName)
+                                        : String.format("CREATE PUBLICATION %s;", publicationName);
                                 LOGGER.info("Creating publication with statement '{}'", createPublicationWithNoTablesStmt);
                                 stmt.execute(createPublicationWithNoTablesStmt);
                                 break;
@@ -228,8 +232,14 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
             if (tableFilterString.isEmpty()) {
                 throw new DebeziumException(String.format("No table filters found for filtered publication %s", publicationName));
             }
-            createOrUpdatePublicationStmt = isUpdate ? String.format("ALTER PUBLICATION %s SET TABLE %s;", publicationName, tableFilterString)
-                    : String.format("CREATE PUBLICATION %s FOR TABLE %s;", publicationName, tableFilterString);
+            if (isUpdate) {
+                createOrUpdatePublicationStmt = String.format("ALTER PUBLICATION %s SET TABLE %s;", publicationName, tableFilterString);
+            }
+            else {
+                createOrUpdatePublicationStmt = connectorConfig.isPublishViaPartitionRoot()
+                        ? String.format("CREATE PUBLICATION %s FOR TABLE %s WITH (publish_via_partition_root = true);", publicationName, tableFilterString)
+                        : String.format("CREATE PUBLICATION %s FOR TABLE %s;", publicationName, tableFilterString);
+            }
             LOGGER.info(isUpdate ? "Updating Publication with statement '{}'" : "Creating Publication with statement '{}'", createOrUpdatePublicationStmt);
             stmt.execute(createOrUpdatePublicationStmt);
         }
