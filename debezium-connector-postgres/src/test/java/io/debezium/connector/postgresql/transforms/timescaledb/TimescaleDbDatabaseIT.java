@@ -59,7 +59,7 @@ public class TimescaleDbDatabaseIT extends AbstractAsyncEngineConnectorTest {
         jdbcConfig.with(JdbcConfiguration.PORT, timescaleDbContainer.getMappedPort(5432));
 
         connection = new PostgresConnection(
-                jdbcConfig.build(), TestHelper.CONNECTION_TEST);
+                jdbcConfig.build(), TestHelper.CONNECTION_TEST, "test-connector", "test-connector-thread", "test-task-1");
         dropPublication(connection);
         connection.execute(
                 "DROP TABLE IF EXISTS conditions",

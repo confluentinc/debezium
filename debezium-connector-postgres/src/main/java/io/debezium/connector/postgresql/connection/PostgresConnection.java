@@ -152,8 +152,8 @@ public class PostgresConnection extends JdbcConnection {
      * @param config {@link Configuration} instance, may not be null.
      * @param connectionUsage a symbolic name of the connection to be tracked in monitoring tools
      */
-    public PostgresConnection(JdbcConfiguration config, String connectionUsage) {
-        this(config, null, connectionUsage);
+    public PostgresConnection(JdbcConfiguration config, String connectionUsage, String connectorName, String threadNamePattern, String taskId) {
+        this(config, null, connectionUsage, connectorName, threadNamePattern, taskId);
     }
 
     static JdbcConfiguration addDefaultSettings(JdbcConfiguration configuration, String connectionUsage) {
