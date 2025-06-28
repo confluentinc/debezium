@@ -140,7 +140,7 @@ public final class TestHelper {
      * @return the PostgresConnection instance; never null
      */
     public static PostgresConnection create() {
-        return new PostgresConnection(defaultJdbcConfig(), CONNECTION_TEST, "test-connector", "test-connector-thread", "test-task-1"");
+        return new PostgresConnection(defaultJdbcConfig(), CONNECTION_TEST, "test-connector", "test-connector-thread", "test-task-1");
     }
 
     /**
