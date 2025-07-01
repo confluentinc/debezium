@@ -10,6 +10,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.sql.SQLException;
 import java.time.Duration;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -94,6 +95,23 @@ public class ThreadsTest {
         assertTrue(exception.getCause() instanceof RuntimeException);
         assertTrue(exception.getCause().getCause() instanceof SQLException);
         assertTrue(exception.getCause().getCause().getMessage().contains("Test exception"));
+    }
+
+     @Test
+     public void shouldIncludeConnectorNameAndTaskIdInThreadName() {
+        String connectorName = "test-connector";
+        String taskId = "test-task-1";
+        String threadNamePattern = "${debezium-prefix}-${connector.class.simple}-${topic.prefix}-${functionality}-${connector.name}-${task.id}";
+
+        ThreadFactory factory = Threads.threadFactory(
+            ThreadsTest.class, "componentId", "worker", connectorName, threadNamePattern, taskId, false, false
+        );
+
+        Thread t = factory.newThread(() -> {});
+        String threadName = t.getName();
+
+        assertTrue(threadName.contains(connectorName));
+        assertTrue(threadName.contains(taskId));
     }
 
     @Test

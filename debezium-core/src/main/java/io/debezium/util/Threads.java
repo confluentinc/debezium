@@ -317,16 +317,16 @@ public class Threads {
 
                 // Replace optional placeholder if present
                 if (threadName.contains("${connector.name}")) {
-                    threadName = threadName.replace("${connector.name}", connectorName);
+                    threadName = threadName.replace("${connector.name}", connectorName != null ? connectorName : "");
                 }
                 if (threadName.contains("${task.id}")) {
-                    threadName = threadName.replace("${task.id}", taskId);
+                    threadName = threadName.replace("${task.id}", taskId != null ? taskId : "");
                 }
                 if (indexed) {
                     threadName += "-" + index.getAndIncrement();
                 }
                 LOGGER.info("Creating thread {}", threadName);
-                final Thread t = new Thread(r, threadName.toString());
+                final Thread t = new Thread(r, threadName);
                 t.setDaemon(daemon);
                 if (callback != null) {
                     callback.accept(t);
