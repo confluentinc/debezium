@@ -140,7 +140,7 @@ public final class TestHelper {
      * @return the PostgresConnection instance; never null
      */
     public static PostgresConnection create() {
-        return new PostgresConnection(defaultJdbcConfig(), CONNECTION_TEST);
+        return new PostgresConnection(defaultJdbcConfig(), CONNECTION_TEST, "test-connector", "test-connector-thread", "test-task-1");
     }
 
     /**
@@ -150,7 +150,7 @@ public final class TestHelper {
      * @return the PostgresConnection instance; never null
      */
     public static PostgresConnection create(JdbcConfiguration jdbcConfiguration) {
-        return new PostgresConnection(jdbcConfiguration, CONNECTION_TEST);
+        return new PostgresConnection(jdbcConfiguration, CONNECTION_TEST, "test-connector", "test-connector-thread", "test-task-1");
     }
 
     /**
@@ -164,7 +164,7 @@ public final class TestHelper {
         return new PostgresConnection(
                 config.getJdbcConfig(),
                 getPostgresValueConverterBuilder(config),
-                CONNECTION_TEST);
+                CONNECTION_TEST, "test-connector", "test-connector-thread", "test-task-1");
     }
 
     /**
@@ -175,7 +175,7 @@ public final class TestHelper {
      * @return the PostgresConnection instance; never null
      */
     public static PostgresConnection create(String appName) {
-        return new PostgresConnection(JdbcConfiguration.adapt(defaultJdbcConfig().edit().with("ApplicationName", appName).build()), CONNECTION_TEST);
+        return new PostgresConnection(JdbcConfiguration.adapt(defaultJdbcConfig().edit().with("ApplicationName", appName).build()), CONNECTION_TEST, "test-connector", "test-connector-thread", "test-task-1");
     }
 
     /**
@@ -269,28 +269,28 @@ public final class TestHelper {
 
     public static TypeRegistry getTypeRegistry() {
         final PostgresConnectorConfig config = new PostgresConnectorConfig(defaultConfig().build());
-        try (PostgresConnection connection = new PostgresConnection(config.getJdbcConfig(), getPostgresValueConverterBuilder(config), CONNECTION_TEST)) {
+        try (PostgresConnection connection = new PostgresConnection(config.getJdbcConfig(), getPostgresValueConverterBuilder(config), CONNECTION_TEST, "test-connector", "test-connector-thread", "test-task-1")) {
             return connection.getTypeRegistry();
         }
     }
 
     public static PostgresDefaultValueConverter getDefaultValueConverter() {
         final PostgresConnectorConfig config = new PostgresConnectorConfig(defaultConfig().build());
-        try (PostgresConnection connection = new PostgresConnection(config.getJdbcConfig(), getPostgresValueConverterBuilder(config), CONNECTION_TEST)) {
+        try (PostgresConnection connection = new PostgresConnection(config.getJdbcConfig(), getPostgresValueConverterBuilder(config), CONNECTION_TEST, "test-connector", "test-connector-thread", "test-task-1")) {
             return connection.getDefaultValueConverter();
         }
     }
 
     public static Charset getDatabaseCharset() {
         final PostgresConnectorConfig config = new PostgresConnectorConfig(defaultConfig().build());
-        try (PostgresConnection connection = new PostgresConnection(config.getJdbcConfig(), getPostgresValueConverterBuilder(config), CONNECTION_TEST)) {
+        try (PostgresConnection connection = new PostgresConnection(config.getJdbcConfig(), getPostgresValueConverterBuilder(config), CONNECTION_TEST, "test-connector", "test-connector-thread", "test-task-1")) {
             return connection.getDatabaseCharset();
         }
     }
 
     public static Version getServerVersion() {
         final PostgresConnectorConfig config = new PostgresConnectorConfig(defaultConfig().build());
-        try (PostgresConnection connection = new PostgresConnection(config.getJdbcConfig(), getPostgresValueConverterBuilder(config), CONNECTION_TEST)) {
+        try (PostgresConnection connection = new PostgresConnection(config.getJdbcConfig(), getPostgresValueConverterBuilder(config), CONNECTION_TEST, "test-connector", "test-connector-thread", "test-task-1")) {
             return ServerVersion.from(
                     connection.queryAndMap(
                             "SHOW server_version",
