@@ -248,8 +248,14 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
         try {
             final String connectorClassname = config.getString(INTERNAL_CONNECTOR_CLASS);
             if (connectorClassname != null) {
-                checkTopicSettingsExecutor = Threads.newSingleThreadExecutor((Class<? extends SourceConnector>) Class.forName(connectorClassname),
-                        config.getString(INTERNAL_CONNECTOR_ID), "db-history-config-check", true);
+                checkTopicSettingsExecutor = Threads.newSingleThreadExecutor(
+                        (Class<? extends SourceConnector>) Class.forName(connectorClassname),
+                        config.getString(INTERNAL_CONNECTOR_ID),
+                        "db-history-config-check",
+                        config.getString(CONNECTOR_NAME),
+                        config.getString(CONNECTOR_THREAD_NAME_PATTERN),
+                        config.getString(TASK_ID),
+                        true);
             }
         }
         catch (ClassNotFoundException e) {
