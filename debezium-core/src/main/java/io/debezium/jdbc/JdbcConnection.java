@@ -330,7 +330,9 @@ public class JdbcConnection implements AutoCloseable {
      * @param connectionFactory the connection factory; may not be null
      */
     public JdbcConnection(JdbcConfiguration config, ConnectionFactory connectionFactory, String openingQuoteCharacter, String closingQuoteCharacter) {
-        this(config, connectionFactory, null, openingQuoteCharacter, closingQuoteCharacter, null);
+        this(config, connectionFactory, null, openingQuoteCharacter, closingQuoteCharacter, new ThreadNameContext(
+            "jdbc-${connector.name}-${functionality}",
+            config.getString("database", "0"), "0"));
     }
 
     /**
@@ -988,6 +990,7 @@ public class JdbcConnection implements AutoCloseable {
             conn.abort(Runnable::run);
         }
         catch (Exception e) {
+            System.err.println("Failed to close database connection: " + e.getMessage());
             Throwable cause = e.getCause();
             if (cause instanceof RuntimeException) {
                 Throwable rootCause = cause.getCause();

@@ -20,7 +20,7 @@ public class ThreadsTest {
 
     private ThreadNameContext threadNameContext = new ThreadNameContext(
             "test-connector",
-            "test-thread-pattern",
+            "${debezium}-${connector.name}-${task.id}",
             "0");
 
     @Test
@@ -111,6 +111,10 @@ public class ThreadsTest {
         Thread t = factory.newThread(() -> {
         });
         String threadName = t.getName();
+        System.out.println("Thread name: " + threadName);
+        System.out.println("Thread name pattern: " + threadNameContext.getThreadNamePattern());
+        System.out.println("Connector name: " + threadNameContext.getConnectorName());
+        System.out.println("Task ID: " + threadNameContext.getTaskId());
 
         assertTrue(threadName.contains(threadNameContext.getConnectorName()));
         assertTrue(threadName.contains(threadNameContext.getTaskId()));
