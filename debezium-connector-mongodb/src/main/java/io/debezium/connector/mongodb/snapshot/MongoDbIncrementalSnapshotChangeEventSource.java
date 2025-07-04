@@ -119,8 +119,7 @@ public class MongoDbIncrementalSnapshotChangeEventSource
                 : CollectionId.parse(connectorConfig.getSignalingDataCollectionId());
         this.notificationService = notificationService;
         this.incrementalSnapshotThreadPool = Threads.newFixedThreadPool(MongoDbConnector.class, config.getConnectorName(),
-                "incremental-snapshot", connectorConfig.connectorName(),
-         connectorConfig.getConnectorThreadNamePattern(), connectorConfig.getTaskId(), connectorConfig.getSnapshotMaxThreads());
+                "incremental-snapshot", connectorConfig.getSnapshotMaxThreads());
 
     @Override
     @SuppressWarnings("unchecked")

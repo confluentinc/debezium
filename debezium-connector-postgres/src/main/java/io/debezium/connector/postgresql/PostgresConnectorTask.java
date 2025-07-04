@@ -55,6 +55,7 @@ import io.debezium.spi.topic.TopicNamingStrategy;
 import io.debezium.util.Clock;
 import io.debezium.util.LoggingContext;
 import io.debezium.util.Metronome;
+import io.debezium.util.ThreadNameContext;
 
 /**
  * Kafka connect source task which uses Postgres logical decoding over a streaming replication connection to process DB changes.
@@ -85,10 +86,11 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
         final PostgresConnectorConfig connectorConfig = new PostgresConnectorConfig(config);
         final TopicNamingStrategy<TableId> topicNamingStrategy = connectorConfig.getTopicNamingStrategy(CommonConnectorConfig.TOPIC_NAMING_STRATEGY);
         final SchemaNameAdjuster schemaNameAdjuster = connectorConfig.schemaNameAdjuster();
+        ThreadNameContext threadNameContext = ThreadNameContext.threadPattern(connectorConfig);
 
         final Charset databaseCharset;
         try (PostgresConnection tempConnection = new PostgresConnection(connectorConfig.getJdbcConfig(), PostgresConnection.CONNECTION_GENERAL,
-                connectorConfig.getConnectorName(), connectorConfig.getConnectorThreadNamePattern(), connectorConfig.getTaskId())) {
+                threadNameContext)) {
             databaseCharset = tempConnection.getDatabaseCharset();
         }
 
@@ -99,7 +101,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
         MainConnectionProvidingConnectionFactory<PostgresConnection> connectionFactory = new DefaultMainConnectionProvidingConnectionFactory<>(
                 () -> new PostgresConnection(connectorConfig.getJdbcConfig(), valueConverterBuilder, PostgresConnection.CONNECTION_GENERAL,
-                        connectorConfig.connectorName(), connectorConfig.getConnectorThreadNamePattern(), connectorConfig.getTaskId()));
+                        threadNameContext));
         // Global JDBC connection used both for snapshotting and streaming.
         // Must be able to resolve datatypes.
         jdbcConnection = connectionFactory.mainConnection();
@@ -200,8 +202,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                     connectorConfig.createHeartbeat(
                             topicNamingStrategy,
                             schemaNameAdjuster,
-                            () -> new PostgresConnection(connectorConfig.getJdbcConfig(), PostgresConnection.CONNECTION_GENERAL, connectorConfig.getConnectorName(),
-                                    connectorConfig.getConnectorThreadNamePattern(), connectorConfig.getTaskId()),
+                            () -> new PostgresConnection(connectorConfig.getJdbcConfig(), PostgresConnection.CONNECTION_GENERAL, threadNameContext),
                             exception -> {
                                 String sqlErrorId = exception.getSQLState();
                                 switch (sqlErrorId) {

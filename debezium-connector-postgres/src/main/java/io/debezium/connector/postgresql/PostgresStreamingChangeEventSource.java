@@ -30,10 +30,7 @@ import io.debezium.pipeline.ErrorHandler;
 import io.debezium.pipeline.source.spi.StreamingChangeEventSource;
 import io.debezium.relational.TableId;
 import io.debezium.snapshot.SnapshotterService;
-import io.debezium.util.Clock;
-import io.debezium.util.DelayStrategy;
-import io.debezium.util.ElapsedTimeStrategy;
-import io.debezium.util.Threads;
+import io.debezium.util.*;
 
 /**
  *
@@ -129,6 +126,7 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
         // replication slot could exist at the time of starting Debezium, so we will stream from the position in the slot
         // instead of the last position in the database
         boolean hasStartLsnStoredInContext = offsetContext != null;
+        ThreadNameContext threadNameContext = ThreadNameContext.threadPattern(connectorConfig);
 
         try {
             final WalPositionLocator walPosition;
@@ -152,8 +150,7 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
             // alive to ensure that it doesn't time out
             ReplicationStream stream = this.replicationStream.get();
             stream.startKeepAlive(
-                    Threads.newSingleThreadExecutor(PostgresConnector.class, connectorConfig.getLogicalName(), KEEP_ALIVE_THREAD_NAME, connectorConfig.getConnectorName(),
-                            connectorConfig.getConnectorThreadNamePattern(), connectorConfig.getTaskId()));
+                    Threads.newSingleThreadExecutor(PostgresConnector.class, connectorConfig.getLogicalName(), KEEP_ALIVE_THREAD_NAME, threadNameContext));
 
             initSchema();
 
@@ -181,8 +178,7 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
                 replicationStream.set(replicationConnection.startStreaming(walPosition.getLastEventStoredLsn(), walPosition));
                 stream = this.replicationStream.get();
                 stream.startKeepAlive(Threads.newSingleThreadExecutor(PostgresConnector.class, connectorConfig.getLogicalName(), KEEP_ALIVE_THREAD_NAME,
-                        connectorConfig.getConnectorName(),
-                        connectorConfig.getConnectorThreadNamePattern(), connectorConfig.getTaskId()));
+                        threadNameContext));
             }
             processMessages(context, partition, this.effectiveOffset, stream);
         }

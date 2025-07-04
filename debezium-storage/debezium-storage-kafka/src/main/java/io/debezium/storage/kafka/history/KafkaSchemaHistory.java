@@ -68,6 +68,7 @@ import io.debezium.relational.history.SchemaHistoryException;
 import io.debezium.relational.history.SchemaHistoryListener;
 import io.debezium.util.Collect;
 import io.debezium.util.Loggings;
+import io.debezium.util.ThreadNameContext;
 import io.debezium.util.Threads;
 
 /**
@@ -248,14 +249,15 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
 
         try {
             final String connectorClassname = config.getString(INTERNAL_CONNECTOR_CLASS);
+            ThreadNameContext threadNameContext = new ThreadNameContext(config.getString(INTERNAL_CONNECTOR_NAME),
+                    config.getString(INTERNAL_CONNECTOR_THREAD_NAME_PATTERN),
+                    config.getString(INTERNAL_TASK_ID));
             if (connectorClassname != null) {
                 checkTopicSettingsExecutor = Threads.newSingleThreadExecutor(
                         (Class<? extends SourceConnector>) Class.forName(connectorClassname),
                         config.getString(INTERNAL_CONNECTOR_ID),
                         "db-history-config-check",
-                        config.getString(INTERNAL_CONNECTOR_NAME),
-                        config.getString(INTERNAL_CONNECTOR_THREAD_NAME_PATTERN),
-                        config.getString(INTERNAL_TASK_ID),
+                        threadNameContext,
                         true);
             }
         }

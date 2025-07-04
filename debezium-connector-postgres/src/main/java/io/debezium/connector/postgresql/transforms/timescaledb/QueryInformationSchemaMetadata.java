@@ -20,6 +20,7 @@ import io.debezium.config.Configuration;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.jdbc.JdbcConfiguration;
 import io.debezium.relational.TableId;
+import io.debezium.util.ThreadNameContext;
 
 /**
  * TimescaleDB metadata registry that performs out-of-band queries of TimescaleDB catalog to get
@@ -46,13 +47,17 @@ public class QueryInformationSchemaMetadata extends AbstractTimescaleDbMetadata 
     private final PostgresConnection connection;
     private final Map<TableId, TableId> chunkToHypertable = new HashMap<>();
     private final Map<TableId, TableId> hypertableToAggregate = new HashMap<>();
+    private final ThreadNameContext threadNameContext = new ThreadNameContext(
+            "debezium-connector-postgres",
+            "debezium.connector.postgres.timescaledb.metadata.query",
+            "query-information-schema-metadata");
 
     public QueryInformationSchemaMetadata(Configuration config) {
         super(config);
         connection = new PostgresConnection(
                 JdbcConfiguration.adapt(config.subset(CommonConnectorConfig.DATABASE_CONFIG_PREFIX, true)
                         .merge(config.subset(CommonConnectorConfig.DRIVER_CONFIG_PREFIX, true))),
-                "Debezium TimescaleDB metadata", "", "", "");
+                "Debezium TimescaleDB metadata", threadNameContext);
     }
 
     @Override

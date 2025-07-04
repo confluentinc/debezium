@@ -255,18 +255,14 @@ public class Threads {
                                               Class<?> component,
                                               String componentId,
                                               String name,
-                                              String connectorName,
-                                              String threadNamePattern,
-                                              String taskId,
+                                              ThreadNameContext threadNameContext,
                                               boolean indexed,
                                               boolean daemon) {
         return threadFactory(
                 component,
                 componentId,
                 name,
-                connectorName,
-                threadNamePattern,
-                taskId,
+                threadNameContext,
                 indexed,
                 daemon,
                 null);
@@ -288,9 +284,7 @@ public class Threads {
                                               Class<?> component,
                                               String componentId,
                                               String name,
-                                              String connectorName,
-                                              String threadNamePattern,
-                                              String taskId,
+                                              ThreadNameContext threadNameContext,
                                               boolean indexed,
                                               boolean daemon,
                                               Consumer<Thread> callback) {
@@ -307,6 +301,9 @@ public class Threads {
 
             @Override
             public Thread newThread(Runnable r) {
+                String threadNamePattern = threadNameContext.getThreadNamePattern();
+                String connectorName = threadNameContext.getConnectorName();
+                String taskId = threadNameContext.getTaskId();
                 String threadName = (threadNamePattern != null
                         ? threadNamePattern
                         : "${debezium}-${connector.class.simple}-${topic.prefix}-${functionality}")
@@ -340,48 +337,46 @@ public class Threads {
                                                           Class<?> component,
                                                           String componentId,
                                                           String name,
-                                                          String connectorName,
-                                                          String threadNamePattern,
-                                                          String taskId,
+                                                          ThreadNameContext threadNameContext,
                                                           boolean daemon) {
         return Executors.newSingleThreadExecutor(
-                threadFactory(component, componentId, name, connectorName, threadNamePattern, taskId, false, daemon));
+                threadFactory(
+                        component,
+                        componentId,
+                        name,
+                        threadNameContext,
+                        false,
+                        daemon));
     }
 
     public static ExecutorService newFixedThreadPool(
                                                      Class<?> component,
                                                      String componentId,
                                                      String name,
-                                                     String connectorName,
-                                                     String threadNamePattern,
-                                                     String taskId,
+                                                     ThreadNameContext threadNameContext,
                                                      int threadCount) {
         return Executors.newFixedThreadPool(
                 threadCount,
                 threadFactory(
-                        component, componentId, name, connectorName, threadNamePattern, taskId, true, false));
+                        component, componentId, name, threadNameContext, true, false));
     }
 
     public static ExecutorService newSingleThreadExecutor(
                                                           Class<?> component,
                                                           String componentId,
                                                           String name,
-                                                          String connectorName,
-                                                          String threadNamePattern,
-                                                          String taskId) {
-        return newSingleThreadExecutor(component, componentId, name, connectorName, threadNamePattern, taskId, false);
+                                                          ThreadNameContext threadNameContext) {
+        return newSingleThreadExecutor(component, componentId, name, threadNameContext, false);
     }
 
     public static ScheduledExecutorService newSingleThreadScheduledExecutor(
                                                                             Class<?> component,
                                                                             String componentId,
                                                                             String name,
-                                                                            String connectorName,
-                                                                            String threadNamePattern,
-                                                                            String taskId,
+                                                                            ThreadNameContext threadNameContext,
                                                                             boolean daemon) {
         return Executors.newSingleThreadScheduledExecutor(
-                threadFactory(component, componentId, name, connectorName, threadNamePattern, taskId, false, daemon));
+                threadFactory(component, componentId, name, threadNameContext, false, daemon));
     }
 
     /**
@@ -400,12 +395,10 @@ public class Threads {
                                       Duration timeout,
                                       String componentName,
                                       String operationName,
-                                      String connectorName,
-                                      String threadNamePattern,
-                                      String taskId)
+                                      ThreadNameContext threadNameContext)
             throws Exception {
         ExecutorService executor = newSingleThreadExecutor(
-                componentClass, componentName, operationName, connectorName, threadNamePattern, taskId);
+                componentClass, componentName, operationName, threadNameContext);
         Future<?> future = executor.submit(operation);
         try {
             future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
