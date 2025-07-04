@@ -1729,6 +1729,9 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
     }
 
     public String getTaskId() {
+        if (taskId == null || taskId.isEmpty()) {
+            return "0";
+        }
         return taskId;
     }
 

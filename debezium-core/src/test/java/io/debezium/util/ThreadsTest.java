@@ -36,7 +36,7 @@ public class ThreadsTest {
                 operation,
                 Duration.ofMillis(1000),
                 "test-connector",
-                "test-operation", "test-connector", "test-connector-thread", "test-task-1");
+                "test-operation", "test-connector", "test-connector-thread", "0");
 
         assertTrue(taskCompleted.get());
     }
@@ -57,7 +57,7 @@ public class ThreadsTest {
                 operation,
                 Duration.ofMillis(500),
                 "test-connector",
-                "test-operation", "test-connector", "test-connector-thread", "test-task-1"));
+                "test-operation", "test-connector", "test-connector-thread", "0"));
     }
 
     @Test
@@ -71,7 +71,7 @@ public class ThreadsTest {
                 operation,
                 Duration.ofMillis(1000),
                 "test-connector",
-                "test-operation", "test-connector", "test-connector-thread", "test-task-1"));
+                "test-operation", "test-connector", "test-connector-thread", "0"));
 
         assertTrue(exception.getCause() instanceof RuntimeException);
         assertTrue(exception.getCause().getMessage().contains("Test exception"));
@@ -89,7 +89,7 @@ public class ThreadsTest {
                 operation,
                 Duration.ofMillis(1000),
                 "test-connector",
-                "test-operation", "test-connector", "test-connector-thread", "test-task-1"));
+                "test-operation", "test-connector", "test-connector-thread", "0"));
 
         assertTrue(exception instanceof Exception);
         assertTrue(exception.getCause() instanceof RuntimeException);
@@ -97,17 +97,17 @@ public class ThreadsTest {
         assertTrue(exception.getCause().getCause().getMessage().contains("Test exception"));
     }
 
-     @Test
-     public void shouldIncludeConnectorNameAndTaskIdInThreadName() {
+    @Test
+    public void shouldIncludeConnectorNameAndTaskIdInThreadName() {
         String connectorName = "test-connector";
-        String taskId = "test-task-1";
+        String taskId = "0";
         String threadNamePattern = "${debezium-prefix}-${connector.class.simple}-${topic.prefix}-${functionality}-${connector.name}-${task.id}";
 
         ThreadFactory factory = Threads.threadFactory(
-            ThreadsTest.class, "componentId", "worker", connectorName, threadNamePattern, taskId, false, false
-        );
+                ThreadsTest.class, "componentId", "worker", connectorName, threadNamePattern, taskId, false, false);
 
-        Thread t = factory.newThread(() -> {});
+        Thread t = factory.newThread(() -> {
+        });
         String threadName = t.getName();
 
         assertTrue(threadName.contains(connectorName));
@@ -126,6 +126,6 @@ public class ThreadsTest {
                 operation,
                 Duration.ofMillis(1000),
                 "test-connector",
-                "test-operation", "test-connector", "test-connector-thread", "test-task-1"));
+                "test-operation", "test-connector", "test-connector-thread", "0"));
     }
 }

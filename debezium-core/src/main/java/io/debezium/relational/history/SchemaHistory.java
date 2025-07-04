@@ -142,7 +142,7 @@ public interface SchemaHistory {
             .withDescription("The pattern name of the Debezium connector threads")
             .withNoValidation();
 
-    Field TASK_NAME = Field.create(CONFIGURATION_FIELD_PREFIX_STRING + "task.name")
+    Field TASK_ID = Field.create(CONFIGURATION_FIELD_PREFIX_STRING + "task.id")
             .withDisplayName("Debezium Connector Task Name")
             .withType(Type.STRING)
             .withWidth(Width.SHORT)

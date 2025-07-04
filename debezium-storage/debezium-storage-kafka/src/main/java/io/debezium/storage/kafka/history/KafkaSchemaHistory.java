@@ -254,7 +254,7 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
                         "db-history-config-check",
                         config.getString(CONNECTOR_NAME),
                         config.getString(CONNECTOR_THREAD_NAME_PATTERN),
-                        config.getString(TASK_NAME),
+                        config.getString(TASK_ID),
                         true);
             }
         }

@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory;
  */
 public class Threads {
 
-    private static final String DEBEZIUM_THREAD_NAME_PREFIX = "debezium-";
+    private static final String DEBEZIUM_THREAD_NAME_PREFIX = "debezium";
     private static final Logger LOGGER = LoggerFactory.getLogger(Threads.class);
 
     /**
