@@ -10,12 +10,18 @@ import static org.junit.Assert.assertTrue;
 
 import java.sql.SQLException;
 import java.time.Duration;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.Test;
 
 public class ThreadsTest {
+
+    private ThreadNameContext threadNameContext = new ThreadNameContext(
+            "test-connector",
+            "test-thread-pattern",
+            "0");
 
     @Test
     public void shouldCompleteSuccessfullyWithinTimeout() throws Exception {
@@ -35,7 +41,7 @@ public class ThreadsTest {
                 operation,
                 Duration.ofMillis(1000),
                 "test-connector",
-                "test-operation");
+                "test-operation", threadNameContext);
 
         assertTrue(taskCompleted.get());
     }
@@ -56,7 +62,7 @@ public class ThreadsTest {
                 operation,
                 Duration.ofMillis(500),
                 "test-connector",
-                "test-operation"));
+                "test-operation", threadNameContext));
     }
 
     @Test
@@ -70,7 +76,7 @@ public class ThreadsTest {
                 operation,
                 Duration.ofMillis(1000),
                 "test-connector",
-                "test-operation"));
+                "test-operation", threadNameContext));
 
         assertTrue(exception.getCause() instanceof RuntimeException);
         assertTrue(exception.getCause().getMessage().contains("Test exception"));
@@ -88,12 +94,26 @@ public class ThreadsTest {
                 operation,
                 Duration.ofMillis(1000),
                 "test-connector",
-                "test-operation"));
+                "test-operation", threadNameContext));
 
         assertTrue(exception instanceof Exception);
         assertTrue(exception.getCause() instanceof RuntimeException);
         assertTrue(exception.getCause().getCause() instanceof SQLException);
         assertTrue(exception.getCause().getCause().getMessage().contains("Test exception"));
+    }
+
+    @Test
+    public void shouldIncludeConnectorNameAndTaskIdInThreadName() {
+
+        ThreadFactory factory = Threads.threadFactory(
+                ThreadsTest.class, "componentId", "worker", threadNameContext, false, false);
+
+        Thread t = factory.newThread(() -> {
+        });
+        String threadName = t.getName();
+
+        assertTrue(threadName.contains(threadNameContext.getConnectorName()));
+        assertTrue(threadName.contains(threadNameContext.getTaskId()));
     }
 
     @Test
@@ -108,6 +128,6 @@ public class ThreadsTest {
                 operation,
                 Duration.ofMillis(1000),
                 "test-connector",
-                "test-operation"));
+                "test-operation", threadNameContext));
     }
 }

@@ -28,6 +28,7 @@ import io.debezium.embedded.async.AbstractAsyncEngineConnectorTest;
 import io.debezium.jdbc.JdbcConfiguration;
 import io.debezium.testing.testcontainers.ImageNames;
 import io.debezium.util.Testing;
+import io.debezium.util.ThreadNameContext;
 
 public class TimescaleDbDatabaseIT extends AbstractAsyncEngineConnectorTest {
 
@@ -57,9 +58,10 @@ public class TimescaleDbDatabaseIT extends AbstractAsyncEngineConnectorTest {
         JdbcConfiguration.Builder jdbcConfig = TestHelper.defaultJdbcConfigBuilder();
         jdbcConfig.with(JdbcConfiguration.HOSTNAME, timescaleDbContainer.getHost());
         jdbcConfig.with(JdbcConfiguration.PORT, timescaleDbContainer.getMappedPort(5432));
-
+        ThreadNameContext threadNameContext = new ThreadNameContext(
+                TestHelper.TEST_CONNECTOR_NAME, TestHelper.TEST_THREAD_NAME_PATTERN, TestHelper.TEST_TASK_ID);
         connection = new PostgresConnection(
-                jdbcConfig.build(), TestHelper.CONNECTION_TEST);
+                jdbcConfig.build(), TestHelper.CONNECTION_TEST, threadNameContext);
         dropPublication(connection);
         connection.execute(
                 "DROP TABLE IF EXISTS conditions",

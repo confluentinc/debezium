@@ -62,6 +62,7 @@ import io.debezium.relational.Tables;
 import io.debezium.spi.schema.DataCollectionId;
 import io.debezium.util.Clock;
 import io.debezium.util.Metronome;
+import io.debezium.util.ThreadNameContext;
 
 /**
  * {@link JdbcConnection} connection extension used for connecting to Postgres instances.
@@ -107,8 +108,9 @@ public class PostgresConnection extends JdbcConnection {
      * @param valueConverterBuilder supplies a configured {@link PostgresValueConverter} for a given {@link TypeRegistry}
      * @param connectionUsage a symbolic name of the connection to be tracked in monitoring tools
      */
-    public PostgresConnection(JdbcConfiguration config, PostgresValueConverterBuilder valueConverterBuilder, String connectionUsage) {
-        super(addDefaultSettings(config, connectionUsage), FACTORY, PostgresConnection::validateServerVersion, "\"", "\"");
+    public PostgresConnection(JdbcConfiguration config, PostgresValueConverterBuilder valueConverterBuilder, String connectionUsage,
+                              ThreadNameContext threadNameContext) {
+        super(addDefaultSettings(config, connectionUsage), FACTORY, PostgresConnection::validateServerVersion, "\"", "\"", threadNameContext);
 
         if (Objects.isNull(valueConverterBuilder)) {
             this.typeRegistry = null;
@@ -129,10 +131,13 @@ public class PostgresConnection extends JdbcConnection {
      * @param connectionUsage a symbolic name of the connection to be tracked in monitoring tools
      */
     public PostgresConnection(PostgresConnectorConfig config, TypeRegistry typeRegistry, String connectionUsage) {
-        super(addDefaultSettings(config.getJdbcConfig(), connectionUsage),
+        super(
+                addDefaultSettings(config.getJdbcConfig(), connectionUsage),
                 FACTORY,
                 PostgresConnection::validateServerVersion,
-                "\"", "\"");
+                "\"",
+                "\"",
+                new ThreadNameContext(config.getConnectorName(), config.getConnectorThreadNamePattern(), config.getTaskId()));
 
         if (Objects.isNull(typeRegistry)) {
             this.typeRegistry = null;
@@ -152,8 +157,8 @@ public class PostgresConnection extends JdbcConnection {
      * @param config {@link Configuration} instance, may not be null.
      * @param connectionUsage a symbolic name of the connection to be tracked in monitoring tools
      */
-    public PostgresConnection(JdbcConfiguration config, String connectionUsage) {
-        this(config, null, connectionUsage);
+    public PostgresConnection(JdbcConfiguration config, String connectionUsage, ThreadNameContext threadNameContext) {
+        this(config, null, connectionUsage, threadNameContext);
     }
 
     static JdbcConfiguration addDefaultSettings(JdbcConfiguration configuration, String connectionUsage) {

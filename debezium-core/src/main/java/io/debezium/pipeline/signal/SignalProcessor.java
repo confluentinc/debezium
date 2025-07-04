@@ -32,6 +32,7 @@ import io.debezium.pipeline.signal.channels.SourceSignalChannel;
 import io.debezium.pipeline.spi.OffsetContext;
 import io.debezium.pipeline.spi.Offsets;
 import io.debezium.pipeline.spi.Partition;
+import io.debezium.util.ThreadNameContext;
 import io.debezium.util.Threads;
 
 /**
@@ -63,6 +64,8 @@ public class SignalProcessor<P extends Partition, O extends OffsetContext> {
 
     private Offsets<P, O> previousOffsets;
 
+    private final ThreadNameContext threadNameContext;
+
     private final Semaphore semaphore = new Semaphore(1);
 
     public SignalProcessor(Class<? extends SourceConnector> connector,
@@ -75,7 +78,9 @@ public class SignalProcessor<P extends Partition, O extends OffsetContext> {
         this.signalChannelReaders = signalChannelReaders;
         this.documentReader = documentReader;
         this.previousOffsets = previousOffsets;
-        this.signalProcessorExecutor = Threads.newSingleThreadScheduledExecutor(connector, config.getLogicalName(), SignalProcessor.class.getSimpleName(), false);
+        this.threadNameContext = ThreadNameContext.threadPattern(config);
+        this.signalProcessorExecutor = Threads.newSingleThreadScheduledExecutor(connector, config.getLogicalName(), SignalProcessor.class.getSimpleName(),
+                threadNameContext, false);
 
         // filter single channel reader based on configuration
         this.enabledChannelReaders = getEnabledChannelReaders();
