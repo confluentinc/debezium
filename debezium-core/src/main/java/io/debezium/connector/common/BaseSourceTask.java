@@ -131,7 +131,7 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
 
                     boolean logPositionAvailable = isLogPositionAvailable(logPositionValidator, partition, offset, config);
 
-                    if (!logPositionAvailable) {
+                    if (!logPositionAvailable && snapshotter.shouldStream()) {
                         LOGGER.warn("Last recorded offset is no longer available on the server.");
 
                         if (snapshotter.shouldSnapshotOnDataError()) {
@@ -145,9 +145,8 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
                             return;
                         }
 
-                        LOGGER.warn("The connector is trying to read redo log starting at " + offset + ", but this is no longer "
-                                + "available on the server. Reconfigure the connector to use a snapshot when needed if you want to recover. " +
-                                "If not the connector will streaming from the last available position in the log");
+                        throw new DebeziumException("The connector is trying to read change stream starting at " + offset.getSourceInfo() + ", but this is no longer "
+                                + "available on the server. Reconfigure the connector to use a snapshot mode when needed.");
                     }
                 }
             }
