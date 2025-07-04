@@ -309,8 +309,8 @@ public class Threads {
             public Thread newThread(Runnable r) {
                 String threadName = (threadNamePattern != null
                         ? threadNamePattern
-                        : "${debezium-prefix}-${connector.class.simple}-${topic.prefix}-${functionality}")
-                        .replace("${debezium-prefix}", DEBEZIUM_THREAD_NAME_PREFIX)
+                        : "${debezium}-${connector.class.simple}-${topic.prefix}-${functionality}")
+                        .replace("${debezium}", DEBEZIUM_THREAD_NAME_PREFIX)
                         .replace("${connector.class.simple}", component.getSimpleName().toLowerCase())
                         .replace("${topic.prefix}", componentId)
                         .replace("${functionality}", name);

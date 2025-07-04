@@ -107,7 +107,8 @@ public class PostgresConnection extends JdbcConnection {
      * @param valueConverterBuilder supplies a configured {@link PostgresValueConverter} for a given {@link TypeRegistry}
      * @param connectionUsage a symbolic name of the connection to be tracked in monitoring tools
      */
-    public PostgresConnection(JdbcConfiguration config, PostgresValueConverterBuilder valueConverterBuilder, String connectionUsage, String connectorName, String threadNamePattern, String taskId) {
+    public PostgresConnection(JdbcConfiguration config, PostgresValueConverterBuilder valueConverterBuilder, String connectionUsage, String connectorName,
+                              String threadNamePattern, String taskId) {
         super(addDefaultSettings(config, connectionUsage), FACTORY, PostgresConnection::validateServerVersion, "\"", "\"", connectorName, threadNamePattern, taskId);
 
         if (Objects.isNull(valueConverterBuilder)) {

@@ -155,7 +155,7 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
                             + e.getMessage());
                 }
             }, timeout, sqlServerConfig.getLogicalName(), "connection-validation", sqlServerConfig.connectorName(),
-             sqlServerConfig.getConnectorThreadNamePattern(), sqlServerConfig.getTaskId());
+                    sqlServerConfig.getConnectorThreadNamePattern(), sqlServerConfig.getTaskId());
         }
         catch (TimeoutException e) {
             hostnameValue.addErrorMessage("Connection validation timed out after " + timeout.toMillis() + " ms");

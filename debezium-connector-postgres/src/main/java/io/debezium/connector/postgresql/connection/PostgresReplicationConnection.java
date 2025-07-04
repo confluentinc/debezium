@@ -144,7 +144,8 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
     }
 
     private ServerInfo.ReplicationSlot getSlotInfo() throws SQLException, InterruptedException {
-        try (PostgresConnection connection = new PostgresConnection(connectorConfig.getJdbcConfig(), PostgresConnection.CONNECTION_SLOT_INFO, connectorConfig.getConnectorName(), connectorConfig.getConnectorThreadNamePattern(), connectorConfig.getTaskId())) {
+        try (PostgresConnection connection = new PostgresConnection(connectorConfig.getJdbcConfig(), PostgresConnection.CONNECTION_SLOT_INFO,
+                connectorConfig.getConnectorName(), connectorConfig.getConnectorThreadNamePattern(), connectorConfig.getTaskId())) {
             return connection.readReplicationSlotInfo(slotName, plugin.getPostgresPluginName());
         }
     }
@@ -857,7 +858,8 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
         }
         if (dropSlotOnClose && dropSlot) {
             // we're dropping the replication slot via a regular - i.e. not a replication - connection
-            try (PostgresConnection connection = new PostgresConnection(connectorConfig.getJdbcConfig(), PostgresConnection.CONNECTION_DROP_SLOT, connectorConfig.getConnectorName(), connectorConfig.getConnectorThreadNamePattern(), connectorConfig.getTaskId())) {
+            try (PostgresConnection connection = new PostgresConnection(connectorConfig.getJdbcConfig(), PostgresConnection.CONNECTION_DROP_SLOT,
+                    connectorConfig.getConnectorName(), connectorConfig.getConnectorThreadNamePattern(), connectorConfig.getTaskId())) {
                 connection.dropReplicationSlot(slotName);
             }
             catch (Throwable e) {

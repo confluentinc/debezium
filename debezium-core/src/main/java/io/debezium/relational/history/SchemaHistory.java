@@ -126,7 +126,7 @@ public interface SchemaHistory {
             .withDescription("The unique identifier of the Debezium connector")
             .withNoValidation();
 
-    Field CONNECTOR_NAME = Field.create(CONFIGURATION_FIELD_PREFIX_STRING + "connector.name")
+    Field INTERNAL_CONNECTOR_NAME = Field.create(CONFIGURATION_FIELD_PREFIX_STRING + "connector.name")
             .withDisplayName("Debezium connector name")
             .withType(Type.STRING)
             .withWidth(Width.SHORT)
@@ -134,7 +134,7 @@ public interface SchemaHistory {
             .withDescription("The unique name of the Debezium connector")
             .withNoValidation();
 
-    Field CONNECTOR_THREAD_NAME_PATTERN = Field.create(CONFIGURATION_FIELD_PREFIX_STRING + "connector.thread.name.pattern")
+    Field INTERNAL_CONNECTOR_THREAD_NAME_PATTERN = Field.create(CONFIGURATION_FIELD_PREFIX_STRING + "connector.thread.name.pattern")
             .withDisplayName("Debezium Connector Thread Name Pattern")
             .withType(Type.STRING)
             .withWidth(Width.SHORT)
@@ -142,12 +142,12 @@ public interface SchemaHistory {
             .withDescription("The pattern name of the Debezium connector threads")
             .withNoValidation();
 
-    Field TASK_ID = Field.create(CONFIGURATION_FIELD_PREFIX_STRING + "task.id")
-            .withDisplayName("Debezium Connector Task Name")
+    Field INTERNAL_TASK_ID = Field.create(CONFIGURATION_FIELD_PREFIX_STRING + "task.id")
+            .withDisplayName("Debezium Connector Task Id")
             .withType(Type.STRING)
             .withWidth(Width.SHORT)
             .withImportance(Importance.HIGH)
-            .withDescription("The Task Name of Debezium connector")
+            .withDescription("The Task Id of Debezium connector")
             .withNoValidation();
 
     // Temporary preference for DDL over logical schema due to DBZ-32
