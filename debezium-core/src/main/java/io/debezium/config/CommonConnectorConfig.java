@@ -1118,10 +1118,10 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
             .withWidth(Width.MEDIUM)
             .withImportance(Importance.LOW)
             .optional()
-            .withDefault("${debezium-prefix}-${connector.class.simple}-${topic.prefix}-${functionality}")
+            .withDefault("${debezium}-${connector.class.simple}-${topic.prefix}-${functionality}")
             .withDescription("The pattern used to name the threads created during connector lifetime. "
-                    + "The default value is '${debezium-prefix}-${connector.class.simple}-${topic.prefix}-${functionality}'. "
-                    + "The following variables are available: ${debezium-prefix}, ${connector.class.simple}, ${topic.prefix}, ${functionality}. "
+                    + "The default value is '${debezium}-${connector.class.simple}-${topic.prefix}-${functionality}'. "
+                    + "The following variables are available: ${debezium}, ${connector.class.simple}, ${topic.prefix}, ${functionality}. "
                     + "The value can be configured with any value but to have the default value as suffix. "
                     + "Include the ${connector.name} and ${task.id} to have the connector name and task id in the thread names.");
 
