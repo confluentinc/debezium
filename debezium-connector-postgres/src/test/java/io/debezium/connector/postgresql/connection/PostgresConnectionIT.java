@@ -31,6 +31,7 @@ import io.debezium.jdbc.JdbcConfiguration;
 import io.debezium.jdbc.JdbcConnection;
 import io.debezium.relational.TableId;
 import io.debezium.util.Testing;
+import io.debezium.util.ThreadNameContext;
 
 /**
  * Integration test for {@link PostgresConnection}
@@ -240,8 +241,12 @@ public class PostgresConnectionIT {
             replConnection.initConnection();
             assertTrue(replConnection.isConnected());
         }
+        ThreadNameContext threadNameContext = new ThreadNameContext(
+                "test-connector",
+                "test-connector-thread",
+                "test-task-1");
         try (PostgresConnection withIdleTransaction = new PostgresConnection(JdbcConfiguration.adapt(TestHelper.defaultJdbcConfig()),
-                PostgresConnection.CONNECTION_GENERAL);
+                PostgresConnection.CONNECTION_GENERAL, threadNameContext);
                 PostgresConnection withEmptyConfirmedFlushLSN = buildConnectionWithEmptyConfirmedFlushLSN(slotName)) {
             withIdleTransaction.setAutoCommit(false);
             withIdleTransaction.query("select 1", connection -> {
@@ -255,7 +260,11 @@ public class PostgresConnectionIT {
 
     // "fake" a pg95 response by not returning confirmed_flushed_lsn
     private PostgresConnection buildPG95PGConn(String name) {
-        return new PostgresConnection(JdbcConfiguration.adapt(TestHelper.defaultJdbcConfig()), name) {
+        ThreadNameContext threadNameContext = new ThreadNameContext(
+                "test-connector",
+                "test-connector-thread",
+                "test-task-1");
+        return new PostgresConnection(JdbcConfiguration.adapt(TestHelper.defaultJdbcConfig()), name, threadNameContext) {
             @Override
             protected ServerInfo.ReplicationSlot queryForSlot(String slotName, String database, String pluginName,
                                                               ResultSetMapper<ServerInfo.ReplicationSlot> map)
@@ -272,7 +281,11 @@ public class PostgresConnectionIT {
     }
 
     private PostgresConnection buildConnectionWithEmptyConfirmedFlushLSN(String name) {
-        return new PostgresConnection(JdbcConfiguration.adapt(TestHelper.defaultJdbcConfig()), name) {
+        ThreadNameContext threadNameContext = new ThreadNameContext(
+                "test-connector",
+                "test-connector-thread",
+                "test-task-1");
+        return new PostgresConnection(JdbcConfiguration.adapt(TestHelper.defaultJdbcConfig()), name, threadNameContext) {
             @Override
             protected ServerInfo.ReplicationSlot queryForSlot(String slotName, String database, String pluginName,
                                                               ResultSetMapper<ServerInfo.ReplicationSlot> map)
