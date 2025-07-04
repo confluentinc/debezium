@@ -32,6 +32,7 @@ import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.connector.postgresql.connection.ServerInfo;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.relational.TableId;
+import io.debezium.util.ThreadNameContext;
 import io.debezium.util.Threads;
 
 /**
@@ -100,10 +101,12 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         final ConfigValue userValue = configValues.get(PostgresConnectorConfig.USER.name());
         final ConfigValue passwordValue = configValues.get(PostgresConnectorConfig.PASSWORD.name());
         Duration timeout = postgresConfig.getConnectionValidationTimeout();
+        ThreadNameContext threadNameContext = ThreadNameContext.threadPattern(postgresConfig);
         // Try to connect to the database ...
         try {
             Threads.runWithTimeout(PostgresConnector.class, () -> {
-                try (PostgresConnection connection = new PostgresConnection(postgresConfig.getJdbcConfig(), PostgresConnection.CONNECTION_VALIDATE_CONNECTION)) {
+                try (PostgresConnection connection = new PostgresConnection(postgresConfig.getJdbcConfig(), PostgresConnection.CONNECTION_VALIDATE_CONNECTION,
+                        threadNameContext)) {
                     try {
                         // Prepare connection without initial statement execution
                         connection.connection(false);
@@ -130,7 +133,7 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
                         passwordValue.addErrorMessage("Error while validating connector config: " + e.getMessage());
                     }
                 }
-            }, timeout, postgresConfig.getLogicalName(), "connection-validation");
+            }, timeout, postgresConfig.getLogicalName(), "connection-validation", threadNameContext);
         }
         catch (TimeoutException e) {
             hostnameValue.addErrorMessage("Connection validation timed out after " + timeout.toMillis() + " ms");
@@ -214,7 +217,9 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
     @Override
     public List<TableId> getMatchingCollections(Configuration config) {
         PostgresConnectorConfig connectorConfig = new PostgresConnectorConfig(config);
-        try (PostgresConnection connection = new PostgresConnection(connectorConfig.getJdbcConfig(), PostgresConnection.CONNECTION_GENERAL)) {
+        ThreadNameContext threadNameContext = ThreadNameContext.threadPattern(connectorConfig);
+        try (PostgresConnection connection = new PostgresConnection(connectorConfig.getJdbcConfig(), PostgresConnection.CONNECTION_GENERAL,
+                threadNameContext)) {
             return connection.readTableNames(connectorConfig.databaseName(), null, null, new String[]{ "TABLE" }).stream()
                     .filter(tableId -> connectorConfig.getTableFilters().dataCollectionFilter().isIncluded(tableId))
                     .collect(Collectors.toList());
