@@ -56,6 +56,9 @@ import io.debezium.util.Throwables;
 public final class TestHelper {
 
     public static final String CONNECTION_TEST = "Debezium Test";
+    public static final String TEST_CONNECTOR_NAME = "test-connector";
+    public static final String TEST_THREAD_NAME_PATTERN = "test-connector-thread";
+    public static final String TEST_TASK_ID = "0";
     public static final String TEST_SERVER = "test_server";
     protected static final String TEST_DATABASE = "postgres";
     protected static final String PK_FIELD = "pk";
@@ -140,7 +143,7 @@ public final class TestHelper {
      * @return the PostgresConnection instance; never null
      */
     public static PostgresConnection create() {
-        return new PostgresConnection(defaultJdbcConfig(), CONNECTION_TEST);
+        return new PostgresConnection(defaultJdbcConfig(), CONNECTION_TEST, TEST_CONNECTOR_NAME, TEST_THREAD_NAME_PATTERN, TEST_TASK_ID);
     }
 
     /**
@@ -150,7 +153,7 @@ public final class TestHelper {
      * @return the PostgresConnection instance; never null
      */
     public static PostgresConnection create(JdbcConfiguration jdbcConfiguration) {
-        return new PostgresConnection(jdbcConfiguration, CONNECTION_TEST);
+        return new PostgresConnection(jdbcConfiguration, CONNECTION_TEST, TEST_CONNECTOR_NAME, TEST_THREAD_NAME_PATTERN, TEST_TASK_ID);
     }
 
     /**
@@ -164,7 +167,7 @@ public final class TestHelper {
         return new PostgresConnection(
                 config.getJdbcConfig(),
                 getPostgresValueConverterBuilder(config),
-                CONNECTION_TEST);
+                CONNECTION_TEST, TEST_CONNECTOR_NAME, TEST_THREAD_NAME_PATTERN, TEST_TASK_ID);
     }
 
     /**
@@ -175,7 +178,8 @@ public final class TestHelper {
      * @return the PostgresConnection instance; never null
      */
     public static PostgresConnection create(String appName) {
-        return new PostgresConnection(JdbcConfiguration.adapt(defaultJdbcConfig().edit().with("ApplicationName", appName).build()), CONNECTION_TEST);
+        return new PostgresConnection(JdbcConfiguration.adapt(defaultJdbcConfig().edit().with("ApplicationName", appName).build()), CONNECTION_TEST, TEST_CONNECTOR_NAME,
+                TEST_THREAD_NAME_PATTERN, TEST_TASK_ID);
     }
 
     /**
@@ -269,28 +273,32 @@ public final class TestHelper {
 
     public static TypeRegistry getTypeRegistry() {
         final PostgresConnectorConfig config = new PostgresConnectorConfig(defaultConfig().build());
-        try (PostgresConnection connection = new PostgresConnection(config.getJdbcConfig(), getPostgresValueConverterBuilder(config), CONNECTION_TEST)) {
+        try (PostgresConnection connection = new PostgresConnection(config.getJdbcConfig(), getPostgresValueConverterBuilder(config), CONNECTION_TEST,
+                TEST_CONNECTOR_NAME, TEST_THREAD_NAME_PATTERN, TEST_TASK_ID)) {
             return connection.getTypeRegistry();
         }
     }
 
     public static PostgresDefaultValueConverter getDefaultValueConverter() {
         final PostgresConnectorConfig config = new PostgresConnectorConfig(defaultConfig().build());
-        try (PostgresConnection connection = new PostgresConnection(config.getJdbcConfig(), getPostgresValueConverterBuilder(config), CONNECTION_TEST)) {
+        try (PostgresConnection connection = new PostgresConnection(config.getJdbcConfig(), getPostgresValueConverterBuilder(config), CONNECTION_TEST,
+                TEST_CONNECTOR_NAME, TEST_THREAD_NAME_PATTERN, TEST_TASK_ID)) {
             return connection.getDefaultValueConverter();
         }
     }
 
     public static Charset getDatabaseCharset() {
         final PostgresConnectorConfig config = new PostgresConnectorConfig(defaultConfig().build());
-        try (PostgresConnection connection = new PostgresConnection(config.getJdbcConfig(), getPostgresValueConverterBuilder(config), CONNECTION_TEST)) {
+        try (PostgresConnection connection = new PostgresConnection(config.getJdbcConfig(), getPostgresValueConverterBuilder(config), CONNECTION_TEST,
+                TEST_CONNECTOR_NAME, TEST_THREAD_NAME_PATTERN, TEST_TASK_ID)) {
             return connection.getDatabaseCharset();
         }
     }
 
     public static Version getServerVersion() {
         final PostgresConnectorConfig config = new PostgresConnectorConfig(defaultConfig().build());
-        try (PostgresConnection connection = new PostgresConnection(config.getJdbcConfig(), getPostgresValueConverterBuilder(config), CONNECTION_TEST)) {
+        try (PostgresConnection connection = new PostgresConnection(config.getJdbcConfig(), getPostgresValueConverterBuilder(config), CONNECTION_TEST,
+                TEST_CONNECTOR_NAME, TEST_THREAD_NAME_PATTERN, TEST_TASK_ID)) {
             return ServerVersion.from(
                     connection.queryAndMap(
                             "SHOW server_version",
