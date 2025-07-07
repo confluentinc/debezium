@@ -16,7 +16,6 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.function.Predicate;
 
-import io.debezium.util.ThreadNameContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,6 +31,7 @@ import io.debezium.relational.Column;
 import io.debezium.relational.Table;
 import io.debezium.relational.TableId;
 import io.debezium.util.Strings;
+import io.debezium.util.ThreadNameContext;
 
 /**
  * An abstract binlog-based connector connection implementation of {@link JdbcConnection}.

@@ -8,7 +8,6 @@ package io.debezium.connector.mysql.jdbc;
 import java.sql.SQLException;
 import java.util.function.Predicate;
 
-import io.debezium.util.ThreadNameContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,6 +16,7 @@ import io.debezium.connector.binlog.gtid.GtidSet;
 import io.debezium.connector.binlog.jdbc.BinlogConnectorConnection;
 import io.debezium.connector.binlog.jdbc.BinlogFieldReader;
 import io.debezium.connector.mysql.gtid.MySqlGtidSet;
+import io.debezium.util.ThreadNameContext;
 
 /**
  * An {@link BinlogConnectorConnection} to be used with MySQL.

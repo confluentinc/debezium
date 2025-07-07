@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import io.debezium.util.ThreadNameContext;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +43,7 @@ import io.debezium.snapshot.SnapshotterService;
 import io.debezium.spi.snapshot.Snapshotter;
 import io.debezium.spi.topic.TopicNamingStrategy;
 import io.debezium.util.Clock;
+import io.debezium.util.ThreadNameContext;
 
 /**
  * The main task executing streaming from MySQL.

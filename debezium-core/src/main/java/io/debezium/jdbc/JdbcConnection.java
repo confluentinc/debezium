@@ -334,7 +334,8 @@ public class JdbcConnection implements AutoCloseable {
      * @param config the configuration; may not be null
      * @param connectionFactory the connection factory; may not be null
      */
-    public JdbcConnection(JdbcConfiguration config, ConnectionFactory connectionFactory, String openingQuoteCharacter, String closingQuoteCharacter, ThreadNameContext threadNameContext) {
+    public JdbcConnection(JdbcConfiguration config, ConnectionFactory connectionFactory, String openingQuoteCharacter, String closingQuoteCharacter,
+                          ThreadNameContext threadNameContext) {
         this(config, connectionFactory, null, openingQuoteCharacter, closingQuoteCharacter, threadNameContext);
     }
 

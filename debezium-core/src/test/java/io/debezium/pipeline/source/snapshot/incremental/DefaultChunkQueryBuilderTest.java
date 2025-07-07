@@ -11,7 +11,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.List;
 import java.util.Optional;
 
-import io.debezium.util.ThreadNameContext;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.junit.MockitoJUnitRunner;
@@ -27,6 +26,7 @@ import io.debezium.relational.ColumnFilterMode;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.relational.Table;
 import io.debezium.relational.TableId;
+import io.debezium.util.ThreadNameContext;
 
 @RunWith(MockitoJUnitRunner.class)
 public class DefaultChunkQueryBuilderTest {

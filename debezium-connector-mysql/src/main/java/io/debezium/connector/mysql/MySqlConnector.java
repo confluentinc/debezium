@@ -7,7 +7,6 @@ package io.debezium.connector.mysql;
 
 import java.util.Map;
 
-import io.debezium.util.ThreadNameContext;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigValue;
 import org.apache.kafka.connect.connector.Task;
@@ -17,6 +16,7 @@ import io.debezium.connector.binlog.BinlogConnector;
 import io.debezium.connector.mysql.jdbc.MySqlConnection;
 import io.debezium.connector.mysql.jdbc.MySqlConnectionConfiguration;
 import io.debezium.connector.mysql.jdbc.MySqlFieldReaderResolver;
+import io.debezium.util.ThreadNameContext;
 
 /**
  * A Kafka Connect source connector that creates tasks that read the MySQL binary log and generate the corresponding
