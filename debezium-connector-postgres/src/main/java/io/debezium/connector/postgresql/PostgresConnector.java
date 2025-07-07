@@ -106,7 +106,7 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         try {
             Threads.runWithTimeout(PostgresConnector.class, () -> {
                 try (PostgresConnection connection = new PostgresConnection(postgresConfig.getJdbcConfig(),
-                 PostgresConnection.CONNECTION_VALIDATE_CONNECTION,threadNameContext)) {
+                        PostgresConnection.CONNECTION_VALIDATE_CONNECTION, threadNameContext)) {
                     try {
                         // Prepare connection without initial statement execution
                         connection.connection(false);

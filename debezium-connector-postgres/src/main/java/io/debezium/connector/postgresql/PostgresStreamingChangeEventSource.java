@@ -33,8 +33,8 @@ import io.debezium.snapshot.SnapshotterService;
 import io.debezium.util.Clock;
 import io.debezium.util.DelayStrategy;
 import io.debezium.util.ElapsedTimeStrategy;
-import io.debezium.util.Threads;
 import io.debezium.util.ThreadNameContext;
+import io.debezium.util.Threads;
 
 /**
  *

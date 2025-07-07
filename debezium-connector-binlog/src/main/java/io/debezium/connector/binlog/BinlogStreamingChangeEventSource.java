@@ -93,8 +93,8 @@ import io.debezium.time.Conversions;
 import io.debezium.util.Clock;
 import io.debezium.util.Metronome;
 import io.debezium.util.Strings;
-import io.debezium.util.Threads;
 import io.debezium.util.ThreadNameContext;
+import io.debezium.util.Threads;
 
 /**
  * An abstract common implementation of {@link StreamingChangeEventSource} for binlog-based connectors.

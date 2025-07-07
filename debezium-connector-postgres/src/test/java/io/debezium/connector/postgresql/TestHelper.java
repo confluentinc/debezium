@@ -179,7 +179,8 @@ public final class TestHelper {
      * @return the PostgresConnection instance; never null
      */
     public static PostgresConnection create(String appName) {
-        return new PostgresConnection(JdbcConfiguration.adapt(defaultJdbcConfig().edit().with("ApplicationName", appName).build()), CONNECTION_TEST, ThreadNameContext.from(new PostgresConnectorConfig(defaultConfig().build())));
+        return new PostgresConnection(JdbcConfiguration.adapt(defaultJdbcConfig().edit().with("ApplicationName", appName).build()), CONNECTION_TEST,
+                ThreadNameContext.from(new PostgresConnectorConfig(defaultConfig().build())));
     }
 
     /**

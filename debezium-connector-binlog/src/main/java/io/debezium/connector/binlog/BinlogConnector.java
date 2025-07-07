@@ -68,7 +68,7 @@ public abstract class BinlogConnector<T extends BinlogConnectorConfig> extends R
 
         try {
             Threads.runWithTimeout(this.getClass(), () -> {
-                try (BinlogConnectorConnection connection = createConnection(config, connectorConfig)) {
+                try (BinlogConnectorConnection connection = createConnection(config, connectorConfig, threadNameContext)) {
                     try {
                         connection.connect();
                         connection.execute("SELECT version()");
@@ -98,7 +98,7 @@ public abstract class BinlogConnector<T extends BinlogConnectorConfig> extends R
     @SuppressWarnings("unchecked")
     public List<TableId> getMatchingCollections(Configuration config) {
         final T connectorConfig = createConnectorConfig(config);
-        try (BinlogConnectorConnection connection = createConnection(config, connectorConfig)) {
+        try (BinlogConnectorConnection connection = createConnection(config, connectorConfig, ThreadNameContext.from(connectorConfig))) {
             final List<TableId> tables = new ArrayList<>();
             final List<String> databaseNames = connection.availableDatabases();
             final RelationalTableFilters tableFilter = connectorConfig.getTableFilters();
@@ -125,7 +125,7 @@ public abstract class BinlogConnector<T extends BinlogConnectorConfig> extends R
      * @param connectorConfig the connector configuration; never null
      * @return the connector connection; never null
      */
-    protected abstract BinlogConnectorConnection createConnection(Configuration config, T connectorConfig);
+    protected abstract BinlogConnectorConnection createConnection(Configuration config, T connectorConfig, ThreadNameContext threadNameContext);
 
     /**
      * Create the connector configuration.

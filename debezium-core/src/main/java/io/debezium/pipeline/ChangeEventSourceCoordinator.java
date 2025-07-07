@@ -56,8 +56,8 @@ import io.debezium.spi.schema.DataCollectionId;
 import io.debezium.util.Clock;
 import io.debezium.util.LoggingContext;
 import io.debezium.util.Metronome;
-import io.debezium.util.Threads;
 import io.debezium.util.ThreadNameContext;
+import io.debezium.util.Threads;
 
 /**
  * Coordinates one or more {@link ChangeEventSource}s and executes them in order.

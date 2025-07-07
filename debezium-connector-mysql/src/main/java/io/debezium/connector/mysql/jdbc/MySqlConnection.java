@@ -8,6 +8,7 @@ package io.debezium.connector.mysql.jdbc;
 import java.sql.SQLException;
 import java.util.function.Predicate;
 
+import io.debezium.util.ThreadNameContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,8 +31,9 @@ public class MySqlConnection extends BinlogConnectorConnection {
 
     private final String binaryLogStatusStatement;
 
-    public MySqlConnection(MySqlConnectionConfiguration connectionConfig, BinlogFieldReader fieldReader) {
-        super(connectionConfig, fieldReader);
+    public MySqlConnection(MySqlConnectionConfiguration connectionConfig, BinlogFieldReader fieldReader,
+                           ThreadNameContext threadNameContext) {
+        super(connectionConfig, fieldReader, threadNameContext);
 
         try {
             query(BINARY_LOG_STATUS_STATEMENT, rs -> {

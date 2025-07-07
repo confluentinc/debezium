@@ -70,9 +70,8 @@ import io.debezium.util.BoundedConcurrentHashMap.EvictionListener;
 import io.debezium.util.Collect;
 import io.debezium.util.ColumnUtils;
 import io.debezium.util.Strings;
-import io.debezium.util.Threads;
 import io.debezium.util.ThreadNameContext;
-
+import io.debezium.util.Threads;
 
 /**
  * A utility that simplifies using a JDBC connection and executing transactions composed of multiple statements.
@@ -335,10 +334,8 @@ public class JdbcConnection implements AutoCloseable {
      * @param config the configuration; may not be null
      * @param connectionFactory the connection factory; may not be null
      */
-    public JdbcConnection(JdbcConfiguration config, ConnectionFactory connectionFactory, String openingQuoteCharacter, String closingQuoteCharacter) {
-        this(config, connectionFactory, null, openingQuoteCharacter, closingQuoteCharacter, new ThreadNameContext("debezium-connector"
-            ,config.getString(RelationalDatabaseConnectorConfig.CONNECTOR_THREAD_NAME_PATTERN)
-            , "0"));
+    public JdbcConnection(JdbcConfiguration config, ConnectionFactory connectionFactory, String openingQuoteCharacter, String closingQuoteCharacter, ThreadNameContext threadNameContext) {
+        this(config, connectionFactory, null, openingQuoteCharacter, closingQuoteCharacter, threadNameContext);
     }
 
     /**

@@ -304,9 +304,7 @@ public class Threads {
                 String threadNamePattern = threadNameContext.getThreadNamePattern();
                 String connectorName = threadNameContext.getConnectorName();
                 String taskId = threadNameContext.getTaskId();
-                String threadName = (threadNamePattern != null
-                        ? threadNamePattern
-                        : "${debezium}-${connector.class.simple}-${topic.prefix}-${functionality}")
+                String threadName = threadNamePattern
                         .replace("${debezium}", DEBEZIUM_THREAD_NAME_PREFIX)
                         .replace("${connector.class.simple}", component.getSimpleName().toLowerCase())
                         .replace("${topic.prefix}", componentId)

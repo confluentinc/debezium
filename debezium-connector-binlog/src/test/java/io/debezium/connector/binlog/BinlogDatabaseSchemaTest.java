@@ -75,7 +75,6 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
     public void shouldApplyDdlStatementsAndRecover() throws InterruptedException {
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfig()
-                .with(SchemaHistory.INTERNAL_CONNECTOR_NAME, "test-connector")
                 .build();
         schema = getSchema(config);
         schema.initializeStorage();
@@ -103,7 +102,6 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfig()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, true)
-                .with(SchemaHistory.INTERNAL_CONNECTOR_NAME, "test-connector")
                 .build();
         schema = getSchema(config);
         schema.initializeStorage();
@@ -133,7 +131,6 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
     public void shouldFailOnUnparseableDdl() throws InterruptedException {
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfig()
-                .with(SchemaHistory.INTERNAL_CONNECTOR_NAME, "test-connector")
                 .build();
         schema = getSchema(config);
         schema.initializeStorage();
@@ -153,7 +150,6 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfigWithoutDatabaseFilter()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, true)
-                .with(SchemaHistory.INTERNAL_CONNECTOR_NAME, "test-connector")
                 .build();
         schema = getSchema(config);
         schema.initializeStorage();
@@ -187,7 +183,6 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfigWithoutDatabaseFilter()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, true)
-                .with(SchemaHistory.INTERNAL_CONNECTOR_NAME, "test-connector")
                 .with(BinlogConnectorConfig.TABLE_IGNORE_BUILTIN, false)
                 .build();
         schema = getSchema(config);
@@ -222,7 +217,6 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfig()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
-                .with(SchemaHistory.INTERNAL_CONNECTOR_NAME, "test-connector")
                 .build();
         schema = getSchema(config);
         schema.initializeStorage();
@@ -246,7 +240,6 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfig()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
-                .with(SchemaHistory.INTERNAL_CONNECTOR_NAME, "test-connector")
                 .with(BinlogConnectorConfig.DATABASE_INCLUDE_LIST, "captured")
                 .build();
         schema = getSchema(config);
@@ -265,8 +258,7 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
         assertTableExcluded("non_captured.nct");
 
         final Configuration configFull = DATABASE.defaultConfigWithoutDatabaseFilter()
-                                          .with(SchemaHistory.INTERNAL_CONNECTOR_NAME, "test-connector")
-                                          .build();
+                .build();
         schema = getSchema(configFull);
         schema.recover(Offsets.of(partition, offset));
 
@@ -281,7 +273,6 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfig()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
-                .with(SchemaHistory.INTERNAL_CONNECTOR_NAME, "test-connector")
                 .with(BinlogConnectorConfig.DATABASE_INCLUDE_LIST, "captured")
                 .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, true)
                 .build();
@@ -301,8 +292,7 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
         assertTableExcluded("non_captured.nct");
 
         final Configuration configFull = DATABASE.defaultConfigWithoutDatabaseFilter()
-                                          .with(SchemaHistory.INTERNAL_CONNECTOR_NAME, "test-connector")
-                                          .build();
+                .build();
         schema = getSchema(configFull);
         schema.recover(Offsets.of(partition, offset));
 
@@ -317,7 +307,6 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfigWithoutDatabaseFilter()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
-                .with(SchemaHistory.INTERNAL_CONNECTOR_NAME, "test-connector")
                 .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, "captured.ct")
                 .build();
         schema = getSchema(config);
@@ -336,8 +325,7 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
         assertTableExcluded("non_captured.nct");
 
         final Configuration configFull = DATABASE.defaultConfigWithoutDatabaseFilter()
-                                          .with(SchemaHistory.INTERNAL_CONNECTOR_NAME, "test-connector")
-                                          .build();
+                .build();
         schema = getSchema(configFull);
         schema.recover(Offsets.of(partition, offset));
 
@@ -353,7 +341,6 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
         final Configuration config = DATABASE.defaultConfigWithoutDatabaseFilter()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
                 .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, true)
-                .with(SchemaHistory.INTERNAL_CONNECTOR_NAME, "test-connector")
                 .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, "captured.ct")
                 .build();
         schema = getSchema(config);
@@ -372,8 +359,7 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
         assertTableExcluded("non_captured.nct");
 
         final Configuration configFull = DATABASE.defaultConfigWithoutDatabaseFilter()
-                                          .with(SchemaHistory.INTERNAL_CONNECTOR_NAME, "test-connector")
-                                          .build();
+                .build();
         schema = getSchema(configFull);
         schema.recover(Offsets.of(partition, offset));
 
@@ -388,7 +374,6 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
                 .with(BinlogConnectorConfig.DATABASE_INCLUDE_LIST, "captured")
                 .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, true)
-                .with(SchemaHistory.INTERNAL_CONNECTOR_NAME, "test-connector")
                 .with(BinlogConnectorConfig.INCLUDE_SCHEMA_COMMENTS, true)
                 .build();
 
@@ -412,7 +397,6 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
     public void shouldProduceCorrectTableChangesForDropStatement() {
         // Testing.Print.enable();
         final Configuration config = DATABASE.defaultConfig()
-                .with(SchemaHistory.INTERNAL_CONNECTOR_NAME, "test-connector")
                 .build();
         schema = getSchema(config);
         schema.initializeStorage();
