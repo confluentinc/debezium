@@ -90,7 +90,11 @@ import io.debezium.schema.SchemaChangeEvent;
 import io.debezium.snapshot.SnapshotterService;
 import io.debezium.snapshot.mode.NeverSnapshotter;
 import io.debezium.time.Conversions;
-import io.debezium.util.*;
+import io.debezium.util.Clock;
+import io.debezium.util.Metronome;
+import io.debezium.util.Strings;
+import io.debezium.util.Threads;
+import io.debezium.util.ThreadNameContext;
 
 /**
  * An abstract common implementation of {@link StreamingChangeEventSource} for binlog-based connectors.
@@ -384,7 +388,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
                                                     Map<String, Thread> clientThreads,
                                                     BinlogConnectorConnection connection) {
         final BinaryLogClient client = taskContext.getBinaryLogClient();
-        final ThreadNameContext threadNameContext = ThreadNameContext.threadPattern(connectorConfig);
+        final ThreadNameContext threadNameContext = ThreadNameContext.from(connectorConfig);
         client.setThreadFactory(
                 Threads.threadFactory(
                         getConnectorClass(),

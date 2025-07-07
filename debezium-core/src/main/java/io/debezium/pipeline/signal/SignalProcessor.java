@@ -78,9 +78,14 @@ public class SignalProcessor<P extends Partition, O extends OffsetContext> {
         this.signalChannelReaders = signalChannelReaders;
         this.documentReader = documentReader;
         this.previousOffsets = previousOffsets;
-        this.threadNameContext = ThreadNameContext.threadPattern(config);
-        this.signalProcessorExecutor = Threads.newSingleThreadScheduledExecutor(connector, config.getLogicalName(), SignalProcessor.class.getSimpleName(),
-                threadNameContext, false);
+        this.threadNameContext = ThreadNameContext.from(config);
+    this.signalProcessorExecutor =
+        Threads.newSingleThreadScheduledExecutor(
+            connector,
+            config.getLogicalName(),
+            SignalProcessor.class.getSimpleName(),
+            threadNameContext,
+            false);
 
         // filter single channel reader based on configuration
         this.enabledChannelReaders = getEnabledChannelReaders();

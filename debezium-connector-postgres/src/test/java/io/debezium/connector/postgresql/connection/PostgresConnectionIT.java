@@ -284,7 +284,7 @@ public class PostgresConnectionIT {
         ThreadNameContext threadNameContext = new ThreadNameContext(
                 "test-connector",
                 "test-connector-thread",
-                "test-task-1");
+                "0");
         return new PostgresConnection(JdbcConfiguration.adapt(TestHelper.defaultJdbcConfig()), name, threadNameContext) {
             @Override
             protected ServerInfo.ReplicationSlot queryForSlot(String slotName, String database, String pluginName,

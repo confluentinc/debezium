@@ -13,7 +13,7 @@ public class ThreadNameContext {
      * @param connectorConfig the connector configuration
      * @return a new ThreadNameContext instance
      */
-    public static ThreadNameContext threadPattern(CommonConnectorConfig connectorConfig) {
+    public static ThreadNameContext from(CommonConnectorConfig connectorConfig) {
         return new ThreadNameContext(
                 connectorConfig.connectorName(),
                 connectorConfig.getConnectorThreadNamePattern(),

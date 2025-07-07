@@ -137,7 +137,7 @@ public class PostgresConnection extends JdbcConnection {
                 PostgresConnection::validateServerVersion,
                 "\"",
                 "\"",
-                new ThreadNameContext(config.getConnectorName(), config.getConnectorThreadNamePattern(), config.getTaskId()));
+                ThreadNameContext.from(config));
 
         if (Objects.isNull(typeRegistry)) {
             this.typeRegistry = null;

@@ -86,7 +86,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
         final PostgresConnectorConfig connectorConfig = new PostgresConnectorConfig(config);
         final TopicNamingStrategy<TableId> topicNamingStrategy = connectorConfig.getTopicNamingStrategy(CommonConnectorConfig.TOPIC_NAMING_STRATEGY);
         final SchemaNameAdjuster schemaNameAdjuster = connectorConfig.schemaNameAdjuster();
-        ThreadNameContext threadNameContext = ThreadNameContext.threadPattern(connectorConfig);
+        ThreadNameContext threadNameContext = ThreadNameContext.from(connectorConfig);
 
         final Charset databaseCharset;
         try (PostgresConnection tempConnection = new PostgresConnection(connectorConfig.getJdbcConfig(), PostgresConnection.CONNECTION_GENERAL,

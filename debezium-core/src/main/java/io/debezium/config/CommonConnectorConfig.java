@@ -1111,19 +1111,21 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
             .withDescription("Fail if no tables are found that match the configured filters.")
             .withDefault(true);
 
-    public static final Field CONNECTOR_THREAD_NAME_PATTERN = Field.createInternal("connector.thread.name.pattern")
-            .withDisplayName("Connector Thread Name Pattern")
-            .withType(Type.STRING)
-            .withGroup(Field.createGroupEntry(Field.Group.ADVANCED, 32))
-            .withWidth(Width.MEDIUM)
-            .withImportance(Importance.LOW)
-            .optional()
-            .withDefault("${debezium}-${connector.class.simple}-${topic.prefix}-${functionality}")
-            .withDescription("The pattern used to name the threads created during connector lifetime. "
-                    + "The default value is '${debezium}-${connector.class.simple}-${topic.prefix}-${functionality}'. "
-                    + "The following variables are available: ${debezium}, ${connector.class.simple}, ${topic.prefix}, ${functionality}. "
-                    + "The value can be configured with any value but to have the default value as suffix. "
-                    + "Include the ${connector.name} and ${task.id} to have the connector name and task id in the thread names.");
+  public static final Field CONNECTOR_THREAD_NAME_PATTERN =
+      Field.createInternal("connector.thread.name.pattern")
+          .withDisplayName("Connector Thread Name Pattern")
+          .withType(Type.STRING)
+          .withGroup(Field.createGroupEntry(Field.Group.ADVANCED, 32))
+          .withWidth(Width.MEDIUM)
+          .withImportance(Importance.LOW)
+          .optional()
+          .withDefault("${debezium}-${connector.class.simple}-${topic.prefix}-${functionality}")
+          .withDescription(
+              "The pattern used to name the threads created during connector lifetime. "
+                  + "The default value is '${debezium}-${connector.class.simple}-${topic.prefix}-${functionality}'. "
+                  + "Available variables are: ${debezium}, ${connector.class.simple}, ${topic.prefix}, ${functionality} "
+                  + "and ${connector.name} and ${task.id} to include connector name and task id in thread names. "
+                  + "Custom patterns can be specified while maintaining the default structure.");
 
     protected static final ConfigDefinition CONFIG_DEFINITION = ConfigDefinition.editor()
             .connector(
@@ -1252,7 +1254,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
         this.signalPollInterval = Duration.ofMillis(config.getLong(SIGNAL_POLL_INTERVAL_MS));
         this.signalEnabledChannels = getSignalEnabledChannels(config);
         this.skippedOperations = determineSkippedOperations(config);
-        this.taskId = config.getString(TASK_ID);
+        this.taskId = config.getString(TASK_ID,"0");
         this.notificationTopicName = config.getString(SinkNotificationChannel.NOTIFICATION_TOPIC);
         this.enabledNotificationChannels = config.getList(NOTIFICATION_ENABLED_CHANNELS);
         this.skipMessagesWithoutChange = config.getBoolean(SKIP_MESSAGES_WITHOUT_CHANGE);
@@ -1729,9 +1731,6 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
     }
 
     public String getTaskId() {
-        if (taskId == null || taskId.isEmpty()) {
-            return "0";
-        }
         return taskId;
     }
 

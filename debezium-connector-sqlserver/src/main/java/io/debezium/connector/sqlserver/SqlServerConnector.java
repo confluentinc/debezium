@@ -124,7 +124,7 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
         final SqlServerConnectorConfig sqlServerConfig = new SqlServerConnectorConfig(config);
         final ConfigValue hostnameValue = configValues.get(RelationalDatabaseConnectorConfig.HOSTNAME.name());
         final ConfigValue userValue = configValues.get(RelationalDatabaseConnectorConfig.USER.name());
-        ThreadNameContext threadNameContext = ThreadNameContext.threadPattern(sqlServerConfig);
+        ThreadNameContext threadNameContext = ThreadNameContext.from(sqlServerConfig);
         Duration timeout = sqlServerConfig.getConnectionValidationTimeout();
         // Try to connect to the database ...
         try {

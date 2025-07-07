@@ -126,7 +126,7 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
         // replication slot could exist at the time of starting Debezium, so we will stream from the position in the slot
         // instead of the last position in the database
         boolean hasStartLsnStoredInContext = offsetContext != null;
-        ThreadNameContext threadNameContext = ThreadNameContext.threadPattern(connectorConfig);
+        ThreadNameContext threadNameContext = ThreadNameContext.from(connectorConfig);
 
         try {
             final WalPositionLocator walPosition;

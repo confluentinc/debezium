@@ -64,7 +64,7 @@ public abstract class BinlogConnector<T extends BinlogConnectorConfig> extends R
         ConfigValue hostnameValue = configValues.get(RelationalDatabaseConnectorConfig.HOSTNAME.name());
         final T connectorConfig = createConnectorConfig(config);
         Duration timeout = connectorConfig.getConnectionValidationTimeout();
-        ThreadNameContext threadNameContext = ThreadNameContext.threadPattern(connectorConfig);
+        ThreadNameContext threadNameContext = ThreadNameContext.from(connectorConfig);
 
         try {
             Threads.runWithTimeout(this.getClass(), () -> {

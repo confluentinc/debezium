@@ -101,12 +101,12 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         final ConfigValue userValue = configValues.get(PostgresConnectorConfig.USER.name());
         final ConfigValue passwordValue = configValues.get(PostgresConnectorConfig.PASSWORD.name());
         Duration timeout = postgresConfig.getConnectionValidationTimeout();
-        ThreadNameContext threadNameContext = ThreadNameContext.threadPattern(postgresConfig);
+        ThreadNameContext threadNameContext = ThreadNameContext.from(postgresConfig);
         // Try to connect to the database ...
         try {
             Threads.runWithTimeout(PostgresConnector.class, () -> {
-                try (PostgresConnection connection = new PostgresConnection(postgresConfig.getJdbcConfig(), PostgresConnection.CONNECTION_VALIDATE_CONNECTION,
-                        threadNameContext)) {
+                try (PostgresConnection connection = new PostgresConnection(postgresConfig.getJdbcConfig(),
+                 PostgresConnection.CONNECTION_VALIDATE_CONNECTION,threadNameContext)) {
                     try {
                         // Prepare connection without initial statement execution
                         connection.connection(false);
@@ -217,7 +217,7 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
     @Override
     public List<TableId> getMatchingCollections(Configuration config) {
         PostgresConnectorConfig connectorConfig = new PostgresConnectorConfig(config);
-        ThreadNameContext threadNameContext = ThreadNameContext.threadPattern(connectorConfig);
+        ThreadNameContext threadNameContext = ThreadNameContext.from(connectorConfig);
         try (PostgresConnection connection = new PostgresConnection(connectorConfig.getJdbcConfig(), PostgresConnection.CONNECTION_GENERAL,
                 threadNameContext)) {
             return connection.readTableNames(connectorConfig.databaseName(), null, null, new String[]{ "TABLE" }).stream()

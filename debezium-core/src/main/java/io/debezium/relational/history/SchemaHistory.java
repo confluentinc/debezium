@@ -140,6 +140,7 @@ public interface SchemaHistory {
             .withWidth(Width.SHORT)
             .withImportance(Importance.HIGH)
             .withDescription("The pattern name of the Debezium connector threads")
+            .withDefault("${debezium}-${connector.class.simple}-${topic.prefix}-${functionality}")
             .withNoValidation();
 
     Field INTERNAL_TASK_ID = Field.create(CONFIGURATION_FIELD_PREFIX_STRING + "task.id")

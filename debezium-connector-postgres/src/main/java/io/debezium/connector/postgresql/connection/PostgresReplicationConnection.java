@@ -145,7 +145,7 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
     }
 
     private ServerInfo.ReplicationSlot getSlotInfo() throws SQLException, InterruptedException {
-        ThreadNameContext threadNameContext = ThreadNameContext.threadPattern(connectorConfig);
+        ThreadNameContext threadNameContext = ThreadNameContext.from(connectorConfig);
         try (PostgresConnection connection = new PostgresConnection(connectorConfig.getJdbcConfig(), PostgresConnection.CONNECTION_SLOT_INFO,
                 threadNameContext)) {
             return connection.readReplicationSlotInfo(slotName, plugin.getPostgresPluginName());
@@ -843,7 +843,7 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
     }
 
     public synchronized void close(boolean dropSlot) {
-        ThreadNameContext threadNameContext = ThreadNameContext.threadPattern(connectorConfig);
+        ThreadNameContext threadNameContext = ThreadNameContext.from(connectorConfig);
         try {
             LOGGER.debug("Closing message decoder");
             messageDecoder.close();

@@ -330,9 +330,9 @@ public class JdbcConnection implements AutoCloseable {
      * @param connectionFactory the connection factory; may not be null
      */
     public JdbcConnection(JdbcConfiguration config, ConnectionFactory connectionFactory, String openingQuoteCharacter, String closingQuoteCharacter) {
-        this(config, connectionFactory, null, openingQuoteCharacter, closingQuoteCharacter, new ThreadNameContext(
-            "jdbc-${connector.name}-${functionality}",
-            config.getString("database", "0"), "0"));
+        this(config, connectionFactory, null, openingQuoteCharacter, closingQuoteCharacter, new ThreadNameContext("debezium-connector"
+            ,config.getString(RelationalDatabaseConnectorConfig.CONNECTOR_THREAD_NAME_PATTERN)
+            , "0"));
     }
 
     /**
