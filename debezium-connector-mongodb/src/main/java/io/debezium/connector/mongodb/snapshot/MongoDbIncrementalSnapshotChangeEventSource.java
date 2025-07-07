@@ -122,6 +122,8 @@ public class MongoDbIncrementalSnapshotChangeEventSource
                 "incremental-snapshot", connectorConfig.getSnapshotMaxThreads());
     }
 
+
+
     @Override
     @SuppressWarnings("unchecked")
     public void closeWindow(MongoDbPartition partition, String id, OffsetContext offsetContext) throws InterruptedException {

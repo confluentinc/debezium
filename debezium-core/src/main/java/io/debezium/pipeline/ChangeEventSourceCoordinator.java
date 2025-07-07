@@ -53,10 +53,7 @@ import io.debezium.schema.DatabaseSchema;
 import io.debezium.schema.HistorizedDatabaseSchema;
 import io.debezium.snapshot.SnapshotterService;
 import io.debezium.spi.schema.DataCollectionId;
-import io.debezium.util.Clock;
-import io.debezium.util.LoggingContext;
-import io.debezium.util.Metronome;
-import io.debezium.util.Threads;
+import io.debezium.util.*;
 
 /**
  * Coordinates one or more {@link ChangeEventSource}s and executes them in order.
@@ -78,6 +75,7 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
     protected final ChangeEventSourceFactory<P, O> changeEventSourceFactory;
     protected final ChangeEventSourceMetricsFactory<P> changeEventSourceMetricsFactory;
     protected final SnapshotterService snapshotterService;
+    protected final ThreadNameContext threadNameContext;
     protected final ExecutorService executor;
     private final ExecutorService blockingSnapshotExecutor;
     protected final EventDispatcher<P, ?> eventDispatcher;
@@ -110,8 +108,11 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
         this.changeEventSourceFactory = changeEventSourceFactory;
         this.changeEventSourceMetricsFactory = changeEventSourceMetricsFactory;
         this.snapshotterService = snapshotterService;
-        this.executor = Threads.newSingleThreadExecutor(connectorType, connectorConfig.getLogicalName(), "change-event-source-coordinator");
-        this.blockingSnapshotExecutor = Threads.newSingleThreadExecutor(connectorType, connectorConfig.getLogicalName(), "blocking-snapshot");
+        this.threadNameContext = ThreadNameContext.from(connectorConfig);
+        this.executor = Threads.newSingleThreadExecutor(connectorType, connectorConfig.getLogicalName(), "change-event-source-coordinator",
+                threadNameContext);
+        this.blockingSnapshotExecutor = Threads.newSingleThreadExecutor(connectorType, connectorConfig.getLogicalName(), "blocking-snapshot",
+                threadNameContext);
         this.eventDispatcher = eventDispatcher;
         this.schema = schema;
         this.signalProcessor = signalProcessor;
