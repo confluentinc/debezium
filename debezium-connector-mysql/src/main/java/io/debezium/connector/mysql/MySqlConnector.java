@@ -7,6 +7,7 @@ package io.debezium.connector.mysql;
 
 import java.util.Map;
 
+import io.debezium.util.ThreadNameContext;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigValue;
 import org.apache.kafka.connect.connector.Task;
@@ -53,10 +54,10 @@ public class MySqlConnector extends BinlogConnector<MySqlConnectorConfig> {
     }
 
     @Override
-    protected MySqlConnection createConnection(Configuration config, MySqlConnectorConfig connectorConfig) {
+    protected MySqlConnection createConnection(Configuration config, MySqlConnectorConfig connectorConfig, ThreadNameContext threadNameContext) {
         return new MySqlConnection(
                 new MySqlConnectionConfiguration(config),
-                MySqlFieldReaderResolver.resolve(connectorConfig));
+                MySqlFieldReaderResolver.resolve(connectorConfig), ThreadNameContext.from(connectorConfig));
     }
 
     @Override
