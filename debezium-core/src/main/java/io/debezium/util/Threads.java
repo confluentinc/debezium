@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory;
  */
 public class Threads {
 
-    private static final String DEBEZIUM_THREAD_NAME_PREFIX = "debezium";
+    private static final String DEBEZIUM_THREAD_NAME_PREFIX = "debezium-";
     private static final Logger LOGGER = LoggerFactory.getLogger(Threads.class);
 
     /**
@@ -305,7 +305,7 @@ public class Threads {
                 String connectorName = threadNameContext.getConnectorName();
                 String taskId = threadNameContext.getTaskId();
                 String threadName = threadNamePattern
-                        .replace("${debezium}", DEBEZIUM_THREAD_NAME_PREFIX)
+                        .replace("${debezium}-", DEBEZIUM_THREAD_NAME_PREFIX)
                         .replace("${connector.class.simple}", component.getSimpleName().toLowerCase())
                         .replace("${topic.prefix}", componentId)
                         .replace("${functionality}", name);
