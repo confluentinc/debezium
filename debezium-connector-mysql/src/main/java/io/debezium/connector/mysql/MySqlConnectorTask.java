@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import io.debezium.util.ThreadNameContext;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -86,7 +87,7 @@ public class MySqlConnectorTask extends BinlogSourceTask<MySqlPartition, MySqlOf
 
         MainConnectionProvidingConnectionFactory<BinlogConnectorConnection> connectionFactory = new DefaultMainConnectionProvidingConnectionFactory<>(() -> {
             final MySqlConnectionConfiguration connectionConfig = new MySqlConnectionConfiguration(config);
-            return new MySqlConnection(connectionConfig, MySqlFieldReaderResolver.resolve(connectorConfig));
+            return new MySqlConnection(connectionConfig, MySqlFieldReaderResolver.resolve(connectorConfig), ThreadNameContext.from(connectorConfig));
         });
 
         connection = connectionFactory.mainConnection();
@@ -187,7 +188,7 @@ public class MySqlConnectorTask extends BinlogSourceTask<MySqlPartition, MySqlOf
                         schemaNameAdjuster,
                         () -> new MySqlConnection(
                                 new MySqlConnectionConfiguration(heartbeatConfig),
-                                MySqlFieldReaderResolver.resolve(connectorConfig)),
+                                MySqlFieldReaderResolver.resolve(connectorConfig), ThreadNameContext.from(connectorConfig)),
                         new BinlogHeartbeatErrorHandler()),
                 schemaNameAdjuster,
                 signalProcessor);

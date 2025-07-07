@@ -410,6 +410,9 @@ public abstract class AbstractKafkaSchemaHistoryTest<P extends BinlogPartition, 
                 "schema.history.internal.kafka.bootstrap.servers",
                 "schema.history.internal.kafka.recovery.poll.interval.ms",
                 "schema.history.internal.connector.id",
+                "schema.history.internal.connector.thread.name.pattern",
+                "schema.history.internal.connector.name",
+                "schema.history.internal.task.id",
                 "schema.history.internal.kafka.recovery.attempts",
                 "schema.history.internal.kafka.query.timeout.ms"));
     }
