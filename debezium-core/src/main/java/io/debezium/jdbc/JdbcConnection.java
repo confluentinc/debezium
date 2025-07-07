@@ -64,9 +64,15 @@ import io.debezium.relational.Tables;
 import io.debezium.relational.Tables.ColumnNameFilter;
 import io.debezium.relational.Tables.TableFilter;
 import io.debezium.spi.schema.DataCollectionId;
-import io.debezium.util.*;
+import io.debezium.util.BoundedConcurrentHashMap;
 import io.debezium.util.BoundedConcurrentHashMap.Eviction;
 import io.debezium.util.BoundedConcurrentHashMap.EvictionListener;
+import io.debezium.util.Collect;
+import io.debezium.util.ColumnUtils;
+import io.debezium.util.Strings;
+import io.debezium.util.Threads;
+import io.debezium.util.ThreadNameContext;
+
 
 /**
  * A utility that simplifies using a JDBC connection and executing transactions composed of multiple statements.
@@ -990,7 +996,6 @@ public class JdbcConnection implements AutoCloseable {
             conn.abort(Runnable::run);
         }
         catch (Exception e) {
-            System.err.println("Failed to close database connection: " + e.getMessage());
             Throwable cause = e.getCause();
             if (cause instanceof RuntimeException) {
                 Throwable rootCause = cause.getCause();

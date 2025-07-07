@@ -53,7 +53,11 @@ import io.debezium.schema.DatabaseSchema;
 import io.debezium.schema.HistorizedDatabaseSchema;
 import io.debezium.snapshot.SnapshotterService;
 import io.debezium.spi.schema.DataCollectionId;
-import io.debezium.util.*;
+import io.debezium.util.Clock;
+import io.debezium.util.LoggingContext;
+import io.debezium.util.Metronome;
+import io.debezium.util.Threads;
+import io.debezium.util.ThreadNameContext;
 
 /**
  * Coordinates one or more {@link ChangeEventSource}s and executes them in order.

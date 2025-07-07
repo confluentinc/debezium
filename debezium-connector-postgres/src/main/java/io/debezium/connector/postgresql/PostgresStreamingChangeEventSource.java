@@ -30,7 +30,11 @@ import io.debezium.pipeline.ErrorHandler;
 import io.debezium.pipeline.source.spi.StreamingChangeEventSource;
 import io.debezium.relational.TableId;
 import io.debezium.snapshot.SnapshotterService;
-import io.debezium.util.*;
+import io.debezium.util.Clock;
+import io.debezium.util.DelayStrategy;
+import io.debezium.util.ElapsedTimeStrategy;
+import io.debezium.util.Threads;
+import io.debezium.util.ThreadNameContext;
 
 /**
  *
