@@ -158,12 +158,15 @@ public abstract class AbstractNotificationsIT<T extends SourceConnector> extends
             MBeanException, InterruptedException {
 
         // Testing.Print.enable();
-
+        System.setProperty("database.hostname", "localhost");
+        System.setProperty("database.replica.hostname", "localhost");
         startConnector(config -> config
                 .with(CommonConnectorConfig.FAIL_ON_NO_TABLES, false)
                 .with(CommonConnectorConfig.NOTIFICATION_ENABLED_CHANNELS, "jmx"));
 
+        System.out.println("Starting connector: " + connector() + ", server: " + server() + ", task: " + task() + ", database: " + database());
         assertConnectorIsRunning();
+        System.out.println("Connector started:)");
 
         waitForSnapshotToBeCompleted(connector(), server(), task(), database());
 

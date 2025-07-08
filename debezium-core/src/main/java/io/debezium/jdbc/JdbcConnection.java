@@ -70,6 +70,7 @@ import io.debezium.util.BoundedConcurrentHashMap.EvictionListener;
 import io.debezium.util.Collect;
 import io.debezium.util.ColumnUtils;
 import io.debezium.util.Strings;
+import io.debezium.util.ThreadNameContext;
 import io.debezium.util.Threads;
 
 /**
@@ -323,6 +324,7 @@ public class JdbcConnection implements AutoCloseable {
     private final Operations initialOps;
     private final String openingQuoteCharacter;
     private final String closingQuoteCharacter;
+    protected final ThreadNameContext threadNameContext;
     private volatile Connection conn;
     private final int queryTimeout;
 
@@ -332,8 +334,9 @@ public class JdbcConnection implements AutoCloseable {
      * @param config the configuration; may not be null
      * @param connectionFactory the connection factory; may not be null
      */
-    public JdbcConnection(JdbcConfiguration config, ConnectionFactory connectionFactory, String openingQuoteCharacter, String closingQuoteCharacter) {
-        this(config, connectionFactory, null, openingQuoteCharacter, closingQuoteCharacter);
+    public JdbcConnection(JdbcConfiguration config, ConnectionFactory connectionFactory, String openingQuoteCharacter, String closingQuoteCharacter,
+                          ThreadNameContext threadNameContext) {
+        this(config, connectionFactory, null, openingQuoteCharacter, closingQuoteCharacter, threadNameContext);
     }
 
     /**
@@ -347,12 +350,13 @@ public class JdbcConnection implements AutoCloseable {
      * @param closingQuotingChar the closing quoting character
      */
     protected JdbcConnection(JdbcConfiguration config, ConnectionFactory connectionFactory, Operations initialOperations,
-                             String openingQuotingChar, String closingQuotingChar) {
+                             String openingQuotingChar, String closingQuotingChar, ThreadNameContext threadNameContext) {
         this.config = config;
         this.factory = new ConnectionFactoryDecorator(connectionFactory);
         this.initialOps = initialOperations;
         this.openingQuoteCharacter = openingQuotingChar;
         this.closingQuoteCharacter = closingQuotingChar;
+        this.threadNameContext = threadNameContext;
         this.conn = null;
         this.queryTimeout = (int) config.getQueryTimeout().toSeconds();
     }
@@ -983,7 +987,7 @@ public class JdbcConnection implements AutoCloseable {
                 catch (SQLException e) {
                     throw new RuntimeException(e);
                 }
-            }, Duration.ofSeconds(WAIT_FOR_CLOSE_SECONDS), JdbcConnection.class.getSimpleName(), "jdbc-connection-close");
+            }, Duration.ofSeconds(WAIT_FOR_CLOSE_SECONDS), JdbcConnection.class.getSimpleName(), "jdbc-connection-close", threadNameContext);
         }
         catch (TimeoutException | InterruptedException e) {
             LOGGER.warn("Failed to close database connection by calling close(), attempting abort()");
