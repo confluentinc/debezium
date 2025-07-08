@@ -1733,7 +1733,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
         return taskId;
     }
 
-    public String getConnectorThreadTaskId() {
+    public String getConnectorTaskId() {
         if (taskId == null || taskId.isEmpty()) {
             return "0";
         }
