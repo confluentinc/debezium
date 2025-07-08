@@ -1123,7 +1123,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
                     "The pattern used to name the threads created during connector lifetime. "
                             + "The default value is '${debezium}-${connector.class.simple}-${topic.prefix}-${functionality}'. "
                             + "Available variables are: ${debezium}, ${connector.class.simple}, ${topic.prefix}, ${functionality} "
-                            + "and ${connector.name} and ${task.id} to include connector name and task id in thread names. "
+                            + "${connector.name} and ${task.id} to include connector name and task id in thread names. "
                             + "Custom patterns can be specified while maintaining the default structure.");
 
     protected static final ConfigDefinition CONFIG_DEFINITION = ConfigDefinition.editor()

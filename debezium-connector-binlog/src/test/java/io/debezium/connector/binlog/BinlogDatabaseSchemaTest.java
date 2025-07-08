@@ -257,8 +257,7 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
         assertTableIncluded("captured.nct");
         assertTableExcluded("non_captured.nct");
 
-        final Configuration configFull = DATABASE.defaultConfigWithoutDatabaseFilter()
-                .build();
+        final Configuration configFull = DATABASE.defaultConfigWithoutDatabaseFilter().build();
         schema = getSchema(configFull);
         schema.recover(Offsets.of(partition, offset));
 
@@ -291,8 +290,7 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
         assertTableIncluded("captured.nct");
         assertTableExcluded("non_captured.nct");
 
-        final Configuration configFull = DATABASE.defaultConfigWithoutDatabaseFilter()
-                .build();
+        final Configuration configFull = DATABASE.defaultConfigWithoutDatabaseFilter().build();
         schema = getSchema(configFull);
         schema.recover(Offsets.of(partition, offset));
 
@@ -324,8 +322,7 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
         assertTableExcluded("captured.nct");
         assertTableExcluded("non_captured.nct");
 
-        final Configuration configFull = DATABASE.defaultConfigWithoutDatabaseFilter()
-                .build();
+        final Configuration configFull = DATABASE.defaultConfigWithoutDatabaseFilter().build();
         schema = getSchema(configFull);
         schema.recover(Offsets.of(partition, offset));
 
@@ -358,8 +355,7 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
         assertTableExcluded("captured.nct");
         assertTableExcluded("non_captured.nct");
 
-        final Configuration configFull = DATABASE.defaultConfigWithoutDatabaseFilter()
-                .build();
+        final Configuration configFull = DATABASE.defaultConfigWithoutDatabaseFilter().build();
         schema = getSchema(configFull);
         schema.recover(Offsets.of(partition, offset));
 
