@@ -17,7 +17,7 @@ public class ThreadNameContext {
         return new ThreadNameContext(
                 connectorConfig.connectorName(),
                 connectorConfig.getConnectorThreadNamePattern(),
-                connectorConfig.getTaskId());
+                connectorConfig.getConnectorThreadTaskId());
     }
 
     /**

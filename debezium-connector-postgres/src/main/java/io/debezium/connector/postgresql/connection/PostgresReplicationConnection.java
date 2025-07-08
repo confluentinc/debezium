@@ -114,8 +114,7 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
                                           TypeRegistry typeRegistry,
                                           Properties streamParams,
                                           PostgresSchema schema) {
-        super(addDefaultSettings(config.getJdbcConfig()), PostgresConnection.FACTORY, "\"", "\"", new ThreadNameContext(config.connectorName(),
-                config.getConnectorThreadNamePattern(), config.getTaskId()));
+        super(addDefaultSettings(config.getJdbcConfig()), PostgresConnection.FACTORY, "\"", "\"", ThreadNameContext.from(config));
 
         this.connectorConfig = config;
         this.slotName = slotName;

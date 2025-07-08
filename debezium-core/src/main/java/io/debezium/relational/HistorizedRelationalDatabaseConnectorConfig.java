@@ -134,7 +134,7 @@ public abstract class HistorizedRelationalDatabaseConnectorConfig extends Relati
                 .withDefault(SchemaHistory.INTERNAL_CONNECTOR_ID, logicalName)
                 .withDefault(SchemaHistory.INTERNAL_CONNECTOR_THREAD_NAME_PATTERN, connectorThreadNamePattern)
                 .withDefault(SchemaHistory.INTERNAL_CONNECTOR_NAME, connectorName())
-                .withDefault(SchemaHistory.INTERNAL_TASK_ID, getTaskId())
+                .withDefault(SchemaHistory.INTERNAL_TASK_ID, getConnectorThreadTaskId())
                 .build();
 
         HistoryRecordComparator historyComparator = getHistoryRecordComparator();

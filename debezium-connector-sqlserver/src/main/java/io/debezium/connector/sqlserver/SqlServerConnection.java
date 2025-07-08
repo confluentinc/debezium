@@ -142,8 +142,7 @@ public class SqlServerConnection extends JdbcConnection {
     public SqlServerConnection(SqlServerConnectorConfig config, SqlServerValueConverters valueConverters,
                                Set<Envelope.Operation> skippedOperations,
                                boolean useSingleDatabase) {
-        super(config.getJdbcConfig(), createConnectionFactory(config.getJdbcConfig(), useSingleDatabase), OPENING_QUOTING_CHARACTER, CLOSING_QUOTING_CHARACTER, new ThreadNameContext(config.connectorName(),
-                config.getConnectorThreadNamePattern(), config.getTaskId()));
+        super(config.getJdbcConfig(), createConnectionFactory(config.getJdbcConfig(), useSingleDatabase), OPENING_QUOTING_CHARACTER, CLOSING_QUOTING_CHARACTER, ThreadNameContext.from(config));
 
         defaultValueConverter = new SqlServerDefaultValueConverter(this::connection, valueConverters);
         this.queryFetchSize = config.getQueryFetchSize();

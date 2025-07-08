@@ -1253,7 +1253,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
         this.signalPollInterval = Duration.ofMillis(config.getLong(SIGNAL_POLL_INTERVAL_MS));
         this.signalEnabledChannels = getSignalEnabledChannels(config);
         this.skippedOperations = determineSkippedOperations(config);
-        this.taskId = config.getString(TASK_ID, "0");
+        this.taskId = config.getString(TASK_ID);
         this.notificationTopicName = config.getString(SinkNotificationChannel.NOTIFICATION_TOPIC);
         this.enabledNotificationChannels = config.getList(NOTIFICATION_ENABLED_CHANNELS);
         this.skipMessagesWithoutChange = config.getBoolean(SKIP_MESSAGES_WITHOUT_CHANGE);
@@ -1730,6 +1730,13 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
     }
 
     public String getTaskId() {
+        return taskId;
+    }
+
+    public String getConnectorThreadTaskId() {
+        if (taskId == null || taskId.isEmpty()) {
+            return "0";
+        }
         return taskId;
     }
 
