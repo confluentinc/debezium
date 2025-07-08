@@ -42,7 +42,7 @@ public class SchemaHistoryTopicIT extends AbstractAsyncEngineConnectorTest {
     private SqlServerConnection connection;
 
     @Before
-    public void before() throws SQLException {
+    public void before() throws SQLException, InterruptedException {
         TestHelper.createTestDatabase();
         connection = TestHelper.testConnection();
         connection.execute(
@@ -54,6 +54,10 @@ public class SchemaHistoryTopicIT extends AbstractAsyncEngineConnectorTest {
 
         initializeConnectorTestFramework();
         Testing.Files.delete(TestHelper.SCHEMA_HISTORY_PATH);
+
+        // In some cases the max lsn from lsn_time_mapping table was coming out to be null, since
+        // the operations done above needed some time to be captured by the capture process.
+        Thread.sleep(1000);
     }
 
     @After
@@ -304,8 +308,8 @@ public class SchemaHistoryTopicIT extends AbstractAsyncEngineConnectorTest {
 
         connection.execute("INSERT INTO tabled VALUES(1, 'd')");
 
-        // 1-2 schema events + 1 data event
-        records = consumeRecordsByTopic(2 + 1);
+        // 1 schema event + 1 data event
+        records = consumeRecordsByTopic(1 + 1);
         assertThat(records.recordsForTopic("server1.testDB1.dbo.tabled")).hasSize(1);
 
         final List<SourceRecord> schemaEvents = records.recordsForTopic("server1");
