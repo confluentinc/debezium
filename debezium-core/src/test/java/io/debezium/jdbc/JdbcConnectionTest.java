@@ -28,13 +28,16 @@ import java.util.concurrent.TimeUnit;
 import org.junit.Test;
 
 import io.debezium.jdbc.JdbcConnection.ConnectionFactory;
+import io.debezium.util.ThreadNameContext;
 
 public class JdbcConnectionTest {
 
     @Test
     public void testNormalClose() throws SQLException {
         ConnectionFactory connFactory = (config) -> new NormalConnection();
-        JdbcConnection conn = new JdbcConnection(JdbcConfiguration.empty(), connFactory, "\"", "\"");
+
+        JdbcConnection conn = new JdbcConnection(JdbcConfiguration.empty(), connFactory, "\"", "\"",
+                new ThreadNameContext("test-connector", "${debezium}-${connector.name}-${task.id}", "0"));
         conn.connect();
         conn.close();
     }
@@ -42,7 +45,8 @@ public class JdbcConnectionTest {
     @Test
     public void testForceClose() throws SQLException {
         ConnectionFactory connFactory = (config) -> new TimingOutConnection();
-        JdbcConnection conn = new JdbcConnection(JdbcConfiguration.empty(), connFactory, "\"", "\"");
+        JdbcConnection conn = new JdbcConnection(JdbcConfiguration.empty(), connFactory, "\"", "\"",
+                new ThreadNameContext("test-connector", "${debezium}-${connector.name}-${task.id}", "0"));
         conn.connect();
         conn.close();
     }
@@ -50,7 +54,8 @@ public class JdbcConnectionTest {
     @Test(expected = SQLException.class)
     public void testRogueConnection() throws SQLException {
         ConnectionFactory connFactory = (config) -> new RogueConnection();
-        JdbcConnection conn = new JdbcConnection(JdbcConfiguration.empty(), connFactory, "\"", "\"");
+        JdbcConnection conn = new JdbcConnection(JdbcConfiguration.empty(), connFactory, "\"", "\"",
+                new ThreadNameContext("test-connector", "${debezium}-${connector.name}-${task.id}", "0"));
         conn.connect();
         conn.close();
     }
