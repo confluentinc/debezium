@@ -34,7 +34,7 @@ public class IncrementalSnapshotWithRecompileIT extends AbstractIncrementalSnaps
     public ConditionalFail conditionalFail = new ConditionalFail();
 
     @Before
-    public void before() throws SQLException {
+    public void before() throws SQLException, InterruptedException {
         TestHelper.createTestDatabase();
         connection = TestHelper.testConnectionWithOptionRecompile();
         connection.execute(
@@ -46,6 +46,10 @@ public class IncrementalSnapshotWithRecompileIT extends AbstractIncrementalSnaps
 
         initializeConnectorTestFramework();
         Testing.Files.delete(TestHelper.SCHEMA_HISTORY_PATH);
+
+        // In some cases the max lsn from lsn_time_mapping table was coming out to be null, since
+        // the operations done above needed some time to be captured by the capture process.
+        Thread.sleep(1000);
     }
 
     @After
