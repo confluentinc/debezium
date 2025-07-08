@@ -15,6 +15,7 @@ import io.debezium.config.Configuration;
 import io.debezium.connector.binlog.jdbc.BinlogConnectorConnection;
 import io.debezium.jdbc.JdbcConfiguration;
 import io.debezium.jdbc.JdbcConnection;
+import io.debezium.util.ThreadNameContext;
 
 /**
  * @author Chris Cranford
@@ -22,7 +23,7 @@ import io.debezium.jdbc.JdbcConnection;
 public abstract class BinlogTestConnection extends JdbcConnection {
 
     public BinlogTestConnection(JdbcConfiguration config, ConnectionFactory factory) {
-        super(addDefaultSettings(config), factory, "`", "`");
+        super(addDefaultSettings(config), factory, "`", "`", new ThreadNameContext("test-connector", "${debezium}-${connector.name}-${task.id}", "0"));
     }
 
     /**

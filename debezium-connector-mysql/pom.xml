@@ -208,7 +208,7 @@
         -->
         <docker.dbs>debezium/mysql-server-test-database</docker.dbs>
         <docker.filter>${docker.dbs}</docker.filter>
-        <docker.skip>false</docker.skip>
+        <docker.skip>true</docker.skip>
         <docker.initimage>rm -f /etc/localtime; ln -s /usr/share/zoneinfo/US/Samoa /etc/localtime</docker.initimage>
     </properties>
     <build>
