@@ -862,6 +862,7 @@ public class PostgresConnection extends JdbcConnection {
             if (slotState == null) {
                 return false;
             }
+            LOGGER.info("Slot '{}' has restart LSN '{}'", slotName, slotState.slotRestartLsn());
             return storedLsn == null || slotState.slotRestartLsn().compareTo(storedLsn) <= 0;
         }
         catch (SQLException e) {
