@@ -786,21 +786,15 @@ public class JdbcConnection implements AutoCloseable {
             statement.execute();
         } catch (SQLException e) {
             // Check if this is a connection-related error that warrants retry
-            if (isConnectionException(e) && !isValid()) {
+            if (isConnectionException(e))  {
                 LOGGER.warn("Connection was closed, reconnecting and retrying", e);
-                
-                // Invalidate cached statements and reconnect
-                invalidateStatementCache();
-                reconnect();
-                
-                // Create new statement with fresh connection and retry
+
+                close();
+                connect();
+
                 statement = createPreparedStatement(stmt);
                 if (preparer != null) {
                     preparer.accept(statement);
-                }
-                statement.setQueryTimeout(queryTimeout);
-                if (LOGGER.isTraceEnabled()) {
-                    LOGGER.trace("Retrying statement '{}' with {}s timeout", stmt, queryTimeout);
                 }
                 statement.execute();
             } else {
@@ -814,23 +808,7 @@ public class JdbcConnection implements AutoCloseable {
      * Checks if the exception indicates a connection issue.
      */
     private boolean isConnectionException(SQLException e) {
-        // Check SQL state for connection exceptions (08xxx)
-        String sqlState = e.getSQLState();
-        if (sqlState != null && sqlState.startsWith("08")) {
-            return true;
-        }
-        
-        // Check for common connection exception types
-        return e instanceof java.sql.SQLNonTransientConnectionException ||
-               e instanceof java.sql.SQLRecoverableException;
-    }
-
-    /**
-     * Invalidates all cached prepared statements.
-     */
-    private void invalidateStatementCache() {
-        statementCache.values().forEach(this::cleanupPreparedStatement);
-        statementCache.clear();
+        return (e.getMessage() != null && e.getMessage().contains("connection closed"));
     }
 
     /**
