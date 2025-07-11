@@ -448,7 +448,7 @@ public class AbstractIncrementalSnapshotContext<T> implements IncrementalSnapsho
                 List<LinkedHashMap<String, String>> dataCollectionsMap = dataCollectionsToSnapshot.stream()
                         .map(x -> {
                             LinkedHashMap<String, String> map = new LinkedHashMap<>();
-                            map.put(DATA_COLLECTIONS_TO_SNAPSHOT_KEY_ID, x.getId().toString());
+                            map.put(DATA_COLLECTIONS_TO_SNAPSHOT_KEY_ID, maybeQuoteId(x.getId()).toString());
                             map.put(DATA_COLLECTIONS_TO_SNAPSHOT_KEY_ADDITIONAL_CONDITION, x.getAdditionalCondition().orElse(null));
                             map.put(DATA_COLLECTIONS_TO_SNAPSHOT_KEY_SURROGATE_KEY, x.getSurrogateKey().orElse(null));
                             return map;
@@ -474,6 +474,13 @@ public class AbstractIncrementalSnapshotContext<T> implements IncrementalSnapsho
             catch (JsonProcessingException e) {
                 throw new DebeziumException("Cannot de-serialize dataCollectionsToSnapshot information");
             }
+        }
+
+        private T maybeQuoteId(T id) {
+            if (id instanceof TableId) {
+                return (T) ((TableId) id).toDoubleQuoted();
+            }
+            return id; // Assuming T is not a TableId, return as is
         }
     }
 }
