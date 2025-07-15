@@ -793,6 +793,7 @@ public class JdbcConnection implements AutoCloseable {
         }
         catch (SQLException e) {
             // Check if this is a connection-related error that warrants retry
+            LOGGER.error("SQLException ", e);
             if (isConnectionException(e)) {
                 LOGGER.warn("Connection was closed, reconnecting and retrying", e);
 
@@ -809,6 +810,7 @@ public class JdbcConnection implements AutoCloseable {
                 throw e;
             }
         }
+        LOGGER.error("no exceptions, returning");
         return this;
     }
 
