@@ -781,12 +781,19 @@ public class JdbcConnection implements AutoCloseable {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("Executing statement '{}' with {}s timeout", stmt, queryTimeout);
         }
-        
+
         try {
+            LOGGER.error("Sleeping for 120 seconds");
+            Thread.sleep(120000);
             statement.execute();
-        } catch (SQLException e) {
+        }
+        catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new SQLException("Thread was interrupted during sleep", e);
+        }
+        catch (SQLException e) {
             // Check if this is a connection-related error that warrants retry
-            if (isConnectionException(e))  {
+            if (isConnectionException(e)) {
                 LOGGER.warn("Connection was closed, reconnecting and retrying", e);
 
                 close();
@@ -797,7 +804,8 @@ public class JdbcConnection implements AutoCloseable {
                     preparer.accept(statement);
                 }
                 statement.execute();
-            } else {
+            }
+            else {
                 throw e;
             }
         }
