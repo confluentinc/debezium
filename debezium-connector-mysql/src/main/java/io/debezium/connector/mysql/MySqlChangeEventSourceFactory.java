@@ -6,9 +6,16 @@
 package io.debezium.connector.mysql;
 
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
 import org.apache.kafka.connect.source.SourceRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.debezium.connector.base.ChangeEventQueue;
 import io.debezium.connector.binlog.jdbc.BinlogConnectorConnection;
@@ -29,8 +36,11 @@ import io.debezium.snapshot.SnapshotterService;
 import io.debezium.spi.schema.DataCollectionId;
 import io.debezium.util.Clock;
 import io.debezium.util.Strings;
+import io.debezium.util.Threads;
 
 public class MySqlChangeEventSourceFactory implements ChangeEventSourceFactory<MySqlPartition, MySqlOffsetContext> {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(MySqlChangeEventSourceFactory.class);
 
     private final MySqlConnectorConfig configuration;
     private final MainConnectionProvidingConnectionFactory<BinlogConnectorConnection> connectionFactory;
@@ -85,8 +95,53 @@ public class MySqlChangeEventSourceFactory implements ChangeEventSourceFactory<M
     }
 
     private void modifyAndFlushLastRecord(Function<SourceRecord, SourceRecord> modify) throws InterruptedException {
-        queue.flushBuffer(dataChange -> new DataChangeEvent(modify.apply(dataChange.getRecord())));
-        queue.disableBuffering();
+        // Check if the current thread has been interrupted before attempting to flush
+        if (Thread.currentThread().isInterrupted()) {
+            LOGGER.info("Thread has been interrupted, skipping flush of buffered record");
+            queue.disableBuffering();
+            throw new InterruptedException("Thread interrupted during snapshot cleanup");
+        }
+
+        try {
+            // Use a separate thread with timeout to prevent indefinite blocking
+            // when the consumer thread is dead but coordinator thread isn't interrupted
+            ExecutorService executor = Threads.newSingleThreadExecutor(MySqlChangeEventSourceFactory.class,
+                    "mysql-connector", "snapshot-buffer-flush");
+            try {
+                Future<Void> flushFuture = executor.submit(() -> {
+                    try {
+                        queue.flushBuffer(dataChange -> new DataChangeEvent(modify.apply(dataChange.getRecord())));
+                        return null;
+                    }
+                    catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException(e);
+                    }
+                });
+
+                // Wait with a reasonable timeout (30 seconds)
+                flushFuture.get(30, TimeUnit.SECONDS);
+
+            }
+            catch (TimeoutException e) {
+                LOGGER.warn("Timed out waiting to flush buffered record during snapshot cleanup. " +
+                        "This likely means the consumer thread is no longer available. Continuing with cleanup.");
+            }
+            catch (ExecutionException e) {
+                Throwable cause = e.getCause();
+                if (cause instanceof RuntimeException && cause.getCause() instanceof InterruptedException) {
+                    throw (InterruptedException) cause.getCause();
+                }
+                throw new RuntimeException("Failed to flush buffered record", cause);
+            }
+            finally {
+                executor.shutdownNow();
+            }
+        }
+        finally {
+            // Always disable buffering to prevent memory leaks
+            queue.disableBuffering();
+        }
     }
 
     @Override
