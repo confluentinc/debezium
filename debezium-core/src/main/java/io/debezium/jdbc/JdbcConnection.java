@@ -783,13 +783,9 @@ public class JdbcConnection implements AutoCloseable {
         }
 
         try {
-            LOGGER.error("Sleeping for 120 seconds");
-            Thread.sleep(120000);
+            LOGGER.error("Closing connection explicitly to test behaviour of exception catch");
+            conn.close();
             statement.execute();
-        }
-        catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new SQLException("Thread was interrupted during sleep", e);
         }
         catch (SQLException e) {
             // Check if this is a connection-related error that warrants retry
