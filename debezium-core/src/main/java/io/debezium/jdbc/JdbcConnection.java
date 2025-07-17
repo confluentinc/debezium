@@ -788,6 +788,7 @@ public class JdbcConnection implements AutoCloseable {
             statement.execute();
         }
         catch (SQLException e) {
+            LOGGER.error("Caught exception while executing statement '{}'", stmt, e);
             // Check if this is a connection-related error that warrants retry
             if (isConnectionException(e)) {
                 LOGGER.warn("Connection was closed, reconnecting and retrying", e);
