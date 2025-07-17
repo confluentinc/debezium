@@ -783,8 +783,8 @@ public class JdbcConnection implements AutoCloseable {
         }
 
         try {
-            Thread.sleep(120000);
             LOGGER.error("waiting for 120 sec, cut down the TCP connection");
+            Thread.sleep(120000);
             statement.execute();
         }
         catch (SQLException e) {
