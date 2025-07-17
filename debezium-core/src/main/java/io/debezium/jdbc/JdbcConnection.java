@@ -773,9 +773,6 @@ public class JdbcConnection implements AutoCloseable {
      * @see #execute(Operations)
      */
     public JdbcConnection prepareUpdate(String stmt, StatementPreparer preparer) throws SQLException {
-        try {
-            LOGGER.error("Closing connection explicitly to test behaviour of exception catch");
-            conn.close();
         PreparedStatement statement = createPreparedStatement(stmt);
         if (preparer != null) {
             preparer.accept(statement);
@@ -784,18 +781,20 @@ public class JdbcConnection implements AutoCloseable {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("Executing statement '{}' with {}s timeout", stmt, queryTimeout);
         }
+
+        try {
+            Thread.sleep(120000);
+            LOGGER.error("waiting for 120 sec, cut down the TCP connection");
             statement.execute();
         }
         catch (SQLException e) {
-            LOGGER.error("Caught exception while executing statement '{}'", stmt, e);
             // Check if this is a connection-related error that warrants retry
             if (isConnectionException(e)) {
                 LOGGER.warn("Connection was closed, reconnecting and retrying", e);
-
                 close();
                 connect();
 
-                PreparedStatement statement = createPreparedStatement(stmt);
+                statement = createPreparedStatement(stmt);
                 if (preparer != null) {
                     preparer.accept(statement);
                 }
@@ -804,6 +803,8 @@ public class JdbcConnection implements AutoCloseable {
             else {
                 throw e;
             }
+        } catch (InterruptedException e) {
+            throw new SQLException(e);
         }
         LOGGER.error("no exceptions, returning");
         return this;
