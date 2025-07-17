@@ -290,7 +290,7 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
                                            SnapshottingTask snapshottingTask)
             throws InterruptedException {
 
-        CatchUpStreamingResult catchUpStreamingResult = executeCatchUpStreaming(context, snapshotSource, partition, previousOffset);
+        CatchUpStreamingResult catchUpStreamingResult =  executeCatchUpStreaming(context, snapshotSource, partition, previousOffset);
         if (catchUpStreamingResult.performedCatchUpStreaming) {
             streamingConnected(false);
             commitOffsetLock.lock();
