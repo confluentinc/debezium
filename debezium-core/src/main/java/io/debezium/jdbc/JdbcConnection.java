@@ -795,7 +795,7 @@ public class JdbcConnection implements AutoCloseable {
                 close();
                 connect();
 
-                statement = createPreparedStatement(stmt);
+                PreparedStatement statement = createPreparedStatement(stmt);
                 if (preparer != null) {
                     preparer.accept(statement);
                 }
