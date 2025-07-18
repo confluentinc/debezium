@@ -244,6 +244,12 @@ public class MySqlConnectorTask extends BinlogSourceTask<MySqlPartition, MySqlOf
 
     @Override
     protected void doStop() {
+        // Signal the queue to shutdown first to unblock any stuck coordinator threads
+        if (queue != null) {
+            LOGGER.info("Shutting down change event queue to unblock any waiting threads");
+            queue.shutdown();
+        }
+
         try {
             if (connection != null) {
                 connection.close();

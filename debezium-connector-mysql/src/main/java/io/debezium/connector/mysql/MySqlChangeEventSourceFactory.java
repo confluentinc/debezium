@@ -6,11 +6,6 @@
 package io.debezium.connector.mysql;
 
 import java.util.Optional;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
 import org.apache.kafka.connect.source.SourceRecord;
@@ -36,7 +31,6 @@ import io.debezium.snapshot.SnapshotterService;
 import io.debezium.spi.schema.DataCollectionId;
 import io.debezium.util.Clock;
 import io.debezium.util.Strings;
-import io.debezium.util.Threads;
 
 public class MySqlChangeEventSourceFactory implements ChangeEventSourceFactory<MySqlPartition, MySqlOffsetContext> {
 
@@ -103,76 +97,25 @@ public class MySqlChangeEventSourceFactory implements ChangeEventSourceFactory<M
         }
 
         try {
-            // Retry flush with progressively longer timeouts to maximize chance of success
-            // while still preventing indefinite blocking
-            final int[] retryTimeouts = { 5, 10, 15 }; // seconds: total 30 seconds max
-            boolean flushSuccessful = false;
-
-            for (int attempt = 0; attempt < retryTimeouts.length && !flushSuccessful; attempt++) {
-                int timeoutSeconds = retryTimeouts[attempt];
-                LOGGER.debug("Attempting to flush buffered record (attempt {}/{}, timeout: {}s)",
-                        attempt + 1, retryTimeouts.length, timeoutSeconds);
-
-                ExecutorService executor = Threads.newSingleThreadExecutor(MySqlChangeEventSourceFactory.class,
-                        "mysql-connector", "snapshot-buffer-flush-" + (attempt + 1));
-                try {
-                    Future<Void> flushFuture = executor.submit(() -> {
-                        try {
-                            queue.flushBuffer(dataChange -> new DataChangeEvent(modify.apply(dataChange.getRecord())));
-                            return null;
-                        }
-                        catch (InterruptedException e) {
-                            Thread.currentThread().interrupt();
-                            throw new RuntimeException(e);
-                        }
-                    });
-
-                    // Wait with current attempt timeout
-                    flushFuture.get(timeoutSeconds, TimeUnit.SECONDS);
-                    flushSuccessful = true;
-                    LOGGER.info("Successfully flushed buffered record on attempt {}/{}",
-                            attempt + 1, retryTimeouts.length);
-
-                }
-                catch (TimeoutException e) {
-                    LOGGER.warn("Flush attempt {}/{} timed out after {}s. {}",
-                            attempt + 1, retryTimeouts.length, timeoutSeconds,
-                            (attempt + 1 < retryTimeouts.length) ? "Retrying..." : "Giving up.");
-                }
-                catch (ExecutionException e) {
-                    Throwable cause = e.getCause();
-                    if (cause instanceof RuntimeException && cause.getCause() instanceof InterruptedException) {
-                        throw (InterruptedException) cause.getCause();
-                    }
-                    // Log but continue to next retry for other execution exceptions
-                    LOGGER.warn("Flush attempt {}/{} failed with execution exception: {}. {}",
-                            attempt + 1, retryTimeouts.length, cause.getMessage(),
-                            (attempt + 1 < retryTimeouts.length) ? "Retrying..." : "Giving up.");
-                }
-                finally {
-                    executor.shutdownNow();
-                }
-            }
-
-            if (!flushSuccessful) {
-                LOGGER.warn("All flush attempts failed. This likely means the consumer thread is no longer " +
-                        "available or broker is unavailable. One buffered record may be lost.");
-            }
+            // Attempt to flush the buffered record
+            // If queue is shut down, this will throw InterruptedException and we'll handle it gracefully
+            queue.flushBuffer(dataChange -> new DataChangeEvent(modify.apply(dataChange.getRecord())));
+            LOGGER.debug("Successfully flushed buffered record during snapshot cleanup");
+        }
+        catch (InterruptedException e) {
+            // Queue was shut down or thread was interrupted - this is expected during task shutdown
+            LOGGER.info("Buffered record flush interrupted during snapshot cleanup, likely due to task shutdown");
+            throw e;
         }
         finally {
-            // Always attempt to disable buffering to prevent memory leaks
-            // Note: In extreme failure scenarios (broker unavailable + consumer dead),
-            // this may fail due to assertion in debug mode, but the coordinator thread
-            // will no longer be stuck indefinitely due to the timeout above
+            // Always disable buffering to prevent memory leaks
             try {
                 queue.disableBuffering();
             }
             catch (AssertionError e) {
-                // Assertion failed due to non-empty buffer - this is expected in broker failure scenarios
-                // The main memory leak (stuck coordinator thread) has been prevented by the timeout
-                LOGGER.warn("Cannot disable buffering cleanly due to remaining buffered record. " +
-                        "This is expected when broker is unavailable during snapshot cleanup. " +
-                        "Coordinator thread memory leak has been prevented by timeout mechanism.");
+                // In rare cases, assertion may fail if buffer is not empty due to shutdown timing
+                // This is acceptable as the queue shutdown mechanism prevents the memory leak
+                LOGGER.debug("Buffer not empty during cleanup due to shutdown timing - this is expected");
             }
         }
     }
