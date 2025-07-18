@@ -158,6 +158,7 @@ public abstract class AbstractNotificationsIT<T extends SourceConnector> extends
             MBeanException, InterruptedException {
 
         // Testing.Print.enable();
+
         startConnector(config -> config
                 .with(CommonConnectorConfig.FAIL_ON_NO_TABLES, false)
                 .with(CommonConnectorConfig.NOTIFICATION_ENABLED_CHANNELS, "jmx"));

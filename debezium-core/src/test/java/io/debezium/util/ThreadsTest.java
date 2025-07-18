@@ -20,7 +20,7 @@ public class ThreadsTest {
 
     private ThreadNameContext threadNameContext = new ThreadNameContext(
             "test-connector",
-            "${debezium}-${connector.name}-${task.id}",
+            "${debezium}-${connector.class.simple}-${topic.prefix}-${functionality}-${connector.name}-${task.id}",
             "0");
 
     @Test

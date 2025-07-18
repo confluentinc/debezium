@@ -74,8 +74,7 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
     @Test
     public void shouldApplyDdlStatementsAndRecover() throws InterruptedException {
         // Testing.Print.enable();
-        final Configuration config = DATABASE.defaultConfig()
-                .build();
+        final Configuration config = DATABASE.defaultConfig().build();
         schema = getSchema(config);
         schema.initializeStorage();
         final P partition = initializePartition(connectorConfig, config);
@@ -392,8 +391,7 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
     @FixFor("DBZ-6945")
     public void shouldProduceCorrectTableChangesForDropStatement() {
         // Testing.Print.enable();
-        final Configuration config = DATABASE.defaultConfig()
-                .build();
+        final Configuration config = DATABASE.defaultConfig().build();
         schema = getSchema(config);
         schema.initializeStorage();
         final P partition = initializePartition(connectorConfig, config);

@@ -243,8 +243,8 @@ public class PostgresConnectionIT {
         }
         ThreadNameContext threadNameContext = new ThreadNameContext(
                 "test-connector",
-                "test-connector-thread",
-                "test-task-1");
+                "${debezium}-${connector.class.simple}-${topic.prefix}-${functionality}-${connector.name}-${task.id}",
+                "0");
         try (PostgresConnection withIdleTransaction = new PostgresConnection(JdbcConfiguration.adapt(TestHelper.defaultJdbcConfig()),
                 PostgresConnection.CONNECTION_GENERAL, threadNameContext);
                 PostgresConnection withEmptyConfirmedFlushLSN = buildConnectionWithEmptyConfirmedFlushLSN(slotName)) {
@@ -262,8 +262,8 @@ public class PostgresConnectionIT {
     private PostgresConnection buildPG95PGConn(String name) {
         ThreadNameContext threadNameContext = new ThreadNameContext(
                 "test-connector",
-                "test-connector-thread",
-                "test-task-1");
+                "${debezium}-${connector.class.simple}-${topic.prefix}-${functionality}-${connector.name}-${task.id}",
+                "0");
         return new PostgresConnection(JdbcConfiguration.adapt(TestHelper.defaultJdbcConfig()), name, threadNameContext) {
             @Override
             protected ServerInfo.ReplicationSlot queryForSlot(String slotName, String database, String pluginName,
@@ -283,7 +283,7 @@ public class PostgresConnectionIT {
     private PostgresConnection buildConnectionWithEmptyConfirmedFlushLSN(String name) {
         ThreadNameContext threadNameContext = new ThreadNameContext(
                 "test-connector",
-                "test-connector-thread",
+                "${debezium}-${connector.class.simple}-${topic.prefix}-${functionality}-${connector.name}-${task.id}",
                 "0");
         return new PostgresConnection(JdbcConfiguration.adapt(TestHelper.defaultJdbcConfig()), name, threadNameContext) {
             @Override

@@ -49,8 +49,8 @@ public class QueryInformationSchemaMetadata extends AbstractTimescaleDbMetadata 
     private final Map<TableId, TableId> hypertableToAggregate = new HashMap<>();
     private final ThreadNameContext threadNameContext = new ThreadNameContext(
             "debezium-connector-postgres",
-            "debezium.connector.postgres.timescaledb.metadata.query",
-            "query-information-schema-metadata");
+            "${debezium}-${connector.class.simple}-${topic.prefix}-${functionality}-${connector.name}-${task.id}",
+            "0");
 
     public QueryInformationSchemaMetadata(Configuration config) {
         super(config);

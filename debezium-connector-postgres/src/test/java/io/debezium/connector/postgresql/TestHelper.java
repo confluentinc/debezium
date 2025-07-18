@@ -58,7 +58,7 @@ public final class TestHelper {
 
     public static final String CONNECTION_TEST = "Debezium Test";
     public static final String TEST_CONNECTOR_NAME = "test-connector";
-    public static final String TEST_THREAD_NAME_PATTERN = "test-connector-thread";
+    public static final String TEST_THREAD_NAME_PATTERN = "${debezium}-${connector.class.simple}-${topic.prefix}-${functionality}-${connector.name}-${task.id}";
     public static final String TEST_TASK_ID = "0";
     public static final String TEST_SERVER = "test_server";
     protected static final String TEST_DATABASE = "postgres";
