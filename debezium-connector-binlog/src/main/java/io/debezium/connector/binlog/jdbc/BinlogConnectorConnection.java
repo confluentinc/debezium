@@ -31,6 +31,7 @@ import io.debezium.relational.Column;
 import io.debezium.relational.Table;
 import io.debezium.relational.TableId;
 import io.debezium.util.Strings;
+import io.debezium.util.ThreadNameContext;
 
 /**
  * An abstract binlog-based connector connection implementation of {@link JdbcConnection}.
@@ -52,8 +53,8 @@ public abstract class BinlogConnectorConnection extends JdbcConnection {
     private final ConnectionConfiguration connectionConfig;
     private final BinlogFieldReader fieldReader;
 
-    public BinlogConnectorConnection(ConnectionConfiguration configuration, BinlogFieldReader fieldReader) {
-        super(configuration.config(), configuration.factory(), QUOTED_CHARACTER, QUOTED_CHARACTER);
+    public BinlogConnectorConnection(ConnectionConfiguration configuration, BinlogFieldReader fieldReader, ThreadNameContext threadNameContext) {
+        super(configuration.config(), configuration.factory(), QUOTED_CHARACTER, QUOTED_CHARACTER, threadNameContext);
         this.connectionConfig = configuration;
         this.fieldReader = fieldReader;
     }
