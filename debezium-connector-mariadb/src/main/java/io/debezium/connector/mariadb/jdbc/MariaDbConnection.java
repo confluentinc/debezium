@@ -8,6 +8,7 @@ package io.debezium.connector.mariadb.jdbc;
 import java.sql.SQLException;
 import java.util.function.Predicate;
 
+import io.debezium.util.ThreadNameContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,8 +29,9 @@ public class MariaDbConnection extends BinlogConnectorConnection {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MariaDbConnection.class);
 
-    public MariaDbConnection(ConnectionConfiguration configuration, BinlogFieldReader fieldReader) {
-        super(configuration, fieldReader);
+    public MariaDbConnection(ConnectionConfiguration configuration, BinlogFieldReader fieldReader,
+                             ThreadNameContext threadNameContext) {
+        super(configuration, fieldReader, threadNameContext);
     }
 
     @Override

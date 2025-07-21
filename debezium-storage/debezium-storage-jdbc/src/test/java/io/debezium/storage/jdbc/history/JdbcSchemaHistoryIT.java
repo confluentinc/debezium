@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import java.sql.SQLException;
 import java.time.Duration;
 
+import io.debezium.util.ThreadNameContext;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.junit.After;
@@ -147,7 +148,7 @@ public class JdbcSchemaHistoryIT extends AbstractAsyncEngineConnectorTest {
                 .withDatabase(DBNAME)
                 .build();
         final String url = "jdbc:mysql://${hostname}:${port}/${dbname}";
-        return new JdbcConnection(jdbcConfig, JdbcConnection.patternBasedFactory(url), "`", "`");
+        return new JdbcConnection(jdbcConfig, JdbcConnection.patternBasedFactory(url), "`", "`", new ThreadNameContext("test-connector","${debezium}-${connector.class.simple}-${topic.prefix}-${functionality}-${connector.name}-${task.id}","0"));
     }
 
     @Test
