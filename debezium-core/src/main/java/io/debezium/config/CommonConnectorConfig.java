@@ -1111,7 +1111,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
             .withDescription("Fail if no tables are found that match the configured filters.")
             .withDefault(true);
 
-    public static final Field CONNECTOR_THREAD_NAME_PATTERN = Field.createInternal("connector.thread.name.pattern")
+    public static final Field CONNECTOR_THREAD_NAME_PATTERN = Field.create("connector.thread.name.pattern")
             .withDisplayName("Connector Thread Name Pattern")
             .withType(Type.STRING)
             .withGroup(Field.createGroupEntry(Field.Group.ADVANCED, 32))
