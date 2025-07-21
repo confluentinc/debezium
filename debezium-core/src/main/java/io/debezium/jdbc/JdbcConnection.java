@@ -808,7 +808,7 @@ public class JdbcConnection implements AutoCloseable {
      * Checks if the exception indicates a connection issue.
      */
     private boolean isConnectionException(SQLException e) {
-        return (e.getMessage() != null && e.getMessage().contains("connection closed"));
+        return (e.getMessage() != null && e.getMessage().contains("No operations allowed after connection closed."));
     }
 
     /**
