@@ -14,6 +14,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import io.debezium.util.ThreadNameContext;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -101,7 +102,7 @@ public class MariaDbConnectorTask extends BinlogSourceTask<MariaDbPartition, Mar
 
         final MainConnectionProvidingConnectionFactory<BinlogConnectorConnection> connectionFactory = new DefaultMainConnectionProvidingConnectionFactory<>(() -> {
             final MariaDbConnectionConfiguration connectionConfig = new MariaDbConnectionConfiguration(config);
-            return new MariaDbConnection(connectionConfig, new MariaDbFieldReader(connectorConfig));
+            return new MariaDbConnection(connectionConfig, new MariaDbFieldReader(connectorConfig), ThreadNameContext.from(connectorConfig));
         });
 
         this.connection = connectionFactory.mainConnection();

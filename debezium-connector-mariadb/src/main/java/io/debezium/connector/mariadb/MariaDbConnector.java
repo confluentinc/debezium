@@ -7,6 +7,7 @@ package io.debezium.connector.mariadb;
 
 import java.util.Map;
 
+import io.debezium.util.ThreadNameContext;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigValue;
 import org.apache.kafka.connect.connector.Task;
@@ -49,8 +50,8 @@ public class MariaDbConnector extends BinlogConnector<MariaDbConnectorConfig> {
     }
 
     @Override
-    protected MariaDbConnection createConnection(Configuration config, MariaDbConnectorConfig connectorConfig) {
-        return new MariaDbConnection(new MariaDbConnectionConfiguration(config), new MariaDbFieldReader(connectorConfig));
+    protected MariaDbConnection createConnection(Configuration config, MariaDbConnectorConfig connectorConfig, ThreadNameContext threadNameContext) {
+        return new MariaDbConnection(new MariaDbConnectionConfiguration(config), new MariaDbFieldReader(connectorConfig), threadNameContext);
     }
 
     @Override

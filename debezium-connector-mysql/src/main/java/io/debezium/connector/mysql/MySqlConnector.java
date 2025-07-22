@@ -16,6 +16,7 @@ import io.debezium.connector.binlog.BinlogConnector;
 import io.debezium.connector.mysql.jdbc.MySqlConnection;
 import io.debezium.connector.mysql.jdbc.MySqlConnectionConfiguration;
 import io.debezium.connector.mysql.jdbc.MySqlFieldReaderResolver;
+import io.debezium.util.ThreadNameContext;
 
 /**
  * A Kafka Connect source connector that creates tasks that read the MySQL binary log and generate the corresponding
@@ -53,10 +54,10 @@ public class MySqlConnector extends BinlogConnector<MySqlConnectorConfig> {
     }
 
     @Override
-    protected MySqlConnection createConnection(Configuration config, MySqlConnectorConfig connectorConfig) {
+    protected MySqlConnection createConnection(Configuration config, MySqlConnectorConfig connectorConfig, ThreadNameContext threadNameContext) {
         return new MySqlConnection(
                 new MySqlConnectionConfiguration(config),
-                MySqlFieldReaderResolver.resolve(connectorConfig));
+                MySqlFieldReaderResolver.resolve(connectorConfig), ThreadNameContext.from(connectorConfig));
     }
 
     @Override
