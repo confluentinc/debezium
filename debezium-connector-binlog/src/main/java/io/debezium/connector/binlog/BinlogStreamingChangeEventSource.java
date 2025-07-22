@@ -94,6 +94,7 @@ import io.debezium.time.Conversions;
 import io.debezium.util.Clock;
 import io.debezium.util.Metronome;
 import io.debezium.util.Strings;
+import io.debezium.util.ThreadNameContext;
 import io.debezium.util.Threads;
 
 /**
@@ -388,11 +389,13 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
                                                     Map<String, Thread> clientThreads,
                                                     BinlogConnectorConnection connection) {
         final BinaryLogClient client = taskContext.getBinaryLogClient();
+        final ThreadNameContext threadNameContext = ThreadNameContext.from(connectorConfig);
         client.setThreadFactory(
                 Threads.threadFactory(
                         getConnectorClass(),
                         connectorConfig.getLogicalName(),
                         "binlog-client",
+                        threadNameContext,
                         false,
                         false,
                         x -> clientThreads.put(x.getName(), x)));
