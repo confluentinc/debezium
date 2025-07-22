@@ -39,7 +39,8 @@ public abstract class AbstractSchemaHistory implements SchemaHistory {
 
     protected final Logger logger = LoggerFactory.getLogger(getClass());
 
-    public static Field.Set ALL_FIELDS = Field.setOf(NAME, INTERNAL_CONNECTOR_CLASS, INTERNAL_CONNECTOR_ID);
+    public static Field.Set ALL_FIELDS = Field.setOf(NAME, INTERNAL_CONNECTOR_CLASS, INTERNAL_CONNECTOR_ID, INTERNAL_CONNECTOR_NAME,
+            INTERNAL_CONNECTOR_THREAD_NAME_PATTERN, INTERNAL_TASK_ID);
 
     protected Configuration config;
     private HistoryRecordComparator comparator = HistoryRecordComparator.INSTANCE;

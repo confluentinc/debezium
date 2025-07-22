@@ -27,6 +27,7 @@ import io.debezium.connector.common.RelationalBaseSourceConnector;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.relational.RelationalTableFilters;
 import io.debezium.relational.TableId;
+import io.debezium.util.ThreadNameContext;
 import io.debezium.util.Threads;
 
 /**
@@ -63,10 +64,11 @@ public abstract class BinlogConnector<T extends BinlogConnectorConfig> extends R
         ConfigValue hostnameValue = configValues.get(RelationalDatabaseConnectorConfig.HOSTNAME.name());
         final T connectorConfig = createConnectorConfig(config);
         Duration timeout = connectorConfig.getConnectionValidationTimeout();
+        ThreadNameContext threadNameContext = ThreadNameContext.from(connectorConfig);
 
         try {
             Threads.runWithTimeout(this.getClass(), () -> {
-                try (BinlogConnectorConnection connection = createConnection(config, connectorConfig)) {
+                try (BinlogConnectorConnection connection = createConnection(config, connectorConfig, threadNameContext)) {
                     try {
                         connection.connect();
                         connection.execute("SELECT version()");
@@ -82,7 +84,7 @@ public abstract class BinlogConnector<T extends BinlogConnectorConfig> extends R
                 catch (SQLException e) {
                     LOGGER.error("Unexpected error shutting down the database connection", e);
                 }
-            }, timeout, connectorConfig.getLogicalName(), "connection-validation");
+            }, timeout, connectorConfig.getLogicalName(), "connection-validation", threadNameContext);
         }
         catch (TimeoutException e) {
             hostnameValue.addErrorMessage("Connection validation timed out after " + timeout.toMillis() + " ms");
@@ -96,7 +98,7 @@ public abstract class BinlogConnector<T extends BinlogConnectorConfig> extends R
     @SuppressWarnings("unchecked")
     public List<TableId> getMatchingCollections(Configuration config) {
         final T connectorConfig = createConnectorConfig(config);
-        try (BinlogConnectorConnection connection = createConnection(config, connectorConfig)) {
+        try (BinlogConnectorConnection connection = createConnection(config, connectorConfig, ThreadNameContext.from(connectorConfig))) {
             final List<TableId> tables = new ArrayList<>();
             final List<String> databaseNames = connection.availableDatabases();
             final RelationalTableFilters tableFilter = connectorConfig.getTableFilters();
@@ -123,7 +125,7 @@ public abstract class BinlogConnector<T extends BinlogConnectorConfig> extends R
      * @param connectorConfig the connector configuration; never null
      * @return the connector connection; never null
      */
-    protected abstract BinlogConnectorConnection createConnection(Configuration config, T connectorConfig);
+    protected abstract BinlogConnectorConnection createConnection(Configuration config, T connectorConfig, ThreadNameContext threadNameContext);
 
     /**
      * Create the connector configuration.
