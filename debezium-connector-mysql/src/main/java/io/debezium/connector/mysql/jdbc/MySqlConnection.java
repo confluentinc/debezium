@@ -16,6 +16,7 @@ import io.debezium.connector.binlog.gtid.GtidSet;
 import io.debezium.connector.binlog.jdbc.BinlogConnectorConnection;
 import io.debezium.connector.binlog.jdbc.BinlogFieldReader;
 import io.debezium.connector.mysql.gtid.MySqlGtidSet;
+import io.debezium.util.ThreadNameContext;
 
 /**
  * An {@link BinlogConnectorConnection} to be used with MySQL.
@@ -30,8 +31,9 @@ public class MySqlConnection extends BinlogConnectorConnection {
 
     private final String binaryLogStatusStatement;
 
-    public MySqlConnection(MySqlConnectionConfiguration connectionConfig, BinlogFieldReader fieldReader) {
-        super(connectionConfig, fieldReader);
+    public MySqlConnection(MySqlConnectionConfiguration connectionConfig, BinlogFieldReader fieldReader,
+                           ThreadNameContext threadNameContext) {
+        super(connectionConfig, fieldReader, threadNameContext);
 
         try {
             query(BINARY_LOG_STATUS_STATEMENT, rs -> {

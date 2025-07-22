@@ -254,6 +254,7 @@ public abstract class UniqueDatabase {
      */
     public Configuration.Builder defaultConfig() {
         return defaultConfigWithoutDatabaseFilter()
+                .with("name", "test-connector")
                 .with(BinlogConnectorConfig.DATABASE_INCLUDE_LIST, getDatabaseName());
     }
 
@@ -263,6 +264,7 @@ public abstract class UniqueDatabase {
      */
     public Configuration.Builder defaultConfigWithoutDatabaseFilter() {
         return defaultJdbcConfigBuilder()
+                .with("name", "test-connector")
                 .with(BinlogConnectorConfig.SERVER_ID, 18765)
                 .with(BinlogConnectorConfig.POLL_INTERVAL_MS, 10)
                 .with(BinlogConnectorConfig.SCHEMA_HISTORY, FileSchemaHistory.class)

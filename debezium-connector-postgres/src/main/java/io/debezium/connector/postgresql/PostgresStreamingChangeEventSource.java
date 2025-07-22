@@ -41,6 +41,7 @@ import io.debezium.snapshot.SnapshotterService;
 import io.debezium.util.Clock;
 import io.debezium.util.DelayStrategy;
 import io.debezium.util.ElapsedTimeStrategy;
+import io.debezium.util.ThreadNameContext;
 import io.debezium.util.Threads;
 
 /**
@@ -154,6 +155,7 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
         // replication slot could exist at the time of starting Debezium, so we will stream from the position in the slot
         // instead of the last position in the database
         boolean hasStartLsnStoredInContext = offsetContext != null;
+        ThreadNameContext threadNameContext = ThreadNameContext.from(connectorConfig);
 
         try {
             final WalPositionLocator walPosition;
@@ -175,7 +177,8 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
 
             // Start keep alive thread to prevent connection timeout during time-consuming operations the DB side.
             ReplicationStream stream = this.replicationStream.get();
-            stream.startKeepAlive(Threads.newSingleThreadExecutor(PostgresConnector.class, connectorConfig.getLogicalName(), KEEP_ALIVE_THREAD_NAME));
+            stream.startKeepAlive(
+                    Threads.newSingleThreadExecutor(PostgresConnector.class, connectorConfig.getLogicalName(), KEEP_ALIVE_THREAD_NAME, threadNameContext));
 
             // If we need to do a pre-snapshot streaming catch up, we should allow the snapshot transaction to persist
             // but normally we want to start streaming without any open transactions.
@@ -200,7 +203,8 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
                 replicationConnection.reconnect();
                 replicationStream.set(replicationConnection.startStreaming(walPosition.getLastEventStoredLsn(), walPosition));
                 stream = this.replicationStream.get();
-                stream.startKeepAlive(Threads.newSingleThreadExecutor(PostgresConnector.class, connectorConfig.getLogicalName(), KEEP_ALIVE_THREAD_NAME));
+                stream.startKeepAlive(Threads.newSingleThreadExecutor(PostgresConnector.class, connectorConfig.getLogicalName(), KEEP_ALIVE_THREAD_NAME,
+                        threadNameContext));
             }
             processMessages(context, partition, this.effectiveOffset, stream);
         }
