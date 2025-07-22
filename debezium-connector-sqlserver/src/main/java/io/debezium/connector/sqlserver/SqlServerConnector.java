@@ -29,6 +29,7 @@ import io.debezium.config.Configuration;
 import io.debezium.connector.common.RelationalBaseSourceConnector;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.relational.TableId;
+import io.debezium.util.ThreadNameContext;
 import io.debezium.util.Threads;
 
 /**
@@ -123,6 +124,7 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
         final SqlServerConnectorConfig sqlServerConfig = new SqlServerConnectorConfig(config);
         final ConfigValue hostnameValue = configValues.get(RelationalDatabaseConnectorConfig.HOSTNAME.name());
         final ConfigValue userValue = configValues.get(RelationalDatabaseConnectorConfig.USER.name());
+        ThreadNameContext threadNameContext = ThreadNameContext.from(sqlServerConfig);
         Duration timeout = sqlServerConfig.getConnectionValidationTimeout();
         // Try to connect to the database ...
         try {
@@ -154,7 +156,7 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
                     hostnameValue.addErrorMessage("Unable to connect. Check this and other connection properties. Error: "
                             + e.getMessage());
                 }
-            }, timeout, sqlServerConfig.getLogicalName(), "connection-validation");
+            }, timeout, sqlServerConfig.getLogicalName(), "connection-validation", threadNameContext);
         }
         catch (TimeoutException e) {
             hostnameValue.addErrorMessage("Connection validation timed out after " + timeout.toMillis() + " ms");

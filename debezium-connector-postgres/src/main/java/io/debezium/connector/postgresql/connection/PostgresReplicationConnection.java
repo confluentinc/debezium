@@ -51,6 +51,7 @@ import io.debezium.relational.RelationalTableFilters;
 import io.debezium.relational.TableId;
 import io.debezium.util.Clock;
 import io.debezium.util.Metronome;
+import io.debezium.util.ThreadNameContext;
 
 /**
  * Implementation of a {@link ReplicationConnection} for Postgresql. Note that replication connections in PG cannot execute
@@ -114,7 +115,7 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
                                           TypeRegistry typeRegistry,
                                           Properties streamParams,
                                           PostgresSchema schema) {
-        super(addDefaultSettings(config.getJdbcConfig()), PostgresConnection.FACTORY, "\"", "\"");
+        super(addDefaultSettings(config.getJdbcConfig()), PostgresConnection.FACTORY, "\"", "\"", ThreadNameContext.from(config));
 
         this.connectorConfig = config;
         this.slotName = slotName;
@@ -145,7 +146,8 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
     }
 
     private ServerInfo.ReplicationSlot getSlotInfo() throws SQLException, InterruptedException {
-        try (PostgresConnection connection = new PostgresConnection(connectorConfig.getJdbcConfig(), PostgresConnection.CONNECTION_SLOT_INFO)) {
+        try (PostgresConnection connection = new PostgresConnection(connectorConfig.getJdbcConfig(), PostgresConnection.CONNECTION_SLOT_INFO,
+                ThreadNameContext.from(connectorConfig))) {
             return connection.readReplicationSlotInfo(slotName, plugin.getPostgresPluginName());
         }
     }
@@ -936,8 +938,10 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
             LOGGER.error("Unexpected error while closing Postgres connection", e);
         }
         if (dropSlotOnClose && dropSlot) {
+            ThreadNameContext threadNameContext = ThreadNameContext.from(connectorConfig);
             // we're dropping the replication slot via a regular - i.e. not a replication - connection
-            try (PostgresConnection connection = new PostgresConnection(connectorConfig.getJdbcConfig(), PostgresConnection.CONNECTION_DROP_SLOT)) {
+            try (PostgresConnection connection = new PostgresConnection(connectorConfig.getJdbcConfig(), PostgresConnection.CONNECTION_DROP_SLOT,
+                    threadNameContext)) {
                 connection.dropReplicationSlot(slotName);
             }
             catch (Throwable e) {
