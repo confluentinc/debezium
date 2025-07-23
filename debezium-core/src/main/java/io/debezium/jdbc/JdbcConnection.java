@@ -777,7 +777,7 @@ public class JdbcConnection implements AutoCloseable {
      * @see #execute(Operations)
      */
     public JdbcConnection prepareUpdate(String stmt, StatementPreparer preparer) throws SQLException {
-        final PreparedStatement statement = createPreparedStatement(stmt);
+        PreparedStatement statement = createPreparedStatement(stmt);
         if (preparer != null) {
             preparer.accept(statement);
         }
@@ -785,8 +785,48 @@ public class JdbcConnection implements AutoCloseable {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("Executing statement '{}' with {}s timeout", stmt, queryTimeout);
         }
-        statement.execute();
+
+        try {
+            LOGGER.error("waiting for 120 sec, cut down the TCP connection");
+            Thread.sleep(120000);
+            statement.execute();
+        }
+        catch (SQLException e) {
+            // Check if this is a connection-related error that warrants retry
+            if (isConnectionException(e)) {
+                LOGGER.warn("Connection was closed, reconnecting and retrying", e);
+                close();
+                connect();
+
+                statement = createPreparedStatement(stmt);
+                if (preparer != null) {
+                    preparer.accept(statement);
+                }
+                statement.execute();
+            }
+            else {
+                throw e;
+            }
+        } catch (InterruptedException e) {
+            throw new SQLException(e);
+        }
+        LOGGER.error("no exceptions, returning");
         return this;
+    }
+
+    /**
+     * Checks if the exception indicates a connection issue.
+     */
+    private boolean isConnectionException(SQLException e) {
+        // Check SQL state for connection exceptions (08xxx)
+        String sqlState = e.getSQLState();
+        if (sqlState != null && sqlState.startsWith("08")) {
+            return true;
+        }
+
+        // Check for common connection exception types
+        return e instanceof java.sql.SQLNonTransientConnectionException ||
+                e instanceof java.sql.SQLRecoverableException;
     }
 
     /**
