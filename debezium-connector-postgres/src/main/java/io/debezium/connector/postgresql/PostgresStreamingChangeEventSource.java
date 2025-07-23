@@ -458,7 +458,7 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
             }
             // tell the server the point up to which we've processed data, so it can be free to recycle WAL segments
             ExecutorService executor = Threads.newSingleThreadExecutor(PostgresStreamingChangeEventSource.class,
-                    connectorConfig.getLogicalName(), "lsn-flush");
+                    connectorConfig.getLogicalName(), "lsn-flush", ThreadNameContext.from(connectorConfig));
             Future<Void> future = executor.submit(() -> {
                 try {
                     replicationStream.flushLsn(lsn);
