@@ -43,6 +43,8 @@ import com.google.re2j.PatternSyntaxException;
 import io.debezium.annotation.Immutable;
 import io.debezium.function.Predicates;
 import io.debezium.util.Strings;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * An immutable definition of a field that make appear within a {@link Configuration} instance.
@@ -54,6 +56,8 @@ public final class Field {
     public static final String INTERNAL_PREFIX = "internal.";
     private static final String EMPTY_STRING = "";
     private static final CharSequence SPACE = " ";
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(Field.class);
 
     /**
      * Create a set of fields.
@@ -452,6 +456,9 @@ public final class Field {
                 for (int i = 0; i != fields.length; ++i) {
                     Field f = fields[i];
                     ConfigDef.Validator validator = (f.validator instanceof ConfigDef.Validator) ? (ConfigDef.Validator)f.validator : null;
+                    if(validator != null) {
+                        LOGGER.error("validator enum one is in use");
+                    }
                     configDef.define(f.name(), f.type(), f.defaultValue(), validator, f.importance(), f.description(),
                             groupName, i + 1, f.width(), f.displayName(), f.dependents(), null);
                     if (!f.deprecatedAliases().isEmpty()) {
