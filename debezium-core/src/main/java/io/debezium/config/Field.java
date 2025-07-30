@@ -57,8 +57,6 @@ public final class Field {
     private static final String EMPTY_STRING = "";
     private static final CharSequence SPACE = " ";
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(Field.class);
-
     /**
      * Create a set of fields.
      * @param fields the fields to include
@@ -456,9 +454,6 @@ public final class Field {
                 for (int i = 0; i != fields.length; ++i) {
                     Field f = fields[i];
                     ConfigDef.Validator validator = (f.validator instanceof ConfigDef.Validator) ? (ConfigDef.Validator)f.validator : null;
-                    if(validator != null) {
-                        LOGGER.error("validator enum one is in use");
-                    }
                     configDef.define(f.name(), f.type(), f.defaultValue(), validator, f.importance(), f.description(),
                             groupName, i + 1, f.width(), f.displayName(), f.dependents(), null);
                     if (!f.deprecatedAliases().isEmpty()) {
@@ -473,9 +468,6 @@ public final class Field {
                 for (int i = 0; i != fields.length; ++i) {
                     Field f = fields[i];
                     ConfigDef.Validator validator = (f.validator instanceof ConfigDef.Validator) ? (ConfigDef.Validator)f.validator : null;
-                    if(validator != null) {
-                        LOGGER.error("validator enum one is in use two");
-                    }
                     configDef.define(f.name(), f.type(), f.defaultValue(), validator, f.importance(), f.description(),
                             null, 1, f.width(), f.displayName(), f.dependents(), null);
                     if (!f.deprecatedAliases().isEmpty()) {
