@@ -17,7 +17,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Duration;
 
-import io.debezium.util.ThreadNameContext;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -40,6 +39,7 @@ import io.debezium.storage.jdbc.history.JdbcSchemaHistory;
 import io.debezium.storage.jdbc.history.JdbcSchemaHistoryConfig;
 import io.debezium.storage.jdbc.offset.JdbcOffsetBackingStoreConfig;
 import io.debezium.util.Testing;
+import io.debezium.util.ThreadNameContext;
 
 /**
  * @author Kanthi Subramanian
@@ -158,7 +158,8 @@ public class JdbcOffsetBackingStoreIT extends AbstractAsyncEngineConnectorTest {
                 .withDatabase(DBNAME)
                 .build();
         final String url = "jdbc:mysql://${hostname}:${port}/${dbname}";
-        return new JdbcConnection(jdbcConfig, JdbcConnection.patternBasedFactory(url), "`", "`", new ThreadNameContext("test-connector","${debezium}-${connector.class.simple}-${topic.prefix}-${functionality}-${connector.name}-${task.id}","0"));
+        return new JdbcConnection(jdbcConfig, JdbcConnection.patternBasedFactory(url), "`", "`",
+                new ThreadNameContext("test-connector", "${debezium}-${connector.class.simple}-${topic.prefix}-${functionality}-${connector.name}-${task.id}", "0"));
     }
 
     @Test
