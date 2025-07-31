@@ -43,8 +43,6 @@ import com.google.re2j.PatternSyntaxException;
 import io.debezium.annotation.Immutable;
 import io.debezium.function.Predicates;
 import io.debezium.util.Strings;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * An immutable definition of a field that make appear within a {@link Configuration} instance.
