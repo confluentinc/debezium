@@ -62,6 +62,10 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
 
     private static final String SQL_STATE_INSUFFICIENT_PRIVILEGE = "42501";
 
+    private static final String SQL_LOCK_NOT_AVAILABLE = "55P03";
+
+    private static final String PUBLICATION_QUERY_FAILURE_MESSAGE = "Creation of publication slot failed: query to create/update publication timed out, please make sure that there are no maintenance activities going on the database end.";
+
     private static Logger LOGGER = LoggerFactory.getLogger(PostgresReplicationConnection.class);
 
     private final String slotName;
@@ -160,64 +164,86 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
                 conn.setAutoCommit(false);
 
                 String selectPublication = String.format("SELECT puballtables FROM pg_publication WHERE pubname = '%s'", publicationName);
-                try (Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(selectPublication)) {
-                    final boolean publicationExists = rs.next();
-                    if (!publicationExists) {
-                        // Close eagerly as the transaction might stay running
-                        LOGGER.info("Creating new publication '{}' for plugin '{}'", publicationName, plugin);
-                        switch (publicationAutocreateMode) {
-                            case DISABLED:
-                                throw new ConnectException("Publication autocreation is disabled, please create one and restart the connector.");
-                            case ALL_TABLES:
-                                String createPublicationStmt = connectorConfig.isPublishViaPartitionRoot()
-                                        ? String.format("CREATE PUBLICATION %s FOR ALL TABLES WITH (publish_via_partition_root = true);", publicationName)
-                                        : String.format("CREATE PUBLICATION %s FOR ALL TABLES;", publicationName);
-                                LOGGER.info("Creating Publication with statement '{}'", createPublicationStmt);
-                                // Publication doesn't exist, create it.
-                                stmt.execute(createPublicationStmt);
-                                break;
-                            case FILTERED:
-                                createOrUpdatePublicationModeFiltered(stmt, false);
-                                break;
-                            case NO_TABLES:
-                                final String createPublicationWithNoTablesStmt = connectorConfig.isPublishViaPartitionRoot()
-                                        ? String.format("CREATE PUBLICATION %s WITH (publish_via_partition_root = true);", publicationName)
-                                        : String.format("CREATE PUBLICATION %s;", publicationName);
-                                LOGGER.info("Creating publication with statement '{}'", createPublicationWithNoTablesStmt);
-                                stmt.execute(createPublicationWithNoTablesStmt);
-                                break;
-                        }
-                    }
-                    else {
-                        switch (publicationAutocreateMode) {
-                            case FILTERED:
-                                // Checking that publication can be altered
-                                Boolean allTables = rs.getBoolean(1);
-                                if (allTables) {
-                                    throw new DebeziumException(String.format(
-                                            "A logical publication for all tables named '%s' for plugin '%s' and database '%s' " +
-                                                    "is already active on the server and can not be altered. " +
-                                                    "If you need to exclude some tables or include only specific subset, " +
-                                                    "please recreate the publication with necessary configuration " +
-                                                    "or let plugin recreate it by dropping existing publication. " +
-                                                    "Otherwise please change the 'publication.autocreate.mode' property to 'all_tables'.",
-                                            publicationName, plugin, database()));
-                                }
-                                else {
-                                    createOrUpdatePublicationModeFiltered(stmt, true);
-                                }
-                                break;
-                            default:
-                                LOGGER.trace(
-                                        "A logical publication named '{}' for plugin '{}' and database '{}' is already active on the server " +
-                                                "and will be used by the plugin",
-                                        publicationName, plugin, database());
+                try (Statement stmt = conn.createStatement();ResultSet rs = stmt.executeQuery(selectPublication)) {
 
+                        final boolean publicationExists = rs.next();
+                        if (!publicationExists) {
+                            // Close eagerly as the transaction might stay running
+                            LOGGER.info("Creating new publication '{}' for plugin '{}'", publicationName, plugin);
+                            switch (publicationAutocreateMode) {
+                                case DISABLED:
+                                    throw new ConnectException("Publication autocreation is disabled, please create one and restart the connector.");
+                                case ALL_TABLES:
+                                    String createPublicationStmt = connectorConfig.isPublishViaPartitionRoot()
+                                            ? String.format("CREATE PUBLICATION %s FOR ALL TABLES WITH (publish_via_partition_root = true);", publicationName)
+                                            : String.format("CREATE PUBLICATION %s FOR ALL TABLES;", publicationName);
+                                    LOGGER.info("Creating Publication with statement '{}'", createPublicationStmt);
+                                    // Publication doesn't exist, create it.
+                                    try {
+                                        stmt.setQueryTimeout(toIntExact(connectorConfig.createSlotCommandTimeout()));
+                                        stmt.execute(createPublicationStmt);
+                                    } catch (SQLException ex) {
+                                        if (PSQLState.QUERY_CANCELED.getState().equals(ex.getSQLState()) || SQL_LOCK_NOT_AVAILABLE.equals(ex.getSQLState())) {
+                                            throw new DebeziumException(PUBLICATION_QUERY_FAILURE_MESSAGE, ex);
+                                        } else {
+                                            throw ex;
+                                        }
+                                    }
+
+                                    break;
+                                case FILTERED:
+                                    createOrUpdatePublicationModeFiltered(stmt, false);
+                                    break;
+                                case NO_TABLES:
+                                    final String createPublicationWithNoTablesStmt = connectorConfig.isPublishViaPartitionRoot()
+                                            ? String.format("CREATE PUBLICATION %s WITH (publish_via_partition_root = true);", publicationName)
+                                            : String.format("CREATE PUBLICATION %s;", publicationName);
+                                    LOGGER.info("Creating publication with statement '{}'", createPublicationWithNoTablesStmt);
+                                    try {
+                                        stmt.setQueryTimeout(toIntExact(connectorConfig.createSlotCommandTimeout()));
+                                        stmt.execute(createPublicationWithNoTablesStmt);
+                                    }
+                                    catch (SQLException ex) {
+                                        if (PSQLState.QUERY_CANCELED.getState().equals(ex.getSQLState()) || SQL_LOCK_NOT_AVAILABLE.equals(ex.getSQLState())) {
+                                            throw new DebeziumException(PUBLICATION_QUERY_FAILURE_MESSAGE, ex);
+                                        }
+                                        else {
+                                            throw ex;
+                                        }
+                                    }
+                                    break;
+                            }
+                        }
+                        else {
+                            switch (publicationAutocreateMode) {
+                                case FILTERED:
+                                    // Checking that publication can be altered
+                                    Boolean allTables = rs.getBoolean(1);
+                                    if (allTables) {
+                                        throw new DebeziumException(String.format(
+                                                "A logical publication for all tables named '%s' for plugin '%s' and database '%s' " +
+                                                        "is already active on the server and can not be altered. " +
+                                                        "If you need to exclude some tables or include only specific subset, " +
+                                                        "please recreate the publication with necessary configuration " +
+                                                        "or let plugin recreate it by dropping existing publication. " +
+                                                        "Otherwise please change the 'publication.autocreate.mode' property to 'all_tables'.",
+                                                publicationName, plugin, database()));
+                                    }
+                                    else {
+                                        createOrUpdatePublicationModeFiltered(stmt, true);
+                                    }
+                                    break;
+                                default:
+                                    LOGGER.trace(
+                                            "A logical publication named '{}' for plugin '{}' and database '{}' is already active on the server " +
+                                                    "and will be used by the plugin",
+                                            publicationName, plugin, database());
+
+                            }
                         }
                     }
-                }
-                conn.commit();
-                conn.setAutoCommit(true);
+                    conn.commit();
+                    conn.setAutoCommit(true);
             }
             catch (SQLException e) {
                 throw new JdbcConnectionException(e);
@@ -243,7 +269,18 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
                         : String.format("CREATE PUBLICATION %s FOR TABLE %s;", publicationName, tableFilterString);
             }
             LOGGER.info(isUpdate ? "Updating Publication with statement '{}'" : "Creating Publication with statement '{}'", createOrUpdatePublicationStmt);
-            stmt.execute(createOrUpdatePublicationStmt);
+            try {
+                stmt.setQueryTimeout(toIntExact(connectorConfig.createSlotCommandTimeout()));
+                stmt.execute(createOrUpdatePublicationStmt);
+            }
+            catch (SQLException ex) {
+                if (PSQLState.QUERY_CANCELED.getState().equals(ex.getSQLState()) || SQL_LOCK_NOT_AVAILABLE.equals(ex.getSQLState())) {
+                    throw new DebeziumException(PUBLICATION_QUERY_FAILURE_MESSAGE, ex);
+                }
+                else {
+                    throw ex;
+                }
+            }
         }
         catch (Exception e) {
             throw new ConnectException(String.format("Unable to %s filtered publication %s for %s", isUpdate ? "update" : "create", publicationName, tableFilterString),
