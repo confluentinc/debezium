@@ -1348,7 +1348,8 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
     }
 
     public String connectorName() {
-        return originalsStrings().get("name");
+        String name = originalsStrings().get("name");
+        return name != null ? name : getLogicalName();
     }
 
     public String getConnectorThreadNamePattern() {
