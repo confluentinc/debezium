@@ -3337,6 +3337,50 @@ public class SqlServerConnectorIT extends AbstractAsyncEngineConnectorTest {
         }
     }
 
+    @Test
+    public void taskStartShouldNotWaitOnSchemaHistoryRecovery() throws InterruptedException {
+        // Introduce a delay of 10 seconds in recovering every record in schema history. This is
+        // done to increase the time taken to recovery schema history.
+        Configuration config = TestHelper.defaultConfig()
+                .with(SCHEMA_HISTORY_RECOVERY_DELAY_MS, 10_000)
+                .with(SqlServerConnectorConfig.LOG_POSITION_CHECK_ENABLED, false)
+                .build();
+
+        start(SqlServerConnector.class, config);
+        logger.info("Sleeping for 2 seconds to allow connector to start and commit an offset");
+        Thread.sleep(2_000);
+
+        stopConnector();
+
+        CountDownLatch taskStartLatch = new CountDownLatch(1);
+
+        Thread startConnectorThread = new Thread(() -> {
+            logger.info("Starting connector again");
+            start(SqlServerConnector.class, config, new DebeziumEngine.ConnectorCallback() {
+                @Override
+                public void taskStarted() {
+                    taskStartLatch.countDown();
+                }
+            });
+        });
+
+        startConnectorThread.start();
+
+        logger.info("Waiting for task to start");
+
+        // Wait for 5 seconds for the task to be started
+        Awaitility.await().atMost(5, TimeUnit.SECONDS).until(() -> taskStartLatch.getCount() == 0);
+
+        logger.info("Task has started, even though the schema history recovery will take long time");
+
+        // fail the test if task did not start in 5 seconds
+        if (taskStartLatch.getCount() != 0) {
+            throw new AssertionError("Task did not start in 5 seconds after " +
+                    "connector was started. Task's start method should be lightweight and " +
+                    "hence this is not expected.");
+        }
+    }
+
     private void purgeDatabaseLogs() throws SQLException {
 
         TestHelper.disableTableCdc(connection, "tablea");
