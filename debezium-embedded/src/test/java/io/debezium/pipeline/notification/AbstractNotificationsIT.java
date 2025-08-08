@@ -243,7 +243,8 @@ public abstract class AbstractNotificationsIT<T extends SourceConnector> extends
         startConnector(config -> config.with("slot.drop.on.stop", "false")
                 .with(CommonConnectorConfig.FAIL_ON_NO_TABLES, false)
                 .with(SinkNotificationChannel.NOTIFICATION_TOPIC, "io.debezium.notification")
-                .with(CommonConnectorConfig.NOTIFICATION_ENABLED_CHANNELS, "sink"));
+                .with(CommonConnectorConfig.NOTIFICATION_ENABLED_CHANNELS, "sink")
+                .with(CommonConnectorConfig.LOG_POSITION_CHECK_ENABLED, false));
 
         assertConnectorIsRunning();
 
