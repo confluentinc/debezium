@@ -11,10 +11,10 @@ import java.util.Optional;
 
 import io.debezium.annotation.ConnectorSpecific;
 import io.debezium.config.CommonConnectorConfig;
-import io.debezium.connector.sqlserver.SqlServerConnector;
+import io.debezium.connector.sqlserver.SqlServerConnectorV2;
 import io.debezium.snapshot.spi.SnapshotQuery;
 
-@ConnectorSpecific(connector = SqlServerConnector.class)
+@ConnectorSpecific(connector = SqlServerConnectorV2.class)
 public class SelectAllSnapshotQuery implements SnapshotQuery {
 
     @Override
