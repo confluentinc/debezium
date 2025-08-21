@@ -139,6 +139,7 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
             hostnameValue.addErrorMessage("Connection validation timed out after " + timeout.toMillis() + " ms");
         }
         catch (Exception e) {
+            LOGGER.error("Connector failed during connection validation", e);
             hostnameValue.addErrorMessage("Error during connection validation: " + e.getMessage());
         }
     }
