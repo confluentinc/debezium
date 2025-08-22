@@ -304,6 +304,10 @@ public class Threads {
                 String threadNamePattern = threadNameContext.getThreadNamePattern();
                 String connectorName = threadNameContext.getConnectorName();
                 String taskId = threadNameContext.getTaskId();
+                LOGGER.info("Creating thread with pattern: {}", threadNamePattern);
+                LOGGER.info("Using connectorName: {}, taskId: {}", connectorName, taskId);
+                LOGGER.info("Using componentId: {}, Functionality: {}", componentId, name);
+                LOGGER.info("Using connector class: {} and Debezium Prefix: {}", component.getSimpleName().toLowerCase(), DEBEZIUM_THREAD_NAME_PREFIX);
                 String threadName = threadNamePattern
                         .replace("${debezium}-", DEBEZIUM_THREAD_NAME_PREFIX)
                         .replace("${connector.class.simple}", component.getSimpleName().toLowerCase())
