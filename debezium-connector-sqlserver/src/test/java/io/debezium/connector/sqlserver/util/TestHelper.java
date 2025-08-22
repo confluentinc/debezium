@@ -161,19 +161,43 @@ public class TestHelper {
     public static void createTestDatabase(String databaseName) {
         // NOTE: you cannot enable CDC for the "master" db (the default one) so
         // all tests must use a separate database...
-        try (SqlServerConnection connection = adminConnection()) {
-            connection.connect();
-            dropTestDatabase(connection, databaseName);
-            String sql = String.format("CREATE DATABASE [%s]\n", databaseName);
-            connection.execute(sql);
-            connection.execute(String.format("USE [%s]", databaseName));
-            connection.execute(String.format("ALTER DATABASE [%s] SET ALLOW_SNAPSHOT_ISOLATION ON", databaseName));
-            // NOTE: you cannot enable CDC on master
-            enableDbCdc(connection, databaseName);
-        }
-        catch (SQLException e) {
-            LOGGER.error("Error while initiating test database", e);
-            throw new IllegalStateException("Error while initiating test database", e);
+        int retry = 5;
+        while (true) {
+            try (SqlServerConnection connection = adminConnection()) {
+                connection.connect();
+                dropTestDatabase(connection, databaseName);
+                String sql = String.format("CREATE DATABASE [%s]\n", databaseName);
+                connection.execute(sql);
+                connection.execute(String.format("USE [%s]", databaseName));
+                connection.execute(String.format(
+                        "ALTER DATABASE [%s] SET ALLOW_SNAPSHOT_ISOLATION ON",
+                        databaseName));
+                // NOTE: you cannot enable CDC on master
+                enableDbCdc(connection, databaseName);
+
+                return;
+            }
+            catch (SQLException e) {
+                // This is a possibility that the sql server database is not ready to accept
+                // connections immediately after startup. This retry logic is introduced in order
+                // to prevent faster failures during those transient errors and instead try with
+                // wait for a few times before giving up.
+                if (e.getMessage().contains("Login failed for user 'sa'") && retry > 0) {
+                    retry--;
+                    int retryWait = 6 - retry;
+                    try {
+                        LOGGER.warn("Re-attempting connection request in {} second(s)", retryWait);
+                        Thread.sleep(1000L * retryWait);
+                    }
+                    catch (InterruptedException ex) {
+                        throw new RuntimeException("Interrupted during wait before retry", e);
+                    }
+                }
+                else {
+                    LOGGER.error("Error while initiating test database", e);
+                    throw new IllegalStateException("Error while initiating test database", e);
+                }
+            }
         }
     }
 
