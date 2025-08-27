@@ -23,6 +23,7 @@
         <docker.db>mcr.microsoft.com/mssql/server:2022-latest</docker.db>
         <docker.filter>${docker.db}</docker.filter>
         <docker.skip>false</docker.skip>
+        <credential.providers.version>0.129.0</credential.providers.version>
         <docker.showLogs>true</docker.showLogs>
         <!-- Apicurion container properties -->
         <apicurio.port>8080</apicurio.port>
@@ -55,6 +56,11 @@
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>credential-providers</artifactId>
+            <version>${credential.providers.version}</version>
         </dependency>
 
         <!-- Testing -->
