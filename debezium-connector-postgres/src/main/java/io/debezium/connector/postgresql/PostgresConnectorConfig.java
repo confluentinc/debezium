@@ -1217,12 +1217,6 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
                 ColumnFilterMode.SCHEMA,
                 false);
 
-        Map<String, String> mp = config.asMap();
-        for (String  key: mp.keySet()) {
-            LOGGER.info("logging config key in constructor");
-            LOGGER.info("Config key: {} = {}", key, mp.get(key));
-        }
-
         this.logicalDecodingMessageFilter = new LogicalDecodingMessageFilter(config.getString(LOGICAL_DECODING_MESSAGE_PREFIX_INCLUDE_LIST),
                 config.getString(LOGICAL_DECODING_MESSAGE_PREFIX_EXCLUDE_LIST));
         String hstoreHandlingModeStr = config.getString(PostgresConnectorConfig.HSTORE_HANDLING_MODE);
@@ -1239,11 +1233,6 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
         this.publishViaPartitionRoot = config.getBoolean(PUBLISH_VIA_PARTITION_ROOT);
         this.lsnFlushTimeoutAction = LsnFlushTimeoutAction.parse(config.getString(LSN_FLUSH_TIMEOUT_ACTION));
 
-        Map<String, String> mp1 = config.asMap();
-        for (String  key: mp1.keySet()) {
-            LOGGER.info("logging config key in constructor before getCredentialsProvider init");
-            LOGGER.info("Config key: {} = {}", key, mp1.get(key));
-        }
         this.credsProvider = getCredentialsProvider(config);
     }
 
@@ -1545,11 +1534,6 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
         try {
             JdbcCredentialsProvider provider = (JdbcCredentialsProvider) Class.forName(providerClass)
                     .getDeclaredConstructor().newInstance();
-            Map<String, String> mp = config.asMap();
-            for (String  key: mp.keySet()) {
-                LOGGER.info("logging config key at getCredentialsProvider");
-                LOGGER.info("Config key: {} = {}", key, mp.get(key));
-            }
 
             provider.configure(config.asMap());
             LOGGER.info("Configured credentials provider: {}", provider);
