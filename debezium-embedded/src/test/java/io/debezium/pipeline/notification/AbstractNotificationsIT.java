@@ -159,8 +159,6 @@ public abstract class AbstractNotificationsIT<T extends SourceConnector> extends
 
         // Testing.Print.enable();
 
-        System.setProperty("database.replica.hostname", "localhost");
-        System.setProperty("database.hostname", "localhost");
         startConnector(config -> config
                 .with(CommonConnectorConfig.FAIL_ON_NO_TABLES, false)
                 .with(CommonConnectorConfig.NOTIFICATION_ENABLED_CHANNELS, "jmx"));
@@ -337,9 +335,7 @@ public abstract class AbstractNotificationsIT<T extends SourceConnector> extends
         ObjectName notificationBean = getObjectName();
         MBeanServer server = ManagementFactory.getPlatformMBeanServer();
 
-        System.out.println("Reading notifications from JMX bean: " + notificationBean);
         MBeanInfo mBeanInfo = server.getMBeanInfo(notificationBean);
-        System.out.println("MBeanInfo: " + mBeanInfo);
 
         List<String> attributesNames = Arrays.stream(mBeanInfo.getAttributes()).map(MBeanAttributeInfo::getName).collect(Collectors.toList());
         assertThat(attributesNames).contains("Notifications");
