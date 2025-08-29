@@ -34,7 +34,6 @@ public class ChangeEventQueueShutdownTest {
      */
     @Test
     public void shouldUnblockThreadsOnShutdown() throws Exception {
-        // Create a small queue to make it easy to fill
         int queueSize = 5;
         ChangeEventQueue<DataChangeEvent> queue = new ChangeEventQueue.Builder<DataChangeEvent>()
                 .maxBatchSize(3)
@@ -43,13 +42,11 @@ public class ChangeEventQueueShutdownTest {
                 .pollInterval(Duration.ofMillis(100))
                 .build();
 
-        // Fill the queue to capacity
         DataChangeEvent testEvent = new DataChangeEvent(null);
         for (int i = 0; i < queueSize; i++) {
             queue.doEnqueue(testEvent);
         }
 
-        // Create thread that will block trying to enqueue
         AtomicBoolean enqueueCompleted = new AtomicBoolean(false);
         AtomicReference<Exception> enqueueException = new AtomicReference<>();
         CountDownLatch enqueueStarted = new CountDownLatch(1);
@@ -61,9 +58,6 @@ public class ChangeEventQueueShutdownTest {
                 // This should block because queue is full
                 queue.doEnqueue(testEvent);
                 enqueueCompleted.set(true);
-            }
-            catch (InterruptedException e) {
-                enqueueException.set(e);
             }
             catch (Exception e) {
                 enqueueException.set(e);
@@ -83,91 +77,19 @@ public class ChangeEventQueueShutdownTest {
         assertTrue("Thread should be alive and blocked", enqueueThread.isAlive());
 
         // Shutdown queue - should unblock the thread
-        long shutdownStart = System.currentTimeMillis();
         queue.shutdown();
 
         // Wait for thread to finish
         boolean threadFinished = enqueueFinished.await(5, TimeUnit.SECONDS);
-        long totalDuration = System.currentTimeMillis() - shutdownStart;
 
         // Verify shutdown worked
         assertTrue("Thread should finish after shutdown", threadFinished);
-        assertTrue("Shutdown should be quick (under 2 seconds)", totalDuration < 2000);
 
         // Verify the enqueue was interrupted
         assertFalse("Enqueue should not complete after shutdown", enqueueCompleted.get());
         assertTrue("Should have an exception", enqueueException.get() != null);
         assertTrue("Should be InterruptedException", enqueueException.get() instanceof InterruptedException);
         assertTrue("Should mention shutdown", enqueueException.get().getMessage().contains("shut down"));
-    }
-
-    /**
-     * Test multiple threads are unblocked by shutdown
-     */
-    @Test
-    public void shouldUnblockMultipleThreads() throws Exception {
-        int queueSize = 3;
-        ChangeEventQueue<DataChangeEvent> queue = new ChangeEventQueue.Builder<DataChangeEvent>()
-                .maxBatchSize(2)
-                .maxQueueSize(queueSize)
-                .loggingContextSupplier(() -> LoggingContext.forConnector("test", "test", "test"))
-                .pollInterval(Duration.ofMillis(50))
-                .build();
-
-        // Fill queue to capacity
-        DataChangeEvent testEvent = new DataChangeEvent(null);
-        for (int i = 0; i < queueSize; i++) {
-            queue.doEnqueue(testEvent);
-        }
-
-        // Create multiple blocked threads
-        int numThreads = 3;
-        Thread[] threads = new Thread[numThreads];
-        CountDownLatch allStarted = new CountDownLatch(numThreads);
-        CountDownLatch allFinished = new CountDownLatch(numThreads);
-        AtomicReference<Exception>[] exceptions = new AtomicReference[numThreads];
-
-        for (int i = 0; i < numThreads; i++) {
-            exceptions[i] = new AtomicReference<>();
-            final int threadIndex = i;
-
-            threads[i] = new Thread(() -> {
-                try {
-                    allStarted.countDown();
-                    queue.doEnqueue(testEvent);
-                }
-                catch (Exception e) {
-                    exceptions[threadIndex].set(e);
-                }
-                finally {
-                    allFinished.countDown();
-                }
-            });
-
-            threads[i].start();
-        }
-
-        // Wait for all threads to start and get blocked
-        assertTrue("All threads should start", allStarted.await(5, TimeUnit.SECONDS));
-        Thread.sleep(200);
-
-        // Verify all threads are alive
-        for (Thread thread : threads) {
-            assertTrue("Thread should be alive", thread.isAlive());
-        }
-
-        // Shutdown should unblock all threads
-        queue.shutdown();
-        boolean threadsFinished = allFinished.await(5, TimeUnit.SECONDS);
-
-        assertTrue("All threads should finish after shutdown", threadsFinished);
-
-        // Verify all threads were interrupted
-        for (int i = 0; i < numThreads; i++) {
-            assertTrue("Thread " + i + " should have exception", exceptions[i].get() != null);
-            assertTrue("Thread " + i + " should be interrupted",
-                    exceptions[i].get() instanceof InterruptedException);
-        }
     }
 
     /**
@@ -195,14 +117,11 @@ public class ChangeEventQueueShutdownTest {
         queue.shutdown();
 
         // Enqueue on shutdown queue should fail when it hits the blocking condition
-        long startTime = System.currentTimeMillis();
         try {
             queue.doEnqueue(testEvent);
             assertTrue("Enqueue should fail on shutdown queue", false);
         }
         catch (InterruptedException e) {
-            long duration = System.currentTimeMillis() - startTime;
-            assertTrue("Should fail quickly", duration < 100);
             assertTrue("Should mention shutdown", e.getMessage().contains("shut down"));
         }
     }

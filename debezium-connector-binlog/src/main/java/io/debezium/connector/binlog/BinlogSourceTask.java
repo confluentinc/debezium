@@ -88,7 +88,7 @@ public abstract class BinlogSourceTask<P extends Partition, O extends OffsetCont
             try {
                 LOGGER.info("Shutting down change event queue to unblock any waiting threads");
                 queue.shutdown();
-                LOGGER.debug("Successfully shut down change event queue");
+                LOGGER.info("Successfully shut down change event queue");
             }
             catch (Exception e) {
                 // Log error but don't throw - continue with other cleanup operations
