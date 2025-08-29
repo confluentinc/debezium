@@ -91,6 +91,8 @@ public class ChangeEventQueue<T extends Sizeable> implements ChangeEventQueueMet
 
     private volatile RuntimeException producerException;
 
+    private volatile boolean running = true;
+
     private ChangeEventQueue(Duration pollInterval, int maxQueueSize, int maxBatchSize, Supplier<LoggingContext.PreviousContext> loggingContextSupplier,
                              long maxQueueSizeInBytes, boolean buffering) {
         this.pollInterval = pollInterval;
@@ -211,6 +213,21 @@ public class ChangeEventQueue<T extends Sizeable> implements ChangeEventQueueMet
         buffering = true;
     }
 
+    /**
+     * Shutdown the queue, causing any blocked enqueue operations to be interrupted
+     */
+    public void shutdown() {
+        try {
+            this.lock.lock();
+            running = false;
+            this.isNotFull.signalAll();
+            this.isFull.signalAll();
+        }
+        finally {
+            this.lock.unlock();
+        }
+    }
+
     protected void doEnqueue(T record) throws InterruptedException {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("Enqueuing source record '{}'", maybeRedactSensitiveData(record));
@@ -220,6 +237,10 @@ public class ChangeEventQueue<T extends Sizeable> implements ChangeEventQueueMet
             this.lock.lock();
 
             while (queue.size() >= maxQueueSize || (maxQueueSizeInBytes > 0 && currentQueueSizeInBytes >= maxQueueSizeInBytes)) {
+                if (!running) {
+                    throw new InterruptedException("Queue has been shut down");
+                }
+
                 // signal poll() to drain queue
                 this.isFull.signalAll();
                 // queue size or queue sizeInBytes threshold reached, so wait a bit
