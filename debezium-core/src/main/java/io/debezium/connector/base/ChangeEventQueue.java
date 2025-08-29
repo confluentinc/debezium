@@ -91,6 +91,8 @@ public class ChangeEventQueue<T extends Sizeable> implements ChangeEventQueueMet
 
     private volatile RuntimeException producerException;
 
+    private volatile boolean running = true;
+
     private ChangeEventQueue(Duration pollInterval, int maxQueueSize, int maxBatchSize, Supplier<LoggingContext.PreviousContext> loggingContextSupplier,
                              long maxQueueSizeInBytes, boolean buffering) {
         this.pollInterval = pollInterval;
@@ -211,6 +213,51 @@ public class ChangeEventQueue<T extends Sizeable> implements ChangeEventQueueMet
         buffering = true;
     }
 
+    /**
+     * Check if there is a buffered event that needs to be cleared
+     *
+     * @return true if there is a buffered event, false otherwise
+     */
+    public boolean hasBufferedEvent() {
+        return bufferedEvent.get() != null;
+    }
+
+    /**
+     * Safely clear any buffered event without assertions
+     */
+    public void clearBufferedEvent() {
+        bufferedEvent.set(null);
+    }
+
+    /**
+     * Check if the queue has been shut down
+     *
+     * @return true if the queue is shut down, false otherwise
+     */
+    public boolean isShutdown() {
+        return !running;
+    }
+
+    /**
+     * Shutdown the queue, causing any blocked enqueue operations to be interrupted.
+     * This method is idempotent and can be called multiple times safely.
+     */
+    public void shutdown() {
+        try {
+            this.lock.lock();
+            if (!running) {
+                return; // Already shut down
+            }
+            running = false;
+            // Wake up any threads blocked in enqueue operations
+            this.isNotFull.signalAll();
+            this.isFull.signalAll();
+        }
+        finally {
+            this.lock.unlock();
+        }
+    }
+
     protected void doEnqueue(T record) throws InterruptedException {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("Enqueuing source record '{}'", maybeRedactSensitiveData(record));
@@ -220,6 +267,10 @@ public class ChangeEventQueue<T extends Sizeable> implements ChangeEventQueueMet
             this.lock.lock();
 
             while (queue.size() >= maxQueueSize || (maxQueueSizeInBytes > 0 && currentQueueSizeInBytes >= maxQueueSizeInBytes)) {
+                if (!running) {
+                    throw new InterruptedException("Queue has been shut down");
+                }
+
                 // signal poll() to drain queue
                 this.isFull.signalAll();
                 // queue size or queue sizeInBytes threshold reached, so wait a bit
