@@ -245,6 +245,9 @@ public class MySqlConnectorTask extends BinlogSourceTask<MySqlPartition, MySqlOf
 
     @Override
     protected void doStop() {
+        // Use the common queue shutdown logic from BinlogSourceTask
+        shutdownQueue(queue);
+
         try {
             if (connection != null) {
                 connection.close();
