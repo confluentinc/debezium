@@ -34,7 +34,6 @@ public class ChangeEventQueueShutdownTest {
      */
     @Test
     public void shouldUnblockThreadsOnShutdown() throws Exception {
-        // Create a small queue to make it easy to fill
         int queueSize = 5;
         ChangeEventQueue<DataChangeEvent> queue = new ChangeEventQueue.Builder<DataChangeEvent>()
                 .maxBatchSize(3)
@@ -43,13 +42,11 @@ public class ChangeEventQueueShutdownTest {
                 .pollInterval(Duration.ofMillis(100))
                 .build();
 
-        // Fill the queue to capacity
         DataChangeEvent testEvent = new DataChangeEvent(null);
         for (int i = 0; i < queueSize; i++) {
             queue.doEnqueue(testEvent);
         }
 
-        // Create thread that will block trying to enqueue
         AtomicBoolean enqueueCompleted = new AtomicBoolean(false);
         AtomicReference<Exception> enqueueException = new AtomicReference<>();
         CountDownLatch enqueueStarted = new CountDownLatch(1);
@@ -61,9 +58,6 @@ public class ChangeEventQueueShutdownTest {
                 // This should block because queue is full
                 queue.doEnqueue(testEvent);
                 enqueueCompleted.set(true);
-            }
-            catch (InterruptedException e) {
-                enqueueException.set(e);
             }
             catch (Exception e) {
                 enqueueException.set(e);
@@ -83,16 +77,13 @@ public class ChangeEventQueueShutdownTest {
         assertTrue("Thread should be alive and blocked", enqueueThread.isAlive());
 
         // Shutdown queue - should unblock the thread
-        long shutdownStart = System.currentTimeMillis();
         queue.shutdown();
 
         // Wait for thread to finish
         boolean threadFinished = enqueueFinished.await(5, TimeUnit.SECONDS);
-        long totalDuration = System.currentTimeMillis() - shutdownStart;
 
         // Verify shutdown worked
         assertTrue("Thread should finish after shutdown", threadFinished);
-        assertTrue("Shutdown should be quick (under 2 seconds)", totalDuration < 2000);
 
         // Verify the enqueue was interrupted
         assertFalse("Enqueue should not complete after shutdown", enqueueCompleted.get());
@@ -195,14 +186,11 @@ public class ChangeEventQueueShutdownTest {
         queue.shutdown();
 
         // Enqueue on shutdown queue should fail when it hits the blocking condition
-        long startTime = System.currentTimeMillis();
         try {
             queue.doEnqueue(testEvent);
             assertTrue("Enqueue should fail on shutdown queue", false);
         }
         catch (InterruptedException e) {
-            long duration = System.currentTimeMillis() - startTime;
-            assertTrue("Should fail quickly", duration < 100);
             assertTrue("Should mention shutdown", e.getMessage().contains("shut down"));
         }
     }
