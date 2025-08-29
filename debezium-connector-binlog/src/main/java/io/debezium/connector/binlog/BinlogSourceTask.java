@@ -80,14 +80,23 @@ public abstract class BinlogSourceTask<P extends Partition, O extends OffsetCont
     /**
      * Safely shuts down the change event queue to prevent thread leaks.
      * This method should be called by subclasses in their doStop() method.
-     *
+     * 
      * @param queue the change event queue to shutdown, may be null
      */
     protected void shutdownQueue(ChangeEventQueue<DataChangeEvent> queue) {
-        // Signal the queue to shutdown first to unblock any stuck coordinator threads
         if (queue != null) {
-            LOGGER.info("Shutting down change event queue to unblock any waiting threads");
-            queue.shutdown();
+            try {
+                LOGGER.info("Shutting down change event queue to unblock any waiting threads");
+                queue.shutdown();
+                LOGGER.debug("Successfully shut down change event queue");
+            }
+            catch (Exception e) {
+                // Log error but don't throw - continue with other cleanup operations
+                LOGGER.error("Error during change event queue shutdown", e);
+            }
+        }
+        else {
+            LOGGER.debug("No change event queue to shutdown (queue is null)");
         }
     }
 
