@@ -3318,6 +3318,7 @@ public class SqlServerConnectorIT extends AbstractAsyncEngineConnectorTest {
         // done to increase the time taken to recovery schema history.
         Configuration config = TestHelper.defaultConfig()
                 .with(SCHEMA_HISTORY_RECOVERY_DELAY_MS, 10_000)
+                .with(SqlServerConnectorConfig.LOG_POSITION_CHECK_ENABLED, false)
                 .build();
 
         start(SqlServerConnector.class, config);
