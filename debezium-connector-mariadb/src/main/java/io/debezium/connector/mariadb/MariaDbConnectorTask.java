@@ -243,7 +243,6 @@ public class MariaDbConnectorTask extends BinlogSourceTask<MariaDbPartition, Mar
 
     @Override
     protected void doStop() {
-        // Use the common queue shutdown logic from BinlogSourceTask
         shutdownQueue(queue);
 
         try {

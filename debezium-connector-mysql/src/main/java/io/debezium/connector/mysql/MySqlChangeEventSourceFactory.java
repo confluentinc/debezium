@@ -6,11 +6,6 @@
 package io.debezium.connector.mysql;
 
 import java.util.Optional;
-import java.util.function.Function;
-
-import org.apache.kafka.connect.source.SourceRecord;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import io.debezium.connector.base.ChangeEventQueue;
 import io.debezium.connector.binlog.BinlogChangeEventSourceFactory;
@@ -22,7 +17,6 @@ import io.debezium.pipeline.EventDispatcher;
 import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.source.snapshot.incremental.IncrementalSnapshotChangeEventSource;
 import io.debezium.pipeline.source.snapshot.incremental.SignalBasedIncrementalSnapshotChangeEventSource;
-import io.debezium.pipeline.source.spi.ChangeEventSourceFactory;
 import io.debezium.pipeline.source.spi.DataChangeEventListener;
 import io.debezium.pipeline.source.spi.SnapshotChangeEventSource;
 import io.debezium.pipeline.source.spi.SnapshotProgressListener;
@@ -81,8 +75,6 @@ public class MySqlChangeEventSourceFactory extends BinlogChangeEventSourceFactor
                 notificationService,
                 snapshotterService);
     }
-
-    // preSnapshot() and modifyAndFlushLastRecord() methods are now inherited from BinlogChangeEventSourceFactory
 
     @Override
     public StreamingChangeEventSource<MySqlPartition, MySqlOffsetContext> getStreamingChangeEventSource() {

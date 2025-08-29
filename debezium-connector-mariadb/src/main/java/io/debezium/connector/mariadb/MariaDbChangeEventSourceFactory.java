@@ -137,5 +137,4 @@ public class MariaDbChangeEventSourceFactory extends BinlogChangeEventSourceFact
                 notificationService));
     }
 
-    // preSnapshot() and modifyAndFlushLastRecord() methods are now inherited from BinlogChangeEventSourceFactory
 }

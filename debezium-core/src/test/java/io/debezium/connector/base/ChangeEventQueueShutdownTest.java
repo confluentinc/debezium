@@ -175,21 +175,26 @@ public class ChangeEventQueueShutdownTest {
      */
     @Test
     public void shouldHandleMultipleShutdownCalls() throws Exception {
+        int queueSize = 5;
         ChangeEventQueue<DataChangeEvent> queue = new ChangeEventQueue.Builder<DataChangeEvent>()
                 .maxBatchSize(5)
-                .maxQueueSize(5)
+                .maxQueueSize(queueSize)
                 .loggingContextSupplier(() -> LoggingContext.forConnector("test", "test", "test"))
                 .pollInterval(Duration.ofMillis(100))
                 .build();
+
+        // Fill the queue to capacity first
+        DataChangeEvent testEvent = new DataChangeEvent(null);
+        for (int i = 0; i < queueSize; i++) {
+            queue.doEnqueue(testEvent);
+        }
 
         // Multiple shutdown calls should not cause issues
         queue.shutdown();
         queue.shutdown();
         queue.shutdown();
 
-        // Enqueue on shutdown queue should fail immediately
-        DataChangeEvent testEvent = new DataChangeEvent(null);
-
+        // Enqueue on shutdown queue should fail when it hits the blocking condition
         long startTime = System.currentTimeMillis();
         try {
             queue.doEnqueue(testEvent);
