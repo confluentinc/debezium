@@ -11,9 +11,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.debezium.DebeziumException;
+import io.debezium.connector.base.ChangeEventQueue;
 import io.debezium.connector.binlog.jdbc.BinlogConnectorConnection;
 import io.debezium.connector.common.BaseSourceTask;
 import io.debezium.heartbeat.HeartbeatErrorHandler;
+import io.debezium.pipeline.DataChangeEvent;
 import io.debezium.pipeline.spi.OffsetContext;
 import io.debezium.pipeline.spi.Partition;
 import io.debezium.spi.snapshot.Snapshotter;
@@ -72,6 +74,20 @@ public abstract class BinlogSourceTask<P extends Partition, O extends OffsetCont
                         + "required for this connector to work properly. Change the database configuration to use a "
                         + "binlog_row_image=FULL and restart the connector.");
             }
+        }
+    }
+
+    /**
+     * Safely shuts down the change event queue to prevent thread leaks.
+     * This method should be called by subclasses in their doStop() method.
+     *
+     * @param queue the change event queue to shutdown, may be null
+     */
+    protected void shutdownQueue(ChangeEventQueue<DataChangeEvent> queue) {
+        // Signal the queue to shutdown first to unblock any stuck coordinator threads
+        if (queue != null) {
+            LOGGER.info("Shutting down change event queue to unblock any waiting threads");
+            queue.shutdown();
         }
     }
 
