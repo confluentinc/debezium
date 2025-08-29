@@ -56,7 +56,6 @@ public abstract class BinlogChangeEventSourceFactory<P extends Partition, O exte
             LOGGER.debug("Successfully flushed buffered record during snapshot cleanup");
         }
         catch (InterruptedException e) {
-            // Queue was shut down or thread was interrupted - this is expected during task shutdown
             LOGGER.info("Buffered record flush interrupted during snapshot cleanup, likely due to task shutdown");
             throw e;
         }
