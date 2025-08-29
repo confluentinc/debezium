@@ -1570,8 +1570,8 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
                 getConfig().subset(DATABASE_CONFIG_PREFIX, true)
                     .merge(getConfig().subset(DRIVER_CONFIG_PREFIX, true))
                     .edit()
-                    .with(DATABASE_CONFIG_PREFIX + JdbcConfiguration.USER, getUserName())
-                    .with(DATABASE_CONFIG_PREFIX + JdbcConfiguration.PASSWORD, getPassword())
+                    .with(JdbcConfiguration.USER, getUserName())
+                    .with(JdbcConfiguration.PASSWORD, getPassword())
                     .build());
         }
         // Use the parent's static configuration if no credential provider is configured
@@ -1582,7 +1582,7 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
         if (isCredentialProviderConfigured()) {
             return credsProvider.getJdbcCreds().user();
         }
-        return getConfig().getString(USER);
+        return getConfig().getString(RelationalDatabaseConnectorConfig.USER);
     }
 
     public String getPassword() {
