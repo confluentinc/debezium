@@ -199,6 +199,19 @@ public class ChangeEventQueue<T extends Sizeable> implements ChangeEventQueueMet
     }
 
     /**
+     * Disable buffering for the queue, if there is any buffered event it will be dropped with a warning log.
+     * This method should be used during shutdown to prevent memory leaks.
+     */
+    public void disableBufferingSafely() {
+        if (bufferedEvent.get() != null) {
+            LOGGER.warn("Disabling buffering with non-empty buffer - this may indicate incomplete flush during shutdown");
+            // Clear the buffer to prevent memory leaks
+            bufferedEvent.set(null);
+        }
+        buffering = false;
+    }
+
+    /**
      * Disable buffering for the queue
      */
     public void disableBuffering() {

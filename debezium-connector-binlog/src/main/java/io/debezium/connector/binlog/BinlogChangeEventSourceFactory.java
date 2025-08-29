@@ -50,7 +50,6 @@ public abstract class BinlogChangeEventSourceFactory<P extends Partition, O exte
      */
     protected void modifyAndFlushLastRecord(Function<SourceRecord, SourceRecord> modify) throws InterruptedException {
         try {
-            // Attempt to flush the buffered record
             // If queue is shut down, this will throw InterruptedException and we'll handle it gracefully
             queue.flushBuffer(dataChange -> new DataChangeEvent(modify.apply(dataChange.getRecord())));
             LOGGER.debug("Successfully flushed buffered record during snapshot cleanup");
@@ -58,6 +57,9 @@ public abstract class BinlogChangeEventSourceFactory<P extends Partition, O exte
         catch (InterruptedException e) {
             LOGGER.info("Buffered record flush interrupted during snapshot cleanup, likely due to task shutdown");
             throw e;
+        }
+        finally {
+            queue.disableBufferingSafely();
         }
     }
 }
