@@ -91,7 +91,6 @@ public class ChangeEventQueue<T extends Sizeable> implements ChangeEventQueueMet
 
     private volatile RuntimeException producerException;
 
-    // Flag to indicate if the queue is still running or has been shut down
     private volatile boolean running = true;
 
     private ChangeEventQueue(Duration pollInterval, int maxQueueSize, int maxBatchSize, Supplier<LoggingContext.PreviousContext> loggingContextSupplier,
@@ -239,7 +238,6 @@ public class ChangeEventQueue<T extends Sizeable> implements ChangeEventQueueMet
             this.lock.lock();
 
             while (queue.size() >= maxQueueSize || (maxQueueSizeInBytes > 0 && currentQueueSizeInBytes >= maxQueueSizeInBytes)) {
-                // Check if queue has been shut down
                 if (!running) {
                     throw new InterruptedException("Queue has been shut down");
                 }
@@ -248,11 +246,6 @@ public class ChangeEventQueue<T extends Sizeable> implements ChangeEventQueueMet
                 this.isFull.signalAll();
                 // queue size or queue sizeInBytes threshold reached, so wait a bit
                 this.isNotFull.await(pollInterval.toMillis(), TimeUnit.MILLISECONDS);
-            }
-
-            // Final check before enqueuing to handle race conditions
-            if (!running) {
-                throw new InterruptedException("Queue has been shut down");
             }
 
             queue.add(record);
