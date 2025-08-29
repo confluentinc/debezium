@@ -95,6 +95,12 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
             return;
         }
 
+        Map<String, String> mp = config.asMap();
+        for (String  key: mp.keySet()) {
+            LOGGER.info("logging config key in validateConnection");
+            LOGGER.info("Config key: {} = {}", key, mp.get(key));
+        }
+
         final PostgresConnectorConfig postgresConfig = new PostgresConnectorConfig(config);
         final ConfigValue hostnameValue = configValues.get(RelationalDatabaseConnectorConfig.HOSTNAME.name());
         final ConfigValue portValue = configValues.get(PostgresConnectorConfig.PORT.name());

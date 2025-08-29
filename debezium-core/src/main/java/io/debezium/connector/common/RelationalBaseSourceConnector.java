@@ -29,10 +29,24 @@ public abstract class RelationalBaseSourceConnector extends BaseSourceConnector 
 
     @Override
     public Config validate(Map<String, String> connectorConfigs) {
+        for (String  key: connectorConfigs.keySet()) {
+            LOGGER.info("logging config key in validateConnection line 33");
+            LOGGER.info("Config key: {} = {}", key, connectorConfigs.get(key));
+        }
         Configuration config = Configuration.from(connectorConfigs);
+
+        Map<String, String> mp = config.asMap();
+        for (String  key: mp.keySet()) {
+            LOGGER.info("logging config key in validate at line 36");
+            LOGGER.info("Config key: {} = {}", key, mp.get(key));
+        }
 
         // Validate all the individual fields, which is easy since don't make any of the fields invisible ...
         Map<String, ConfigValue> results = validateAllFields(config);
+        for (String  key: results.keySet()) {
+            LOGGER.info("logging config key in validate at line 47");
+            LOGGER.info("Config key: {} = {}", key, results.get(key));
+        }
 
         if (Strings.isNullOrEmpty(config.getString(RelationalDatabaseConnectorConfig.PASSWORD))) {
             LOGGER.info("The connection password is empty");
@@ -51,7 +65,10 @@ public abstract class RelationalBaseSourceConnector extends BaseSourceConnector 
             // ... validate the connection too
             validateConnection(results, config);
         }
-
+        for (String  key: results.keySet()) {
+            LOGGER.info("logging config key in validate at line 65");
+            LOGGER.info("Config key: {} = {}", key, results.get(key));
+        }
         return new Config(new ArrayList<>(results.values()));
     }
 
