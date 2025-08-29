@@ -21,7 +21,7 @@ import io.debezium.pipeline.spi.Partition;
  * Abstract base class for binlog-based change event source factories.
  * Contains common logic for memory leak prevention during snapshot operations.
  *
- * @author Chris Cranford
+ * @author Yashi Srivastava
  */
 public abstract class BinlogChangeEventSourceFactory<P extends Partition, O extends OffsetContext>
         implements ChangeEventSourceFactory<P, O> {
@@ -57,7 +57,6 @@ public abstract class BinlogChangeEventSourceFactory<P extends Partition, O exte
         }
 
         try {
-            // Attempt to flush the buffered record
             // If queue is shut down, this will throw InterruptedException and we'll handle it gracefully
             queue.flushBuffer(dataChange -> new DataChangeEvent(modify.apply(dataChange.getRecord())));
             LOGGER.debug("Successfully flushed buffered record during snapshot cleanup");
@@ -68,15 +67,11 @@ public abstract class BinlogChangeEventSourceFactory<P extends Partition, O exte
             throw e;
         }
         finally {
-            // Always disable buffering to prevent memory leaks
-            try {
-                queue.disableBuffering();
+            if (queue.hasBufferedEvent()) {
+                LOGGER.debug("Buffer not empty during cleanup due to shutdown timing - clearing it safely");
+                queue.clearBufferedEvent();
             }
-            catch (AssertionError e) {
-                // In rare cases, assertion may fail if buffer is not empty due to shutdown timing
-                // This is acceptable as the queue shutdown mechanism prevents the memory leak
-                LOGGER.debug("Buffer not empty during cleanup due to shutdown timing - this is expected");
-            }
+            queue.disableBuffering();
         }
     }
 }

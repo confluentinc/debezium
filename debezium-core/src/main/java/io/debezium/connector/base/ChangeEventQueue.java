@@ -214,12 +214,41 @@ public class ChangeEventQueue<T extends Sizeable> implements ChangeEventQueueMet
     }
 
     /**
-     * Shutdown the queue, causing any blocked enqueue operations to be interrupted
+     * Check if there is a buffered event that needs to be cleared
+     *
+     * @return true if there is a buffered event, false otherwise
+     */
+    public boolean hasBufferedEvent() {
+        return bufferedEvent.get() != null;
+    }
+
+    /**
+     * Safely clear any buffered event without assertions
+     */
+    public void clearBufferedEvent() {
+        bufferedEvent.set(null);
+    }
+
+    /**
+     * Check if the queue has been shut down
+     *
+     * @return true if the queue is shut down, false otherwise
+     */
+    public boolean isShutdown() {
+        return !running;
+    }
+
+    /**
+     * Shutdown the queue, causing any blocked enqueue operations to be interrupted.
+     * This method is idempotent and can be called multiple times safely.
      */
     public void shutdown() {
-        running = false;
         try {
             this.lock.lock();
+            if (!running) {
+                return; // Already shut down
+            }
+            running = false;
             // Wake up any threads blocked in enqueue operations
             this.isNotFull.signalAll();
             this.isFull.signalAll();
