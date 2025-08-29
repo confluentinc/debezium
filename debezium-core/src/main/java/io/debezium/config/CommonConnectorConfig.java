@@ -1344,11 +1344,12 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
     }
 
     public String getLogicalName() {
-        return logicalName;
+        return logicalName != null ? logicalName : "debezium-logical-name";
     }
 
     public String connectorName() {
-        return originalsStrings().get("name");
+        String name = originalsStrings().get("name");
+        return name != null ? name : "debezium-connector";
     }
 
     public String getConnectorThreadNamePattern() {
