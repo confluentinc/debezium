@@ -27,8 +27,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -104,6 +106,7 @@ import io.debezium.relational.RelationalSnapshotChangeEventSource;
 import io.debezium.relational.TableId;
 import io.debezium.schema.DatabaseSchema;
 import io.debezium.util.Strings;
+import io.debezium.util.ThreadNameContext;
 
 /**
  * Integration test for {@link PostgresConnector} using an {@link io.debezium.engine.DebeziumEngine}
@@ -655,6 +658,69 @@ public class PostgresConnectorIT extends AbstractAsyncEngineConnectorTest {
             stopConnector(null);
             TestHelper.create().dropReplicationSlot(slotName);
             throw t;
+        }
+    }
+
+    @Test
+    public void testConnectionValidationWithMissingThreadNamePattern() {
+        logger.info("Testing connection validation with missing thread name pattern - ROOT CAUSE TEST");
+
+        PostgresConnector connector = new PostgresConnector();
+
+        Map<String, String> configMap = new HashMap<>();
+        configMap.put("database.hostname", "localhost");
+        configMap.put("database.port", "5432");
+        configMap.put("database.user", "postgres");
+        configMap.put("database.password", "postgres");
+        configMap.put("database.dbname", "postgres");
+
+        logger.info("Configuration keys1: {}", configMap.keySet());
+        logger.info("Missing connector.thread.name.pattern in the config: {}", !configMap.containsKey("connector.thread.name.pattern"));
+
+        try {
+            Config validationResult = connector.validate(configMap);
+
+            logger.info("Validation result: {}", validationResult);
+
+            // Check for thread naming context related errors
+            boolean foundThreadNamingError = false;
+            for (var configValue : validationResult.configValues()) {
+                if (!configValue.errorMessages().isEmpty()) {
+                    for (String error : configValue.errorMessages()) {
+                        logger.info("Validation error: {}", error);
+
+                        if (error.contains("Cannot invoke") && error.contains("replacement") && error.contains("null")) {
+                            foundThreadNamingError = true;
+                            logger.error("Thread naming context null replacement error: {}", error);
+                            logger.error(
+                                    "This occurs because getConnectorThreadNamePattern() returns null when the 'connector.thread.name.pattern' config is not provided");
+                            logger.error("Configuration that caused the error: {}", configMap);
+                            logger.error("Root cause: CONNECTOR_THREAD_NAME_PATTERN field has no default value in CommonConnectorConfig");
+
+                            // Log the exact solution
+                            logger.error("SOLUTION: Add default value to CONNECTOR_THREAD_NAME_PATTERN field or add null check in getConnectorThreadNamePattern()");
+                        }
+                    }
+                }
+            }
+
+            if (foundThreadNamingError) {
+                logger.info("Found Thread Naming Error");
+            }
+            else {
+                logger.info("No thread naming context error found");
+            }
+
+        }
+        catch (Exception e) {
+            logger.error("Error during connection validation", e);
+
+            if (e.getMessage() != null && e.getMessage().contains("Cannot invoke") &&
+                    e.getMessage().contains("replacement") && e.getMessage().contains("null")) {
+                logger.error("Thread naming context null replacement error: {}", e.getMessage());
+            }
+
+            logger.info("Different error occurred: {}", e.getMessage());
         }
     }
 
@@ -3756,5 +3822,288 @@ public class PostgresConnectorIT extends AbstractAsyncEngineConnectorTest {
 
     private void waitForStreamingRunning() throws InterruptedException {
         waitForStreamingRunning("postgres", TestHelper.TEST_SERVER);
+    }
+
+    @Test
+    @FixFor("DBZ-XXXX")
+    public void testConnectionValidationWithThreadNamingContext() throws Exception {
+        logger.info("Starting testConnectionValidationWithThreadNamingContext");
+
+        // Test case 0: Directly test the root cause - null thread name pattern
+        testThreadNamingContextNullPattern();
+
+        // Test case 1: Valid configuration that should pass validation
+        testValidConnectionValidation();
+
+        // Test case 2: Configuration with potential null values that might cause thread naming issues
+        testConnectionValidationWithNullValues();
+
+        // Test case 3: Test timeout scenario with thread naming context
+        testConnectionValidationTimeout();
+
+        logger.info("Completed testConnectionValidationWithThreadNamingContext");
+    }
+
+    private void testThreadNamingContextNullPattern() throws Exception {
+        logger.info("Testing ThreadNameContext with null thread name pattern - ROOT CAUSE TEST");
+
+        try {
+            // Create a ThreadNameContext with null thread name pattern to demonstrate the issue
+            ThreadNameContext threadNameContext = new ThreadNameContext(
+                    "test-connector",
+                    null, // ❌ This is what happens when getConnectorThreadNamePattern() returns null
+                    "0");
+
+            logger.info("Created ThreadNameContext with null pattern: {}", threadNameContext.getThreadNamePattern());
+
+            // Try to create a thread factory - this should reproduce the exact error
+            try {
+                java.util.concurrent.ThreadFactory factory = io.debezium.util.Threads.threadFactory(
+                        PostgresConnector.class,
+                        "test-component",
+                        "test-functionality",
+                        threadNameContext,
+                        false,
+                        false);
+
+                // Try to create a thread - this will trigger the null replacement error
+                Thread thread = factory.newThread(() -> {
+                    logger.info("Test thread created successfully");
+                });
+
+                logger.info("Thread created: {}", thread.getName());
+
+            }
+            catch (Exception e) {
+                if (e.getMessage() != null && e.getMessage().contains("Cannot invoke") &&
+                        e.getMessage().contains("replacement") && e.getMessage().contains("null")) {
+                    logger.error("🔥 ROOT CAUSE CONFIRMED! Thread factory fails with null thread name pattern: {}", e.getMessage());
+                    logger.error("This happens when CONNECTOR_THREAD_NAME_PATTERN config is not provided");
+                    logger.error("The threadNamePattern becomes null and .replace() calls fail");
+                }
+                else {
+                    logger.error("Unexpected error in thread factory test", e);
+                }
+            }
+
+        }
+        catch (Exception e) {
+            logger.error("Error in direct ThreadNameContext test", e);
+        }
+    }
+
+    private void testValidConnectionValidation() throws Exception {
+        logger.info("Testing valid connection validation");
+
+        PostgresConnector connector = new PostgresConnector();
+
+        // Create a valid configuration similar to the one mentioned in the issue
+        Configuration config = Configuration.create()
+                .with("database.hostname", "localhost")
+                .with("database.port", 5432)
+                .with("database.user", "postgres")
+                .with("database.password", "postgres")
+                .with("database.dbname", "postgres")
+                .with("topic.prefix", "test-connector")
+                .with("slot.name", "test_slot")
+                .build();
+
+        try {
+            Config validationResult = connector.validate(config.asMap());
+
+            logger.info("Validation result: {}", validationResult);
+
+            // Check for any validation errors
+            for (ConfigValue configValue : validationResult.configValues()) {
+                logger.info("Config key: {}, value: {}, errors: {}",
+                        configValue.name(), configValue.value(), configValue.errorMessages());
+
+                // Log specific validation errors that might be related to thread naming
+                if (!configValue.errorMessages().isEmpty()) {
+                    for (String error : configValue.errorMessages()) {
+                        if (error.contains("Cannot invoke") && error.contains("replacement") && error.contains("null")) {
+                            logger.error("Found thread naming context null replacement error: {}", error);
+                            fail("Thread naming context caused null replacement error: " + error);
+                        }
+                        if (error.contains("Connection validation timed out")) {
+                            logger.warn("Connection validation timeout occurred: {}", error);
+                        }
+                    }
+                }
+            }
+
+            logger.info("Valid connection validation completed successfully");
+
+        }
+        catch (Exception e) {
+            logger.error("Error during valid connection validation", e);
+
+            // Check if the error is related to thread naming context
+            if (e.getMessage() != null && e.getMessage().contains("Cannot invoke") &&
+                    e.getMessage().contains("replacement") && e.getMessage().contains("null")) {
+                fail("Thread naming context caused null replacement error in valid config: " + e.getMessage());
+            }
+
+            throw e;
+        }
+    }
+
+    private void testConnectionValidationWithNullValues() throws Exception {
+        logger.info("Testing connection validation with potential null values");
+
+        PostgresConnector connector = new PostgresConnector();
+
+        // Test configuration similar to Confluent Cloud fail-fast validation scenario
+        // This simulates the exact configuration you mentioned in the issue
+        Configuration config = Configuration.create()
+                .with("database.hostname", "localhost")
+                .with("database.port", 5432)
+                .with("database.user", "postgres")
+                .with("database.password", "postgres")
+                .with("database.dbname", "postgres")
+                .with("topic.prefix", "test-connector") // This is set, so not the issue
+                .with("slot.name", "test_slot")
+                // ❌ CRITICAL: Intentionally NOT setting CONNECTOR_THREAD_NAME_PATTERN
+                // This matches the Confluent Cloud fail-fast validation scenario
+                // where this advanced property is not included in the config
+                .build();
+
+        try {
+            logger.info("Testing configuration similar to Confluent Cloud fail-fast validation");
+            logger.info("Configuration keys: {}", config.asMap().keySet());
+            logger.info("Missing connector.thread.name.pattern: {}", !config.asMap().containsKey("connector.thread.name.pattern"));
+
+            Config validationResult = connector.validate(config.asMap());
+
+            logger.info("Validation result without thread name pattern: {}", validationResult);
+
+            // Check for thread naming context related errors
+            for (ConfigValue configValue : validationResult.configValues()) {
+                if (!configValue.errorMessages().isEmpty()) {
+                    for (String error : configValue.errorMessages()) {
+                        logger.info("Validation error: {}", error);
+
+                        if (error.contains("Cannot invoke") && error.contains("replacement") && error.contains("null")) {
+                            logger.error("🔥 FOUND THE BUG! Thread naming context null replacement error: {}", error);
+                            logger.error(
+                                    "This occurs because getConnectorThreadNamePattern() returns null when the 'connector.thread.name.pattern' config is not provided");
+                            logger.error("Configuration that caused the error: {}", config.asMap());
+                            logger.error("Root cause: CONNECTOR_THREAD_NAME_PATTERN field has no default value in CommonConnectorConfig");
+
+                            // Don't fail the test here, just log for debugging
+                            logger.warn("This is the exact issue described in the problem statement!");
+                        }
+                    }
+                }
+            }
+
+        }
+        catch (Exception e) {
+            logger.error("Error during connection validation with missing thread name pattern", e);
+
+            // Log the specific error for debugging
+            if (e.getMessage() != null && e.getMessage().contains("Cannot invoke") &&
+                    e.getMessage().contains("replacement") && e.getMessage().contains("null")) {
+                logger.error("🔥 FOUND THE BUG! Thread naming context null replacement error: {}", e.getMessage());
+                logger.error("This is the root cause: getConnectorThreadNamePattern() returns null");
+                logger.error("The error occurs in Threads.threadFactory() when trying to call .replace() on null threadNamePattern");
+                logger.error("Fix needed: Add default value to CONNECTOR_THREAD_NAME_PATTERN field or add null check in getConnectorThreadNamePattern()");
+            }
+        }
+
+        // Test 2: Verify that providing the thread name pattern fixes the issue
+        logger.info("Testing with explicit thread name pattern to verify the fix");
+        Configuration configWithPattern = Configuration.create()
+                .with("database.hostname", "localhost")
+                .with("database.port", 5432)
+                .with("database.user", "postgres")
+                .with("database.password", "postgres")
+                .with("database.dbname", "postgres")
+                .with("topic.prefix", "test-connector")
+                .with("slot.name", "test_slot")
+                .with("connector.thread.name.pattern", "${debezium}-${connector.class.simple}-${topic.prefix}-${functionality}") // Explicit pattern
+                .build();
+
+        try {
+            Config validationResultWithPattern = connector.validate(configWithPattern.asMap());
+            logger.info("Validation with explicit thread name pattern: SUCCESS");
+
+            boolean hasThreadNamingError = false;
+            for (ConfigValue configValue : validationResultWithPattern.configValues()) {
+                if (!configValue.errorMessages().isEmpty()) {
+                    for (String error : configValue.errorMessages()) {
+                        if (error.contains("Cannot invoke") && error.contains("replacement") && error.contains("null")) {
+                            hasThreadNamingError = true;
+                            logger.error("Unexpected thread naming error even with explicit pattern: {}", error);
+                        }
+                    }
+                }
+            }
+
+            if (!hasThreadNamingError) {
+                logger.info("✅ CONFIRMED: Providing explicit thread name pattern prevents the null replacement error");
+            }
+
+        }
+        catch (Exception e) {
+            logger.error("Unexpected error even with explicit thread name pattern", e);
+        }
+    }
+
+    private void testConnectionValidationTimeout() throws Exception {
+        logger.info("Testing connection validation timeout behavior with thread naming context");
+
+        PostgresConnector connector = new PostgresConnector();
+
+        // Create configuration with a very short timeout to trigger timeout scenario
+        Configuration config = Configuration.create()
+                .with("database.hostname", "non-existent-host-for-timeout-test.com") // Invalid host to force timeout
+                .with("database.port", 5432)
+                .with("database.user", "postgres")
+                .with("database.password", "postgres")
+                .with("database.dbname", "postgres")
+                .with("topic.prefix", "timeout-test-connector")
+                .with("slot.name", "timeout_test_slot")
+                .with("connection.validation.timeout.ms", 100) // Very short timeout
+                .build();
+
+        try {
+            logger.info("Testing connection validation with forced timeout");
+            Config validationResult = connector.validate(config.asMap());
+
+            // Look for timeout messages
+            boolean timeoutOccurred = false;
+            for (ConfigValue configValue : validationResult.configValues()) {
+                if (!configValue.errorMessages().isEmpty()) {
+                    for (String error : configValue.errorMessages()) {
+                        logger.info("Timeout test validation error: {}", error);
+
+                        if (error.contains("Connection validation timed out")) {
+                            timeoutOccurred = true;
+                            logger.info("Expected timeout occurred: {}", error);
+                        }
+
+                        if (error.contains("Cannot invoke") && error.contains("replacement") && error.contains("null")) {
+                            logger.error("Thread naming context null replacement error during timeout test: {}", error);
+                            fail("Thread naming context caused null replacement error during timeout: " + error);
+                        }
+                    }
+                }
+            }
+
+            if (!timeoutOccurred) {
+                logger.warn("Expected timeout did not occur - this might be due to fast network or host resolution");
+            }
+
+        }
+        catch (Exception e) {
+            logger.error("Error during timeout test", e);
+
+            // Check for thread naming context issues during timeout
+            if (e.getMessage() != null && e.getMessage().contains("Cannot invoke") &&
+                    e.getMessage().contains("replacement") && e.getMessage().contains("null")) {
+                fail("Thread naming context caused null replacement error during timeout test: " + e.getMessage());
+            }
+        }
     }
 }

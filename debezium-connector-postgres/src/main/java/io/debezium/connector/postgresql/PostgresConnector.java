@@ -105,11 +105,8 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         // Try to connect to the database ...
         try {
             Threads.runWithTimeout(PostgresConnector.class, () -> {
-                try {
-                    LOGGER.info("Testing connection for Postgres connector with config: {}", postgresConfig);
-                    PostgresConnection connection = new PostgresConnection(postgresConfig.getJdbcConfig(),
-                     PostgresConnection.CONNECTION_VALIDATE_CONNECTION, threadNameContext);
-                    LOGGER.info("Completed Testing connection for Postgres connector with config: {}", postgresConfig);
+                try (PostgresConnection connection = new PostgresConnection(postgresConfig.getJdbcConfig(),
+                        PostgresConnection.CONNECTION_VALIDATE_CONNECTION, threadNameContext)) {
                     try {
                         // Prepare connection without initial statement execution
                         connection.connection(false);
@@ -136,17 +133,12 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
                         passwordValue.addErrorMessage("Error while validating connector config: " + e.getMessage());
                     }
                 }
-                catch (Exception e) {
-                    final String errorMessage = "Unable to connect to the database: " + e.getMessage();
-                    LOGGER.error(errorMessage, e);
-                }
             }, timeout, postgresConfig.getLogicalName(), "connection-validation", threadNameContext);
         }
         catch (TimeoutException e) {
             hostnameValue.addErrorMessage("Connection validation timed out after " + timeout.toMillis() + " ms");
         }
         catch (Exception e) {
-            LOGGER.error("Connector failed during connection validation", e);
             hostnameValue.addErrorMessage("Error during connection validation: " + e.getMessage());
         }
     }
