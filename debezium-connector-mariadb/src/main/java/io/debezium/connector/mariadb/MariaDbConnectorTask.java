@@ -244,6 +244,8 @@ public class MariaDbConnectorTask extends BinlogSourceTask<MariaDbPartition, Mar
 
     @Override
     protected void doStop() {
+        shutdownQueue(queue);
+
         try {
             if (connection != null) {
                 connection.close();
