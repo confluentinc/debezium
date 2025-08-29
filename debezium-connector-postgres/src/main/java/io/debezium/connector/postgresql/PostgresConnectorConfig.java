@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import io.confluent.credentialproviders.JdbcCredentialsProvider;
+import io.debezium.DebeziumException;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigDef.Type;
@@ -48,6 +50,8 @@ import io.debezium.util.Strings;
 public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PostgresConnectorConfig.class);
+
+    private final JdbcCredentialsProvider credsProvider;
 
     /**
      * The set of predefined HStoreHandlingMode options or aliases
@@ -693,6 +697,16 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
             .withDescription("The name of the Postgres 10+ publication used for streaming changes from a plugin. " +
                     "Defaults to '" + ReplicationConnection.Builder.DEFAULT_PUBLICATION_NAME + "'");
 
+    public static final Field CREDENTIALS_PROVIDER_CLASS_NAME = Field.create("jdbc.creds.provider.class.name")
+            .withDisplayName("JDBC Credentials Provider Class Name")
+            .withType(Type.STRING)
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTION, 43))
+            .withWidth(Width.MEDIUM)
+            .withDefault("io.confluent.credentialproviders.DefaultJdbcCredentialsProvider")
+            .withImportance(Importance.LOW)
+            .withValidation(Field::isOptional)
+            .withDescription("JDBC Credentials Provider class name used to provide credentials for connecting to the SQL database server.");
+
     public enum AutoCreateMode implements EnumeratedValue {
         /**
          * No Publication will be created, it's expected the user
@@ -1218,6 +1232,8 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
         this.readOnlyConnection = config.getBoolean(READ_ONLY_CONNECTION);
         this.publishViaPartitionRoot = config.getBoolean(PUBLISH_VIA_PARTITION_ROOT);
         this.lsnFlushTimeoutAction = LsnFlushTimeoutAction.parse(config.getString(LSN_FLUSH_TIMEOUT_ACTION));
+
+        this.credsProvider = getCredentialsProvider(config);
     }
 
     protected String hostname() {
@@ -1401,7 +1417,8 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
                     XMIN_FETCH_INTERVAL,
                     // Use this connector's implementation rather than common connector's flavor
                     SKIPPED_OPERATIONS,
-                    SHOULD_FLUSH_LSN_IN_SOURCE_DB)
+                    SHOULD_FLUSH_LSN_IN_SOURCE_DB,
+                    CREDENTIALS_PROVIDER_CLASS_NAME)
             .events(
                     INCLUDE_UNKNOWN_DATATYPES,
                     SOURCE_INFO_STRUCT_MAKER)
@@ -1510,5 +1527,61 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
                     t.table() != null && !SYSTEM_TABLES.contains(t.table().toLowerCase()) &&
                     !t.schema().startsWith(TEMP_TABLE_SCHEMA_PREFIX);
         }
+    }
+
+    private static JdbcCredentialsProvider getCredentialsProvider(Configuration config) {
+        String providerClass = config.getString(PostgresConnectorConfig.CREDENTIALS_PROVIDER_CLASS_NAME);
+        try {
+            JdbcCredentialsProvider provider = (JdbcCredentialsProvider) Class.forName(providerClass)
+                    .getDeclaredConstructor().newInstance();
+
+            provider.configure(config.asMap());
+            LOGGER.info("Configured credentials provider: {}", provider);
+
+            return provider;
+        }
+        catch (Exception e) {
+            LOGGER.error("Error initializing credentials provider", e);
+            throw new DebeziumException("Failed to initialize credentials provider: " + providerClass, e);
+        }
+    }
+
+    @Override
+    public JdbcConfiguration getJdbcConfig() {
+        if (isCredentialProviderConfigured()) {
+            // Build JDBC configuration dynamically with credentials from provider
+            return JdbcConfiguration.adapt(
+                getConfig().subset(DATABASE_CONFIG_PREFIX, true)
+                    .merge(getConfig().subset(DRIVER_CONFIG_PREFIX, true))
+                    .edit()
+                    .with(JdbcConfiguration.USER, getUserName())
+                    .with(JdbcConfiguration.PASSWORD, getPassword())
+                    .build());
+        }
+        // Use the parent's static configuration if no credential provider is configured
+        return super.getJdbcConfig();
+    }
+
+    public String getUserName() {
+        if (isCredentialProviderConfigured()) {
+            return credsProvider.getJdbcCreds().user();
+        }
+        return getConfig().getString(RelationalDatabaseConnectorConfig.USER);
+    }
+
+    public String getPassword() {
+        if (isCredentialProviderConfigured()) {
+            return credsProvider.getJdbcCreds().password();
+        }
+        return getConfig().getString(RelationalDatabaseConnectorConfig.PASSWORD);
+    }
+
+    /**
+     * Returns true if a custom credential provider is configured.
+     */
+    private boolean isCredentialProviderConfigured() {
+        String configuredProvider = getConfig().getString(CREDENTIALS_PROVIDER_CLASS_NAME);
+        String defaultProvider = CREDENTIALS_PROVIDER_CLASS_NAME.defaultValueAsString();
+        return configuredProvider != null && !configuredProvider.equals(defaultProvider);
     }
 }
