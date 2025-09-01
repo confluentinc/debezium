@@ -705,7 +705,7 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
             .withDefault("io.confluent.credentialproviders.DefaultJdbcCredentialsProvider")
             .withImportance(Importance.LOW)
             .withValidation(Field::isOptional)
-            .withDescription("JDBC Credentials Provider class name used to provide credentials for connecting to the SQL database server.");
+            .withDescription("JDBC Credentials Provider class name used to provide credentials for connecting to the Postgres database server.");
 
     public enum AutoCreateMode implements EnumeratedValue {
         /**
@@ -1233,7 +1233,12 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
         this.publishViaPartitionRoot = config.getBoolean(PUBLISH_VIA_PARTITION_ROOT);
         this.lsnFlushTimeoutAction = LsnFlushTimeoutAction.parse(config.getString(LSN_FLUSH_TIMEOUT_ACTION));
 
-        this.credsProvider = getCredentialsProvider(config);
+        // Only initialize credentials provider if a custom credential provider is configured
+        if (isCredentialProviderConfigured(config)) {
+            this.credsProvider = getCredentialsProvider(config);
+        } else {
+            this.credsProvider = null;
+        }
     }
 
     protected String hostname() {
@@ -1580,7 +1585,14 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
      * Returns true if a custom credential provider is configured.
      */
     private boolean isCredentialProviderConfigured() {
-        String configuredProvider = getConfig().getString(CREDENTIALS_PROVIDER_CLASS_NAME);
+        return credsProvider != null;
+    }
+
+    /**
+     * Returns true if a custom credential provider is configured in the given configuration.
+     */
+    private static boolean isCredentialProviderConfigured(Configuration config) {
+        String configuredProvider = config.getString(CREDENTIALS_PROVIDER_CLASS_NAME);
         String defaultProvider = CREDENTIALS_PROVIDER_CLASS_NAME.defaultValueAsString();
         return configuredProvider != null && !configuredProvider.equals(defaultProvider);
     }
