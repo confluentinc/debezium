@@ -59,7 +59,7 @@ public abstract class BinlogChangeEventSourceFactory<P extends Partition, O exte
             throw e;
         }
         finally {
-            queue.disableBufferingSafely();
+            queue.disableBuffering();
         }
     }
 }
