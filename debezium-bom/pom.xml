@@ -63,7 +63,7 @@
         <version.fest>1.4</version.fest>
         <version.assertj>3.11.1</version.assertj>
         <version.jmh>1.21</version.jmh>
-        <version.mockito>3.0.0</version.mockito>
+        <version.mockito>5.17.0</version.mockito>
         <version.awaitility>4.0.1</version.awaitility>
         <version.testcontainers>1.19.1</version.testcontainers>
         <version.jsonpath>2.9.0</version.jsonpath>
