@@ -236,6 +236,9 @@ public class ChangeEventQueue<T extends Sizeable> implements ChangeEventQueueMet
         try {
             this.lock.lock();
 
+            if (!running) {
+                throw new InterruptedException("Queue has been shut down");
+            }
             while (queue.size() >= maxQueueSize || (maxQueueSizeInBytes > 0 && currentQueueSizeInBytes >= maxQueueSizeInBytes)) {
                 if (!running) {
                     throw new InterruptedException("Queue has been shut down");
