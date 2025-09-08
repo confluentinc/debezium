@@ -217,9 +217,10 @@ public class ChangeEventQueue<T extends Sizeable> implements ChangeEventQueueMet
      * Shutdown the queue, causing any blocked enqueue operations to be interrupted
      */
     public void shutdown() {
+        running = false;
         try {
             this.lock.lock();
-            running = false;
+            // Wake up any threads blocked in enqueue operations
             this.isNotFull.signalAll();
             this.isFull.signalAll();
         }
