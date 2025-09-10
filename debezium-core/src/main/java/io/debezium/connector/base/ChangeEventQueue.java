@@ -222,6 +222,7 @@ public class ChangeEventQueue<T extends Sizeable> implements ChangeEventQueueMet
             running = false;
             this.isNotFull.signalAll();
             this.isFull.signalAll();
+            LOGGER.info("Change event queue has been shut down");
         }
         finally {
             this.lock.unlock();
@@ -238,15 +239,23 @@ public class ChangeEventQueue<T extends Sizeable> implements ChangeEventQueueMet
 
             while (queue.size() >= maxQueueSize || (maxQueueSizeInBytes > 0 && currentQueueSizeInBytes >= maxQueueSizeInBytes)) {
                 if (!running) {
+                    LOGGER.info("Change event queue has been shut down, interrupting enqueue");
                     throw new InterruptedException("Queue has been shut down");
                 }
 
+                LOGGER.info("Queue full (size: {}, sizeInBytes: {}), waiting up to {} ms for space to become available {}",
+                        queue.size(), currentQueueSizeInBytes, pollInterval.toMillis(), running);
                 // signal poll() to drain queue
                 this.isFull.signalAll();
+                LOGGER.info("Waiting up to {} ms for space to become available in the queue (current size: {}, sizeInBytes: {}," +
+                                " max size: {}, max sizeInBytes: {})",
+                        pollInterval.toMillis(), queue.size(), currentQueueSizeInBytes, maxQueueSize, maxQueueSizeInBytes);
                 // queue size or queue sizeInBytes threshold reached, so wait a bit
                 this.isNotFull.await(pollInterval.toMillis(), TimeUnit.MILLISECONDS);
             }
 
+            LOGGER.info("Running {}, enqueuing record (queue size: {}, sizeInBytes: {}, max size: {}, max sizeInBytes: {})",
+                    running, queue.size(), currentQueueSizeInBytes, maxQueueSize, maxQueueSizeInBytes);
             queue.add(record);
             // If we pass a positiveLong max.queue.size.in.bytes to enable handling queue size in bytes feature
             if (maxQueueSizeInBytes > 0) {
