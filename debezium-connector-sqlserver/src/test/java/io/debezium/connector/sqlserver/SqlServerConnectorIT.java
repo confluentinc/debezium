@@ -3068,6 +3068,7 @@ public class SqlServerConnectorIT extends AbstractAsyncEngineConnectorTest {
                 .with(SqlServerConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
                 .with(SqlServerConnectorConfig.STORE_ONLY_CAPTURED_TABLES_DDL, "true")
                 .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.tablea")
+                .with(CommonConnectorConfig.LOG_POSITION_CHECK_ENABLED, true)
                 .build();
 
         // Start the connector ...
