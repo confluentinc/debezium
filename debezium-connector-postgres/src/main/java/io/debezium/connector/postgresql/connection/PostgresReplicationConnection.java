@@ -10,6 +10,7 @@ import static java.lang.Math.toIntExact;
 
 import java.nio.ByteBuffer;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
@@ -64,7 +65,7 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
 
     private static final String SQL_LOCK_NOT_AVAILABLE = "55P03";
 
-    private static final String PUBLICATION_QUERY_FAILURE_MESSAGE = "Creation of publication slot failed: query to create/update publication timed out, please make sure that there are no maintenance activities going on the database end.";
+    private static final String PUBLICATION_QUERY_FAILURE_MESSAGE = "Creation of publication failed: query to create/update publication timed out, please make sure that there are no maintenance activities going on the database end.";
 
     private static Logger LOGGER = LoggerFactory.getLogger(PostgresReplicationConnection.class);
 
@@ -155,6 +156,65 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
         }
     }
 
+    /**
+     * Captures the current statement_timeout value from the database.
+     *
+     * @param stmt the Statement to use for querying
+     * @return the current statement_timeout value as an Optional<String>, empty if unable to capture
+     */
+    private Optional<String> captureCurrentStatementTimeout(Statement stmt) {
+        try (ResultSet timeoutRs = stmt.executeQuery("SHOW statement_timeout;")) {
+            if (timeoutRs.next()) {
+                String timeout = timeoutRs.getString(1);
+                LOGGER.debug("Captured original statement_timeout: {}", timeout);
+                return Optional.of(timeout);
+            }
+        }
+        catch (SQLException ex) {
+            LOGGER.warn("Failed to capture current statement_timeout", ex);
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Resets the statement_timeout to the specified value.
+     *
+     * @param stmt the Statement to use for execution
+     * @param originalTimeout the timeout value to restore
+     */
+    private void resetStatementTimeout(Statement stmt, Optional<String> originalTimeout) {
+        if (originalTimeout.isPresent()) {
+            try {
+                stmt.execute("SET statement_timeout = '" + originalTimeout.get() + "';");
+                LOGGER.debug("Reset statement_timeout to: {}", originalTimeout.get());
+            }
+            catch (SQLException ex) {
+                LOGGER.warn("Failed to reset statement_timeout to original value: {}", originalTimeout.get(), ex);
+            }
+        }
+    }
+
+    /**
+     * Executes a statement with a temporary statement_timeout, automatically restoring the original timeout afterwards.
+     *
+     * @param stmt the Statement to use for execution
+     * @param statementToExecute the SQL statement to execute
+     * @throws SQLException if the execution fails
+     */
+    private void executeWithTimeout(Statement stmt, String statementToExecute) throws SQLException {
+        Optional<String> originalTimeout = captureCurrentStatementTimeout(stmt);
+        try {
+            StringBuilder statements = new StringBuilder();
+            statements.append("SET statement_timeout = ").append(TimeUnit.SECONDS.toMillis(connectorConfig.createSlotCommandTimeout()))
+                    .append("; ");
+            statements.append(statementToExecute);
+            stmt.execute(statements.toString());
+        }
+        finally {
+            resetStatementTimeout(stmt, originalTimeout);
+        }
+    }
+
     protected void initPublication() {
         if (PostgresConnectorConfig.LogicalDecoder.PGOUTPUT.equals(plugin)) {
             LOGGER.info("Initializing PgOutput logical decoder publication");
@@ -179,12 +239,13 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
                                 LOGGER.info("Creating Publication with statement '{}'", createPublicationStmt);
                                 // Publication doesn't exist, create it.
                                 try {
-                                    stmt.setQueryTimeout(toIntExact(connectorConfig.createSlotCommandTimeout()));
-                                    stmt.execute(createPublicationStmt);
-                                } catch (SQLException ex) {
+                                    executeWithTimeout(stmt, createPublicationStmt);
+                                }
+                                catch (SQLException ex) {
                                     if (PSQLState.QUERY_CANCELED.getState().equals(ex.getSQLState()) || SQL_LOCK_NOT_AVAILABLE.equals(ex.getSQLState())) {
                                         throw new DebeziumException(PUBLICATION_QUERY_FAILURE_MESSAGE, ex);
-                                    } else {
+                                    }
+                                    else {
                                         throw ex;
                                     }
                                 }
@@ -198,8 +259,7 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
                                         : String.format("CREATE PUBLICATION %s;", publicationName);
                                 LOGGER.info("Creating publication with statement '{}'", createPublicationWithNoTablesStmt);
                                 try {
-                                    stmt.setQueryTimeout(toIntExact(connectorConfig.createSlotCommandTimeout()));
-                                    stmt.execute(createPublicationWithNoTablesStmt);
+                                    executeWithTimeout(stmt, createPublicationWithNoTablesStmt);
                                 }
                                 catch (SQLException ex) {
                                     if (PSQLState.QUERY_CANCELED.getState().equals(ex.getSQLState()) || SQL_LOCK_NOT_AVAILABLE.equals(ex.getSQLState())) {
@@ -228,7 +288,10 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
                                             publicationName, plugin, database()));
                                 }
                                 else {
-                                    createOrUpdatePublicationModeFiltered(stmt, true);
+                                    // Only update publication if tables have changed
+                                    if (isPublicationUpdateRequired(stmt)) {
+                                        createOrUpdatePublicationModeFiltered(stmt, true);
+                                    }
                                 }
                                 break;
                             default:
@@ -247,6 +310,80 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
                 throw new JdbcConnectionException(e);
             }
         }
+    }
+
+    /**
+     * Gets the list of tables currently configured in the publication.
+     *
+     * @param stmt the statement to use for the query
+     * @return Optional containing Set of TableId objects representing tables in the publication, empty if unable to query
+     */
+    private Optional<Set<TableId>> getCurrentPublicationTables(Statement stmt) {
+        String getPublicationTablesQuery = String.format("SELECT schemaname, tablename FROM pg_publication_tables WHERE pubname = '%s'", publicationName);
+
+        Set<TableId> publicationTables = new HashSet<>();
+        try (PreparedStatement prepStmt = stmt.getConnection().prepareStatement(getPublicationTablesQuery)) {
+            try (ResultSet rs = prepStmt.executeQuery()) {
+                while (rs.next()) {
+                    String schemaName = rs.getString("schemaname");
+                    String tableName = rs.getString("tablename");
+                    TableId tableId = jdbcConnection.createTableId(connectorConfig.databaseName(), schemaName, tableName);
+                    publicationTables.add(tableId);
+                }
+            }
+        }
+        catch (SQLException e) {
+            LOGGER.warn("Unable to query pg_publication_tables for publication '{}'. This may be due to insufficient privileges. " +
+                    "Publication will be updated to ensure synchronization. Error: {}", publicationName, e.getMessage());
+            return Optional.empty();
+        }
+        return Optional.of(publicationTables);
+    }
+
+    /**
+     * Checks if the current publication tables match the desired captured tables.
+     *
+     * @param stmt the statement to use for database queries
+     * @return true if the publication needs to be updated, false otherwise
+     * @throws SQLException if database queries fail
+     */
+    public boolean isPublicationUpdateRequired(Statement stmt) throws SQLException {
+        Optional<Set<TableId>> currentPublicationTables = getCurrentPublicationTables(stmt);
+
+        // If we couldn't query the current publication tables (e.g., due to insufficient privileges),
+        // we should update the publication to ensure synchronization
+        if (currentPublicationTables.isEmpty()) {
+            LOGGER.info("Unable to determine current publication tables for '{}', will update publication to ensure synchronization", publicationName);
+            return true;
+        }
+
+        Set<TableId> desiredTables;
+        try {
+            desiredTables = determineCapturedTables();
+        }
+        catch (Exception e) {
+            throw new SQLException("Failed to determine captured tables", e);
+        }
+
+        if (desiredTables.isEmpty()) {
+            LOGGER.warn("No table filters found for filtered publication {}", publicationName);
+            return false;
+        }
+
+        Set<TableId> currentTables = currentPublicationTables.get();
+        if (currentTables.equals(desiredTables)) {
+            LOGGER.info("Publication '{}' is already up to date with desired tables", publicationName);
+            return false;
+        }
+
+        Set<TableId> toAdd = new HashSet<>(desiredTables);
+        toAdd.removeAll(currentTables);
+        Set<TableId> toRemove = new HashSet<>(currentTables);
+        toRemove.removeAll(desiredTables);
+
+        LOGGER.info("Publication '{}' has to be updated. Tables to add: {}, Tables to remove: {}",
+                publicationName, toAdd, toRemove);
+        return true;
     }
 
     private void createOrUpdatePublicationModeFiltered(Statement stmt, boolean isUpdate) {
@@ -268,8 +405,7 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
             }
             LOGGER.info(isUpdate ? "Updating Publication with statement '{}'" : "Creating Publication with statement '{}'", createOrUpdatePublicationStmt);
             try {
-                stmt.setQueryTimeout(toIntExact(connectorConfig.createSlotCommandTimeout()));
-                stmt.execute(createOrUpdatePublicationStmt);
+                executeWithTimeout(stmt, createOrUpdatePublicationStmt);
             }
             catch (SQLException ex) {
                 if (PSQLState.QUERY_CANCELED.getState().equals(ex.getSQLState()) || SQL_LOCK_NOT_AVAILABLE.equals(ex.getSQLState())) {
