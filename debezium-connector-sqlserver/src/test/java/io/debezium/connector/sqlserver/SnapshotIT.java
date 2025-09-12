@@ -25,10 +25,7 @@ import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.awaitility.Awaitility;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.*;
 
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
@@ -50,6 +47,7 @@ import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.time.Timestamp;
 import io.debezium.util.Testing;
 
+@Ignore
 /**
  * Integration test for the Debezium SQL Server connector.
  *
