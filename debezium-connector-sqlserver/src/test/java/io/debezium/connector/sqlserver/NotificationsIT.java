@@ -21,7 +21,6 @@ import org.assertj.core.data.Percentage;
 import org.awaitility.Awaitility;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import io.debezium.config.CommonConnectorConfig;
@@ -31,7 +30,6 @@ import io.debezium.pipeline.notification.AbstractNotificationsIT;
 import io.debezium.pipeline.notification.channels.SinkNotificationChannel;
 import io.debezium.util.Testing;
 
-@Ignore
 public class NotificationsIT extends AbstractNotificationsIT<SqlServerConnector> {
 
     @Before
