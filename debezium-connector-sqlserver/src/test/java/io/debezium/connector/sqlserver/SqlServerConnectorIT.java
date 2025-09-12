@@ -3180,8 +3180,13 @@ public class SqlServerConnectorIT extends AbstractAsyncEngineConnectorTest {
 
         // CREATE 2 data (resume from the available LSN)
         records = consumeRecordsByTopic(2);
-        assertThat(records.recordsForTopic("server1.testDB1.dbo.tablea").size()).isEqualTo(2);
+        List<SourceRecord> tableARecords = records.recordsForTopic("server1.testDB1.dbo.tablea");
+
+        assertThat(tableARecords.size()).isEqualTo(2);
         assertThat(records.topics().size()).isEqualTo(1);
+
+        VerifyRecord.isValidInsert(tableARecords.get(0), "id", 700);
+        VerifyRecord.isValidInsert(tableARecords.get(1), "id", 800);
         stopConnector();
     }
 
