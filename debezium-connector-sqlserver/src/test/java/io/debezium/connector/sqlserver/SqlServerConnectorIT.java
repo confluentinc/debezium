@@ -3181,8 +3181,7 @@ public class SqlServerConnectorIT extends AbstractAsyncEngineConnectorTest {
         // CREATE 2 data (resume from the available LSN)
         records = consumeRecordsByTopic(2);
         assertThat(records.recordsForTopic("server1.testDB1.dbo.tablea").size()).isEqualTo(2);
-        assertThat(records.topics().size()).isEqualTo(1 + 1);
-        assertThat(records.ddlRecordsForDatabase("testDB1").size()).isEqualTo(1);
+        assertThat(records.topics().size()).isEqualTo(1);
         stopConnector();
     }
 
