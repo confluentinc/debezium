@@ -129,7 +129,8 @@ public class TestHelper {
         return builder.with(CommonConnectorConfig.TOPIC_PREFIX, "server1")
                 .with(SqlServerConnectorConfig.SCHEMA_HISTORY, FileSchemaHistory.class)
                 .with(FileSchemaHistory.FILE_PATH, SCHEMA_HISTORY_PATH)
-                .with(RelationalDatabaseConnectorConfig.INCLUDE_SCHEMA_CHANGES, false);
+                .with(RelationalDatabaseConnectorConfig.INCLUDE_SCHEMA_CHANGES, false)
+                .with(CommonConnectorConfig.LOG_POSITION_CHECK_ENABLED, false);
     }
 
     /**
