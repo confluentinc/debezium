@@ -3128,6 +3128,65 @@ public class SqlServerConnectorIT extends AbstractAsyncEngineConnectorTest {
     }
 
     @Test
+    public void shouldProcessPurgedLogsWhenDownAndResumeFromMinimumLsn() throws SQLException, InterruptedException {
+
+        Testing.Files.delete(SCHEMA_HISTORY_PATH);
+
+        purgeDatabaseLogs();
+
+        // Use the DB configuration to define the connector's configuration ...
+        Configuration config = TestHelper.defaultConfig()
+                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
+                .with(SqlServerConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
+                .with(SqlServerConnectorConfig.STORE_ONLY_CAPTURED_TABLES_DDL, "true")
+                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.tablea")
+                .build();
+
+        // Start the connector ...
+        start(SqlServerConnector.class, config);
+
+        // Consume the first records due to startup and initialization of the database ...
+        // Testing.Print.enable();
+        SourceRecords records = consumeRecordsByTopic(1 + 1); // CREATE 1 tables + 1 data
+        assertThat(records.recordsForTopic("server1.testDB1.dbo.tablea").size()).isEqualTo(1);
+        assertThat(records.topics().size()).isEqualTo(1 + 1);
+        assertThat(records.ddlRecordsForDatabase("testDB1").size()).isEqualTo(1);
+
+        // Check that all records are valid, can be serialized and deserialized ...
+        records.forEach(this::validate);
+
+        stopConnector();
+
+        connection.execute(
+                "INSERT INTO tablea VALUES(100,'100')",
+                "INSERT INTO tablea VALUES(200,'200')");
+
+        start(SqlServerConnector.class, config);
+        records = consumeRecordsByTopic(2);
+        stopConnector();
+
+        connection.execute(
+                "INSERT INTO tablea VALUES(300,'300')",
+                "INSERT INTO tablea VALUES(400,'400')");
+
+        purgeDatabaseLogs();
+
+        // No records to consume
+        start(SqlServerConnector.class, config);
+
+        connection.execute(
+                "INSERT INTO tablea VALUES(700,'700')",
+                "INSERT INTO tablea VALUES(800,'800')");
+
+        // CREATE 2 data (resume from the available LSN)
+        records = consumeRecordsByTopic(2);
+        assertThat(records.recordsForTopic("server1.testDB1.dbo.tablea").size()).isEqualTo(2);
+        assertThat(records.topics().size()).isEqualTo(1 + 1);
+        assertThat(records.ddlRecordsForDatabase("testDB1").size()).isEqualTo(1);
+        stopConnector();
+    }
+
+    @Test
     public void shouldAllowForCustomSnapshot() throws InterruptedException, SQLException {
 
         final String pkField = "id";
