@@ -23,6 +23,7 @@
         <postgres.password>postgres</postgres.password>
         <postgres.db.name>postgres</postgres.db.name>
         <postgres.encoding>UTF8</postgres.encoding>
+        <credential.providers.version>0.131.0</credential.providers.version>
         <postgres.system.lang>en_US.utf8</postgres.system.lang>
         <postgres.image>quay.io/debezium/postgres:${version.postgres.server}</postgres.image>
         <postgres.config.file>/usr/share/postgresql/postgresql.conf.sample</postgres.config.file>
@@ -70,6 +71,17 @@
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>credential-providers</artifactId>
+            <version>${credential.providers.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-reload4j</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- Testing -->
