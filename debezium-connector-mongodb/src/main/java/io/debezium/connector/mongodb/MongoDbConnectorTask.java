@@ -137,6 +137,14 @@ public final class MongoDbConnectorTask extends BaseSourceTask<MongoDbPartition,
             validate(connectorConfig, taskContext.getConnection(dispatcher, previousOffsets.getTheOnlyPartition()), previousOffsets,
                     snapshotterService.getSnapshotter());
 
+            // Validate guardrail limits for captured collections to prevent loading excessive collection schemas into memory
+            if (connectorConfig.getGuardrailTablesMax() <= 0) {
+                LOGGER.info("Guardrail validation skipped");
+            }
+            else {
+                validateGuardrailLimits(connectorConfig, taskContext.getConnection(dispatcher, previousOffsets.getTheOnlyPartition()));
+            }
+
             NotificationService<MongoDbPartition, MongoDbOffsetContext> notificationService = new NotificationService<>(getNotificationChannels(),
                     connectorConfig, SchemaFactory.get(), dispatcher::enqueueNotification);
 
@@ -309,6 +317,21 @@ public final class MongoDbConnectorTask extends BaseSourceTask<MongoDbPartition,
                             + "available on the server. Reconfigure the connector to use a snapshot mode when needed.");
                 }
             }
+        }
+    }
+
+    private void validateGuardrailLimits(MongoDbConnectorConfig connectorConfig, MongoDbConnection connection) {
+        try {
+            List<CollectionId> collections = connection.collections();
+            List<String> collectionNames = collections.stream()
+                    .map(CollectionId::toString)
+                    .collect(Collectors.toList());
+
+            connectorConfig.validateGuardrailLimits(collections.size(), collectionNames);
+        }
+        catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new DebeziumException("Interrupted while validating guardrail limits", e);
         }
     }
 }
