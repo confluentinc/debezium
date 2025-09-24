@@ -86,6 +86,8 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
     protected final boolean isAdvancedMetricsEnabled;
     protected final boolean failOnNoTables;
     protected final String connectorThreadNamePattern;
+    protected final int guardrailCollectionsMax;
+    protected final GuardrailCollectionsLimitAction guardrailCollectionsLimitAction;
 
     /**
      * The set of predefined versions e.g. for source struct maker version
@@ -457,6 +459,66 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
             return mode;
         }
 
+    }
+
+    /**
+     * The set of predefined GuardrailCollectionLimitAction options
+     */
+    public enum GuardrailCollectionsLimitAction implements EnumeratedValue {
+        /**
+         * Log a warning when the guardrail limit is exceeded but continue processing
+         */
+        WARN("warn"),
+
+        /**
+         * Fail the connector when the guardrail limit is exceeded
+         */
+        FAIL("fail");
+
+        private final String value;
+
+        GuardrailCollectionsLimitAction(String value) {
+            this.value = value;
+        }
+
+        @Override
+        public String getValue() {
+            return value;
+        }
+
+        /**
+         * Determine if the supplied value is one of the predefined options.
+         *
+         * @param value the configuration property value; may not be null
+         * @return the matching option, or null if no match is found
+         */
+        public static GuardrailCollectionsLimitAction parse(String value) {
+            if (value == null) {
+                return null;
+            }
+            value = value.trim();
+            for (GuardrailCollectionsLimitAction option : GuardrailCollectionsLimitAction.values()) {
+                if (option.getValue().equalsIgnoreCase(value)) {
+                    return option;
+                }
+            }
+            return null;
+        }
+
+        /**
+         * Determine if the supplied value is one of the predefined options.
+         *
+         * @param value the configuration property value; may not be null
+         * @param defaultValue the default value; may be null
+         * @return the matching option, or null if no match is found and the non-null default is invalid
+         */
+        public static GuardrailCollectionsLimitAction parse(String value, String defaultValue) {
+            GuardrailCollectionsLimitAction action = parse(value);
+            if (action == null && defaultValue != null) {
+                action = parse(defaultValue);
+            }
+            return action;
+        }
     }
 
     public enum EventConvertingFailureHandlingMode implements EnumeratedValue {
@@ -1126,6 +1188,28 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
                             + "${connector.name} and ${task.id} to include connector name and task id in thread names. "
                             + "Custom patterns can be specified while maintaining the default structure.");
 
+    public static final Field GUARDRAIL_COLLECTIONS_MAX = Field.create("guardrail.collections.max")
+            .withDisplayName("Maximum number of tables")
+            .withType(Type.INT)
+            .withGroup(Field.createGroupEntry(Field.Group.ADVANCED, 33))
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.MEDIUM)
+            .withDescription("The maximum number of collections or tables that can be captured by the connector. " +
+                    "When this limit is exceeded, the action specified by 'guardrail.collections.limit.action' will be taken. " +
+                    "Set to 0 to disable this guardrail.")
+            .withDefault(0)
+            .withValidation(Field::isNonNegativeInteger);
+
+    public static final Field GUARDRAIL_COLLECTIONS_LIMIT_ACTION = Field.create("guardrail.collections.limit.action")
+            .withDisplayName("Guardrail collections limit action")
+            .withGroup(Field.createGroupEntry(Field.Group.ADVANCED, 34))
+            .withEnum(GuardrailCollectionsLimitAction.class, GuardrailCollectionsLimitAction.WARN)
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.MEDIUM)
+            .withDescription("Specify the action to take when a guardrail collections limit is exceeded: " +
+                    "'warn' (the default) logs a warning message and continues processing; " +
+                    "'fail' stops the connector with an error.");
+
     protected static final ConfigDefinition CONFIG_DEFINITION = ConfigDefinition.editor()
             .connector(
                     EVENT_PROCESSING_FAILURE_HANDLING_MODE,
@@ -1154,7 +1238,9 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
                     ADVANCED_METRICS_ENABLE,
                     FAIL_ON_NO_TABLES,
                     CONNECTION_VALIDATION_TIMEOUT_MS,
-                    CONNECTOR_THREAD_NAME_PATTERN)
+                    CONNECTOR_THREAD_NAME_PATTERN,
+                GUARDRAIL_COLLECTIONS_MAX,
+                GUARDRAIL_COLLECTIONS_LIMIT_ACTION)
             .events(
                     CUSTOM_CONVERTERS,
                     CUSTOM_POST_PROCESSORS,
@@ -1272,6 +1358,8 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
         this.isAdvancedMetricsEnabled = config.getBoolean(ADVANCED_METRICS_ENABLE);
         this.failOnNoTables = config.getBoolean(FAIL_ON_NO_TABLES);
         this.connectorThreadNamePattern = config.getString(CONNECTOR_THREAD_NAME_PATTERN);
+        this.guardrailCollectionsMax = config.getInteger(GUARDRAIL_COLLECTIONS_MAX);
+        this.guardrailCollectionsLimitAction = GuardrailCollectionsLimitAction.parse(config.getString(GUARDRAIL_COLLECTIONS_LIMIT_ACTION));
 
         this.signalingDataCollectionId = !Strings.isNullOrBlank(this.signalingDataCollection)
                 ? TableId.parse(this.signalingDataCollection)
@@ -1418,6 +1506,51 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
 
     public boolean failOnNoTables() {
         return failOnNoTables;
+    }
+
+    public int getGuardrailCollectionsMax() {
+        return guardrailCollectionsMax;
+    }
+
+    public GuardrailCollectionsLimitAction getGuardrailCollectionsLimitAction() {
+        return guardrailCollectionsLimitAction;
+    }
+
+    /**
+     * Validates that the number of captured tables/collections does not exceed the configured guardrail limit.
+     * Takes the appropriate action (warn or fail) based on the guardrail configuration.
+     *
+     * @param tableCount the number of tables/collections that will be captured
+     * @param tableNames the names of tables/collections for logging (can be null)
+     * @throws DebeziumException if the guardrail limit is exceeded and the action is set to FAIL
+     */
+    public void validateGuardrailLimits(int tableCount, java.util.Collection<String> tableNames) {
+        int maxTables = getGuardrailCollectionsMax();
+
+        if (tableCount > maxTables) {
+            String message = String.format(
+                    "Guardrail limit exceeded: %d tables/collections configured for capture, but maximum allowed is %d.",
+                    tableCount, maxTables);
+
+            // Log table list at debug level for troubleshooting
+            if (tableNames != null && LOGGER.isDebugEnabled()) {
+                String tableList = tableNames.stream()
+                        .sorted()
+                        .collect(java.util.stream.Collectors.joining(", "));
+                LOGGER.debug("Tables/Collections configured for capture: {}", tableList);
+            }
+
+            if (getGuardrailCollectionsLimitAction() == GuardrailCollectionsLimitAction.FAIL) {
+                throw new DebeziumException(message);
+            }
+            else {
+                LOGGER.warn(message);
+            }
+        }
+        else {
+            LOGGER.info("Guardrail validation passed: {} tables/collections configured for capture (limit: {})",
+                    tableCount, maxTables);
+        }
     }
 
     public EventProcessingFailureHandlingMode getEventProcessingFailureHandlingMode() {
