@@ -397,7 +397,7 @@ public abstract class BinlogConnectorConnection extends JdbcConnection {
             try {
                 // MySQL sometimes considers some local files as databases (see DBZ-164),
                 // so we will simply try each one and ignore the problematic ones
-                query("SHOW FULL TABLES IN " + quoteIdentifier(dbName) + " where Table_Type = 'BASE TABLE'", rs -> {
+                query("SHOW FULL TABLES IN " + "`" + dbName + "`" + " where Table_Type = 'BASE TABLE'", rs -> {
                     while (rs.next()) {
                         TableId id = new TableId(dbName, null, rs.getString(1));
                         tableIds.add(id);
