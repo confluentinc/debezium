@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.kafka.connect.source.SourceRecord;
@@ -123,6 +124,14 @@ public class OracleConnectorTask extends BaseSourceTask<OraclePartition, OracleO
         checkArchiveLogDestination(jdbcConnection, connectorConfig.getArchiveLogDestinationName());
 
         OracleOffsetContext previousOffset = previousOffsets.getTheOnlyOffset();
+
+        // Validate guardrail limits for captured tables to prevent loading excessive table schemas into memory
+        if (connectorConfig.getGuardrailCollectionsMax() <= 0) {
+            LOGGER.info("Guardrail validation skipped");
+        }
+        else {
+            validateGuardrailLimits(connectorConfig, jdbcConnection);
+        }
 
         validateSchemaHistory(connectorConfig, jdbcConnection::validateLogPosition, previousOffsets, schema, snapshotterService.getSnapshotter());
 
@@ -324,6 +333,37 @@ public class OracleConnectorTask extends BaseSourceTask<OraclePartition, OracleO
             }
             else {
                 LOGGER.warn("Failed the archive log check but continuing as redo log isn't strictly required");
+            }
+        }
+    }
+
+    private void validateGuardrailLimits(OracleConnectorConfig connectorConfig, OracleConnection connection) {
+        boolean switchedToPdb = false;
+        try {
+            // Set the main connection to the PDB if configured.
+            // This is done before operations that need to see PDB-specific tables like validateGuardrailLimits.
+            if (!Strings.isNullOrEmpty(connectorConfig.getPdbName())) {
+                connection.setSessionToPdb(connectorConfig.getPdbName());
+                switchedToPdb = true;
+            }
+
+            // Get all table IDs that match the connector's filters
+            Set<TableId> allTableIds = connection.getAllTableIds(connectorConfig.getCatalogName());
+
+            List<String> tableNames = allTableIds.stream()
+                    .filter(tableId -> connectorConfig.getTableFilters().dataCollectionFilter().isIncluded(tableId))
+                    .map(TableId::toString)
+                    .collect(java.util.stream.Collectors.toList());
+
+            connectorConfig.validateGuardrailLimits(tableNames.size(), tableNames);
+        }
+        catch (SQLException e) {
+            throw new DebeziumException("Failed to validate guardrail limits", e);
+        }
+        finally {
+            // Reset the connection to the CDB.
+            if (switchedToPdb) {
+                connection.resetSessionToCdb();
             }
         }
     }

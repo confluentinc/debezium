@@ -11,6 +11,7 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import io.debezium.util.ThreadNameContext;
@@ -132,6 +133,14 @@ public class MariaDbConnectorTask extends BinlogSourceTask<MariaDbPartition, Mar
         // If the binlog position is not available, it is necessary to re-execute the snapshot
         if (validateSnapshotFeasibility(snapshotter, previousOffsets.getTheOnlyOffset(), connection)) {
             previousOffsets.resetOffset(previousOffsets.getTheOnlyPartition());
+        }
+
+        // Validate guardrail limits for captured tables to prevent loading excessive table schemas into memory
+        if (connectorConfig.getGuardrailCollectionsMax() <= 0) {
+            LOGGER.info("Guardrail validation skipped");
+        }
+        else {
+            validateGuardrailLimits(connectorConfig, connection);
         }
 
         LOGGER.info("Closing JDBC connection before starting schema recovery.");
@@ -315,6 +324,22 @@ public class MariaDbConnectorTask extends BinlogSourceTask<MariaDbPartition, Mar
 
     private BinlogFieldReader getFieldReader(MariaDbConnectorConfig connectorConfig) {
         return new MariaDbFieldReader(connectorConfig);
+    }
+
+    private void validateGuardrailLimits(MariaDbConnectorConfig connectorConfig, BinlogConnectorConnection connection) {
+        try {
+            Set<TableId> allTableIds = connection.getAllTableIds();
+
+            List<String> tableNames = allTableIds.stream()
+                    .filter(tableId -> connectorConfig.getTableFilters().dataCollectionFilter().isIncluded(tableId))
+                    .map(TableId::toString)
+                    .collect(Collectors.toList());
+
+            connectorConfig.validateGuardrailLimits(tableNames.size(), tableNames);
+        }
+        catch (SQLException e) {
+            throw new DebeziumException("Failed to validate guardrail limits", e);
+        }
     }
 
 }
