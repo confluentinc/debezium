@@ -8,6 +8,7 @@ package io.debezium.connector.mysql;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.kafka.connect.source.SourceRecord;
@@ -119,6 +120,14 @@ public class MySqlConnectorTask extends BinlogSourceTask<MySqlPartition, MySqlOf
         // If the binlog position is not available it is necessary to re-execute snapshot
         if (validateSnapshotFeasibility(snapshotter, previousOffsets.getTheOnlyOffset(), connection)) {
             previousOffsets.resetOffset(previousOffsets.getTheOnlyPartition());
+        }
+
+        // Validate guardrail limits for captured tables to prevent loading excessive table schemas into memory
+        if (connectorConfig.getGuardrailCollectionsMax() <= 0) {
+            LOGGER.info("Guardrail validation skipped");
+        }
+        else {
+            validateGuardrailLimits(connectorConfig, connection);
         }
 
         LOGGER.info("Closing connection before starting schema recovery");
@@ -273,6 +282,22 @@ public class MySqlConnectorTask extends BinlogSourceTask<MySqlPartition, MySqlOf
     @Override
     protected Iterable<Field> getAllConfigurationFields() {
         return MySqlConnectorConfig.ALL_FIELDS;
+    }
+
+    private void validateGuardrailLimits(MySqlConnectorConfig connectorConfig, BinlogConnectorConnection connection) {
+        try {
+            Set<TableId> allTableIds = connection.getAllTableIds();
+
+            List<String> tableNames = allTableIds.stream()
+                    .filter(tableId -> connectorConfig.getTableFilters().dataCollectionFilter().isIncluded(tableId))
+                    .map(TableId::toString)
+                    .collect(Collectors.toList());
+
+            connectorConfig.validateGuardrailLimits(tableNames.size(), tableNames);
+        }
+        catch (SQLException e) {
+            throw new DebeziumException("Failed to validate guardrail limits", e);
+        }
     }
 
 }
