@@ -156,4 +156,11 @@ public abstract class HistorizedRelationalDatabaseSchema extends RelationalDatab
     public boolean historyExists() {
         return schemaHistory.exists();
     }
+
+    /**
+     * Returns the schema history instance for verification purposes.
+     */
+    public SchemaHistory getSchemaHistory() {
+        return schemaHistory;
+    }
 }
