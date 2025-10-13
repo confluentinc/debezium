@@ -632,6 +632,31 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
         return configs.values().iterator().next();
     }
 
+    @Override
+    public void verifyReadAccess() {
+        if (topicName == null || consumerConfig == null) {
+            throw new SchemaHistoryException("Schema history topic or consumer not configured.");
+        }
+
+        LOGGER.info("Verifying read access to database schema history topic '{}'", topicName);
+
+        try (KafkaConsumer<String, String> verificationConsumer = new KafkaConsumer<>(consumerConfig.asProperties())) {
+            // Subscribe to the topic
+            verificationConsumer.subscribe(Collect.arrayListOf(topicName));
+
+            // Perform a dummy poll to verify we can actually read from the topic
+            // This will trigger any permission or connectivity issues
+            ConsumerRecords<String, String> records = verificationConsumer.poll(this.pollInterval);
+
+            LOGGER.info("Successfully verified read access to database schema history topic '{}', read {} records during verification", 
+                    topicName, records.count());
+        }
+        catch (Exception e) {
+            throw new SchemaHistoryException("Failed to verify read access to database schema history topic '" + topicName + "'. " +
+                    "This could be due to insufficient permissions, connectivity issues, or incorrect configuration.", e);
+        }
+    }
+
     private static Validator forKafka(final Validator validator) {
         return (config, field, problems) -> {
             final String history = config.getString(HistorizedRelationalDatabaseConnectorConfig.SCHEMA_HISTORY);
