@@ -78,7 +78,7 @@ public abstract class BinlogConnector<T extends BinlogConnectorConfig> extends R
                     catch (SQLException e) {
                         LOGGER.error("Failed testing connection for {} with user '{}'",
                                 connection.connectionString(), connection.connectionConfig().username(), e);
-                        hostnameValue.addErrorMessage("Unable to connect: " + e.getMessage());
+                        hostnameValue.addErrorMessage("Unable to connect: " + e.getMessage() + (e.getCause()!=null && e.getCause().getMessage()!=null ? " Caused by: " + e.getCause().getMessage() : ""));
                     }
                 }
                 catch (SQLException e) {
