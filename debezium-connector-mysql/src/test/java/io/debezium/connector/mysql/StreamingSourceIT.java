@@ -53,7 +53,7 @@ public class StreamingSourceIT extends BinlogStreamingSourceIT<MySqlConnector> i
 
         assertEquals(false, result.get("success"));
         assertEquals(
-                "Connector configuration is not valid. Unable to connect: Specified list of TLS versions only contains non valid TLS protocols. Accepted values are TLSv1.2 and TLSv1.3.",
+                "Connector configuration is not valid. Unable to connect: Specified list of TLS versions only contains non valid TLS protocols. Accepted values are TLSv1.2 and TLSv1.3. Caused by: Specified list of TLS versions only contains non valid TLS protocols. Accepted values are TLSv1.2 and TLSv1.3.",
                 result.get("message").toString());
     }
 
