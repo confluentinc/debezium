@@ -43,6 +43,8 @@ import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigDef.Type;
 import org.apache.kafka.common.config.ConfigDef.Width;
 import org.apache.kafka.common.config.ConfigResource;
+import org.apache.kafka.common.errors.GroupAuthorizationException;
+import org.apache.kafka.common.errors.TopicAuthorizationException;
 import org.apache.kafka.common.errors.TopicExistsException;
 import org.apache.kafka.common.errors.UnsupportedVersionException;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -630,6 +632,35 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
         }
 
         return configs.values().iterator().next();
+    }
+
+    @Override
+    public void verifyReadAccess() {
+        LOGGER.info("Verifying read access to database schema history topic '{}'", topicName);
+
+        try (KafkaConsumer<String, String> verificationConsumer = new KafkaConsumer<>(consumerConfig.asProperties())) {
+            // Subscribe to the topic
+            verificationConsumer.subscribe(Collect.arrayListOf(topicName));
+
+            // Perform a dummy poll to verify we can actually read from the topic
+            // This will trigger any permission or connectivity issues
+            ConsumerRecords<String, String> records = verificationConsumer.poll(this.pollInterval);
+
+            LOGGER.info("Successfully verified read access to database schema history topic '{}', read {} records during verification", 
+                    topicName, records.count());
+        }
+        catch (GroupAuthorizationException e) {
+            throw new SchemaHistoryException("Failed to verify read access to database schema history topic '" + topicName + "'. " +
+                    "Read ACL is not granted for the consumer group.", e);
+        }
+        catch (TopicAuthorizationException e) {
+            throw new SchemaHistoryException("Failed to verify read access to database schema history topic '" + topicName + "'. " +
+                    "Read ACL is not granted for the topic.", e);
+        }
+        catch (Exception e) {
+            throw new SchemaHistoryException("Failed to verify read access to database schema history topic '" + topicName + "'. " +
+                    "An unexpected error occurred during verification: " + e.getMessage(), e);
+        }
     }
 
     private static Validator forKafka(final Validator validator) {
