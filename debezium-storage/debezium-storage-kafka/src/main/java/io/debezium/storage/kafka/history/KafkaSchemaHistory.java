@@ -650,15 +650,15 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
                     topicName, records.count());
         }
         catch (GroupAuthorizationException e) {
-            throw new SchemaHistoryException("Failed to verify read access to database schema history topic '" + topicName + "'. " +
+            throw new SchemaHistoryException("Failed to read from schema history topic '" + topicName + "'. " +
                     "Read ACL is not granted for the consumer group.", e);
         }
         catch (TopicAuthorizationException e) {
-            throw new SchemaHistoryException("Failed to verify read access to database schema history topic '" + topicName + "'. " +
+            throw new SchemaHistoryException("Failed to read from schema history topic '" + topicName + "'. " +
                     "Read ACL is not granted for the topic.", e);
         }
         catch (Exception e) {
-            throw new SchemaHistoryException("Failed to verify read access to database schema history topic '" + topicName + "'. " +
+            throw new SchemaHistoryException("Failed to read from schema history topic '" + topicName + "'. " +
                     "An unexpected error occurred during verification: " + e.getMessage(), e);
         }
     }
