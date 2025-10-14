@@ -43,6 +43,8 @@ import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigDef.Type;
 import org.apache.kafka.common.config.ConfigDef.Width;
 import org.apache.kafka.common.config.ConfigResource;
+import org.apache.kafka.common.errors.GroupAuthorizationException;
+import org.apache.kafka.common.errors.TopicAuthorizationException;
 import org.apache.kafka.common.errors.TopicExistsException;
 import org.apache.kafka.common.errors.UnsupportedVersionException;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -647,9 +649,17 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
             LOGGER.info("Successfully verified read access to database schema history topic '{}', read {} records during verification", 
                     topicName, records.count());
         }
+        catch (GroupAuthorizationException e) {
+            throw new SchemaHistoryException("Failed to verify read access to database schema history topic '" + topicName + "'. " +
+                    "Read ACL is not granted for the consumer group.", e);
+        }
+        catch (TopicAuthorizationException e) {
+            throw new SchemaHistoryException("Failed to verify read access to database schema history topic '" + topicName + "'. " +
+                    "Read ACL is not granted for the topic.", e);
+        }
         catch (Exception e) {
             throw new SchemaHistoryException("Failed to verify read access to database schema history topic '" + topicName + "'. " +
-                    "This could be due to insufficient permissions or incorrect configuration.", e);
+                    "An unexpected error occurred during verification: " + e.getMessage(), e);
         }
     }
 
