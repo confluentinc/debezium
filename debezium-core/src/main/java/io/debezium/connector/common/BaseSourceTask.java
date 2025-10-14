@@ -99,7 +99,7 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
                     }
                     catch (Exception e) {
                         throw new DebeziumException("Failed to read from schema history topic. " +
-                                "Ensure that the connector has the necessary permissions to read from and write to the schema-history topic.", e);
+                                "Ensure that the connector has the necessary permissions to read from the schema-history topic.", e);
                     }
                 }
                 return;

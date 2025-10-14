@@ -634,10 +634,6 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
 
     @Override
     public void verifyReadAccess() {
-        if (topicName == null || consumerConfig == null) {
-            throw new SchemaHistoryException("Schema history topic or consumer not configured.");
-        }
-
         LOGGER.info("Verifying read access to database schema history topic '{}'", topicName);
 
         try (KafkaConsumer<String, String> verificationConsumer = new KafkaConsumer<>(consumerConfig.asProperties())) {
@@ -653,7 +649,7 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
         }
         catch (Exception e) {
             throw new SchemaHistoryException("Failed to verify read access to database schema history topic '" + topicName + "'. " +
-                    "This could be due to insufficient permissions, connectivity issues, or incorrect configuration.", e);
+                    "This could be due to insufficient permissions or incorrect configuration.", e);
         }
     }
 
