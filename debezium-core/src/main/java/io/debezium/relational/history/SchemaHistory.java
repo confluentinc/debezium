@@ -256,4 +256,14 @@ public interface SchemaHistory {
      * Called to initialize permanent storage of the history.
      */
     void initializeStorage();
+
+    /**
+     * Performs a dummy read from the schema history storage to verify read access.
+     * This is useful to validate permissions when a connector starts for the first time.
+     *
+     * @throws SchemaHistoryException if the verification fails (e.g., due to permission or connectivity issues)
+     */
+    default void verifyReadAccess() {
+        // Default implementation does nothing - only implementations that need verification should override
+    }
 }

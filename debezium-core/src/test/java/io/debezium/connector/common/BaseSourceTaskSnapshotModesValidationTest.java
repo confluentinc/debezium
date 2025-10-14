@@ -34,6 +34,7 @@ import io.debezium.pipeline.ChangeEventSourceCoordinator;
 import io.debezium.pipeline.spi.OffsetContext;
 import io.debezium.pipeline.spi.Offsets;
 import io.debezium.pipeline.spi.Partition;
+import io.debezium.relational.history.SchemaHistory;
 import io.debezium.schema.DatabaseSchema;
 import io.debezium.schema.HistorizedDatabaseSchema;
 import io.debezium.spi.snapshot.Snapshotter;
@@ -122,13 +123,16 @@ public class BaseSourceTaskSnapshotModesValidationTest {
         Offsets previousOffsets = Offsets.of(partition, null);
 
         HistorizedDatabaseSchema databaseSchema = mock(HistorizedDatabaseSchema.class);
+        SchemaHistory schemaHistory = mock(SchemaHistory.class);
         when(databaseSchema.isHistorized()).thenReturn(true);
+        when(databaseSchema.getSchemaHistory()).thenReturn(schemaHistory);
 
         Snapshotter snapshotter = mock(Snapshotter.class);
 
         baseSourceTask.validateSchemaHistory(commonConnectorConfig, logPositionValidator, previousOffsets, databaseSchema, snapshotter);
 
         verify(databaseSchema).initializeStorage();
+        verify(schemaHistory).verifyReadAccess();
     }
 
     @Test
@@ -143,13 +147,16 @@ public class BaseSourceTaskSnapshotModesValidationTest {
 
         Offsets previousOffsets = Offsets.of(partition, offset);
         HistorizedDatabaseSchema databaseSchema = mock(HistorizedDatabaseSchema.class);
+        SchemaHistory schemaHistory = mock(SchemaHistory.class);
         when(databaseSchema.isHistorized()).thenReturn(true);
+        when(databaseSchema.getSchemaHistory()).thenReturn(schemaHistory);
         Snapshotter snapshotter = mock(Snapshotter.class);
         when(snapshotter.shouldSnapshotOnSchemaError()).thenReturn(true);
 
         baseSourceTask.validateSchemaHistory(commonConnectorConfig, logPositionValidator, previousOffsets, databaseSchema, snapshotter);
 
         verify(databaseSchema).initializeStorage();
+        verify(schemaHistory).verifyReadAccess();
 
     }
 
@@ -188,11 +195,15 @@ public class BaseSourceTaskSnapshotModesValidationTest {
 
         Offsets previousOffsets = Offsets.of(partition, offset);
         HistorizedDatabaseSchema databaseSchema = mock(HistorizedDatabaseSchema.class);
+        SchemaHistory schemaHistory = mock(SchemaHistory.class);
         when(databaseSchema.isHistorized()).thenReturn(true);
         when(databaseSchema.historyExists()).thenReturn(true);
+        when(databaseSchema.getSchemaHistory()).thenReturn(schemaHistory);
         Snapshotter snapshotter = mock(Snapshotter.class);
 
         baseSourceTask.validateSchemaHistory(commonConnectorConfig, logPositionValidator, previousOffsets, databaseSchema, snapshotter);
+
+        verify(schemaHistory).verifyReadAccess();
 
     }
 
@@ -213,8 +224,10 @@ public class BaseSourceTaskSnapshotModesValidationTest {
 
         Offsets previousOffsets = Offsets.of(partition, offset);
         HistorizedDatabaseSchema databaseSchema = mock(HistorizedDatabaseSchema.class);
+        SchemaHistory schemaHistory = mock(SchemaHistory.class);
         when(databaseSchema.isHistorized()).thenReturn(true);
         when(databaseSchema.historyExists()).thenReturn(true);
+        when(databaseSchema.getSchemaHistory()).thenReturn(schemaHistory);
         Snapshotter snapshotter = mock(Snapshotter.class);
         when(snapshotter.shouldSnapshotOnDataError()).thenReturn(false);
         when(snapshotter.shouldStream()).thenReturn(true);
@@ -239,8 +252,10 @@ public class BaseSourceTaskSnapshotModesValidationTest {
 
         Offsets previousOffsets = Offsets.of(partition, offset);
         HistorizedDatabaseSchema databaseSchema = mock(HistorizedDatabaseSchema.class);
+        SchemaHistory schemaHistory = mock(SchemaHistory.class);
         when(databaseSchema.isHistorized()).thenReturn(true);
         when(databaseSchema.historyExists()).thenReturn(true);
+        when(databaseSchema.getSchemaHistory()).thenReturn(schemaHistory);
         Snapshotter snapshotter = mock(Snapshotter.class);
         when(snapshotter.shouldSnapshotOnDataError()).thenReturn(true);
         when(snapshotter.shouldStream()).thenReturn(true);
@@ -248,6 +263,7 @@ public class BaseSourceTaskSnapshotModesValidationTest {
         baseSourceTask.validateSchemaHistory(commonConnectorConfig, logPositionValidator, previousOffsets, databaseSchema, snapshotter);
 
         assertThat(previousOffsets.getTheOnlyOffset()).isNull();
+        verify(schemaHistory).verifyReadAccess();
 
     }
 
