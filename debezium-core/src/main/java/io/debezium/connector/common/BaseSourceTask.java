@@ -93,6 +93,14 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
                 LOGGER.info("Connector started for the first time.");
                 if (schema.isHistorized()) {
                     ((HistorizedDatabaseSchema) schema).initializeStorage();
+                    // Perform a dummy read from schema-history consumer to verify permissions
+                    try {
+                        ((HistorizedDatabaseSchema) schema).getSchemaHistory().verifyReadAccess();
+                    }
+                    catch (Exception e) {
+                        throw new DebeziumException("Failed to read from schema history topic. " +
+                                "Ensure that the connector has the necessary permissions to read from the schema-history topic.", e);
+                    }
                 }
                 return;
             }
