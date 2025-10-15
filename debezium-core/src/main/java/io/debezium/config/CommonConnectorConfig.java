@@ -643,7 +643,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
     public static final long DEFAULT_RETRIABLE_RESTART_WAIT = 10000L;
     public static final long DEFAULT_MAX_QUEUE_SIZE_IN_BYTES = 0; // In case we don't want to pass max.queue.size.in.bytes;
     public static final String NOTIFICATION_CONFIGURATION_FIELD_PREFIX_STRING = "notification.";
-    public static final long DEFAULT_CONNECTION_VALIDATION_TIMEOUT_MS = 60000L; // 60 seconds default timeout
+    public static final long DEFAULT_CONNECTION_VALIDATION_TIMEOUT_MS = 75000L; // 60 seconds default timeout
 
     public static final int DEFAULT_MAX_RETRIES = ErrorHandler.RETRIES_UNLIMITED;
     public static final String ERRORS_MAX_RETRIES = "errors.max.retries";
