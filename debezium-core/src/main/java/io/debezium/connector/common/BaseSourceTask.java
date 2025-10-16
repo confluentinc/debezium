@@ -102,6 +102,8 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
                     else {
                         ((HistorizedDatabaseSchema) schema).initializeStorage();
                     }
+                    // Perform a dummy read from schema-history consumer to verify permissions
+                    verifySchemaHistoryReadAccess(schema);
                 }
                 return;
             }
@@ -128,6 +130,8 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
                                 snapshotter.name());
                         if (schema.isHistorized()) {
                             ((HistorizedDatabaseSchema) schema).initializeStorage();
+                            // Perform a dummy read from schema-history consumer to verify permissions
+                            verifySchemaHistoryReadAccess(schema);
                         }
                         return;
                     }
@@ -135,6 +139,9 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
                         throw new DebeziumException("The db history topic is missing. You may attempt to recover it by reconfiguring the connector to recovery.");
                     }
                 }
+
+                // Perform a dummy read from schema-history consumer to verify permissions
+                verifySchemaHistoryReadAccess(schema);
 
                 if (config.isLogPositionCheckEnabled()) {
 
@@ -169,6 +176,22 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
             return true;
         }
         return logPositionValidator.validate(partition, offsetContext, config);
+    }
+
+    /**
+     * Verifies read access to the schema history topic for historized database schemas.
+     *
+     * @param schema the database schema to verify
+     * @throws DebeziumException if verification fails
+     */
+    private void verifySchemaHistoryReadAccess(DatabaseSchema schema) {
+        try {
+            ((HistorizedDatabaseSchema) schema).getSchemaHistory().verifyReadAccess();
+        }
+        catch (Exception e) {
+            throw new DebeziumException("Failed to read from schema history topic. " +
+                    "Ensure that the connector has the necessary permissions to read from the schema-history topic.", e);
+        }
     }
 
     private final AtomicReference<DebeziumTaskState> state = new AtomicReference<>(DebeziumTaskState.INITIAL);
@@ -320,11 +343,6 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
             if (!startIfNeededAndPossible()) {
                 return Collections.emptyList();
             }
-            // it's safe to flush offsets here as we are in the running state
-            if (shouldPerformCommit.getAndSet(false)) {
-                performCommit();
-            }
-
             // it's safe to flush offsets here as we are in the running state
             if (shouldPerformCommit.getAndSet(false)) {
                 performCommit();

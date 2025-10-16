@@ -148,4 +148,11 @@ public abstract class HistorizedRelationalDatabaseSchema extends RelationalDatab
     public SchemaHistory getSchemaHistory() {
         return schemaHistory;
     }
+
+    /**
+     * Returns the schema history instance for verification purposes.
+     */
+    public SchemaHistory getSchemaHistory() {
+        return schemaHistory;
+    }
 }
