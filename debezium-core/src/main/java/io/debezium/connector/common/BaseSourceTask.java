@@ -132,7 +132,9 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
                 }
 
                 // Perform a dummy read from schema-history consumer to verify permissions
-                verifySchemaHistoryReadAccess(schema);
+                if (schema.isHistorized()) {
+                    verifySchemaHistoryReadAccess(schema);
+                }
 
                 if (config.isLogPositionCheckEnabled()) {
 
