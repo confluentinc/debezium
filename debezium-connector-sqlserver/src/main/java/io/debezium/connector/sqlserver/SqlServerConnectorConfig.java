@@ -19,6 +19,8 @@ import org.apache.kafka.common.config.ConfigDef.Width;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.confluent.credentialproviders.JdbcCredentialsProvider;
+import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.ConfigDefinition;
 import io.debezium.config.Configuration;
@@ -478,6 +480,16 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
                     + "The value of '" + DataQueryMode.DIRECT.getValue()
                     + "' makes the connector to query the change tables directly.");
 
+    public static final Field CREDENTIALS_PROVIDER_CLASS_NAME = Field.create("jdbc.creds.provider.class.name")
+            .withDisplayName("JDBC Credentials Provider Class Name")
+            .withType(Type.STRING)
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTION, 9))
+            .withWidth(Width.MEDIUM)
+            .withDefault("io.confluent.credentialproviders.DefaultJdbcCredentialsProvider")
+            .withImportance(Importance.LOW)
+            .withValidation(Field::isOptional)
+            .withDescription("JDBC Credentials Provider class name used to provide credentials for connecting to the SQL Server database.");
+
     private static final ConfigDefinition CONFIG_DEFINITION = HistorizedRelationalDatabaseConnectorConfig.CONFIG_DEFINITION.edit()
             .name("SQL Server")
             .type(
@@ -487,7 +499,8 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
                     USER,
                     PASSWORD,
                     QUERY_TIMEOUT_MS,
-                    INSTANCE)
+                    INSTANCE,
+                    CREDENTIALS_PROVIDER_CLASS_NAME)
             .connector(
                     SNAPSHOT_MODE,
                     SNAPSHOT_ISOLATION_MODE,
@@ -525,6 +538,7 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
     private final boolean optionRecompile;
     private final int queryFetchSize;
     private final DataQueryMode dataQueryMode;
+    private final JdbcCredentialsProvider credsProvider;
 
     public SqlServerConnectorConfig(Configuration config) {
         super(
@@ -568,6 +582,13 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
 
         this.dataQueryMode = DataQueryMode.parse(config.getString(DATA_QUERY_MODE), DATA_QUERY_MODE.defaultValueAsString());
         this.snapshotLockingMode = SnapshotLockingMode.parse(config.getString(SNAPSHOT_LOCKING_MODE), SNAPSHOT_LOCKING_MODE.defaultValueAsString());
+
+        if (isCredentialProviderConfigured(config)) {
+            this.credsProvider = getCredentialsProvider(config);
+        }
+        else {
+            this.credsProvider = null;
+        }
     }
 
     public List<String> getDatabaseNames() {
@@ -584,7 +605,22 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
 
     @Override
     public SqlServerJdbcConfiguration getJdbcConfig() {
-        JdbcConfiguration config = super.getJdbcConfig();
+        JdbcConfiguration config;
+
+        if (isCredentialProviderConfigured()) {
+            // Build JDBC configuration dynamically with credentials from provider
+            config = JdbcConfiguration.adapt(
+                    getConfig().subset(DATABASE_CONFIG_PREFIX, true)
+                            .edit()
+                            .with(JdbcConfiguration.USER, getUserName())
+                            .with(SqlServerJdbcConfiguration.ACCESS_TOKEN, getPassword()) // Use accessToken property instead of password for Azure Entra IDetPassword()) // Use accessToken property instead of password for Azure Entra ID
+                            .build());
+        }
+        else {
+            // Use the parent's static configuration if no credential provider is configured
+            config = super.getJdbcConfig();
+        }
+
         if (useSingleDatabase()) {
             config = JdbcConfiguration.copy(config)
                     .withDatabase(databaseNames.get(0))
@@ -597,6 +633,20 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
                     .build();
         }
         return sqlServerconfig;
+    }
+
+    public String getUserName() {
+        if (isCredentialProviderConfigured()) {
+            return credsProvider.getJdbcCreds().user();
+        }
+        return getConfig().getString(RelationalDatabaseConnectorConfig.USER);
+    }
+
+    public String getPassword() {
+        if (isCredentialProviderConfigured()) {
+            return credsProvider.getJdbcCreds().password();
+        }
+        return getConfig().getString(RelationalDatabaseConnectorConfig.PASSWORD);
     }
 
     public SnapshotIsolationMode getSnapshotIsolationMode() {
@@ -716,5 +766,41 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
         }
 
         return count;
+    }
+
+    /**
+     * Returns true if a custom credential provider is configured.
+     */
+    private boolean isCredentialProviderConfigured() {
+        return credsProvider != null;
+    }
+
+    /**
+     * Returns true if a custom credential provider is configured in the given configuration.
+     */
+    private static boolean isCredentialProviderConfigured(Configuration config) {
+        String configuredProvider = config.getString(CREDENTIALS_PROVIDER_CLASS_NAME);
+        String defaultProvider = CREDENTIALS_PROVIDER_CLASS_NAME.defaultValueAsString();
+        return configuredProvider != null && !configuredProvider.equals(defaultProvider);
+    }
+
+    /**
+     * Creates and configures a credential provider instance.
+     */
+    private static JdbcCredentialsProvider getCredentialsProvider(Configuration config) {
+        String providerClass = config.getString(CREDENTIALS_PROVIDER_CLASS_NAME);
+        try {
+            JdbcCredentialsProvider provider = (JdbcCredentialsProvider) Class.forName(providerClass)
+                    .getDeclaredConstructor().newInstance();
+
+            provider.configure(config.asMap());
+            LOGGER.info("Configured credentials provider: {}", provider);
+
+            return provider;
+        }
+        catch (Exception e) {
+            LOGGER.error("Error initializing credentials provider", e);
+            throw new DebeziumException("Failed to initialize credentials provider: " + providerClass, e);
+        }
     }
 }
