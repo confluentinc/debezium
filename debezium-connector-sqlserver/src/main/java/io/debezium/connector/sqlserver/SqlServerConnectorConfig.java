@@ -612,8 +612,7 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
             config = JdbcConfiguration.adapt(
                     getConfig().subset(DATABASE_CONFIG_PREFIX, true)
                             .edit()
-                            .with(JdbcConfiguration.USER, getUserName())
-                            .with(JdbcConfiguration.PASSWORD, getPassword())
+                            .with(SqlServerJdbcConfiguration.ACCESS_TOKEN, getPassword()) // Use accessToken property instead of password for Azure Entra ID
                             .build());
         }
         else {
