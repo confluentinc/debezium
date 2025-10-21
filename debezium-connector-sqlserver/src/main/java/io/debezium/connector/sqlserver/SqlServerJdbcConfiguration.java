@@ -30,6 +30,12 @@ public interface SqlServerJdbcConfiguration extends JdbcConfiguration {
             "Named instance of the database server");
 
     /**
+     * A field for the access token used for Azure Entra ID authentication. This field has no default value.
+     */
+    Field ACCESS_TOKEN = Field.create("accessToken",
+            "Access token for Azure Entra ID authentication");
+
+    /**
      * Obtain a {@link SqlServerJdbcConfiguration} adapter for the given {@link Configuration}.
      *
      * @param config the configuration; may not be null
@@ -72,6 +78,16 @@ public interface SqlServerJdbcConfiguration extends JdbcConfiguration {
          */
         default Builder withInstance(String instance) {
             return with(INSTANCE, instance);
+        }
+
+        /**
+         * Use the given access token for Azure Entra ID authentication in the resulting configuration.
+         *
+         * @param accessToken the access token for Azure Entra ID authentication
+         * @return this builder object so methods can be chained together; never null
+         */
+        default Builder withAccessToken(String accessToken) {
+            return with(ACCESS_TOKEN, accessToken);
         }
     }
 
@@ -197,5 +213,14 @@ public interface SqlServerJdbcConfiguration extends JdbcConfiguration {
      */
     default String getInstance() {
         return getString(INSTANCE);
+    }
+
+    /**
+     * Get the access token property from the configuration.
+     *
+     * @return the specified access token, or null if there is none.
+     */
+    default String getAccessToken() {
+        return getString(ACCESS_TOKEN);
     }
 }
