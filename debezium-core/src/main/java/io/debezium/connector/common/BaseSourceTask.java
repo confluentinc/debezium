@@ -446,8 +446,15 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
 
     @Override
     public final void stop() {
-        performCommit();
-        stop(false);
+        try {
+            performCommit();
+        }
+        catch (Exception e) {
+            LOGGER.warn("Error while performing commit.", e);
+        }
+        finally {
+            stop(false);
+        }
     }
 
     private void stop(boolean restart) {
