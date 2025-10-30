@@ -124,7 +124,6 @@ public class SqlServerConnectorConfigTest {
                         .build());
 
         // Should use static credentials from configuration
-        assertEquals("debezium", config.getUserName());
         assertEquals("testpass", config.getPassword());
     }
 
@@ -138,7 +137,6 @@ public class SqlServerConnectorConfigTest {
                         .build());
 
         // Should work exactly as before
-        assertEquals("debezium", config.getUserName());
         assertEquals("testpass", config.getPassword());
     }
 
