@@ -7,6 +7,7 @@ package io.debezium.connector.sqlserver;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
@@ -103,6 +104,40 @@ public class SqlServerConnectorConfigTest {
                         .with(SqlServerConnectorConfig.QUERY_FETCH_SIZE, 20_000)
                         .build());
         assertEquals(connectorConfig.getQueryFetchSize(), 20_000);
+    }
+
+    @Test
+    public void testCredentialProviderFieldConfiguration() {
+        // Test that the credential provider field is properly configured
+        assertNotNull(SqlServerConnectorConfig.ALL_FIELDS.fieldWithName(SqlServerConnectorConfig.CREDENTIALS_PROVIDER_CLASS_NAME.name()));
+        assertEquals("io.confluent.credentialproviders.DefaultJdbcCredentialsProvider",
+                SqlServerConnectorConfig.CREDENTIALS_PROVIDER_CLASS_NAME.defaultValueAsString());
+    }
+
+    @Test
+    public void testStaticCredentialsWithDefaultProvider() {
+        // Test with default credential provider (should use static credentials)
+        final SqlServerConnectorConfig config = new SqlServerConnectorConfig(
+                defaultConfig()
+                        .with(SqlServerConnectorConfig.DATABASE_NAMES, "testdb")
+                        .with(SqlServerConnectorConfig.PASSWORD, "testpass")
+                        .build());
+
+        // Should use static credentials from configuration
+        assertEquals("testpass", config.getPassword());
+    }
+
+    @Test
+    public void testBackwardCompatibility() {
+        // Test that existing configurations without credential provider still work
+        final SqlServerConnectorConfig config = new SqlServerConnectorConfig(
+                defaultConfig()
+                        .with(SqlServerConnectorConfig.DATABASE_NAMES, "testdb")
+                        .with(SqlServerConnectorConfig.PASSWORD, "testpass")
+                        .build());
+
+        // Should work exactly as before
+        assertEquals("testpass", config.getPassword());
     }
 
     private Configuration.Builder defaultConfig() {
