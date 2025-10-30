@@ -27,6 +27,7 @@
         <!-- Apicurion container properties -->
         <apicurio.port>8080</apicurio.port>
         <apicurio.init.timeout>60000</apicurio.init.timeout> <!-- 60 seconds -->
+        <credentials-providers.version>0.172.0</credentials-providers.version>
     </properties>
 
     <dependencies>
@@ -49,7 +50,7 @@
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>credential-providers</artifactId>
-            <version>0.172.0</version>
+            <version>${credentials-providers.version}</version>
             <exclusions>
                 <exclusion>
                     <groupId>org.slf4j</groupId>

@@ -5,6 +5,7 @@
  */
 package io.debezium.connector.sqlserver;
 
+import java.lang.reflect.Constructor;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -20,7 +21,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.confluent.credentialproviders.JdbcCredentialsProvider;
-import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.ConfigDefinition;
 import io.debezium.config.Configuration;
@@ -487,10 +487,57 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
             .withWidth(Width.MEDIUM)
             .withDefault("io.confluent.credentialproviders.DefaultJdbcCredentialsProvider")
             .withImportance(Importance.LOW)
-            .withValidation(Field::isOptional)
+            .withValidation(SqlServerConnectorConfig::validateCredentialsProvider)
             .withDescription("JDBC Credentials Provider class name used to provide credentials for connecting to the SQL Server database.");
 
-    private static final ConfigDefinition CONFIG_DEFINITION = HistorizedRelationalDatabaseConnectorConfig.CONFIG_DEFINITION.edit()
+
+  /**
+   * Validates the credential provider class name by checking class existence, interface compliance,
+   * and a public/no-arg constructor. calls configure() to avoid runtime credential provider config error.
+   */
+  private static int validateCredentialsProvider(Configuration config, Field field, Field.ValidationOutput problems) {
+    String providerClassName = config.getString(CREDENTIALS_PROVIDER_CLASS_NAME);
+    String defaultProvider = CREDENTIALS_PROVIDER_CLASS_NAME.defaultValueAsString();
+
+    // Default provider requires no validation
+    if (providerClassName == null || providerClassName.equals(defaultProvider)) {
+      return 0;
+    }
+
+    try {
+      Class<?> providerClass = Class.forName(providerClassName);
+      if (!JdbcCredentialsProvider.class.isAssignableFrom(providerClass)) {
+        problems.accept(field, providerClassName,
+                "Credential provider class must implement JdbcCredentialsProvider");
+        return 1;
+      }
+
+      Constructor<?> constructor = providerClass.getDeclaredConstructor();
+      Object credentialsProvider = constructor.newInstance();
+
+      ((JdbcCredentialsProvider) credentialsProvider).configure(config.asMap());
+
+    } catch (ClassNotFoundException e) {
+      problems.accept(field, providerClassName,
+              "Credentials provider class not found");
+      return 1;
+    } catch (NoSuchMethodException e) {
+      problems.accept(field, providerClassName,
+              "Credentials provider class must have a no-arg constructor");
+    } catch (InstantiationException | IllegalAccessException e) {
+      LOGGER.error("Failed to configure instantiate provider class: {}", e.getMessage(), e);
+      problems.accept(field, providerClassName,
+              "Failed to instantiate credentials provider class");
+    } catch (Exception e) {
+      LOGGER.error("Failed to configure credentials provider class: {}", e.getMessage(), e);
+      problems.accept(field, providerClassName,
+              "Failed to configure credentials provider class");
+    }
+    return 0;
+  }
+
+
+  private static final ConfigDefinition CONFIG_DEFINITION = HistorizedRelationalDatabaseConnectorConfig.CONFIG_DEFINITION.edit()
             .name("SQL Server")
             .type(
                     DATABASE_NAMES,
@@ -608,9 +655,10 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
         JdbcConfiguration config;
 
         if (isCredentialProviderConfigured()) {
-            // Build JDBC configuration dynamically with credentials from provider
+            // Build JDBC configuration dynamically with credentials from the provider
             config = JdbcConfiguration.adapt(
                     getConfig().subset(DATABASE_CONFIG_PREFIX, true)
+                            .merge(getConfig().subset(DRIVER_CONFIG_PREFIX, true))
                             .edit()
                             .with(SqlServerJdbcConfiguration.ACCESS_TOKEN, getPassword()) // Use accessToken property instead of password for Azure Entra ID
                             .build());
@@ -632,13 +680,6 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
                     .build();
         }
         return sqlServerconfig;
-    }
-
-    public String getUserName() {
-        if (isCredentialProviderConfigured()) {
-            return credsProvider.getJdbcCreds().user();
-        }
-        return getConfig().getString(RelationalDatabaseConnectorConfig.USER);
     }
 
     public String getPassword() {
@@ -798,8 +839,9 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
             return provider;
         }
         catch (Exception e) {
-            LOGGER.error("Error initializing credentials provider", e);
-            throw new DebeziumException("Failed to initialize credentials provider: " + providerClass, e);
+            // Should not reach here since validation covers this
+            LOGGER.error("Error initializing credentials provider: {}", providerClass, e);
+            return null;
         }
     }
 }
