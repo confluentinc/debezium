@@ -5,6 +5,7 @@
  */
 package io.debezium.connector.sqlserver;
 
+import java.lang.reflect.Constructor;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -19,6 +20,7 @@ import org.apache.kafka.common.config.ConfigDef.Width;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.confluent.credentialproviders.JdbcCredentialsProvider;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.ConfigDefinition;
 import io.debezium.config.Configuration;
@@ -478,7 +480,64 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
                     + "The value of '" + DataQueryMode.DIRECT.getValue()
                     + "' makes the connector to query the change tables directly.");
 
-    private static final ConfigDefinition CONFIG_DEFINITION = HistorizedRelationalDatabaseConnectorConfig.CONFIG_DEFINITION.edit()
+    public static final Field CREDENTIALS_PROVIDER_CLASS_NAME = Field.create("jdbc.creds.provider.class.name")
+            .withDisplayName("JDBC Credentials Provider Class Name")
+            .withType(Type.STRING)
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTION, 9))
+            .withWidth(Width.MEDIUM)
+            .withDefault("io.confluent.credentialproviders.DefaultJdbcCredentialsProvider")
+            .withImportance(Importance.LOW)
+            .withValidation(SqlServerConnectorConfig::validateCredentialsProvider)
+            .withDescription("JDBC Credentials Provider class name used to provide credentials for connecting to the SQL Server database.");
+
+
+  /**
+   * Validates the credential provider class name by checking class existence, interface compliance,
+   * and a public/no-arg constructor. It does NOT call configure() to avoid side effects during validation.
+   */
+  private static int validateCredentialsProvider(Configuration config, Field field, Field.ValidationOutput problems) {
+    String providerClassName = config.getString(CREDENTIALS_PROVIDER_CLASS_NAME);
+    String defaultProvider = CREDENTIALS_PROVIDER_CLASS_NAME.defaultValueAsString();
+
+    // Default provider requires no validation
+    if (providerClassName == null || providerClassName.equals(defaultProvider)) {
+      return 0;
+    }
+
+    try {
+      Class<?> providerClass = Class.forName(providerClassName);
+      if (!JdbcCredentialsProvider.class.isAssignableFrom(providerClass)) {
+        problems.accept(field, providerClassName,
+                "Credential provider class must implement JdbcCredentialsProvider");
+        return 1;
+      }
+
+      Constructor<?> constructor = providerClass.getDeclaredConstructor();
+      Object credentialsProvider = constructor.newInstance();
+
+      ((JdbcCredentialsProvider) credentialsProvider).configure(config.asMap());
+
+    } catch (ClassNotFoundException e) {
+      problems.accept(field, providerClassName,
+              "Credentials provider class not found");
+      return 1;
+    } catch (NoSuchMethodException e) {
+      problems.accept(field, providerClassName,
+              "Credentials provider class must have a no-arg constructor");
+    } catch (InstantiationException | IllegalAccessException e) {
+      LOGGER.error("Failed to configure instantiate provider class: {}", e.getMessage(), e);
+      problems.accept(field, providerClassName,
+              "Failed to instantiate credentials provider class");
+    } catch (Exception e) {
+      LOGGER.error("Failed to configure credentials provider class: {}", e.getMessage(), e);
+      problems.accept(field, providerClassName,
+              "Failed to configure credentials provider class");
+    }
+    return 0;
+  }
+
+
+  private static final ConfigDefinition CONFIG_DEFINITION = HistorizedRelationalDatabaseConnectorConfig.CONFIG_DEFINITION.edit()
             .name("SQL Server")
             .type(
                     DATABASE_NAMES,
@@ -487,7 +546,8 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
                     USER,
                     PASSWORD,
                     QUERY_TIMEOUT_MS,
-                    INSTANCE)
+                    INSTANCE,
+                    CREDENTIALS_PROVIDER_CLASS_NAME)
             .connector(
                     SNAPSHOT_MODE,
                     SNAPSHOT_ISOLATION_MODE,
@@ -525,6 +585,7 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
     private final boolean optionRecompile;
     private final int queryFetchSize;
     private final DataQueryMode dataQueryMode;
+    private final JdbcCredentialsProvider credsProvider;
 
     public SqlServerConnectorConfig(Configuration config) {
         super(
@@ -568,6 +629,13 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
 
         this.dataQueryMode = DataQueryMode.parse(config.getString(DATA_QUERY_MODE), DATA_QUERY_MODE.defaultValueAsString());
         this.snapshotLockingMode = SnapshotLockingMode.parse(config.getString(SNAPSHOT_LOCKING_MODE), SNAPSHOT_LOCKING_MODE.defaultValueAsString());
+
+        if (isCredentialProviderConfigured(config)) {
+            this.credsProvider = getCredentialsProvider(config);
+        }
+        else {
+            this.credsProvider = null;
+        }
     }
 
     public List<String> getDatabaseNames() {
@@ -584,7 +652,22 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
 
     @Override
     public SqlServerJdbcConfiguration getJdbcConfig() {
-        JdbcConfiguration config = super.getJdbcConfig();
+        JdbcConfiguration config;
+
+        if (isCredentialProviderConfigured()) {
+            // Build JDBC configuration dynamically with credentials from the provider
+            config = JdbcConfiguration.adapt(
+                    getConfig().subset(DATABASE_CONFIG_PREFIX, true)
+                            .merge(getConfig().subset(DRIVER_CONFIG_PREFIX, true))
+                            .edit()
+                            .with(SqlServerJdbcConfiguration.ACCESS_TOKEN, getPassword()) // Use accessToken property instead of password for Azure Entra ID
+                            .build());
+        }
+        else {
+            // Use the parent's static configuration if no credential provider is configured
+            config = super.getJdbcConfig();
+        }
+
         if (useSingleDatabase()) {
             config = JdbcConfiguration.copy(config)
                     .withDatabase(databaseNames.get(0))
@@ -597,6 +680,13 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
                     .build();
         }
         return sqlServerconfig;
+    }
+
+    public String getPassword() {
+        if (isCredentialProviderConfigured()) {
+            return credsProvider.getJdbcCreds().password();
+        }
+        return getConfig().getString(RelationalDatabaseConnectorConfig.PASSWORD);
     }
 
     public SnapshotIsolationMode getSnapshotIsolationMode() {
@@ -716,5 +806,42 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
         }
 
         return count;
+    }
+
+    /**
+     * Returns true if a custom credential provider is configured.
+     */
+    private boolean isCredentialProviderConfigured() {
+        return credsProvider != null;
+    }
+
+    /**
+     * Returns true if a custom credential provider is configured in the given configuration.
+     */
+    private static boolean isCredentialProviderConfigured(Configuration config) {
+        String configuredProvider = config.getString(CREDENTIALS_PROVIDER_CLASS_NAME);
+        String defaultProvider = CREDENTIALS_PROVIDER_CLASS_NAME.defaultValueAsString();
+        return configuredProvider != null && !configuredProvider.equals(defaultProvider);
+    }
+
+    /**
+     * Creates and configures a credential provider instance.
+     */
+    private static JdbcCredentialsProvider getCredentialsProvider(Configuration config) {
+        String providerClass = config.getString(CREDENTIALS_PROVIDER_CLASS_NAME);
+        try {
+            JdbcCredentialsProvider provider = (JdbcCredentialsProvider) Class.forName(providerClass)
+                    .getDeclaredConstructor().newInstance();
+
+            provider.configure(config.asMap());
+            LOGGER.info("Configured credentials provider: {}", provider);
+
+            return provider;
+        }
+        catch (Exception e) {
+            // Should not reach here since validation covers this
+            LOGGER.error("Error initializing credentials provider: {}", providerClass, e);
+            return null;
+        }
     }
 }
