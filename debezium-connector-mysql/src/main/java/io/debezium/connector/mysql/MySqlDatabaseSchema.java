@@ -77,7 +77,6 @@ public class MySqlDatabaseSchema extends HistorizedRelationalDatabaseSchema {
     private final Set<String> ignoredQueryStatements = Collect.unmodifiableSet("BEGIN", "END", "FLUSH PRIVILEGES");
     private final DdlParser ddlParser;
     private final RelationalTableFilters filters;
-    private final DdlChanges ddlChanges;
     private final Map<Long, TableId> tableIdsByTableNumber = new ConcurrentHashMap<>();
     private final Map<Long, TableId> excludeTableIdsByTableNumber = new ConcurrentHashMap<>();
     private boolean storageInitialiationExecuted = false;
@@ -107,7 +106,6 @@ public class MySqlDatabaseSchema extends HistorizedRelationalDatabaseSchema {
                 connectorConfig.isSchemaCommentsHistoryEnabled(),
                 valueConverter,
                 getTableFilter());
-        this.ddlChanges = this.ddlParser.getDdlChanges();
         this.connectorConfig = connectorConfig;
         filters = connectorConfig.getTableFilters();
     }
@@ -218,10 +216,10 @@ public class MySqlDatabaseSchema extends HistorizedRelationalDatabaseSchema {
             return schemaChangeEvents;
         }
 
+        DdlChanges ddlChanges = new DdlChanges();
         try {
-            this.ddlChanges.reset();
             this.ddlParser.setCurrentSchema(databaseName);
-            this.ddlParser.parse(ddlStatements, tables());
+            ddlChanges = this.ddlParser.parse(ddlStatements, tables());
         }
         catch (ParsingException | MultipleParsingExceptions e) {
             if (databaseHistory.skipUnparseableDdlStatements()) {
