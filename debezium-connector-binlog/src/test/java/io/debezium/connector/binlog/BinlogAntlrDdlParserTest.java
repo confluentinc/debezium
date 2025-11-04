@@ -1264,10 +1264,11 @@ public abstract class BinlogAntlrDdlParserTest<V extends BinlogValueConverters, 
 
     @Test
     public void shouldParseTruncateStatementsAfterCreate() {
-        String ddl1 = "CREATE TABLE foo ( c1 INTEGER NOT NULL, c2 VARCHAR(22) );" + System.lineSeparator();
-        String ddl2 = "TRUNCATE TABLE foo" + System.lineSeparator();
-        parser.parse(ddl1, tables);
-        parser.parse(ddl2, tables);
+        String ddl = "CREATE TABLE foo ( c1 INTEGER NOT NULL, c2 VARCHAR(22) );"
+                + System.lineSeparator()
+                + "TRUNCATE TABLE foo"
+                + System.lineSeparator();
+        parser.parse(ddl, tables);
         listener.assertNext().createTableNamed("foo").ddlStartsWith("CREATE TABLE foo (");
         listener.assertNext().truncateTableNamed("foo").ddlStartsWith("TRUNCATE TABLE foo");
         assertThat(tables.size()).isEqualTo(1);
@@ -1349,12 +1350,13 @@ public abstract class BinlogAntlrDdlParserTest<V extends BinlogValueConverters, 
         String ddl = "CREATE TABLE foo ( " + System.lineSeparator()
                 + " c1 INTEGER NOT NULL AUTO_INCREMENT, " + System.lineSeparator()
                 + " c2 VARCHAR(22) " + System.lineSeparator()
-                + "); " + System.lineSeparator();
-        String ddl2 = "CREATE VIEW fooView(w1) AS (SELECT foo2.c2 as w1 FROM (SELECT c1 as c2 FROM foo) AS foo2)" + System.lineSeparator();
+                + "); " + System.lineSeparator()
+                + "CREATE VIEW fooView(w1) AS (SELECT foo2.c2 as w1 FROM (SELECT c1 as c2 FROM foo) AS foo2)"
+                + System.lineSeparator()
+                + "ALTER VIEW fooView AS (SELECT c2 FROM foo)";
 
         parser = getParser(listener, true);
         parser.parse(ddl, tables);
-        parser.parse(ddl2, tables);
         assertThat(tables.size()).isEqualTo(2);
         Table foo = tables.forTable(new TableId(null, null, "fooView"));
         assertThat(foo).isNotNull();
@@ -1365,16 +1367,13 @@ public abstract class BinlogAntlrDdlParserTest<V extends BinlogValueConverters, 
 
     @Test
     public void shouldParseAlterViewStatementColumnAliasInnerSelect() {
-        String ddl = "CREATE TABLE foo ( " + System.lineSeparator()
-                + " c1 INTEGER NOT NULL AUTO_INCREMENT, " + System.lineSeparator()
-                + " c2 VARCHAR(22) " + System.lineSeparator()
-                + "); " + System.lineSeparator();
-        String ddl2 = "CREATE VIEW fooView(w1) AS (SELECT foo2.c2 as w1 FROM (SELECT c1 as c2 FROM foo) AS foo2)" + System.lineSeparator();
-        String ddl3 = "ALTER VIEW fooView AS (SELECT c2 FROM foo)";
+        String ddl = "CREATE TABLE foo ( c1 INTEGER NOT NULL, c2 VARCHAR(22) );"
+                + System.lineSeparator()
+                + "ALTER TABLE foo ADD COLUMN c bigint;"
+                + System.lineSeparator();
+        parser.parse(ddl, tables);
         parser = getParser(listener, true);
         parser.parse(ddl, tables);
-        parser.parse(ddl2, tables);
-        parser.parse(ddl3, tables);
         assertThat(tables.size()).isEqualTo(2);
         assertThat(listener.total()).isEqualTo(3);
         Table foo = tables.forTable(new TableId(null, null, "fooView"));
