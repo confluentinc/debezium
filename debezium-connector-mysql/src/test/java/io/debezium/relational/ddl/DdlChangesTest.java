@@ -17,14 +17,12 @@ import io.debezium.relational.ddl.DdlParserListener.EventType;
 
 public class DdlChangesTest {
 
-    private DdlChanges changes;
     private DdlParser parser;
     private Tables tables;
 
     @Before
     public void beforeEach() {
         parser = new MySqlAntlrDdlParser();
-        changes = parser.getDdlChanges();
         tables = new Tables();
     }
 
@@ -37,7 +35,7 @@ public class DdlChangesTest {
                 + "); " + System.lineSeparator()
                 + "-- This is a comment" + System.lineSeparator()
                 + "DROP TABLE foo;" + System.lineSeparator();
-        parser.parse(ddl, tables);
+        DdlChanges changes = parser.parse(ddl, tables);
         assertThat(tables.size()).isEqualTo(0); // table created and dropped
 
         changes.groupEventsByDatabase((dbName, list) -> {
@@ -57,7 +55,7 @@ public class DdlChangesTest {
                 + "); " + System.lineSeparator()
                 + "-- This is a comment" + System.lineSeparator()
                 + "DROP TABLE other.foo;" + System.lineSeparator();
-        parser.parse(ddl, tables);
+        DdlChanges changes = parser.parse(ddl, tables);
         assertThat(tables.size()).isEqualTo(0); // table created and dropped
 
         changes.groupEventsByDatabase((dbName, list) -> {
@@ -76,7 +74,7 @@ public class DdlChangesTest {
                 + "); " + System.lineSeparator()
                 + "-- This is a comment" + System.lineSeparator()
                 + "DROP TABLE other.foo;" + System.lineSeparator();
-        parser.parse(ddl, tables);
+        DdlChanges changes = parser.parse(ddl, tables);
         assertThat(tables.size()).isEqualTo(0); // table created and dropped
 
         for (int i = 0; i != 5; ++i) {

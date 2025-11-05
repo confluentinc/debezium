@@ -77,7 +77,6 @@ public class MySqlSchema extends RelationalDatabaseSchema {
     private final DdlParser ddlParser;
     private final Filters filters;
     private final DatabaseHistory dbHistory;
-    private final DdlChanges ddlChanges;
     private final HistoryRecordComparator historyComparator;
     private final boolean skipUnparseableDDL;
     private final boolean storeOnlyCapturedTablesDdl;
@@ -135,7 +134,6 @@ public class MySqlSchema extends RelationalDatabaseSchema {
                 configuration.isSchemaCommentsHistoryEnabled(),
                 getValueConverters(configuration),
                 getTableFilter());
-        this.ddlChanges = this.ddlParser.getDdlChanges();
 
         // Create and configure the database history ...
         this.dbHistory = config.getInstance(MySqlConnectorConfig.DATABASE_HISTORY, DatabaseHistory.class);
@@ -334,10 +332,10 @@ public class MySqlSchema extends RelationalDatabaseSchema {
         if (ignoredQueryStatements.contains(ddlStatements)) {
             return false;
         }
+        DdlChanges ddlChanges = new DdlChanges();
         try {
-            this.ddlChanges.reset();
             this.ddlParser.setCurrentSchema(databaseName);
-            this.ddlParser.parse(ddlStatements, tables());
+            ddlChanges = this.ddlParser.parse(ddlStatements, tables());
         }
         catch (ParsingException | MultipleParsingExceptions e) {
             if (skipUnparseableDDL) {
