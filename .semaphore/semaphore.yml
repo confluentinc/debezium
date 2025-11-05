@@ -14,7 +14,7 @@ fail_fast:
     when: "true"
 
 execution_time_limit:
-  hours: 4
+  hours: 2
 
 queue:
   - when: "branch != 'master' and branch !~ '[0-9]+\\.[0-9]+\\.x' and branch !~ 'v\\d+\\.\\d+\\.\\d+\\-hotfix\\-x'"
@@ -35,9 +35,19 @@ blocks:
       when: "change_in('/', {exclude: ['/.deployed-versions/', '.github/']})"
     task:
       jobs:
-        - name: Test
+        - name: Test mysql
           commands:
-            - mvn -Dcloud -Passembly -pl debezium-connector-mysql,debezium-connector-postgres,debezium-connector-sqlserver -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress clean verify install dependency:analyze validate
+            - mvn -Dcloud -Passembly -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress clean verify install dependency:analyze validate
+            - . cve-scan
+            - . cache-maven store
+        - name: Test postgres
+          commands:
+            - mvn -Dcloud -Passembly -pl debezium-connector-postgres -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress clean verify install dependency:analyze validate
+            - . cve-scan
+            - . cache-maven store
+        - name: Test sqlserver
+          commands:
+            - mvn -Dcloud -Passembly -pl debezium-connector-sqlserver -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress clean verify install dependency:analyze validate
             - . cve-scan
             - . cache-maven store
       env_vars:
