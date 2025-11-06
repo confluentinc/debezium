@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigDef.Type;
@@ -500,7 +501,7 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
     String defaultProvider = CREDENTIALS_PROVIDER_CLASS_NAME.defaultValueAsString();
 
     // Default provider requires no validation
-    if (providerClassName == null || providerClassName.equals(defaultProvider)) {
+    if (StringUtils.isBlank(providerClassName) || providerClassName.equals(defaultProvider)) {
       return 0;
     }
 
@@ -516,16 +517,16 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
       Object credentialsProvider = constructor.newInstance();
 
       ((JdbcCredentialsProvider) credentialsProvider).configure(config.asMap());
+      return 0;
 
     } catch (ClassNotFoundException e) {
       problems.accept(field, providerClassName,
               "Credentials provider class not found");
-      return 1;
     } catch (NoSuchMethodException e) {
       problems.accept(field, providerClassName,
               "Credentials provider class must have a no-arg constructor");
     } catch (InstantiationException | IllegalAccessException e) {
-      LOGGER.error("Failed to configure instantiate provider class: {}", e.getMessage(), e);
+      LOGGER.error("Failed to instantiate provider class: {}", e.getMessage(), e);
       problems.accept(field, providerClassName,
               "Failed to instantiate credentials provider class");
     } catch (Exception e) {
@@ -533,7 +534,7 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
       problems.accept(field, providerClassName,
               "Failed to configure credentials provider class");
     }
-    return 0;
+    return 1;
   }
 
 
@@ -652,20 +653,15 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
 
     @Override
     public SqlServerJdbcConfiguration getJdbcConfig() {
-        JdbcConfiguration config;
+        JdbcConfiguration config = super.getJdbcConfig();
 
         if (isCredentialProviderConfigured()) {
             // Build JDBC configuration dynamically with credentials from the provider
-            config = JdbcConfiguration.adapt(
-                    getConfig().subset(DATABASE_CONFIG_PREFIX, true)
-                            .merge(getConfig().subset(DRIVER_CONFIG_PREFIX, true))
-                            .edit()
-                            .with(SqlServerJdbcConfiguration.ACCESS_TOKEN, getPassword()) // Use accessToken property instead of password for Azure Entra ID
-                            .build());
-        }
-        else {
-            // Use the parent's static configuration if no credential provider is configured
-            config = super.getJdbcConfig();
+            config = JdbcConfiguration.copy(config)
+                    .without(JdbcConfiguration.USER.name())
+                    .without(JdbcConfiguration.PASSWORD.name()) // Remove password when using accessToken
+                    .with(SqlServerJdbcConfiguration.ACCESS_TOKEN, getPassword())
+                    .build();
         }
 
         if (useSingleDatabase()) {
@@ -821,7 +817,7 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
     private static boolean isCredentialProviderConfigured(Configuration config) {
         String configuredProvider = config.getString(CREDENTIALS_PROVIDER_CLASS_NAME);
         String defaultProvider = CREDENTIALS_PROVIDER_CLASS_NAME.defaultValueAsString();
-        return configuredProvider != null && !configuredProvider.equals(defaultProvider);
+        return StringUtils.isNotBlank(configuredProvider) && !configuredProvider.equals(defaultProvider);
     }
 
     /**
