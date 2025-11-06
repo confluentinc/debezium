@@ -124,6 +124,7 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
         final SqlServerConnectorConfig sqlServerConfig = new SqlServerConnectorConfig(config);
         final ConfigValue hostnameValue = configValues.get(RelationalDatabaseConnectorConfig.HOSTNAME.name());
         final ConfigValue userValue = configValues.get(RelationalDatabaseConnectorConfig.USER.name());
+        final boolean isCredentialProviderConfigured = sqlServerConfig.isCredentialProviderConfigured();
         ThreadNameContext threadNameContext = ThreadNameContext.from(sqlServerConfig);
         Duration timeout = sqlServerConfig.getConnectionValidationTimeout();
         // Try to connect to the database ...
@@ -131,9 +132,14 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
             Threads.runWithTimeout(SqlServerConnector.class, () -> {
                 try (SqlServerConnection connection = connect(sqlServerConfig)) {
                     connection.execute("SELECT @@VERSION");
-                    LOGGER.debug("Successfully tested connection for {} with user '{}'", connection.connectionString(),
-                            connection.username());
-                    LOGGER.info("Checking if user has access to CDC table");
+                    String username = connection.username();
+                    if (isCredentialProviderConfigured) {
+                        LOGGER.debug("Successfully tested connection for {} using access token authentication", connection.connectionString());
+                    }
+                    else {
+                        LOGGER.debug("Successfully tested connection for {} with user '{}'", connection.connectionString(), username);
+                    }
+                    LOGGER.info("Checking if connected principal has access to CDC table");
                     if (sqlServerConfig.getSnapshotMode() != SqlServerConnectorConfig.SnapshotMode.INITIAL_ONLY) {
                         final List<String> noAccessDatabaseNames = new ArrayList<>();
                         for (String databaseName : sqlServerConfig.getDatabaseNames()) {
@@ -142,17 +148,26 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
                             }
                         }
                         if (!noAccessDatabaseNames.isEmpty()) {
+                            String principalDescription = isCredentialProviderConfigured
+                                    ? "token-identified principal"
+                                    : "User " + config.getString(RelationalDatabaseConnectorConfig.USER);
+                            String entityType = isCredentialProviderConfigured ? "principal" : "user";
                             String errorMessage = String.format(
-                                    "User %s does not have access to CDC schema in the following databases: %s. This user can only be used in initial_only snapshot mode",
-                                    config.getString(RelationalDatabaseConnectorConfig.USER), String.join(", ", noAccessDatabaseNames));
+                                    "%s does not have access to CDC schema in the following databases: %s. This %s can only be used in initial_only snapshot mode",
+                                    principalDescription, String.join(", ", noAccessDatabaseNames), entityType);
                             LOGGER.error(errorMessage);
                             userValue.addErrorMessage(errorMessage);
                         }
                     }
                 }
                 catch (Exception e) {
-                    LOGGER.error("Failed testing connection for {} with user '{}'", config.withMaskedPasswords(),
-                            userValue, e);
+                    if (isCredentialProviderConfigured) {
+                        LOGGER.error("Failed testing connection using access token authentication", e);
+                    }
+                    else {
+                        LOGGER.error("Failed testing connection for {} with user '{}'", config.withMaskedPasswords(),
+                                userValue, e);
+                    }
                     hostnameValue.addErrorMessage("Unable to connect. Check this and other connection properties. Error: "
                             + e.getMessage());
                 }
