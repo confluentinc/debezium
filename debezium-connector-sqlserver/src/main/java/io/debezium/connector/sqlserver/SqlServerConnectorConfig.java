@@ -679,10 +679,7 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
     }
 
     public String getPassword() {
-        if (isCredentialProviderConfigured()) {
-            return credsProvider.getJdbcCreds().password();
-        }
-        return getConfig().getString(RelationalDatabaseConnectorConfig.PASSWORD);
+      return credsProvider.getJdbcCreds().password();
     }
 
     public SnapshotIsolationMode getSnapshotIsolationMode() {
@@ -807,7 +804,7 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
     /**
      * Returns true if a custom credential provider is configured.
      */
-    private boolean isCredentialProviderConfigured() {
+    public boolean isCredentialProviderConfigured() {
         return credsProvider != null;
     }
 

@@ -124,7 +124,7 @@ public class SqlServerConnectorConfigTest {
                         .build());
 
         // Should use static credentials from configuration
-        assertEquals("testpass", config.getPassword());
+        assertEquals("testpass", config.getJdbcConfig().getPassword());
     }
 
     @Test
@@ -137,7 +137,7 @@ public class SqlServerConnectorConfigTest {
                         .build());
 
         // Should work exactly as before
-        assertEquals("testpass", config.getPassword());
+        assertEquals("testpass", config.getJdbcConfig().getPassword());
     }
 
     private Configuration.Builder defaultConfig() {
