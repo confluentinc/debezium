@@ -151,9 +151,10 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
                             String principalDescription = isCredentialProviderConfigured
                                     ? "token-identified principal"
                                     : "User " + config.getString(RelationalDatabaseConnectorConfig.USER);
+                            String entityType = isCredentialProviderConfigured ? "principal" : "user";
                             String errorMessage = String.format(
-                                    "%s does not have access to CDC schema in the following databases: %s. This principal can only be used in initial_only snapshot mode",
-                                    principalDescription, String.join(", ", noAccessDatabaseNames));
+                                    "%s does not have access to CDC schema in the following databases: %s. This %s can only be used in initial_only snapshot mode",
+                                    principalDescription, String.join(", ", noAccessDatabaseNames), entityType);
                             LOGGER.error(errorMessage);
                             userValue.addErrorMessage(errorMessage);
                         }
