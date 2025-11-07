@@ -988,7 +988,7 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
         }
         finally {
             try {
-                client.disconnect();
+                disconnectLogClient(client);
             }
             catch (Exception e) {
                 LOGGER.info("Exception while stopping binary log client", e);
@@ -1231,7 +1231,7 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
             logStreamingSourceState();
             try {
                 // Stop BinaryLogClient background threads
-                client.disconnect();
+                disconnectLogClient(client);
             }
             catch (final Exception e) {
                 LOGGER.debug("Exception while closing client", e);
@@ -1254,6 +1254,22 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
                 LOGGER.debug("A deserialization failure event arrived", ex);
                 logStreamingSourceState(Level.DEBUG);
             }
+        }
+    }
+
+    private static void disconnectLogClient(BinaryLogClient client) {
+        try {
+            // Stop BinaryLogClient background threads
+            client.disconnect();
+            client.setThreadFactory(null);
+            client.setEventDeserializer(new EventDeserializer());
+            client.setSslSocketFactory(null);
+            for (BinaryLogClient.EventListener el : client.getEventListeners()) {
+                client.unregisterEventListener(el);
+            }
+        }
+        catch (final Exception e) {
+            LOGGER.debug("Exception while closing client", e);
         }
     }
 
