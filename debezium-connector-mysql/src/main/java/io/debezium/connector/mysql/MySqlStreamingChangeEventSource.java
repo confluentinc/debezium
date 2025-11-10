@@ -1059,14 +1059,7 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
             }
             // DBZ-1208 Resembles the logic from the upstream BinaryLogClient, only that
             // the accepted TLS version is passed to the constructed factory
-            final KeyManager[] finalKMS = keyManagers;
-            return new DefaultSSLSocketFactory(acceptedTlsVersion) {
-
-                @Override
-                protected void initSSLContext(SSLContext sc) throws GeneralSecurityException {
-                    sc.init(finalKMS, trustManagers, null);
-                }
-            };
+            return new ConfiguredSSLSocketFactory(acceptedTlsVersion, keyManagers, trustManagers);
         }
 
         return null;
@@ -1284,5 +1277,25 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
     @FunctionalInterface
     private interface RowsProvider<E extends EventData, U> {
         List<U> getRows(E data);
+    }
+
+    /**
+     * Static nested class that extends DefaultSSLSocketFactory without holding
+     * a reference to the enclosing MySqlStreamingChangeEventSource instance.
+     */
+    private static class ConfiguredSSLSocketFactory extends DefaultSSLSocketFactory {
+        private final KeyManager[] keyManagers;
+        private final TrustManager[] trustManagers;
+
+        ConfiguredSSLSocketFactory(String acceptedTlsVersion, KeyManager[] keyManagers, TrustManager[] trustManagers) {
+            super(acceptedTlsVersion);
+            this.keyManagers = keyManagers;
+            this.trustManagers = trustManagers;
+        }
+
+        @Override
+        protected void initSSLContext(SSLContext sc) throws GeneralSecurityException {
+            sc.init(keyManagers, trustManagers, null);
+        }
     }
 }
