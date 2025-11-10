@@ -1267,6 +1267,9 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
             for (BinaryLogClient.EventListener el : client.getEventListeners()) {
                 client.unregisterEventListener(el);
             }
+            for (BinaryLogClient.LifecycleListener ll : client.getLifecycleListeners()) {
+                client.unregisterLifecycleListener(ll);
+            }
         }
         catch (final Exception e) {
             LOGGER.debug("Exception while closing client", e);
