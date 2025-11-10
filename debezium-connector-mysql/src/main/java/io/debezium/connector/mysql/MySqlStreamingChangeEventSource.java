@@ -1028,25 +1028,7 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
                 }
 
                 if (ks == null && (sslMode == SSLMode.PREFERRED || sslMode == SSLMode.REQUIRED)) {
-                    trustManagers = new TrustManager[]{
-                            new X509TrustManager() {
-
-                                @Override
-                                public void checkClientTrusted(X509Certificate[] x509Certificates, String s)
-                                        throws CertificateException {
-                                }
-
-                                @Override
-                                public void checkServerTrusted(X509Certificate[] x509Certificates, String s)
-                                        throws CertificateException {
-                                }
-
-                                @Override
-                                public X509Certificate[] getAcceptedIssuers() {
-                                    return new X509Certificate[0];
-                                }
-                            }
-                    };
+                    trustManagers = new TrustManager[]{ new AcceptAllTrustManager() };
                 }
                 else {
                     TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
@@ -1277,6 +1259,28 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
     @FunctionalInterface
     private interface RowsProvider<E extends EventData, U> {
         List<U> getRows(E data);
+    }
+
+    /**
+     * Static nested class that accepts all certificates without validation.
+     * Used when no truststore is configured and SSL mode is PREFERRED or REQUIRED.
+     * This class does not hold a reference to the enclosing MySqlStreamingChangeEventSource instance.
+     */
+    private static class AcceptAllTrustManager implements X509TrustManager {
+        @Override
+        public void checkClientTrusted(X509Certificate[] x509Certificates, String s)
+                throws CertificateException {
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] x509Certificates, String s)
+                throws CertificateException {
+        }
+
+        @Override
+        public X509Certificate[] getAcceptedIssuers() {
+            return new X509Certificate[0];
+        }
     }
 
     /**
