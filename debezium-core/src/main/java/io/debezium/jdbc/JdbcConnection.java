@@ -785,12 +785,13 @@ public class JdbcConnection implements AutoCloseable {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("Executing statement '{}' with {}s timeout", stmt, queryTimeout);
         }
-        
+
         try {
             statement.execute();
-        } catch (SQLException e) {
+        }
+        catch (SQLException e) {
             // Check if this is a connection-related error that warrants retry
-            if (isConnectionException(e))  {
+            if (isConnectionException(e)) {
                 LOGGER.warn("Connection was closed, reconnecting and retrying", e);
 
                 close();
@@ -801,7 +802,8 @@ public class JdbcConnection implements AutoCloseable {
                     preparer.accept(statement);
                 }
                 statement.execute();
-            } else {
+            }
+            else {
                 throw e;
             }
         }

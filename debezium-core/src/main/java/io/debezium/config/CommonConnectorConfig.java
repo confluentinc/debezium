@@ -1239,8 +1239,8 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
                     FAIL_ON_NO_TABLES,
                     CONNECTION_VALIDATION_TIMEOUT_MS,
                     CONNECTOR_THREAD_NAME_PATTERN,
-                GUARDRAIL_COLLECTIONS_MAX,
-                GUARDRAIL_COLLECTIONS_LIMIT_ACTION)
+                    GUARDRAIL_COLLECTIONS_MAX,
+                    GUARDRAIL_COLLECTIONS_LIMIT_ACTION)
             .events(
                     CUSTOM_CONVERTERS,
                     CUSTOM_POST_PROCESSORS,

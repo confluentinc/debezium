@@ -12,8 +12,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import io.confluent.credentialproviders.JdbcCredentialsProvider;
-import io.debezium.DebeziumException;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigDef.Type;
@@ -22,6 +20,8 @@ import org.apache.kafka.common.config.ConfigValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.confluent.credentialproviders.JdbcCredentialsProvider;
+import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.ConfigDefinition;
 import io.debezium.config.Configuration;
@@ -1236,7 +1236,8 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
         // Only initialize credentials provider if a custom credential provider is configured
         if (isCredentialProviderConfigured(config)) {
             this.credsProvider = getCredentialsProvider(config);
-        } else {
+        }
+        else {
             this.credsProvider = null;
         }
     }
@@ -1556,12 +1557,12 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
         if (isCredentialProviderConfigured()) {
             // Build JDBC configuration dynamically with credentials from provider
             return JdbcConfiguration.adapt(
-                getConfig().subset(DATABASE_CONFIG_PREFIX, true)
-                    .merge(getConfig().subset(DRIVER_CONFIG_PREFIX, true))
-                    .edit()
-                    .with(JdbcConfiguration.USER, getUserName())
-                    .with(JdbcConfiguration.PASSWORD, getPassword())
-                    .build());
+                    getConfig().subset(DATABASE_CONFIG_PREFIX, true)
+                            .merge(getConfig().subset(DRIVER_CONFIG_PREFIX, true))
+                            .edit()
+                            .with(JdbcConfiguration.USER, getUserName())
+                            .with(JdbcConfiguration.PASSWORD, getPassword())
+                            .build());
         }
         // Use the parent's static configuration if no credential provider is configured
         return super.getJdbcConfig();

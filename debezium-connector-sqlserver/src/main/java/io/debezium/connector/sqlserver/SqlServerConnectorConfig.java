@@ -491,54 +491,56 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
             .withValidation(SqlServerConnectorConfig::validateCredentialsProvider)
             .withDescription("JDBC Credentials Provider class name used to provide credentials for connecting to the SQL Server database.");
 
+    /**
+     * Validates the credential provider class name by checking class existence, interface compliance,
+     * and a public/no-arg constructor. calls configure() to avoid runtime credential provider config error.
+     */
+    private static int validateCredentialsProvider(Configuration config, Field field, Field.ValidationOutput problems) {
+        String providerClassName = config.getString(CREDENTIALS_PROVIDER_CLASS_NAME);
+        String defaultProvider = CREDENTIALS_PROVIDER_CLASS_NAME.defaultValueAsString();
 
-  /**
-   * Validates the credential provider class name by checking class existence, interface compliance,
-   * and a public/no-arg constructor. calls configure() to avoid runtime credential provider config error.
-   */
-  private static int validateCredentialsProvider(Configuration config, Field field, Field.ValidationOutput problems) {
-    String providerClassName = config.getString(CREDENTIALS_PROVIDER_CLASS_NAME);
-    String defaultProvider = CREDENTIALS_PROVIDER_CLASS_NAME.defaultValueAsString();
+        // Default provider requires no validation
+        if (StringUtils.isBlank(providerClassName) || providerClassName.equals(defaultProvider)) {
+            return 0;
+        }
 
-    // Default provider requires no validation
-    if (StringUtils.isBlank(providerClassName) || providerClassName.equals(defaultProvider)) {
-      return 0;
-    }
+        try {
+            Class<?> providerClass = Class.forName(providerClassName);
+            if (!JdbcCredentialsProvider.class.isAssignableFrom(providerClass)) {
+                problems.accept(field, providerClassName,
+                        "Credential provider class must implement JdbcCredentialsProvider");
+                return 1;
+            }
 
-    try {
-      Class<?> providerClass = Class.forName(providerClassName);
-      if (!JdbcCredentialsProvider.class.isAssignableFrom(providerClass)) {
-        problems.accept(field, providerClassName,
-                "Credential provider class must implement JdbcCredentialsProvider");
+            Constructor<?> constructor = providerClass.getDeclaredConstructor();
+            Object credentialsProvider = constructor.newInstance();
+
+            ((JdbcCredentialsProvider) credentialsProvider).configure(config.asMap());
+            return 0;
+
+        }
+        catch (ClassNotFoundException e) {
+            problems.accept(field, providerClassName,
+                    "Credentials provider class not found");
+        }
+        catch (NoSuchMethodException e) {
+            problems.accept(field, providerClassName,
+                    "Credentials provider class must have a no-arg constructor");
+        }
+        catch (InstantiationException | IllegalAccessException e) {
+            LOGGER.error("Failed to instantiate provider class: {}", e.getMessage(), e);
+            problems.accept(field, providerClassName,
+                    "Failed to instantiate credentials provider class");
+        }
+        catch (Exception e) {
+            LOGGER.error("Failed to configure credentials provider class: {}", e.getMessage(), e);
+            problems.accept(field, providerClassName,
+                    "Failed to configure credentials provider class");
+        }
         return 1;
-      }
-
-      Constructor<?> constructor = providerClass.getDeclaredConstructor();
-      Object credentialsProvider = constructor.newInstance();
-
-      ((JdbcCredentialsProvider) credentialsProvider).configure(config.asMap());
-      return 0;
-
-    } catch (ClassNotFoundException e) {
-      problems.accept(field, providerClassName,
-              "Credentials provider class not found");
-    } catch (NoSuchMethodException e) {
-      problems.accept(field, providerClassName,
-              "Credentials provider class must have a no-arg constructor");
-    } catch (InstantiationException | IllegalAccessException e) {
-      LOGGER.error("Failed to instantiate provider class: {}", e.getMessage(), e);
-      problems.accept(field, providerClassName,
-              "Failed to instantiate credentials provider class");
-    } catch (Exception e) {
-      LOGGER.error("Failed to configure credentials provider class: {}", e.getMessage(), e);
-      problems.accept(field, providerClassName,
-              "Failed to configure credentials provider class");
     }
-    return 1;
-  }
 
-
-  private static final ConfigDefinition CONFIG_DEFINITION = HistorizedRelationalDatabaseConnectorConfig.CONFIG_DEFINITION.edit()
+    private static final ConfigDefinition CONFIG_DEFINITION = HistorizedRelationalDatabaseConnectorConfig.CONFIG_DEFINITION.edit()
             .name("SQL Server")
             .type(
                     DATABASE_NAMES,
@@ -679,7 +681,7 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
     }
 
     public String getPassword() {
-      return credsProvider.getJdbcCreds().password();
+        return credsProvider.getJdbcCreds().password();
     }
 
     public SnapshotIsolationMode getSnapshotIsolationMode() {
