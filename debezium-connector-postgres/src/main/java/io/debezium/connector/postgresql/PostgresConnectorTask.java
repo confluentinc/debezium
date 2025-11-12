@@ -349,6 +349,17 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
     @Override
     protected void doStop() {
+        if (queue != null) {
+            try {
+                LOGGER.info("Shutting down change event queue to unblock any waiting threads");
+                queue.shutdown();
+                LOGGER.info("Successfully shut down change event queue");
+            }
+            catch (Exception e) {
+                LOGGER.error("Error during change event queue shutdown", e);
+            }
+        }
+
         // The replication connection is regularly closed at the end of streaming phase
         // in case of error it can happen that the connector is terminated before the stremaing
         // phase is started. It can lead to a leaked connection.
