@@ -200,6 +200,17 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
 
     @Override
     protected void doStop() {
+        if (queue != null) {
+            try {
+                LOGGER.info("Shutting down change event queue to unblock any waiting threads");
+                queue.shutdown();
+                LOGGER.info("Successfully shut down change event queue");
+            }
+            catch (Exception e) {
+                LOGGER.error("Error during change event queue shutdown", e);
+            }
+        }
+
         try {
             if (dataConnection != null) {
                 dataConnection.close();
