@@ -166,6 +166,11 @@ public class DefaultSnapshotChangeEventSourceMetrics<P extends Partition> extend
     }
 
     @Override
+    public boolean getConnectTaskRebalanceExempt() {
+        return snapshotMeter.getConnectTaskRebalanceExempt();
+    }
+
+    @Override
     public void reset() {
         super.reset();
         snapshotMeter.reset();
