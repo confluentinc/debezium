@@ -7,7 +7,6 @@ package io.debezium.connector.mariadb;
 
 import java.util.Map;
 
-import io.debezium.util.ThreadNameContext;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigValue;
 import org.apache.kafka.connect.connector.Task;
@@ -17,6 +16,7 @@ import io.debezium.connector.binlog.BinlogConnector;
 import io.debezium.connector.mariadb.jdbc.MariaDbConnection;
 import io.debezium.connector.mariadb.jdbc.MariaDbConnectionConfiguration;
 import io.debezium.connector.mariadb.jdbc.MariaDbFieldReader;
+import io.debezium.util.ThreadNameContext;
 
 /**
  * A Debezium source connector that creates tasks and reads changes from MariaDB's binary transaction logs,

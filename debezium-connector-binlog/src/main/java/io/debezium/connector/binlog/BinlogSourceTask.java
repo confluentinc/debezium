@@ -80,7 +80,7 @@ public abstract class BinlogSourceTask<P extends Partition, O extends OffsetCont
     /**
      * Safely shuts down the change event queue to prevent thread leaks.
      * This method should be called by subclasses in their doStop() method.
-     * 
+     *
      * @param queue the change event queue to shutdown, may be null
      */
     protected void shutdownQueue(ChangeEventQueue<DataChangeEvent> queue) {

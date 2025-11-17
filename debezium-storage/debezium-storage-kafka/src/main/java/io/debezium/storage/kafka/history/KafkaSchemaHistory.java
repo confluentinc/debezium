@@ -646,7 +646,7 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
             // This will trigger any permission or connectivity issues
             ConsumerRecords<String, String> records = verificationConsumer.poll(this.pollInterval);
 
-            LOGGER.info("Successfully verified read access to database schema history topic '{}', read {} records during verification", 
+            LOGGER.info("Successfully verified read access to database schema history topic '{}', read {} records during verification",
                     topicName, records.count());
         }
         catch (GroupAuthorizationException e) {
