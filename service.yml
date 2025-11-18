@@ -9,5 +9,9 @@ semaphore:
   enable: true
   pipeline_type: cp
   cve_scan: true
-  extra_build_args: "-Dcloud -Passembly -pl debezium-connector-mariadb,debezium-connector-mysql,debezium-connector-postgres,debezium-connector-sqlserver -am"
-  extra_deploy_args: "-Dcloud -Passembly -pl debezium-connector-mariadb,debezium-connector-mysql,debezium-connector-postgres,debezium-connector-sqlserver -am"
+  extra_build_args: "-Dcloud -Passembly -pl debezium-connector-mariadb,debezium-connector-mysql,debezium-connector-postgres,debezium-connector-sqlserver,debezium-core -am"
+  extra_deploy_args: "-Dcloud -Passembly -pl debezium-connector-mariadb,debezium-connector-mysql,debezium-connector-postgres,debezium-connector-sqlserver,debezium-core -am"
+code_artifact:
+  enable: true
+  package_paths:
+    - maven-snapshots/maven/io.confluent/debezium-core
