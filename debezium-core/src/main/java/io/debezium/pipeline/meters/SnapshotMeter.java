@@ -11,6 +11,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -34,6 +35,7 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
     private final AtomicLong snapshotPaused = new AtomicLong();
     private final AtomicLong snapshotCompleted = new AtomicLong();
     private final AtomicLong snapshotAborted = new AtomicLong();
+    private final AtomicBoolean connectTaskRebalanceExempt = new AtomicBoolean(false);
     private final AtomicLong startTime = new AtomicLong();
     private final AtomicLong stopTime = new AtomicLong();
     private final AtomicLong startPauseTime = new AtomicLong();
@@ -128,6 +130,7 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         this.snapshotPaused.set(0);
         this.snapshotCompleted.set(0);
         this.snapshotAborted.set(0);
+        this.connectTaskRebalanceExempt.set(true);
         this.startTime.set(clock.currentTimeInMillis());
         this.stopTime.set(0L);
         this.startPauseTime.set(0);
@@ -140,6 +143,7 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         this.snapshotPaused.set(1);
         this.snapshotCompleted.set(0);
         this.snapshotAborted.set(0);
+        this.connectTaskRebalanceExempt.set(false);
         this.startPauseTime.set(clock.currentTimeInMillis());
         this.stopPauseTime.set(0L);
     }
@@ -149,6 +153,7 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         this.snapshotPaused.set(0);
         this.snapshotCompleted.set(0);
         this.snapshotAborted.set(0);
+        this.connectTaskRebalanceExempt.set(true);
         final long currTime = clock.currentTimeInMillis();
         this.stopPauseTime.set(currTime);
 
@@ -169,6 +174,7 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         this.snapshotAborted.set(0);
         this.snapshotRunning.set(0);
         this.snapshotPaused.set(0);
+        this.connectTaskRebalanceExempt.set(false);
         this.stopTime.set(clock.currentTimeInMillis());
     }
 
@@ -177,6 +183,7 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         this.snapshotAborted.set(1);
         this.snapshotRunning.set(0);
         this.snapshotPaused.set(0);
+        this.connectTaskRebalanceExempt.set(false);
         this.stopTime.set(clock.currentTimeInMillis());
     }
 
@@ -226,6 +233,11 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         return arrayToString(tableTo.get());
     }
 
+    @Override
+    public boolean getConnectTaskRebalanceExempt() {
+        return connectTaskRebalanceExempt.get();
+    }
+
     private String arrayToString(Object[] array) {
         return (array == null) ? null : Arrays.toString(array);
     }
@@ -235,6 +247,7 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         snapshotPaused.set(0);
         snapshotCompleted.set(0);
         snapshotAborted.set(0);
+        connectTaskRebalanceExempt.set(false);
         startTime.set(0);
         stopTime.set(0);
         startPauseTime.set(0);
