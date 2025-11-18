@@ -17,3 +17,7 @@ semaphore:
     - /^\d+\.\d+\.x$/
     - /v\d+\.\d+\.\d+\-hotfix\-x/
     - /^gh-readonly-queue.*/
+code_artifact:
+  enable: true
+  package_paths:
+    - maven-snapshots/maven/io.confluent/debezium-core
