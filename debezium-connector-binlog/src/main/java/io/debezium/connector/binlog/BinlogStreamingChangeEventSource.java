@@ -129,6 +129,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
     private final Map<String, Thread> binaryLogClientThreads = new ConcurrentHashMap<>(4);
     private final EnumMap<EventType, BlockingConsumer<Event>> eventHandlers = new EnumMap<>(EventType.class);
     private final float heartbeatIntervalFactor = 0.8f;
+    private final ThreadNameContext threadNameContext;
 
     private int startingRowNumber = 0;
     private long initialEventsToSkip = 0L;
@@ -163,6 +164,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
         this.client = createBinaryLogClient(taskContext, connectorConfig, binaryLogClientThreads, connection);
         this.gtidDmlSourceFilter = getGtidDmlSourceFilter();
         this.isGtidModeEnabled = connection.isGtidModeEnabled();
+        this.threadNameContext = ThreadNameContext.from(connectorConfig);
     }
 
     @Override
@@ -304,7 +306,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
                         boolean keepAliveThreadRunning = false;
                         while (!keepAliveThreadRunning && waitAttempts-- > 0) {
                             for (Thread t : binaryLogClientThreads.values()) {
-                                if (t.getName().startsWith(KEEPALIVE_THREAD_NAME) && t.isAlive()) {
+                                if ((t.getName().startsWith(KEEPALIVE_THREAD_NAME) || t.getName().contains("keepalive")) && t.isAlive()) {
                                     LOGGER.info("Keepalive thread is running");
                                     keepAliveThreadRunning = true;
                                 }
@@ -312,6 +314,8 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
                             metronome.pause();
                         }
                     }
+                    //Rename any "blc-" threads as per ThreadNameContext that are named in binlogClient
+                    renameBinaryLogClientThreads("blc-");
                 }
                 catch (TimeoutException e) {
                     // If the client thread is interrupted *before* the client could connect, the client throws a timeout exception
@@ -380,6 +384,30 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
 
     protected boolean isGtidModeEnabled() {
         return isGtidModeEnabled;
+    }
+
+    /**
+     * Renames BinaryLogClient threads that were created outside ThreadFactory.
+     * The mysql-binlog-connector-java library creates some threads directly while renaming with "blc-" prefix.
+     *
+     * @param threadNamePrefix the prefix to filter threads (e.g., "blc-", "blc-keepalive")
+     */
+    private void renameBinaryLogClientThreads(String threadNamePrefix) {
+        Thread.getAllStackTraces().keySet().stream()
+                .filter(t -> t.getName().startsWith(threadNamePrefix) && !binaryLogClientThreads.containsKey(t.getName()))
+                .forEach(t -> {
+                    String oldName = t.getName();
+                    String threadType = oldName.startsWith("blc-keepalive") ? "keepalive" : "client";
+                    String newName = Threads.buildThreadName(
+                            getConnectorClass(),
+                            connectorConfig.getLogicalName(),
+                            "binlog-" + threadType,
+                            threadNameContext);
+                    t.setName(newName);
+                    binaryLogClientThreads.put(newName, t);
+                    LOGGER.debug("Renamed BinaryLogClient thread from '{}' to '{}' (was created outside ThreadFactory)",
+                            oldName, newName);
+                });
     }
 
     // todo: perhaps refactor back out to a binary log configurator instance?
