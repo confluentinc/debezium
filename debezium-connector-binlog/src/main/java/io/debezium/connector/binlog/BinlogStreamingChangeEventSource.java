@@ -387,9 +387,8 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
     }
 
     /**
-     * Renames BinaryLogClient threads that were created outside our ThreadFactory.
-     * The mysql-binlog-connector-java library creates some threads directly with "blc-" prefix,
-     * bypassing the custom ThreadFactory we provide.
+     * Renames BinaryLogClient threads that were created outside ThreadFactory.
+     * The mysql-binlog-connector-java library creates some threads directly while renaming with "blc-" prefix.
      *
      * @param threadNamePrefix the prefix to filter threads (e.g., "blc-", "blc-keepalive")
      */
@@ -426,8 +425,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
                         threadNameContext,
                         false,
                         false,
-                        x -> {clientThreads.put(x.getName(), x);
-                        }));
+                        x -> clientThreads.put(x.getName(), x)));
         client.setServerId(connectorConfig.getServerId());
 
         client.setSSLMode(sslModeFor(connectorConfig.getSslMode()));
