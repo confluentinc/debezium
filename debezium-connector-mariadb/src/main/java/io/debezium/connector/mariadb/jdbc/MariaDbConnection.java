@@ -8,7 +8,6 @@ package io.debezium.connector.mariadb.jdbc;
 import java.sql.SQLException;
 import java.util.function.Predicate;
 
-import io.debezium.util.ThreadNameContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,6 +18,7 @@ import io.debezium.connector.binlog.jdbc.BinlogFieldReader;
 import io.debezium.connector.binlog.jdbc.ConnectionConfiguration;
 import io.debezium.connector.mariadb.gtid.MariaDbGtidSet;
 import io.debezium.connector.mariadb.gtid.MariaDbGtidSet.MariaDbGtid;
+import io.debezium.util.ThreadNameContext;
 
 /**
  * A concrete implementation of {@link BinlogConnectorConnection} for MariaDB.
