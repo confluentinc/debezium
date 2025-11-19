@@ -1439,7 +1439,7 @@ public abstract class CommonConnectorConfig {
                     OPEN_LINEAGE_INTEGRATION_JOB_OWNERS,
                     EXTENDED_HEADERS_ENABLED,
                     FAIL_ON_NO_TABLES,
-                    CONNECTOR_THREAD_NAME_PATTERN
+                    CONNECTOR_THREAD_NAME_PATTERN,
                     GUARDRAIL_COLLECTIONS_MAX,
                     GUARDRAIL_COLLECTIONS_LIMIT_ACTION)
             .events(

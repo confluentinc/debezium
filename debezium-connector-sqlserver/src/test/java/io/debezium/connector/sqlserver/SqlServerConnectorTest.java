@@ -79,11 +79,12 @@ public class SqlServerConnectorTest {
             assertThat(key.width).isNotNull();
             assertThat(key.group).isNotNull();
             assertThat(key.orderInGroup).isGreaterThan(0);
-            if ((key.validator !=null)) {
+            if ((key.validator != null)) {
                 assertThat(key.validator)
                         .withFailMessage("Validator should be instance of ConfigDef.Validator for field: %s", expected.name())
                         .isInstanceOf(ConfigDef.Validator.class);
-            } else {
+            }
+            else {
                 assertThat(key.validator).isNull();
             }
             assertThat(key.recommender).isNull();
