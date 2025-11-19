@@ -32,7 +32,7 @@ public abstract class Metrics {
     private volatile boolean registered = false;
 
     protected Metrics(CdcSourceTaskContext taskContext, String contextName) {
-        this.name = metricName(taskContext.getConnectorType(), taskContext.getConnectorName(), contextName, taskContext.getTaskId(), taskContext.getCustomMetricTags());
+        this.name = metricName(taskContext.getConnectorType(), taskContext.getConnectorName(), contextName, taskContext.getConfig().getConnectorTaskId(), taskContext.getCustomMetricTags());
     }
 
     protected Metrics(CdcSourceTaskContext taskContext, Map<String, String> tags) {
@@ -46,13 +46,13 @@ public abstract class Metrics {
         if (multiPartitionMode) {
             Map<String, String> tags = Collect.linkMapOf(
                     "server", connectorName,
-                    "task", connectorConfig.getTaskId(),
+                    "task", connectorConfig.getConnectorTaskId(),
                     "context", contextName);
             tags.putAll(connectorConfig.getCustomMetricTags());
             this.name = metricName(connectorType, tags);
         }
         else {
-            this.name = metricName(connectorType, connectorName, contextName, connectorConfig.getTaskId(), connectorConfig.getCustomMetricTags());
+            this.name = metricName(connectorType, connectorName, contextName, connectorConfig.getConnectorTaskId(), connectorConfig.getCustomMetricTags());
         }
     }
 
