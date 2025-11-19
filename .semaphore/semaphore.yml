@@ -169,6 +169,16 @@ blocks:
               -Dversion=${DEBEZIUM_VERSION}
               -Dpackaging=jar
               -Dclassifier=javadoc
+            # Deploy tests JAR
+            - mvn deploy:deploy-file
+              -Durl=https://confluent-519856050701.d.codeartifact.us-west-2.amazonaws.com/maven/maven-snapshots/
+              -DrepositoryId=confluent-codeartifact-internal
+              -Dfile=debezium-core/target/debezium-core-${DEBEZIUM_VERSION}-tests.jar
+              -DgroupId=io.confluent
+              -DartifactId=debezium-core
+              -Dversion=${DEBEZIUM_VERSION}
+              -Dpackaging=jar
+              -Dclassifier=tests
 
 after_pipeline:
   task:
