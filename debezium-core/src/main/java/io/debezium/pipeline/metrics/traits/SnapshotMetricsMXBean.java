@@ -39,4 +39,6 @@ public interface SnapshotMetricsMXBean extends SchemaMetricsMXBean {
     String getTableFrom();
 
     String getTableTo();
+
+    boolean getConnectTaskRebalanceExempt();
 }
