@@ -451,7 +451,7 @@ public final class Field {
             if (groupName != null) {
                 for (int i = 0; i != fields.length; ++i) {
                     Field f = fields[i];
-                    ConfigDef.Validator validator = (f.validator instanceof ConfigDef.Validator) ? (ConfigDef.Validator)f.validator : null;
+                    ConfigDef.Validator validator = (f.validator instanceof ConfigDef.Validator) ? (ConfigDef.Validator) f.validator : null;
                     configDef.define(f.name(), f.type(), f.defaultValue(), validator, f.importance(), f.description(),
                             groupName, i + 1, f.width(), f.displayName(), f.dependents(), null);
                     if (!f.deprecatedAliases().isEmpty()) {
@@ -465,7 +465,7 @@ public final class Field {
             else {
                 for (int i = 0; i != fields.length; ++i) {
                     Field f = fields[i];
-                    ConfigDef.Validator validator = (f.validator instanceof ConfigDef.Validator) ? (ConfigDef.Validator)f.validator : null;
+                    ConfigDef.Validator validator = (f.validator instanceof ConfigDef.Validator) ? (ConfigDef.Validator) f.validator : null;
                     configDef.define(f.name(), f.type(), f.defaultValue(), validator, f.importance(), f.description(),
                             null, 1, f.width(), f.displayName(), f.dependents(), null);
                     if (!f.deprecatedAliases().isEmpty()) {
@@ -1163,7 +1163,6 @@ public final class Field {
             }
             return 0;
         }
-
 
         @Override
         public void ensureValid(String name, Object value) {
