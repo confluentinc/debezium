@@ -60,6 +60,7 @@ import io.debezium.engine.format.Json;
 import io.debezium.engine.format.KeyValueChangeEventFormat;
 import io.debezium.jdbc.JdbcConfiguration;
 import io.debezium.util.IoUtil;
+import io.debezium.util.ThreadNameContext;
 
 /**
  * Basic end-to-end comparison between {@link io.debezium.embedded.EmbeddedEngine} and {@link io.debezium.embedded.async.AsyncEmbeddedEngine}.
