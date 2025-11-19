@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
@@ -314,8 +315,8 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
                             metronome.pause();
                         }
                     }
-                    //Rename any "blc-" threads as per ThreadNameContext that are named in binlogClient
-                    renameBinaryLogClientThreads("blc-");
+                    // Rename any BinlogClientThreads as per ThreadNamePattern that are created and named in binlogClient
+                    renameBinaryLogClientThreads();
                 }
                 catch (TimeoutException e) {
                     // If the client thread is interrupted *before* the client could connect, the client throws a timeout exception
@@ -389,25 +390,48 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
     /**
      * Renames BinaryLogClient threads that were created outside ThreadFactory.
      * The mysql-binlog-connector-java library creates some threads directly while renaming with "blc-" prefix.
-     *
-     * @param threadNamePrefix the prefix to filter threads (e.g., "blc-", "blc-keepalive")
      */
-    private void renameBinaryLogClientThreads(String threadNamePrefix) {
-        Thread.getAllStackTraces().keySet().stream()
-                .filter(t -> t.getName().startsWith(threadNamePrefix) && !binaryLogClientThreads.containsKey(t.getName()))
-                .forEach(t -> {
-                    String oldName = t.getName();
-                    String threadType = oldName.startsWith("blc-keepalive") ? "keepalive" : "client";
-                    String newName = Threads.buildThreadName(
-                            getConnectorClass(),
-                            connectorConfig.getLogicalName(),
-                            "binlog-" + threadType,
-                            threadNameContext);
-                    t.setName(newName);
-                    binaryLogClientThreads.put(newName, t);
-                    LOGGER.debug("Renamed BinaryLogClient thread from '{}' to '{}' (was created outside ThreadFactory)",
-                            oldName, newName);
-                });
+    private void renameBinaryLogClientThreads() {
+        if (binaryLogClientThreads.isEmpty()) {
+            return;
+        }
+
+        final List<Map.Entry<String, Thread>> threadsToRename = binaryLogClientThreads.entrySet().stream()
+                .filter(entry -> entry.getValue().getName().startsWith("blc-"))
+                .collect(Collectors.toList());
+
+        if (threadsToRename.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, Thread> entry : threadsToRename) {
+            renameThread(entry.getKey(), entry.getValue());
+        }
+    }
+
+    /**
+     * Renames a single BinaryLogClient thread and updates its map entry.
+     *
+     * @param oldMapKey the current map key
+     * @param thread the thread to rename
+     */
+    private void renameThread(String oldMapKey, Thread thread) {
+        final String oldThreadName = thread.getName();
+        // There are three threads created by BinaryLogClient that we need to rename accordingly
+        // There are blc-, blc-keepalive, blc-disconnect
+        final String threadType = oldThreadName.contains("keepalive") ? "keepalive"
+                : oldThreadName.contains("disconnect") ? "disconnect"
+                        : "client";
+
+        final String newThreadName = Threads.buildThreadName(
+                getConnectorClass(),
+                connectorConfig.getLogicalName(),
+                "binlog-" + threadType,
+                threadNameContext);
+
+        thread.setName(newThreadName);
+        final String newMapKey = newThreadName + "-" + thread.getId();
+        binaryLogClientThreads.remove(oldMapKey);
+        binaryLogClientThreads.put(newMapKey, thread);
     }
 
     // todo: perhaps refactor back out to a binary log configurator instance?
@@ -425,7 +449,10 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
                         threadNameContext,
                         false,
                         false,
-                        x -> clientThreads.put(x.getName(), x)));
+                        x -> {
+                            String mapKey = x.getName() + "-" + x.getId();
+                            clientThreads.put(mapKey, x);
+                        }));
         client.setServerId(connectorConfig.getServerId());
 
         client.setSSLMode(sslModeFor(connectorConfig.getSslMode()));
