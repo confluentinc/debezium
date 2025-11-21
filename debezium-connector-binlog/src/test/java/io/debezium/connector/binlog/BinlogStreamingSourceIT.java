@@ -371,7 +371,6 @@ public abstract class BinlogStreamingSourceIT<C extends SourceConnector> extends
 
     @Test
     public void shouldRenameBinaryLogClientThreads() throws Exception {
-        System.setProperty("database.replica.hostname", "localhost");
         config = simpleConfig().build();
         start(getConnectorClass(), config);
 
