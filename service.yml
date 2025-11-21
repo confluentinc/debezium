@@ -16,6 +16,7 @@ semaphore:
     - main
     - /^\d+\.\d+\.x$/
     - /v\d+\.\d+\.\d+\-hotfix\-x/
+    - /v\d+\.\d+\.\d+\-orcl\-hotfix\-x/
     - /^gh-readonly-queue.*/
 code_artifact:
   enable: true
