@@ -371,16 +371,20 @@ public abstract class BinlogStreamingSourceIT<C extends SourceConnector> extends
 
     @Test
     public void shouldRenameBinaryLogClientThreads() throws Exception {
+        System.setProperty("database.replica.hostname", "localhost");
         config = simpleConfig().build();
         start(getConnectorClass(), config);
 
         // Wait for connector to start and create BinaryLogClient threads
         waitForStreamingRunning(getConnectorName(), DATABASE.getServerName(), "streaming");
 
-        // Verify renamed threads exist
-        final String expectedPrefix = "debezium-" + getConnectorClass().getSimpleName().toLowerCase()
-                + "-" + DATABASE.getServerName() + "-binlog-client";
+        // Wait for thread renaming to complete (happens asynchronously after connection)
+        final String expectedPrefix = "debezium-binlogstreamingchangeeventsource-"
+                + DATABASE.getServerName() + "-binlog-client";
+        // Wait until all the threads are created and renamed
+        Thread.sleep(5000L);
 
+        // Verify renamed threads exist
         final long debeziumThreadCount = Thread.getAllStackTraces().keySet().stream()
                 .filter(t -> t.getName().startsWith(expectedPrefix))
                 .count();
@@ -396,6 +400,7 @@ public abstract class BinlogStreamingSourceIT<C extends SourceConnector> extends
 
         stopConnector();
     }
+
 
     @Test
     @FixFor("DBZ-342")
