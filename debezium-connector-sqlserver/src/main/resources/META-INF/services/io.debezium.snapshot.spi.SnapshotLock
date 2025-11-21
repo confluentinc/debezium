@@ -1,2 +1,3 @@
 io.debezium.connector.sqlserver.snapshot.lock.NoSnapshotLock
 io.debezium.connector.sqlserver.snapshot.lock.ExclusiveSnapshotLock
+io.debezium.connector.v2.sqlserver.snapshot.lock.ExclusiveSnapshotLock
