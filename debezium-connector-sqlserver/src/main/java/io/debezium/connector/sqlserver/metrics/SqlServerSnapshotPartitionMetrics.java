@@ -141,7 +141,7 @@ class SqlServerSnapshotPartitionMetrics extends AbstractSqlServerPartitionMetric
     }
 
     @Override
-    public boolean getConnectTaskRebalanceExempt() {
+    public long getConnectTaskRebalanceExempt() {
         return snapshotMeter.getConnectTaskRebalanceExempt();
     }
 
