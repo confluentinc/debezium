@@ -388,7 +388,7 @@ public abstract class BinlogStreamingSourceIT<C extends SourceConnector> extends
                 .filter(t -> t.getName().startsWith(expectedPrefix))
                 .count();
 
-        assertThat(debeziumThreadCount).isGreaterThan(0);
+        assertThat(debeziumThreadCount).isGreaterThanOrEqualTo(2);
 
         // Verify no old "blc-" threads remain
         final long blcThreadCount = Thread.getAllStackTraces().keySet().stream()
@@ -399,7 +399,6 @@ public abstract class BinlogStreamingSourceIT<C extends SourceConnector> extends
 
         stopConnector();
     }
-
 
     @Test
     @FixFor("DBZ-342")

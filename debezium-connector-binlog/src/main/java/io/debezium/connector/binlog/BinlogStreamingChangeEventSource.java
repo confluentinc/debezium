@@ -306,7 +306,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
                         boolean keepAliveThreadRunning = false;
                         while (!keepAliveThreadRunning && waitAttempts-- > 0) {
                             for (Thread t : binaryLogClientThreads.values()) {
-                                if ((t.getName().startsWith(KEEPALIVE_THREAD_NAME) || t.getName().contains("keepalive")) && t.isAlive()) {
+                                if (t.getName().startsWith(KEEPALIVE_THREAD_NAME) && t.isAlive()) {
                                     LOGGER.info("Keepalive thread is running");
                                     keepAliveThreadRunning = true;
                                 }
@@ -406,14 +406,14 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
         final String oldThreadName = thread.getName();
         // There are three threads created by BinaryLogClient that are to be renamed accordingly
         // There are blc-, blc-keepalive, blc-disconnect
-        final String threadType = oldThreadName.contains("keepalive") ? "keepalive"
-                : oldThreadName.contains("disconnect") ? "disconnect"
-                        : "client";
+        final String threadType = oldThreadName.contains("keepalive") ? "-keepalive"
+                : oldThreadName.contains("disconnect") ? "-disconnect"
+                        : "";
 
         final String newThreadName = Threads.buildThreadName(
                 BinlogStreamingChangeEventSource.class,
                 connectorConfig.getLogicalName(),
-                "binlog-client-" + threadType,
+                "binlog-client" + threadType,
                 threadNameContext);
         thread.setName(newThreadName);
         final String newMapKey = newThreadName + "-" + thread.getId();
