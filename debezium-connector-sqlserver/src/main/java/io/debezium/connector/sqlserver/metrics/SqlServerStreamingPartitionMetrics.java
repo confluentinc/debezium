@@ -12,6 +12,7 @@ import org.apache.kafka.connect.data.Struct;
 import io.debezium.connector.common.CdcSourceTaskContext;
 import io.debezium.data.Envelope;
 import io.debezium.pipeline.meters.StreamingMeter;
+import io.debezium.pipeline.meters.TaskStateMeter;
 import io.debezium.pipeline.source.spi.EventMetadataProvider;
 import io.debezium.pipeline.spi.OffsetContext;
 import io.debezium.spi.schema.DataCollectionId;
@@ -24,7 +25,7 @@ class SqlServerStreamingPartitionMetrics extends AbstractSqlServerPartitionMetri
     SqlServerStreamingPartitionMetrics(CdcSourceTaskContext taskContext,
                                        Map<String, String> tags,
                                        EventMetadataProvider metadataProvider) {
-        super(taskContext, tags, metadataProvider);
+        super(taskContext, tags, metadataProvider, new TaskStateMeter());
         streamingMeter = new StreamingMeter(taskContext, metadataProvider);
     }
 
@@ -63,5 +64,6 @@ class SqlServerStreamingPartitionMetrics extends AbstractSqlServerPartitionMetri
     public void reset() {
         super.reset();
         streamingMeter.reset();
+        taskStateMeter.reset();
     }
 }

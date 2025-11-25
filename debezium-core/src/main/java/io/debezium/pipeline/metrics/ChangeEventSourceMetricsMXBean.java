@@ -17,5 +17,7 @@ import io.debezium.pipeline.metrics.traits.SchemaMetricsMXBean;
 public interface ChangeEventSourceMetricsMXBean extends CommonEventMetricsMXBean, QueueMetricsMXBean,
         SchemaMetricsMXBean {
 
+    long getConnectTaskRebalanceExempt();
+
     void reset();
 }

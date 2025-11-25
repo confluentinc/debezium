@@ -15,6 +15,7 @@ import io.debezium.metrics.Metrics;
 import io.debezium.metrics.activity.ActivityMonitoringMeter;
 import io.debezium.pipeline.ConnectorEvent;
 import io.debezium.pipeline.meters.CommonEventMeter;
+import io.debezium.pipeline.meters.TaskStateMeter;
 import io.debezium.pipeline.source.spi.EventMetadataProvider;
 import io.debezium.pipeline.spi.OffsetContext;
 import io.debezium.spi.schema.DataCollectionId;
@@ -27,13 +28,16 @@ abstract public class AbstractSqlServerPartitionMetrics extends Metrics implemen
     private final CommonEventMeter commonEventMeter;
     private final ActivityMonitoringMeter activityMonitoringMeter;
     protected final CdcSourceTaskContext taskContext;
+    protected final TaskStateMeter taskStateMeter;
 
     AbstractSqlServerPartitionMetrics(CdcSourceTaskContext taskContext, Map<String, String> tags,
-                                      EventMetadataProvider metadataProvider) {
+                                      EventMetadataProvider metadataProvider,
+                                      TaskStateMeter taskStateMeter) {
         super(taskContext, tags);
         this.taskContext = taskContext;
         this.commonEventMeter = new CommonEventMeter(taskContext.getClock(), metadataProvider);
         this.activityMonitoringMeter = new ActivityMonitoringMeter();
+        this.taskStateMeter = taskStateMeter;
     }
 
     @Override
@@ -150,10 +154,15 @@ abstract public class AbstractSqlServerPartitionMetrics extends Metrics implemen
     void onConnectorEvent(ConnectorEvent event) {
     }
 
+    public long getConnectTaskRebalanceExempt() {
+        return taskStateMeter.getConnectTaskRebalanceExempt();
+    }
+
     @Override
     public void reset() {
 
         commonEventMeter.reset();
         activityMonitoringMeter.reset();
+        taskStateMeter.reset();
     }
 }
