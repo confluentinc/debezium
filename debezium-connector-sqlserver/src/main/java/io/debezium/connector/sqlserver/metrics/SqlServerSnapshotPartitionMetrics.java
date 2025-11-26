@@ -28,6 +28,14 @@ class SqlServerSnapshotPartitionMetrics extends AbstractSqlServerPartitionMetric
         snapshotMeter = new SnapshotMeter(taskContext.getClock(), taskStateMetrics);
     }
 
+    SqlServerSnapshotPartitionMetrics(CdcSourceTaskContext taskContext, Map<String, String> tags,
+                                      EventMetadataProvider metadataProvider,
+                                      TaskStateMetrics taskStateMetrics) {
+        super(taskContext, tags, metadataProvider);
+        this.taskStateMetrics = taskStateMetrics;
+        snapshotMeter = new SnapshotMeter(taskContext.getClock(), taskStateMetrics);
+    }
+
     @Override
     public int getTotalTableCount() {
         return snapshotMeter.getTotalTableCount();

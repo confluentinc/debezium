@@ -136,20 +136,10 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
             // Create and register task state metrics
             this.taskStateMetrics = new TaskStateMetrics(taskContext);
             // Create snapshot and streaming metrics with shared task state metrics
-            if (changeEventSourceMetricsFactory instanceof DefaultChangeEventSourceMetricsFactory) {
-                DefaultChangeEventSourceMetricsFactory<P> defaultFactory = (DefaultChangeEventSourceMetricsFactory<P>) changeEventSourceMetricsFactory;
-                this.snapshotMetrics = defaultFactory.getSnapshotMetrics(taskContext, changeEventQueueMetrics,
-                        metadataProvider, taskStateMetrics);
-                this.streamingMetrics = defaultFactory.getStreamingMetrics(taskContext, changeEventQueueMetrics,
-                        metadataProvider, taskStateMetrics);
-            }
-            else {
-                // Fallback for custom factories
-                this.snapshotMetrics = changeEventSourceMetricsFactory.getSnapshotMetrics(taskContext,
-                        changeEventQueueMetrics, metadataProvider);
-                this.streamingMetrics = changeEventSourceMetricsFactory.getStreamingMetrics(taskContext,
-                        changeEventQueueMetrics, metadataProvider);
-            }
+            this.snapshotMetrics = changeEventSourceMetricsFactory.getSnapshotMetrics(taskContext, changeEventQueueMetrics,
+                    metadataProvider, taskStateMetrics);
+            this.streamingMetrics = changeEventSourceMetricsFactory.getStreamingMetrics(taskContext, changeEventQueueMetrics,
+                    metadataProvider, taskStateMetrics);
             running = true;
 
             // run the snapshot source on a separate thread so start() won't block

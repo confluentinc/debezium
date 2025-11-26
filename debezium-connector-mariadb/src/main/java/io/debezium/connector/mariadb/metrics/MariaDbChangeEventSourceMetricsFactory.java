@@ -56,6 +56,15 @@ public class MariaDbChangeEventSourceMetricsFactory extends DefaultChangeEventSo
     }
 
     @Override
+    public <T extends CdcSourceTaskContext> StreamingChangeEventSourceMetrics<MariaDbPartition> getStreamingMetrics(
+                                                                                                                    T taskContext,
+                                                                                                                    ChangeEventQueueMetrics changeEventQueueMetrics,
+                                                                                                                    EventMetadataProvider eventMetadataProvider,
+                                                                                                                    TaskStateMetrics taskStateMetrics) {
+        return streamingMetrics;
+    }
+
+    @Override
     public boolean connectionMetricHandledByCoordinator() {
         return false;
     }
