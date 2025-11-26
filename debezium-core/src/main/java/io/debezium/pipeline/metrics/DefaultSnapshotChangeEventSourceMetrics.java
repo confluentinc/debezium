@@ -12,6 +12,7 @@ import io.debezium.annotation.ThreadSafe;
 import io.debezium.connector.base.ChangeEventQueueMetrics;
 import io.debezium.connector.common.CdcSourceTaskContext;
 import io.debezium.pipeline.meters.SnapshotMeter;
+import io.debezium.pipeline.meters.TaskStateMeter;
 import io.debezium.pipeline.source.spi.EventMetadataProvider;
 import io.debezium.pipeline.spi.Partition;
 import io.debezium.relational.TableId;
@@ -28,16 +29,19 @@ public class DefaultSnapshotChangeEventSourceMetrics<P extends Partition> extend
 
     private final SnapshotMeter snapshotMeter;
 
-    public <T extends CdcSourceTaskContext> DefaultSnapshotChangeEventSourceMetrics(T taskContext, ChangeEventQueueMetrics changeEventQueueMetrics,
+    public <T extends CdcSourceTaskContext> DefaultSnapshotChangeEventSourceMetrics(T taskContext,
+                                                                                    ChangeEventQueueMetrics changeEventQueueMetrics,
                                                                                     EventMetadataProvider metadataProvider) {
-        super(taskContext, "snapshot", changeEventQueueMetrics, metadataProvider);
-        snapshotMeter = new SnapshotMeter(taskContext.getClock());
+        super(taskContext, "snapshot", changeEventQueueMetrics, metadataProvider, new TaskStateMeter());
+        snapshotMeter = new SnapshotMeter(taskContext.getClock(), taskStateMeter);
     }
 
-    public <T extends CdcSourceTaskContext> DefaultSnapshotChangeEventSourceMetrics(T taskContext, ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                    EventMetadataProvider metadataProvider, Map<String, String> tags) {
-        super(taskContext, changeEventQueueMetrics, metadataProvider, tags);
-        snapshotMeter = new SnapshotMeter(taskContext.getClock());
+    public <T extends CdcSourceTaskContext> DefaultSnapshotChangeEventSourceMetrics(T taskContext,
+                                                                                    ChangeEventQueueMetrics changeEventQueueMetrics,
+                                                                                    EventMetadataProvider metadataProvider,
+                                                                                    Map<String, String> tags) {
+        super(taskContext, changeEventQueueMetrics, metadataProvider, tags, new TaskStateMeter());
+        snapshotMeter = new SnapshotMeter(taskContext.getClock(), taskStateMeter);
     }
 
     @Override
@@ -169,5 +173,6 @@ public class DefaultSnapshotChangeEventSourceMetrics<P extends Partition> extend
     public void reset() {
         super.reset();
         snapshotMeter.reset();
+        taskStateMeter.reset();
     }
 }

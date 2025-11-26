@@ -17,6 +17,7 @@ import io.debezium.metrics.activity.ActivityMonitoringMeter;
 import io.debezium.pipeline.ConnectorEvent;
 import io.debezium.pipeline.meters.ConnectionMeter;
 import io.debezium.pipeline.meters.StreamingMeter;
+import io.debezium.pipeline.meters.TaskStateMeter;
 import io.debezium.pipeline.source.spi.EventMetadataProvider;
 import io.debezium.pipeline.spi.OffsetContext;
 import io.debezium.pipeline.spi.Partition;
@@ -35,17 +36,20 @@ public class DefaultStreamingChangeEventSourceMetrics<P extends Partition> exten
     private final StreamingMeter streamingMeter;
     private final ActivityMonitoringMeter activityMonitoringMeter;
 
-    public <T extends CdcSourceTaskContext> DefaultStreamingChangeEventSourceMetrics(T taskContext, ChangeEventQueueMetrics changeEventQueueMetrics,
+    public <T extends CdcSourceTaskContext> DefaultStreamingChangeEventSourceMetrics(T taskContext,
+                                                                                     ChangeEventQueueMetrics changeEventQueueMetrics,
                                                                                      EventMetadataProvider metadataProvider) {
-        super(taskContext, "streaming", changeEventQueueMetrics, metadataProvider);
+        super(taskContext, "streaming", changeEventQueueMetrics, metadataProvider, new TaskStateMeter());
         streamingMeter = new StreamingMeter(taskContext, metadataProvider);
         connectionMeter = new ConnectionMeter();
         activityMonitoringMeter = new ActivityMonitoringMeter();
     }
 
-    public <T extends CdcSourceTaskContext> DefaultStreamingChangeEventSourceMetrics(T taskContext, ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                     EventMetadataProvider metadataProvider, Map<String, String> tags) {
-        super(taskContext, changeEventQueueMetrics, metadataProvider, tags);
+    public <T extends CdcSourceTaskContext> DefaultStreamingChangeEventSourceMetrics(T taskContext,
+                                                                                     ChangeEventQueueMetrics changeEventQueueMetrics,
+                                                                                     EventMetadataProvider metadataProvider,
+                                                                                     Map<String, String> tags) {
+        super(taskContext, changeEventQueueMetrics, metadataProvider, tags, new TaskStateMeter());
         streamingMeter = new StreamingMeter(taskContext, metadataProvider);
         connectionMeter = new ConnectionMeter();
         activityMonitoringMeter = new ActivityMonitoringMeter();
@@ -104,6 +108,7 @@ public class DefaultStreamingChangeEventSourceMetrics<P extends Partition> exten
         streamingMeter.reset();
         connectionMeter.reset();
         activityMonitoringMeter.reset();
+        taskStateMeter.reset();
     }
 
     @Override
