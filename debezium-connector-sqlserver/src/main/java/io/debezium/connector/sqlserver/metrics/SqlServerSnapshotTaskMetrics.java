@@ -11,6 +11,7 @@ import io.debezium.connector.base.ChangeEventQueueMetrics;
 import io.debezium.connector.common.CdcSourceTaskContext;
 import io.debezium.connector.sqlserver.SqlServerPartition;
 import io.debezium.pipeline.metrics.SnapshotChangeEventSourceMetrics;
+import io.debezium.pipeline.metrics.TaskStateMetrics;
 import io.debezium.pipeline.source.spi.EventMetadataProvider;
 import io.debezium.relational.TableId;
 import io.debezium.spi.schema.DataCollectionId;
@@ -31,6 +32,21 @@ class SqlServerSnapshotTaskMetrics extends AbstractSqlServerTaskMetrics<SqlServe
                                 "context", "snapshot",
                                 "database", partition.getDatabaseName()),
                         metadataProvider));
+    }
+
+    SqlServerSnapshotTaskMetrics(CdcSourceTaskContext taskContext,
+                                 ChangeEventQueueMetrics changeEventQueueMetrics,
+                                 EventMetadataProvider metadataProvider,
+                                 Collection<SqlServerPartition> partitions,
+                                 TaskStateMetrics taskStateMetrics) {
+        super(taskContext, "snapshot", changeEventQueueMetrics, partitions, taskStateMetrics,
+                (SqlServerPartition partition) -> new SqlServerSnapshotPartitionMetrics(taskContext,
+                        Collect.linkMapOf(
+                                "server", taskContext.getConnectorName(),
+                                "task", taskContext.getTaskId(),
+                                "context", "snapshot",
+                                "database", partition.getDatabaseName()),
+                        metadataProvider, taskStateMetrics));
     }
 
     @Override
