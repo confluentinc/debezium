@@ -7,6 +7,7 @@ package io.debezium.connector.mysql;
 
 import io.debezium.connector.base.ChangeEventQueueMetrics;
 import io.debezium.connector.binlog.metrics.BinlogSnapshotChangeEventSourceMetrics;
+import io.debezium.pipeline.metrics.TaskStateMetrics;
 import io.debezium.pipeline.source.spi.EventMetadataProvider;
 
 /**
@@ -18,5 +19,12 @@ public class MySqlSnapshotChangeEventSourceMetrics extends BinlogSnapshotChangeE
                                                  ChangeEventQueueMetrics changeEventQueueMetrics,
                                                  EventMetadataProvider eventMetadataProvider) {
         super(taskContext, changeEventQueueMetrics, eventMetadataProvider);
+    }
+
+    public MySqlSnapshotChangeEventSourceMetrics(MySqlTaskContext taskContext,
+                                                 ChangeEventQueueMetrics changeEventQueueMetrics,
+                                                 EventMetadataProvider eventMetadataProvider,
+                                                 TaskStateMetrics taskStateMetrics) {
+        super(taskContext, changeEventQueueMetrics, eventMetadataProvider, taskStateMetrics);
     }
 }

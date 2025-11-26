@@ -29,8 +29,10 @@ import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.ConfigurationDefaults;
 import io.debezium.connector.base.ChangeEventQueueMetrics;
 import io.debezium.connector.common.CdcSourceTaskContext;
+import io.debezium.pipeline.metrics.DefaultChangeEventSourceMetricsFactory;
 import io.debezium.pipeline.metrics.SnapshotChangeEventSourceMetrics;
 import io.debezium.pipeline.metrics.StreamingChangeEventSourceMetrics;
+import io.debezium.pipeline.metrics.TaskStateMetrics;
 import io.debezium.pipeline.metrics.spi.ChangeEventSourceMetricsFactory;
 import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.signal.SignalProcessor;
@@ -96,6 +98,7 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
 
     protected SnapshotChangeEventSourceMetrics<P> snapshotMetrics;
     protected StreamingChangeEventSourceMetrics<P> streamingMetrics;
+    protected TaskStateMetrics taskStateMetrics;
     private ChangeEventSourceContext context;
     private SnapshotChangeEventSource<P, O> snapshotSource;
     private AtomicReference<LoggingContext.PreviousContext> previousLogContext;
@@ -130,14 +133,20 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
         previousLogContext = new AtomicReference<>();
         try {
             this.taskContext = taskContext;
-            this.snapshotMetrics = changeEventSourceMetricsFactory.getSnapshotMetrics(taskContext, changeEventQueueMetrics, metadataProvider);
-            this.streamingMetrics = changeEventSourceMetricsFactory.getStreamingMetrics(taskContext, changeEventQueueMetrics, metadataProvider);
+            // Create and register task state metrics
+            this.taskStateMetrics = new TaskStateMetrics(taskContext);
+            // Create snapshot and streaming metrics with shared task state metrics
+            this.snapshotMetrics = changeEventSourceMetricsFactory.getSnapshotMetrics(taskContext, changeEventQueueMetrics,
+                    metadataProvider, taskStateMetrics);
+            this.streamingMetrics = changeEventSourceMetricsFactory.getStreamingMetrics(taskContext, changeEventQueueMetrics,
+                    metadataProvider, taskStateMetrics);
             running = true;
 
             // run the snapshot source on a separate thread so start() won't block
             executor.submit(() -> {
                 try {
                     previousLogContext.set(taskContext.configureLoggingContext("snapshot"));
+                    taskStateMetrics.register();
                     snapshotMetrics.register();
                     streamingMetrics.register();
                     LOGGER.info("Metrics registered");
@@ -406,6 +415,9 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
             connectorConfig.getServiceRegistry().close();
         }
         finally {
+            if (taskStateMetrics != null) {
+                taskStateMetrics.unregister();
+            }
             snapshotMetrics.unregister();
             streamingMetrics.unregister();
         }
