@@ -130,7 +130,7 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         this.snapshotPaused.set(0);
         this.snapshotCompleted.set(0);
         this.snapshotAborted.set(0);
-        this.taskStateMeter.setConnectTaskRebalanceExempt(true);
+        this.taskStateMeter.setConnectTaskRebalanceExempt(1);
         this.startTime.set(clock.currentTimeInMillis());
         this.stopTime.set(0L);
         this.startPauseTime.set(0);
@@ -143,7 +143,7 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         this.snapshotPaused.set(1);
         this.snapshotCompleted.set(0);
         this.snapshotAborted.set(0);
-        this.taskStateMeter.setConnectTaskRebalanceExempt(false);
+        this.taskStateMeter.setConnectTaskRebalanceExempt(0);
         this.startPauseTime.set(clock.currentTimeInMillis());
         this.stopPauseTime.set(0L);
     }
@@ -153,7 +153,7 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         this.snapshotPaused.set(0);
         this.snapshotCompleted.set(0);
         this.snapshotAborted.set(0);
-        this.taskStateMeter.setConnectTaskRebalanceExempt(true);
+        this.taskStateMeter.setConnectTaskRebalanceExempt(1);
         final long currTime = clock.currentTimeInMillis();
         this.stopPauseTime.set(currTime);
 
@@ -174,7 +174,7 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         this.snapshotAborted.set(0);
         this.snapshotRunning.set(0);
         this.snapshotPaused.set(0);
-        this.taskStateMeter.setConnectTaskRebalanceExempt(false);
+        this.taskStateMeter.setConnectTaskRebalanceExempt(0);
         this.stopTime.set(clock.currentTimeInMillis());
     }
 
@@ -183,7 +183,7 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         this.snapshotAborted.set(1);
         this.snapshotRunning.set(0);
         this.snapshotPaused.set(0);
-        this.taskStateMeter.setConnectTaskRebalanceExempt(false);
+        this.taskStateMeter.setConnectTaskRebalanceExempt(0);
         this.stopTime.set(clock.currentTimeInMillis());
     }
 

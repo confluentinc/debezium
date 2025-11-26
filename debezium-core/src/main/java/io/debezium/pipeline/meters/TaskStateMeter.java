@@ -32,8 +32,8 @@ public class TaskStateMeter {
      *
      * @param exempt true if the task should be exempt from rebalancing, false otherwise
      */
-    public void setConnectTaskRebalanceExempt(boolean exempt) {
-        connectTaskRebalanceExempt.set(exempt ? 1 : 0);
+    public void setConnectTaskRebalanceExempt(long exempt) {
+        connectTaskRebalanceExempt.set(exempt);
     }
 
     /**
