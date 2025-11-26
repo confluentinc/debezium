@@ -16,6 +16,7 @@ import io.debezium.data.Envelope.Operation;
 import io.debezium.metrics.Metrics;
 import io.debezium.pipeline.ConnectorEvent;
 import io.debezium.pipeline.meters.CommonEventMeter;
+import io.debezium.pipeline.meters.TaskStateMeter;
 import io.debezium.pipeline.source.spi.DataChangeEventListener;
 import io.debezium.pipeline.source.spi.EventMetadataProvider;
 import io.debezium.pipeline.spi.OffsetContext;
@@ -36,23 +37,31 @@ public abstract class PipelineMetrics<P extends Partition> extends Metrics
     private final ChangeEventQueueMetrics changeEventQueueMetrics;
     protected final CdcSourceTaskContext taskContext;
     private final CommonEventMeter commonEventMeter;
+    protected final TaskStateMeter taskStateMeter;
 
-    protected <T extends CdcSourceTaskContext> PipelineMetrics(T taskContext, String contextName, ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                               EventMetadataProvider metadataProvider) {
+    protected <T extends CdcSourceTaskContext> PipelineMetrics(T taskContext, String contextName,
+                                                               ChangeEventQueueMetrics changeEventQueueMetrics,
+                                                               EventMetadataProvider metadataProvider,
+                                                               TaskStateMeter taskStateMeter) {
         super(taskContext, contextName);
         this.taskContext = taskContext;
         this.changeEventQueueMetrics = changeEventQueueMetrics;
         this.metadataProvider = metadataProvider;
         this.commonEventMeter = new CommonEventMeter(taskContext.getClock(), metadataProvider);
+        this.taskStateMeter = taskStateMeter;
     }
 
-    protected <T extends CdcSourceTaskContext> PipelineMetrics(T taskContext, ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                               EventMetadataProvider metadataProvider, Map<String, String> tags) {
+    protected <T extends CdcSourceTaskContext> PipelineMetrics(T taskContext,
+                                                               ChangeEventQueueMetrics changeEventQueueMetrics,
+                                                               EventMetadataProvider metadataProvider,
+                                                               Map<String, String> tags,
+                                                               TaskStateMeter taskStateMeter) {
         super(taskContext, tags);
         this.taskContext = taskContext;
         this.changeEventQueueMetrics = changeEventQueueMetrics;
         this.metadataProvider = metadataProvider;
         this.commonEventMeter = new CommonEventMeter(taskContext.getClock(), metadataProvider);
+        this.taskStateMeter = taskStateMeter;
     }
 
     @Override
@@ -148,6 +157,11 @@ public abstract class PipelineMetrics<P extends Partition> extends Metrics
     @Override
     public long getCurrentQueueSizeInBytes() {
         return changeEventQueueMetrics.currentQueueSizeInBytes();
+    }
+
+    @Override
+    public long getConnectTaskRebalanceExempt() {
+        return taskStateMeter.getConnectTaskRebalanceExempt();
     }
 
 }
