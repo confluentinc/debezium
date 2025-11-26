@@ -28,4 +28,25 @@ public class DefaultChangeEventSourceMetricsFactory<P extends Partition> impleme
                                                                                                      EventMetadataProvider eventMetadataProvider) {
         return new DefaultStreamingChangeEventSourceMetrics<>(taskContext, changeEventQueueMetrics, eventMetadataProvider);
     }
+
+    /**
+     * Returns the snapshot change event source metrics with shared task state metrics.
+     */
+    public <T extends CdcSourceTaskContext> SnapshotChangeEventSourceMetrics<P> getSnapshotMetrics(T taskContext,
+                                                                                                   ChangeEventQueueMetrics changeEventQueueMetrics,
+                                                                                                   EventMetadataProvider eventMetadataProvider,
+                                                                                                   TaskStateMetrics taskStateMetrics) {
+        return new DefaultSnapshotChangeEventSourceMetrics<>(taskContext, changeEventQueueMetrics,
+                eventMetadataProvider, taskStateMetrics);
+    }
+
+    /**
+     * Returns the streaming change event source metrics with shared task state metrics.
+     */
+    public <T extends CdcSourceTaskContext> StreamingChangeEventSourceMetrics<P> getStreamingMetrics(T taskContext,
+                                                                                                     ChangeEventQueueMetrics changeEventQueueMetrics,
+                                                                                                     EventMetadataProvider eventMetadataProvider,
+                                                                                                     TaskStateMetrics taskStateMetrics) {
+        return new DefaultStreamingChangeEventSourceMetrics<>(taskContext, changeEventQueueMetrics, eventMetadataProvider);
+    }
 }

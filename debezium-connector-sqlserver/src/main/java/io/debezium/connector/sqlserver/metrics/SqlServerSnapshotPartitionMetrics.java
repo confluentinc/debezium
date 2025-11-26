@@ -10,6 +10,7 @@ import java.util.concurrent.ConcurrentMap;
 
 import io.debezium.connector.common.CdcSourceTaskContext;
 import io.debezium.pipeline.meters.SnapshotMeter;
+import io.debezium.pipeline.metrics.TaskStateMetrics;
 import io.debezium.pipeline.source.spi.EventMetadataProvider;
 import io.debezium.relational.TableId;
 import io.debezium.spi.schema.DataCollectionId;
@@ -18,11 +19,13 @@ class SqlServerSnapshotPartitionMetrics extends AbstractSqlServerPartitionMetric
         implements SqlServerSnapshotPartitionMetricsMXBean {
 
     private final SnapshotMeter snapshotMeter;
+    private final TaskStateMetrics taskStateMetrics;
 
     SqlServerSnapshotPartitionMetrics(CdcSourceTaskContext taskContext, Map<String, String> tags,
                                       EventMetadataProvider metadataProvider) {
         super(taskContext, tags, metadataProvider);
-        snapshotMeter = new SnapshotMeter(taskContext.getClock());
+        this.taskStateMetrics = new TaskStateMetrics(taskContext);
+        snapshotMeter = new SnapshotMeter(taskContext.getClock(), taskStateMetrics);
     }
 
     @Override
@@ -143,5 +146,6 @@ class SqlServerSnapshotPartitionMetrics extends AbstractSqlServerPartitionMetric
     @Override
     public void reset() {
         snapshotMeter.reset();
+        taskStateMetrics.reset();
     }
 }
