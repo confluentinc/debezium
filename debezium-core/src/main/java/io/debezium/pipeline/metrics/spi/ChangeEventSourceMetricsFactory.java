@@ -65,9 +65,9 @@ public interface ChangeEventSourceMetricsFactory<P extends Partition> {
      * @return a snapshot change event source metrics
      */
     default <T extends CdcSourceTaskContext> SnapshotChangeEventSourceMetrics<P> getSnapshotMetrics(T taskContext,
-                                                                                                   ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                                   EventMetadataProvider eventMetadataProvider,
-                                                                                                   TaskStateMetrics taskStateMetrics) {
+                                                                                                    ChangeEventQueueMetrics changeEventQueueMetrics,
+                                                                                                    EventMetadataProvider eventMetadataProvider,
+                                                                                                    TaskStateMetrics taskStateMetrics) {
         return getSnapshotMetrics(taskContext, changeEventQueueMetrics, eventMetadataProvider);
     }
 
@@ -86,9 +86,9 @@ public interface ChangeEventSourceMetricsFactory<P extends Partition> {
      * @return a streaming change event source metrics
      */
     default <T extends CdcSourceTaskContext> StreamingChangeEventSourceMetrics<P> getStreamingMetrics(T taskContext,
-                                                                                                       ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                                       EventMetadataProvider eventMetadataProvider,
-                                                                                                       TaskStateMetrics taskStateMetrics) {
+                                                                                                      ChangeEventQueueMetrics changeEventQueueMetrics,
+                                                                                                      EventMetadataProvider eventMetadataProvider,
+                                                                                                      TaskStateMetrics taskStateMetrics) {
         return getStreamingMetrics(taskContext, changeEventQueueMetrics, eventMetadataProvider);
     }
 
