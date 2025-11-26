@@ -22,7 +22,7 @@ import io.debezium.pipeline.source.spi.EventMetadataProvider;
  */
 public class MariaDbChangeEventSourceMetricsFactory extends DefaultChangeEventSourceMetricsFactory<MariaDbPartition> {
 
-    public MariaDbStreamingChangeEventSourceMetrics streamingMetrics;
+    private final MariaDbStreamingChangeEventSourceMetrics streamingMetrics;
 
     public MariaDbChangeEventSourceMetricsFactory(MariaDbStreamingChangeEventSourceMetrics streamingMetrics) {
         this.streamingMetrics = streamingMetrics;

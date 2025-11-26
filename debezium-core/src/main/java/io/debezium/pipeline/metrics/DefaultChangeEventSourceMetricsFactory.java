@@ -32,6 +32,7 @@ public class DefaultChangeEventSourceMetricsFactory<P extends Partition> impleme
     /**
      * Returns the snapshot change event source metrics with shared task state metrics.
      */
+    @Override
     public <T extends CdcSourceTaskContext> SnapshotChangeEventSourceMetrics<P> getSnapshotMetrics(T taskContext,
                                                                                                    ChangeEventQueueMetrics changeEventQueueMetrics,
                                                                                                    EventMetadataProvider eventMetadataProvider,
@@ -43,6 +44,7 @@ public class DefaultChangeEventSourceMetricsFactory<P extends Partition> impleme
     /**
      * Returns the streaming change event source metrics with shared task state metrics.
      */
+    @Override
     public <T extends CdcSourceTaskContext> StreamingChangeEventSourceMetrics<P> getStreamingMetrics(T taskContext,
                                                                                                      ChangeEventQueueMetrics changeEventQueueMetrics,
                                                                                                      EventMetadataProvider eventMetadataProvider,

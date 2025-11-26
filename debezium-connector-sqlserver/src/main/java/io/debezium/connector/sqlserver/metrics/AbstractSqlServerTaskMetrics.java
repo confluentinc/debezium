@@ -73,18 +73,14 @@ abstract class AbstractSqlServerTaskMetrics<B extends AbstractSqlServerPartition
     @Override
     public synchronized void register() {
         super.register();
-        if (taskStateMetrics != null) {
-            taskStateMetrics.register();
-        }
+        // Note: taskStateMetrics is registered by the coordinator, not here
         beans.values().forEach(Metrics::register);
     }
 
     @Override
     public synchronized void unregister() {
         beans.values().forEach(Metrics::unregister);
-        if (taskStateMetrics != null) {
-            taskStateMetrics.unregister();
-        }
+        // Note: taskStateMetrics is unregistered by the coordinator, not here
         super.unregister();
     }
 

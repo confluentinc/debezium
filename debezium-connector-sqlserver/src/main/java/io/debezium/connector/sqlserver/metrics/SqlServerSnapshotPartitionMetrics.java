@@ -24,6 +24,9 @@ class SqlServerSnapshotPartitionMetrics extends AbstractSqlServerPartitionMetric
     SqlServerSnapshotPartitionMetrics(CdcSourceTaskContext taskContext, Map<String, String> tags,
                                       EventMetadataProvider metadataProvider) {
         super(taskContext, tags, metadataProvider);
+        // Note: TaskStateMetrics created here is used internally for SnapshotMeter.
+        // The actual registered TaskStateMetrics is managed at the task level via AbstractSqlServerTaskMetrics.
+        // This constructor is maintained for backward compatibility.
         this.taskStateMetrics = new TaskStateMetrics(taskContext);
         snapshotMeter = new SnapshotMeter(taskContext.getClock(), taskStateMetrics);
     }

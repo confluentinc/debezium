@@ -28,7 +28,6 @@ public class MongoDbChangeEventSourceMetricsFactory extends DefaultChangeEventSo
         if (snapshotMetrics == null) {
             snapshotMetrics = new MongoDbSnapshotChangeEventSourceMetrics(taskContext, changeEventQueueMetrics,
                     eventMetadataProvider);
-
         }
         return snapshotMetrics;
     }
@@ -42,7 +41,6 @@ public class MongoDbChangeEventSourceMetricsFactory extends DefaultChangeEventSo
         if (snapshotMetrics == null) {
             snapshotMetrics = new MongoDbSnapshotChangeEventSourceMetrics(taskContext, changeEventQueueMetrics,
                     eventMetadataProvider, taskStateMetrics);
-
         }
         return snapshotMetrics;
     }
