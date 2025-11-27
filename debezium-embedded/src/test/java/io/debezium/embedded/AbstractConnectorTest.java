@@ -1608,11 +1608,6 @@ public abstract class AbstractConnectorTest implements Testing {
         return System.getProperty("test.streaming.metrics.namespace", "streaming");
     }
 
-    public static ObjectName getTaskMetricsObjectName(String connector, String server) throws MalformedObjectNameException {
-        return new ObjectName("debezium." + connector + ":type=connector-metrics,context=task,server=" + server
-                + ",task=0");
-    }
-
     public static ObjectName getTaskMetricsObjectName(String connector, String server, String task)
             throws MalformedObjectNameException {
         return new ObjectName("debezium." + connector + ":type=connector-metrics,context=task,server=" + server
