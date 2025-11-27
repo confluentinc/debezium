@@ -12,6 +12,7 @@ import io.debezium.connector.binlog.BinlogDatabaseSchema;
 import io.debezium.connector.binlog.BinlogPartition;
 import io.debezium.connector.binlog.BinlogTaskContext;
 import io.debezium.pipeline.metrics.DefaultSnapshotChangeEventSourceMetrics;
+import io.debezium.pipeline.metrics.TaskStateMetrics;
 import io.debezium.pipeline.source.spi.EventMetadataProvider;
 
 /**
@@ -30,6 +31,14 @@ public class BinlogSnapshotChangeEventSourceMetrics<P extends BinlogPartition>
                                                                                    ChangeEventQueueMetrics changeEventQueueMetrics,
                                                                                    EventMetadataProvider metadataProvider) {
         super(taskContext, changeEventQueueMetrics, metadataProvider);
+    }
+
+    public <S extends BinlogDatabaseSchema> BinlogSnapshotChangeEventSourceMetrics(
+                                                                                   BinlogTaskContext<S> taskContext,
+                                                                                   ChangeEventQueueMetrics changeEventQueueMetrics,
+                                                                                   EventMetadataProvider metadataProvider,
+                                                                                   TaskStateMetrics taskStateMetrics) {
+        super(taskContext, changeEventQueueMetrics, metadataProvider, taskStateMetrics);
     }
 
     @Override
