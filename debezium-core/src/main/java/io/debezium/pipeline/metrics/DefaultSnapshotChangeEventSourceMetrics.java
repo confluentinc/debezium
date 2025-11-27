@@ -27,17 +27,48 @@ public class DefaultSnapshotChangeEventSourceMetrics<P extends Partition> extend
         implements SnapshotChangeEventSourceMetrics<P>, SnapshotChangeEventSourceMetricsMXBean {
 
     private final SnapshotMeter snapshotMeter;
+    private final TaskStateMetrics taskStateMetrics;
 
-    public <T extends CdcSourceTaskContext> DefaultSnapshotChangeEventSourceMetrics(T taskContext, ChangeEventQueueMetrics changeEventQueueMetrics,
+    public <T extends CdcSourceTaskContext> DefaultSnapshotChangeEventSourceMetrics(T taskContext,
+                                                                                    ChangeEventQueueMetrics changeEventQueueMetrics,
                                                                                     EventMetadataProvider metadataProvider) {
         super(taskContext, "snapshot", changeEventQueueMetrics, metadataProvider);
-        snapshotMeter = new SnapshotMeter(taskContext.getClock());
+        // Note: TaskStateMetrics created here is not registered and managed externally.
+        // This constructor is maintained for backward compatibility.
+        TaskStateMetrics localTaskStateMetrics = new TaskStateMetrics(taskContext);
+        this.taskStateMetrics = null; // Not stored as it's not managed by this instance
+        snapshotMeter = new SnapshotMeter(taskContext.getClock(), localTaskStateMetrics);
     }
 
-    public <T extends CdcSourceTaskContext> DefaultSnapshotChangeEventSourceMetrics(T taskContext, ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                    EventMetadataProvider metadataProvider, Map<String, String> tags) {
+    public <T extends CdcSourceTaskContext> DefaultSnapshotChangeEventSourceMetrics(T taskContext,
+                                                                                    ChangeEventQueueMetrics changeEventQueueMetrics,
+                                                                                    EventMetadataProvider metadataProvider,
+                                                                                    Map<String, String> tags) {
         super(taskContext, changeEventQueueMetrics, metadataProvider, tags);
-        snapshotMeter = new SnapshotMeter(taskContext.getClock());
+        // Note: TaskStateMetrics created here is not registered and managed externally.
+        // This constructor is maintained for backward compatibility.
+        TaskStateMetrics localTaskStateMetrics = new TaskStateMetrics(taskContext);
+        this.taskStateMetrics = null; // Not stored as it's not managed by this instance
+        snapshotMeter = new SnapshotMeter(taskContext.getClock(), localTaskStateMetrics);
+    }
+
+    public <T extends CdcSourceTaskContext> DefaultSnapshotChangeEventSourceMetrics(T taskContext,
+                                                                                    ChangeEventQueueMetrics changeEventQueueMetrics,
+                                                                                    EventMetadataProvider metadataProvider,
+                                                                                    TaskStateMetrics taskStateMetrics) {
+        super(taskContext, "snapshot", changeEventQueueMetrics, metadataProvider);
+        this.taskStateMetrics = taskStateMetrics;
+        snapshotMeter = new SnapshotMeter(taskContext.getClock(), taskStateMetrics);
+    }
+
+    public <T extends CdcSourceTaskContext> DefaultSnapshotChangeEventSourceMetrics(T taskContext,
+                                                                                    ChangeEventQueueMetrics changeEventQueueMetrics,
+                                                                                    EventMetadataProvider metadataProvider,
+                                                                                    Map<String, String> tags,
+                                                                                    TaskStateMetrics taskStateMetrics) {
+        super(taskContext, changeEventQueueMetrics, metadataProvider, tags);
+        this.taskStateMetrics = taskStateMetrics;
+        snapshotMeter = new SnapshotMeter(taskContext.getClock(), taskStateMetrics);
     }
 
     @Override
@@ -169,5 +200,9 @@ public class DefaultSnapshotChangeEventSourceMetrics<P extends Partition> extend
     public void reset() {
         super.reset();
         snapshotMeter.reset();
+        // Reset TaskStateMetrics if it's managed by this instance
+        if (taskStateMetrics != null) {
+            taskStateMetrics.reset();
+        }
     }
 }
