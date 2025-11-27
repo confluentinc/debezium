@@ -33,7 +33,6 @@ import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.management.InstanceNotFoundException;
 import javax.management.JMException;
@@ -1498,7 +1497,8 @@ public abstract class AbstractConnectorTest implements Testing {
     }
 
     public static ObjectName getSnapshotMetricsObjectName(String connector, String server) throws MalformedObjectNameException {
-        return new ObjectName("debezium." + connector + ":type=connector-metrics,context=snapshot,server=" + server);
+        return new ObjectName("debezium." + connector + ":type=connector-metrics,context=snapshot,server=" + server
+                + ",task=0");
     }
 
     public static ObjectName getSnapshotMetricsObjectName(String connector, String server, String task, String database) throws MalformedObjectNameException {
@@ -1511,13 +1511,20 @@ public abstract class AbstractConnectorTest implements Testing {
     }
 
     public static ObjectName getSnapshotMetricsObjectName(String connector, String server, Map<String, String> props) throws MalformedObjectNameException {
+        // Ensure task is present, defaulting to "0" if not provided
+        if (!props.containsKey("task") || props.get("task") == null) {
+            props = new HashMap<>(props);
+            props.put("task", "0");
+        }
+
         String additionalProperties = props.entrySet().stream()
                 .filter(e -> e.getValue() != null)
                 .map(e -> String.format("%s=%s", e.getKey(), e.getValue()))
                 .collect(Collectors.joining(","));
 
         if (additionalProperties.length() != 0) {
-            return new ObjectName("debezium." + connector + ":type=connector-metrics,context=snapshot,server=" + server + "," + additionalProperties);
+            return new ObjectName("debezium." + connector + ":type=connector-metrics,context=snapshot,server=" + server
+                    + "," + additionalProperties);
         }
 
         return getSnapshotMetricsObjectName(connector, server);
@@ -1526,20 +1533,13 @@ public abstract class AbstractConnectorTest implements Testing {
     public static ObjectName getSnapshotMetricsObjectName(String connector, String server, String task, String database, Map<String, String> props)
             throws MalformedObjectNameException {
 
-        Map<String, String> taskAndDatabase = new HashMap<>();
-        taskAndDatabase.put("task", task);
-        taskAndDatabase.put("database", database);
-
-        String additionalProperties = Stream.of(props.entrySet(), taskAndDatabase.entrySet()).flatMap(Set::stream)
-                .filter(e -> e.getValue() != null)
-                .map(e -> String.format("%s=%s", e.getKey(), e.getValue()))
-                .collect(Collectors.joining(","));
-
-        if (additionalProperties.length() != 0) {
-            return new ObjectName("debezium." + connector + ":type=connector-metrics,context=snapshot,server=" + server + "," + additionalProperties);
+        Map<String, String> allProps = new HashMap<>(props);
+        allProps.put("task", task != null ? task : "0");
+        if (database != null) {
+            allProps.put("database", database);
         }
 
-        return getSnapshotMetricsObjectName(connector, server);
+        return getSnapshotMetricsObjectName(connector, server, allProps);
     }
 
     public static ObjectName getStreamingMetricsObjectName(String connector, String server) throws MalformedObjectNameException {
@@ -1568,7 +1568,8 @@ public abstract class AbstractConnectorTest implements Testing {
     }
 
     public static ObjectName getStreamingMetricsObjectName(String connector, String server, String context) throws MalformedObjectNameException {
-        return new ObjectName("debezium." + connector + ":type=connector-metrics,context=" + context + ",server=" + server);
+        return new ObjectName("debezium." + connector + ":type=connector-metrics,context=" + context + ",server=" + server
+                + ",task=0");
     }
 
     public static ObjectName getStreamingMetricsObjectName(String connector, String server, String context, String task) throws MalformedObjectNameException {
@@ -1576,14 +1577,20 @@ public abstract class AbstractConnectorTest implements Testing {
     }
 
     public static ObjectName getStreamingMetricsObjectName(String connector, String server, Map<String, String> props) throws MalformedObjectNameException {
+        // Ensure task is present, defaulting to "0" if not provided
+        if (!props.containsKey("task") || props.get("task") == null) {
+            props = new HashMap<>(props);
+            props.put("task", "0");
+        }
+
         String additionalProperties = props.entrySet().stream()
                 .filter(e -> e.getValue() != null)
                 .map(e -> String.format("%s=%s", e.getKey(), e.getValue()))
                 .collect(Collectors.joining(","));
 
         if (additionalProperties.length() != 0) {
-            return new ObjectName(
-                    "debezium." + connector + ":type=connector-metrics,context=" + getStreamingNamespace() + ",server=" + server + "," + additionalProperties);
+            return new ObjectName("debezium." + connector + ":type=connector-metrics,context="
+                    + getStreamingNamespace() + ",server=" + server + "," + additionalProperties);
         }
 
         return getStreamingMetricsObjectName(connector, server);
