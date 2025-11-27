@@ -1,13 +1,7 @@
 /*
- * Copyright [2024 - 2025] Confluent Inc.
- */
-
-/*
  * Copyright Debezium Authors.
  *
- * This file contains code derived from the Debezium project, which is licensed
- * under the Apache License, Version 2.0.
- * Modifications have been made to the original code as part of this project.
+ * Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
  */
 
 package io.debezium.pipeline.metrics;
