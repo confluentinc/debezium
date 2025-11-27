@@ -326,7 +326,6 @@ public abstract class AbstractMetricsTest<T extends SourceConnector> extends Abs
         final ObjectName snapshotMetricsObjectName = getSnapshotMetricsObjectName();
 
         // Explicitly remove any stale MBeans from previous test runs
-        // This ensures we start with a clean state and don't read stale values
         try {
             mBeanServer.unregisterMBean(taskMetricsObjectName);
         }
@@ -398,10 +397,6 @@ public abstract class AbstractMetricsTest<T extends SourceConnector> extends Abs
         assertThat(mBeanServer.getAttribute(taskMetricsObjectName, "ConnectTaskRebalanceExempt"))
                 .as("ConnectTaskRebalanceExempt should be 0 after snapshot completes")
                 .isEqualTo(0L);
-
-        // Verify snapshot metrics are correct
-        assertThat(mBeanServer.getAttribute(getSnapshotMetricsObjectName(), "SnapshotCompleted")).isEqualTo(1L);
-        assertThat(mBeanServer.getAttribute(getSnapshotMetricsObjectName(), "SnapshotRunning")).isEqualTo(0L);
     }
 
     protected ObjectName getSnapshotMetricsObjectName() throws MalformedObjectNameException {

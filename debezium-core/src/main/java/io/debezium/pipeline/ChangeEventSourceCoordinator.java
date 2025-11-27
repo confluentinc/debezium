@@ -132,9 +132,7 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
         previousLogContext = new AtomicReference<>();
         try {
             this.taskContext = taskContext;
-            // Create and register task state metrics
             this.taskStateMetrics = new TaskStateMetrics(taskContext);
-            // Create snapshot and streaming metrics with shared task state metrics
             this.snapshotMetrics = changeEventSourceMetricsFactory.getSnapshotMetrics(taskContext, changeEventQueueMetrics,
                     metadataProvider, taskStateMetrics);
             this.streamingMetrics = changeEventSourceMetricsFactory.getStreamingMetrics(taskContext, changeEventQueueMetrics,
