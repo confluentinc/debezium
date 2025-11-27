@@ -23,20 +23,6 @@ class SqlServerSnapshotTaskMetrics extends AbstractSqlServerTaskMetrics<SqlServe
     SqlServerSnapshotTaskMetrics(CdcSourceTaskContext taskContext,
                                  ChangeEventQueueMetrics changeEventQueueMetrics,
                                  EventMetadataProvider metadataProvider,
-                                 Collection<SqlServerPartition> partitions) {
-        super(taskContext, "snapshot", changeEventQueueMetrics, partitions,
-                (SqlServerPartition partition) -> new SqlServerSnapshotPartitionMetrics(taskContext,
-                        Collect.linkMapOf(
-                                "server", taskContext.getConnectorName(),
-                                "task", taskContext.getTaskId(),
-                                "context", "snapshot",
-                                "database", partition.getDatabaseName()),
-                        metadataProvider));
-    }
-
-    SqlServerSnapshotTaskMetrics(CdcSourceTaskContext taskContext,
-                                 ChangeEventQueueMetrics changeEventQueueMetrics,
-                                 EventMetadataProvider metadataProvider,
                                  Collection<SqlServerPartition> partitions,
                                  TaskStateMetrics taskStateMetrics) {
         super(taskContext, "snapshot", changeEventQueueMetrics, partitions, taskStateMetrics,

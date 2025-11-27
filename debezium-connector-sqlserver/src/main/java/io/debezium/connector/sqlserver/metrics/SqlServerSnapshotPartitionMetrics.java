@@ -157,6 +157,5 @@ class SqlServerSnapshotPartitionMetrics extends AbstractSqlServerPartitionMetric
     @Override
     public void reset() {
         snapshotMeter.reset();
-        taskStateMetrics.reset();
     }
 }

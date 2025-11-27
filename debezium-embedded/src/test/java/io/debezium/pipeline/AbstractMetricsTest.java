@@ -383,8 +383,8 @@ public abstract class AbstractMetricsTest<T extends SourceConnector> extends Abs
                                 "ConnectTaskRebalanceExempt");
 
                         // During snapshot, both should be 1
-                        return Long.valueOf(1L).equals(snapshotRunning)
-                                && Long.valueOf(1L).equals(rebalanceExempt);
+                        return Long.valueOf(1).equals(snapshotRunning)
+                                && Long.valueOf(1).equals(rebalanceExempt);
                     }
                     catch (InstanceNotFoundException e) {
                         return false;

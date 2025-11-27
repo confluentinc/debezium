@@ -1496,6 +1496,22 @@ public abstract class AbstractConnectorTest implements Testing {
         return false;
     }
 
+    /**
+     * Ensures the "task" key is present in the props map, defaulting to "0" if not provided or null.
+     * Returns a new HashMap if modification is needed to avoid mutating the original map.
+     *
+     * @param props the properties map (may be modified if task is missing)
+     * @return a map with task key present (either the original if task exists, or a new map with task="0")
+     */
+    private static Map<String, String> ensureTaskInProps(Map<String, String> props) {
+        if (!props.containsKey("task") || props.get("task") == null) {
+            Map<String, String> newProps = new HashMap<>(props);
+            newProps.put("task", "0");
+            return newProps;
+        }
+        return props;
+    }
+
     public static ObjectName getSnapshotMetricsObjectName(String connector, String server) throws MalformedObjectNameException {
         return new ObjectName("debezium." + connector + ":type=connector-metrics,context=snapshot,server=" + server
                 + ",task=0");
@@ -1511,11 +1527,7 @@ public abstract class AbstractConnectorTest implements Testing {
     }
 
     public static ObjectName getSnapshotMetricsObjectName(String connector, String server, Map<String, String> props) throws MalformedObjectNameException {
-        // Ensure task is present, defaulting to "0" if not provided
-        if (!props.containsKey("task") || props.get("task") == null) {
-            props = new HashMap<>(props);
-            props.put("task", "0");
-        }
+        props = ensureTaskInProps(props);
 
         String additionalProperties = props.entrySet().stream()
                 .filter(e -> e.getValue() != null)
@@ -1577,11 +1589,7 @@ public abstract class AbstractConnectorTest implements Testing {
     }
 
     public static ObjectName getStreamingMetricsObjectName(String connector, String server, Map<String, String> props) throws MalformedObjectNameException {
-        // Ensure task is present, defaulting to "0" if not provided
-        if (!props.containsKey("task") || props.get("task") == null) {
-            props = new HashMap<>(props);
-            props.put("task", "0");
-        }
+        props = ensureTaskInProps(props);
 
         String additionalProperties = props.entrySet().stream()
                 .filter(e -> e.getValue() != null)

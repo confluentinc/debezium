@@ -29,13 +29,6 @@ public class BinlogSnapshotChangeEventSourceMetrics<P extends BinlogPartition>
     public <S extends BinlogDatabaseSchema> BinlogSnapshotChangeEventSourceMetrics(
                                                                                    BinlogTaskContext<S> taskContext,
                                                                                    ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                   EventMetadataProvider metadataProvider) {
-        super(taskContext, changeEventQueueMetrics, metadataProvider);
-    }
-
-    public <S extends BinlogDatabaseSchema> BinlogSnapshotChangeEventSourceMetrics(
-                                                                                   BinlogTaskContext<S> taskContext,
-                                                                                   ChangeEventQueueMetrics changeEventQueueMetrics,
                                                                                    EventMetadataProvider metadataProvider,
                                                                                    TaskStateMetrics taskStateMetrics) {
         super(taskContext, changeEventQueueMetrics, metadataProvider, taskStateMetrics);

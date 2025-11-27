@@ -15,19 +15,6 @@ import io.debezium.pipeline.spi.Partition;
  * @author Chris Cranford
  */
 public class DefaultChangeEventSourceMetricsFactory<P extends Partition> implements ChangeEventSourceMetricsFactory<P> {
-    @Override
-    public <T extends CdcSourceTaskContext> SnapshotChangeEventSourceMetrics<P> getSnapshotMetrics(T taskContext,
-                                                                                                   ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                                   EventMetadataProvider eventMetadataProvider) {
-        return new DefaultSnapshotChangeEventSourceMetrics<>(taskContext, changeEventQueueMetrics, eventMetadataProvider);
-    }
-
-    @Override
-    public <T extends CdcSourceTaskContext> StreamingChangeEventSourceMetrics<P> getStreamingMetrics(T taskContext,
-                                                                                                     ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                                     EventMetadataProvider eventMetadataProvider) {
-        return new DefaultStreamingChangeEventSourceMetrics<>(taskContext, changeEventQueueMetrics, eventMetadataProvider);
-    }
 
     /**
      * Returns the snapshot change event source metrics with shared task state metrics.

@@ -87,6 +87,9 @@ abstract class AbstractSqlServerTaskMetrics<B extends AbstractSqlServerPartition
     @Override
     public void reset() {
         beans.values().forEach(B::reset);
+        if (taskStateMetrics != null) {
+            taskStateMetrics.reset();
+        }
     }
 
     @Override

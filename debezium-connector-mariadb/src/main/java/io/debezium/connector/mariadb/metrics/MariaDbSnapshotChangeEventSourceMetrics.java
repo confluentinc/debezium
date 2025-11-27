@@ -20,12 +20,6 @@ import io.debezium.pipeline.source.spi.EventMetadataProvider;
 public class MariaDbSnapshotChangeEventSourceMetrics extends BinlogSnapshotChangeEventSourceMetrics<MariaDbPartition> {
     public MariaDbSnapshotChangeEventSourceMetrics(MariaDbTaskContext taskContext,
                                                    ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                   EventMetadataProvider metadataProvider) {
-        super(taskContext, changeEventQueueMetrics, metadataProvider);
-    }
-
-    public MariaDbSnapshotChangeEventSourceMetrics(MariaDbTaskContext taskContext,
-                                                   ChangeEventQueueMetrics changeEventQueueMetrics,
                                                    EventMetadataProvider metadataProvider,
                                                    TaskStateMetrics taskStateMetrics) {
         super(taskContext, changeEventQueueMetrics, metadataProvider, taskStateMetrics);

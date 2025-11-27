@@ -17,12 +17,6 @@ import io.debezium.pipeline.source.spi.EventMetadataProvider;
 public class MySqlSnapshotChangeEventSourceMetrics extends BinlogSnapshotChangeEventSourceMetrics<MySqlPartition> {
     public MySqlSnapshotChangeEventSourceMetrics(MySqlTaskContext taskContext,
                                                  ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                 EventMetadataProvider eventMetadataProvider) {
-        super(taskContext, changeEventQueueMetrics, eventMetadataProvider);
-    }
-
-    public MySqlSnapshotChangeEventSourceMetrics(MySqlTaskContext taskContext,
-                                                 ChangeEventQueueMetrics changeEventQueueMetrics,
                                                  EventMetadataProvider eventMetadataProvider,
                                                  TaskStateMetrics taskStateMetrics) {
         super(taskContext, changeEventQueueMetrics, eventMetadataProvider, taskStateMetrics);

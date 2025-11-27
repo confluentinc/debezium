@@ -27,25 +27,10 @@ public class MySqlChangeEventSourceMetricsFactory extends DefaultChangeEventSour
     @Override
     public <T extends CdcSourceTaskContext> SnapshotChangeEventSourceMetrics<MySqlPartition> getSnapshotMetrics(T taskContext,
                                                                                                                 ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                                                EventMetadataProvider eventMetadataProvider) {
-        return new MySqlSnapshotChangeEventSourceMetrics((MySqlTaskContext) taskContext, changeEventQueueMetrics,
-                eventMetadataProvider);
-    }
-
-    @Override
-    public <T extends CdcSourceTaskContext> SnapshotChangeEventSourceMetrics<MySqlPartition> getSnapshotMetrics(T taskContext,
-                                                                                                                ChangeEventQueueMetrics changeEventQueueMetrics,
                                                                                                                 EventMetadataProvider eventMetadataProvider,
                                                                                                                 TaskStateMetrics taskStateMetrics) {
         return new MySqlSnapshotChangeEventSourceMetrics((MySqlTaskContext) taskContext, changeEventQueueMetrics,
                 eventMetadataProvider, taskStateMetrics);
-    }
-
-    @Override
-    public <T extends CdcSourceTaskContext> StreamingChangeEventSourceMetrics<MySqlPartition> getStreamingMetrics(T taskContext,
-                                                                                                                  ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                                                  EventMetadataProvider eventMetadataProvider) {
-        return streamingMetrics;
     }
 
     @Override

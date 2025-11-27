@@ -32,27 +32,10 @@ public class MariaDbChangeEventSourceMetricsFactory extends DefaultChangeEventSo
     public <T extends CdcSourceTaskContext> SnapshotChangeEventSourceMetrics<MariaDbPartition> getSnapshotMetrics(
                                                                                                                   T taskContext,
                                                                                                                   ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                                                  EventMetadataProvider eventMetadataProvider) {
-        return new MariaDbSnapshotChangeEventSourceMetrics((MariaDbTaskContext) taskContext, changeEventQueueMetrics,
-                eventMetadataProvider);
-    }
-
-    @Override
-    public <T extends CdcSourceTaskContext> SnapshotChangeEventSourceMetrics<MariaDbPartition> getSnapshotMetrics(
-                                                                                                                  T taskContext,
-                                                                                                                  ChangeEventQueueMetrics changeEventQueueMetrics,
                                                                                                                   EventMetadataProvider eventMetadataProvider,
                                                                                                                   TaskStateMetrics taskStateMetrics) {
         return new MariaDbSnapshotChangeEventSourceMetrics((MariaDbTaskContext) taskContext, changeEventQueueMetrics,
                 eventMetadataProvider, taskStateMetrics);
-    }
-
-    @Override
-    public <T extends CdcSourceTaskContext> StreamingChangeEventSourceMetrics<MariaDbPartition> getStreamingMetrics(
-                                                                                                                    T taskContext,
-                                                                                                                    ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                                                    EventMetadataProvider eventMetadataProvider) {
-        return streamingMetrics;
     }
 
     @Override

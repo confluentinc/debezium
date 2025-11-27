@@ -21,36 +21,6 @@ import io.debezium.pipeline.spi.Partition;
 public interface ChangeEventSourceMetricsFactory<P extends Partition> {
 
     /**
-     * Returns the snapshot change event source metrics.
-     *
-     * @param taskContext
-     *          The task context
-     * @param changeEventQueueMetrics
-     *          The change event queue metrics
-     * @param eventMetadataProvider
-     *          The event metadata provider implementation
-     *
-     * @return a snapshot change event source metrics
-     */
-    <T extends CdcSourceTaskContext> SnapshotChangeEventSourceMetrics<P> getSnapshotMetrics(T taskContext, ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                            EventMetadataProvider eventMetadataProvider);
-
-    /**
-     * Returns the streaming change event source metrics.
-     *
-     * @param taskContext
-     *          The task context
-     * @param changeEventQueueMetrics
-     *          The change event queue metrics
-     * @param eventMetadataProvider
-     *          The event metadata provider implementation
-     *
-     * @return a streaming change event source metrics
-     */
-    <T extends CdcSourceTaskContext> StreamingChangeEventSourceMetrics<P> getStreamingMetrics(T taskContext, ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                              EventMetadataProvider eventMetadataProvider);
-
-    /**
      * Returns the snapshot change event source metrics with shared task state metrics.
      *
      * @param taskContext
@@ -64,12 +34,10 @@ public interface ChangeEventSourceMetricsFactory<P extends Partition> {
      *
      * @return a snapshot change event source metrics
      */
-    default <T extends CdcSourceTaskContext> SnapshotChangeEventSourceMetrics<P> getSnapshotMetrics(T taskContext,
-                                                                                                    ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                                    EventMetadataProvider eventMetadataProvider,
-                                                                                                    TaskStateMetrics taskStateMetrics) {
-        return getSnapshotMetrics(taskContext, changeEventQueueMetrics, eventMetadataProvider);
-    }
+    <T extends CdcSourceTaskContext> SnapshotChangeEventSourceMetrics<P> getSnapshotMetrics(T taskContext,
+                                                                                            ChangeEventQueueMetrics changeEventQueueMetrics,
+                                                                                            EventMetadataProvider eventMetadataProvider,
+                                                                                            TaskStateMetrics taskStateMetrics);
 
     /**
      * Returns the streaming change event source metrics with shared task state metrics.
@@ -85,12 +53,10 @@ public interface ChangeEventSourceMetricsFactory<P extends Partition> {
      *
      * @return a streaming change event source metrics
      */
-    default <T extends CdcSourceTaskContext> StreamingChangeEventSourceMetrics<P> getStreamingMetrics(T taskContext,
-                                                                                                      ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                                      EventMetadataProvider eventMetadataProvider,
-                                                                                                      TaskStateMetrics taskStateMetrics) {
-        return getStreamingMetrics(taskContext, changeEventQueueMetrics, eventMetadataProvider);
-    }
+    <T extends CdcSourceTaskContext> StreamingChangeEventSourceMetrics<P> getStreamingMetrics(T taskContext,
+                                                                                              ChangeEventQueueMetrics changeEventQueueMetrics,
+                                                                                              EventMetadataProvider eventMetadataProvider,
+                                                                                              TaskStateMetrics taskStateMetrics);
 
     default boolean connectionMetricHandledByCoordinator() {
         return true;

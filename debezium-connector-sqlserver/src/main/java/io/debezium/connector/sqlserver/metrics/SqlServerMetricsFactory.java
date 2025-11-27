@@ -27,26 +27,10 @@ public class SqlServerMetricsFactory implements ChangeEventSourceMetricsFactory<
     @Override
     public <T extends CdcSourceTaskContext> SnapshotChangeEventSourceMetrics<SqlServerPartition> getSnapshotMetrics(T taskContext,
                                                                                                                     ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                                                    EventMetadataProvider eventMetadataProvider) {
-        return new SqlServerSnapshotTaskMetrics(taskContext, changeEventQueueMetrics,
-                eventMetadataProvider, partitions);
-    }
-
-    @Override
-    public <T extends CdcSourceTaskContext> SnapshotChangeEventSourceMetrics<SqlServerPartition> getSnapshotMetrics(T taskContext,
-                                                                                                                    ChangeEventQueueMetrics changeEventQueueMetrics,
                                                                                                                     EventMetadataProvider eventMetadataProvider,
                                                                                                                     TaskStateMetrics taskStateMetrics) {
         return new SqlServerSnapshotTaskMetrics(taskContext, changeEventQueueMetrics,
                 eventMetadataProvider, partitions, taskStateMetrics);
-    }
-
-    @Override
-    public <T extends CdcSourceTaskContext> StreamingChangeEventSourceMetrics<SqlServerPartition> getStreamingMetrics(T taskContext,
-                                                                                                                      ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                                                      EventMetadataProvider eventMetadataProvider) {
-        return new SqlServerStreamingTaskMetrics(taskContext, changeEventQueueMetrics,
-                eventMetadataProvider, partitions);
     }
 
     @Override
