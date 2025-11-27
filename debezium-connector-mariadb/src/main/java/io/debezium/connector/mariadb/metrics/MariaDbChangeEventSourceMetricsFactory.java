@@ -12,6 +12,7 @@ import io.debezium.connector.mariadb.MariaDbTaskContext;
 import io.debezium.pipeline.metrics.DefaultChangeEventSourceMetricsFactory;
 import io.debezium.pipeline.metrics.SnapshotChangeEventSourceMetrics;
 import io.debezium.pipeline.metrics.StreamingChangeEventSourceMetrics;
+import io.debezium.pipeline.metrics.TaskStateMetrics;
 import io.debezium.pipeline.source.spi.EventMetadataProvider;
 
 /**
@@ -21,7 +22,7 @@ import io.debezium.pipeline.source.spi.EventMetadataProvider;
  */
 public class MariaDbChangeEventSourceMetricsFactory extends DefaultChangeEventSourceMetricsFactory<MariaDbPartition> {
 
-    public MariaDbStreamingChangeEventSourceMetrics streamingMetrics;
+    private final MariaDbStreamingChangeEventSourceMetrics streamingMetrics;
 
     public MariaDbChangeEventSourceMetricsFactory(MariaDbStreamingChangeEventSourceMetrics streamingMetrics) {
         this.streamingMetrics = streamingMetrics;
@@ -31,15 +32,18 @@ public class MariaDbChangeEventSourceMetricsFactory extends DefaultChangeEventSo
     public <T extends CdcSourceTaskContext> SnapshotChangeEventSourceMetrics<MariaDbPartition> getSnapshotMetrics(
                                                                                                                   T taskContext,
                                                                                                                   ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                                                  EventMetadataProvider eventMetadataProvider) {
-        return new MariaDbSnapshotChangeEventSourceMetrics((MariaDbTaskContext) taskContext, changeEventQueueMetrics, eventMetadataProvider);
+                                                                                                                  EventMetadataProvider eventMetadataProvider,
+                                                                                                                  TaskStateMetrics taskStateMetrics) {
+        return new MariaDbSnapshotChangeEventSourceMetrics((MariaDbTaskContext) taskContext, changeEventQueueMetrics,
+                eventMetadataProvider, taskStateMetrics);
     }
 
     @Override
     public <T extends CdcSourceTaskContext> StreamingChangeEventSourceMetrics<MariaDbPartition> getStreamingMetrics(
                                                                                                                     T taskContext,
                                                                                                                     ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                                                    EventMetadataProvider eventMetadataProvider) {
+                                                                                                                    EventMetadataProvider eventMetadataProvider,
+                                                                                                                    TaskStateMetrics taskStateMetrics) {
         return streamingMetrics;
     }
 

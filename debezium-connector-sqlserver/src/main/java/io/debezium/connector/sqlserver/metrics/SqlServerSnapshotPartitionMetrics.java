@@ -10,6 +10,7 @@ import java.util.concurrent.ConcurrentMap;
 
 import io.debezium.connector.common.CdcSourceTaskContext;
 import io.debezium.pipeline.meters.SnapshotMeter;
+import io.debezium.pipeline.metrics.TaskStateMetrics;
 import io.debezium.pipeline.source.spi.EventMetadataProvider;
 import io.debezium.relational.TableId;
 import io.debezium.spi.schema.DataCollectionId;
@@ -18,11 +19,24 @@ class SqlServerSnapshotPartitionMetrics extends AbstractSqlServerPartitionMetric
         implements SqlServerSnapshotPartitionMetricsMXBean {
 
     private final SnapshotMeter snapshotMeter;
+    private final TaskStateMetrics taskStateMetrics;
 
     SqlServerSnapshotPartitionMetrics(CdcSourceTaskContext taskContext, Map<String, String> tags,
                                       EventMetadataProvider metadataProvider) {
         super(taskContext, tags, metadataProvider);
-        snapshotMeter = new SnapshotMeter(taskContext.getClock());
+        // Note: TaskStateMetrics created here is used internally for SnapshotMeter.
+        // The actual registered TaskStateMetrics is managed at the task level via AbstractSqlServerTaskMetrics.
+        // This constructor is maintained for backward compatibility.
+        this.taskStateMetrics = new TaskStateMetrics(taskContext);
+        snapshotMeter = new SnapshotMeter(taskContext.getClock(), taskStateMetrics);
+    }
+
+    SqlServerSnapshotPartitionMetrics(CdcSourceTaskContext taskContext, Map<String, String> tags,
+                                      EventMetadataProvider metadataProvider,
+                                      TaskStateMetrics taskStateMetrics) {
+        super(taskContext, tags, metadataProvider);
+        this.taskStateMetrics = taskStateMetrics;
+        snapshotMeter = new SnapshotMeter(taskContext.getClock(), taskStateMetrics);
     }
 
     @Override
