@@ -9,6 +9,7 @@ import io.debezium.connector.base.ChangeEventQueueMetrics;
 import io.debezium.connector.common.CdcSourceTaskContext;
 import io.debezium.pipeline.metrics.DefaultChangeEventSourceMetricsFactory;
 import io.debezium.pipeline.metrics.StreamingChangeEventSourceMetrics;
+import io.debezium.pipeline.metrics.TaskStateMetrics;
 import io.debezium.pipeline.source.spi.EventMetadataProvider;
 
 /**
@@ -26,6 +27,14 @@ public class OracleChangeEventSourceMetricsFactory extends DefaultChangeEventSou
     public <T extends CdcSourceTaskContext> StreamingChangeEventSourceMetrics<OraclePartition> getStreamingMetrics(T taskContext,
                                                                                                                    ChangeEventQueueMetrics changeEventQueueMetrics,
                                                                                                                    EventMetadataProvider eventMetadataProvider) {
+        return streamingMetrics;
+    }
+
+    @Override
+    public <T extends CdcSourceTaskContext> StreamingChangeEventSourceMetrics<OraclePartition> getStreamingMetrics(T taskContext,
+                                                                                                                   ChangeEventQueueMetrics changeEventQueueMetrics,
+                                                                                                                   EventMetadataProvider eventMetadataProvider,
+                                                                                                                   TaskStateMetrics taskStateMetrics) {
         return streamingMetrics;
     }
 }
