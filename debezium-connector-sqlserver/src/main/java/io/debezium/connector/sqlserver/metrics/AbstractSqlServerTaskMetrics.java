@@ -20,6 +20,7 @@ import io.debezium.data.Envelope.Operation;
 import io.debezium.metrics.Metrics;
 import io.debezium.pipeline.ConnectorEvent;
 import io.debezium.pipeline.metrics.ChangeEventSourceMetrics;
+import io.debezium.pipeline.metrics.TaskStateMetrics;
 import io.debezium.pipeline.spi.OffsetContext;
 import io.debezium.spi.schema.DataCollectionId;
 import io.debezium.util.Collect;
@@ -32,6 +33,7 @@ abstract class AbstractSqlServerTaskMetrics<B extends AbstractSqlServerPartition
 
     private final ChangeEventQueueMetrics changeEventQueueMetrics;
     private final Map<SqlServerPartition, B> beans = new HashMap<>();
+    private final TaskStateMetrics taskStateMetrics;
 
     AbstractSqlServerTaskMetrics(CdcSourceTaskContext taskContext,
                                  String contextName,
@@ -43,6 +45,25 @@ abstract class AbstractSqlServerTaskMetrics<B extends AbstractSqlServerPartition
                 "task", taskContext.getTaskId(),
                 "context", contextName));
         this.changeEventQueueMetrics = changeEventQueueMetrics;
+        this.taskStateMetrics = null;
+
+        for (SqlServerPartition partition : partitions) {
+            beans.put(partition, beanFactory.apply(partition));
+        }
+    }
+
+    AbstractSqlServerTaskMetrics(CdcSourceTaskContext taskContext,
+                                 String contextName,
+                                 ChangeEventQueueMetrics changeEventQueueMetrics,
+                                 Collection<SqlServerPartition> partitions,
+                                 TaskStateMetrics taskStateMetrics,
+                                 Function<SqlServerPartition, B> beanFactory) {
+        super(taskContext, Collect.linkMapOf(
+                "server", taskContext.getConnectorName(),
+                "task", taskContext.getTaskId(),
+                "context", contextName));
+        this.changeEventQueueMetrics = changeEventQueueMetrics;
+        this.taskStateMetrics = taskStateMetrics;
 
         for (SqlServerPartition partition : partitions) {
             beans.put(partition, beanFactory.apply(partition));
@@ -52,18 +73,23 @@ abstract class AbstractSqlServerTaskMetrics<B extends AbstractSqlServerPartition
     @Override
     public synchronized void register() {
         super.register();
+        // Note: taskStateMetrics is registered by the coordinator, not here
         beans.values().forEach(Metrics::register);
     }
 
     @Override
     public synchronized void unregister() {
         beans.values().forEach(Metrics::unregister);
+        // Note: taskStateMetrics is unregistered by the coordinator, not here
         super.unregister();
     }
 
     @Override
     public void reset() {
         beans.values().forEach(B::reset);
+        if (taskStateMetrics != null) {
+            taskStateMetrics.reset();
+        }
     }
 
     @Override
