@@ -56,17 +56,4 @@ public class MongoDbChangeEventSourceMetricsFactory extends DefaultChangeEventSo
         }
         return streamingMetrics;
     }
-
-    @Override
-    public <T extends CdcSourceTaskContext> MongoDbStreamingChangeEventSourceMetrics getStreamingMetrics(
-                                                                                                         T taskContext,
-                                                                                                         ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                                         EventMetadataProvider eventMetadataProvider,
-                                                                                                         TaskStateMetrics taskStateMetrics) {
-        if (streamingMetrics == null) {
-            streamingMetrics = new MongoDbStreamingChangeEventSourceMetrics(taskContext, changeEventQueueMetrics,
-                    eventMetadataProvider);
-        }
-        return streamingMetrics;
-    }
 }

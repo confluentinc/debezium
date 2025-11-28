@@ -39,7 +39,6 @@ public class TaskStateMetrics extends Metrics implements TaskStateMetricsMXBean 
         connectTaskRebalanceExempt.set(exempt);
     }
 
-
     public void reset() {
         connectTaskRebalanceExempt.set(0);
     }

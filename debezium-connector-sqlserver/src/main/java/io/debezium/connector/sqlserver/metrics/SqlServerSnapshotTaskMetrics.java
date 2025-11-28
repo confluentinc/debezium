@@ -25,7 +25,7 @@ class SqlServerSnapshotTaskMetrics extends AbstractSqlServerTaskMetrics<SqlServe
                                  EventMetadataProvider metadataProvider,
                                  Collection<SqlServerPartition> partitions,
                                  TaskStateMetrics taskStateMetrics) {
-        super(taskContext, "snapshot", changeEventQueueMetrics, partitions, taskStateMetrics,
+        super(taskContext, "snapshot", changeEventQueueMetrics, partitions,
                 (SqlServerPartition partition) -> new SqlServerSnapshotPartitionMetrics(taskContext,
                         Collect.linkMapOf(
                                 "server", taskContext.getConnectorName(),
