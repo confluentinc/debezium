@@ -18,9 +18,4 @@ public interface TaskStateMetricsMXBean {
      * @return 1 if the task is exempt from rebalancing, 0 otherwise
      */
     long getConnectTaskRebalanceExempt();
-
-    /**
-     * Resets the task state metrics to their initial state.
-     */
-    void reset();
 }

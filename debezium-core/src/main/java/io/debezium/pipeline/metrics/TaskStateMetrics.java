@@ -6,10 +6,11 @@
 
 package io.debezium.pipeline.metrics;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 import io.debezium.annotation.ThreadSafe;
 import io.debezium.connector.common.CdcSourceTaskContext;
 import io.debezium.metrics.Metrics;
-import io.debezium.pipeline.meters.TaskStateMeter;
 
 /**
  * Metrics for task-level state that is shared across different connector phases
@@ -18,16 +19,15 @@ import io.debezium.pipeline.meters.TaskStateMeter;
 @ThreadSafe
 public class TaskStateMetrics extends Metrics implements TaskStateMetricsMXBean {
 
-    private final TaskStateMeter taskStateMeter;
+    private final AtomicLong connectTaskRebalanceExempt = new AtomicLong();
 
     public TaskStateMetrics(CdcSourceTaskContext taskContext) {
         super(taskContext, "task");
-        this.taskStateMeter = new TaskStateMeter();
     }
 
     @Override
     public long getConnectTaskRebalanceExempt() {
-        return taskStateMeter.getConnectTaskRebalanceExempt();
+        return connectTaskRebalanceExempt.get();
     }
 
     /**
@@ -36,11 +36,11 @@ public class TaskStateMetrics extends Metrics implements TaskStateMetricsMXBean 
      * @param exempt 1 if the task should be exempt from rebalancing, 0 otherwise
      */
     public void setConnectTaskRebalanceExempt(long exempt) {
-        taskStateMeter.setConnectTaskRebalanceExempt(exempt);
+        connectTaskRebalanceExempt.set(exempt);
     }
 
-    @Override
+
     public void reset() {
-        taskStateMeter.reset();
+        connectTaskRebalanceExempt.set(0);
     }
 }

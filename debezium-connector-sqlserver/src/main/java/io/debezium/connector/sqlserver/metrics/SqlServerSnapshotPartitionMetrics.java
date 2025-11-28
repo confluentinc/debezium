@@ -19,13 +19,11 @@ class SqlServerSnapshotPartitionMetrics extends AbstractSqlServerPartitionMetric
         implements SqlServerSnapshotPartitionMetricsMXBean {
 
     private final SnapshotMeter snapshotMeter;
-    private final TaskStateMetrics taskStateMetrics;
 
     SqlServerSnapshotPartitionMetrics(CdcSourceTaskContext taskContext, Map<String, String> tags,
                                       EventMetadataProvider metadataProvider,
                                       TaskStateMetrics taskStateMetrics) {
         super(taskContext, tags, metadataProvider);
-        this.taskStateMetrics = taskStateMetrics;
         snapshotMeter = new SnapshotMeter(taskContext.getClock(), taskStateMetrics);
     }
 
