@@ -11,6 +11,7 @@ import java.sql.SQLException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
@@ -436,10 +437,14 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
     }
 
     private void validateGuardrailLimits(PostgresConnectorConfig connectorConfig, PostgresConnection connection) {
-        GuardrailValidator.validateTableLimitOnCaptured(
-                () -> connection.getAllTableIds(connectorConfig.databaseName()),
-                connectorConfig,
-                connectorConfig.getTableFilters().dataCollectionFilter()::isIncluded);
+        try {
+            Set<TableId> allTableIds = connection.getAllTableIds(connectorConfig.databaseName());
+            GuardrailValidator validator = new GuardrailValidator(connectorConfig, schema);
+            validator.validate(allTableIds);
+        }
+        catch (SQLException e) {
+            throw new DebeziumException("Failed to validate guardrail limits", e);
+        }
     }
 
     private static void checkWalLevel(PostgresConnection connection, SnapshotterService snapshotterService) throws SQLException {

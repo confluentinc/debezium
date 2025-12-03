@@ -8,6 +8,8 @@ package io.debezium.connector.oracle;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 import org.apache.kafka.connect.source.SourceRecord;
@@ -283,12 +285,12 @@ public class OracleConnectorTask extends BaseSourceTask<OraclePartition, OracleO
                 switchedToPdb = true;
             }
 
-            GuardrailValidator.validateTableLimitHistorized(
-                    () -> connection.getAllTableIds(connectorConfig.getCatalogName()),
-                    connectorConfig,
-                    connectorConfig.getTableFilters(),
-                    schema.storeOnlyCapturedTables(),
-                    schema.storeOnlyCapturedDatabases());
+            Set<TableId> allTableIds = connection.getAllTableIds(connectorConfig.getCatalogName());
+            GuardrailValidator validator = new GuardrailValidator(connectorConfig, schema);
+            validator.validate(allTableIds);
+        }
+        catch (SQLException e) {
+            throw new DebeziumException("Failed to validate guardrail limits", e);
         }
         finally {
             // Reset the connection to the CDB.

@@ -8,6 +8,7 @@ package io.debezium.connector.sqlserver;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.kafka.connect.source.SourceRecord;
@@ -229,12 +230,14 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
     }
 
     private void validateGuardrailLimits(SqlServerConnectorConfig connectorConfig, SqlServerConnection connection) {
-        GuardrailValidator.validateTableLimitHistorized(
-                () -> connection.getAllTableIds(connectorConfig.getDatabaseNames()),
-                connectorConfig,
-                connectorConfig.getTableFilters(),
-                schema.storeOnlyCapturedTables(),
-                schema.storeOnlyCapturedDatabases());
+        try {
+            Set<TableId> allTableIds = connection.getAllTableIds(connectorConfig.getDatabaseNames());
+            GuardrailValidator validator = new GuardrailValidator(connectorConfig, schema);
+            validator.validate(allTableIds);
+        }
+        catch (SQLException e) {
+            throw new DebeziumException("Failed to validate guardrail limits", e);
+        }
     }
 
 }

@@ -8,6 +8,7 @@ package io.debezium.connector.mysql;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.kafka.connect.source.SourceRecord;
@@ -285,12 +286,14 @@ public class MySqlConnectorTask extends BinlogSourceTask<MySqlPartition, MySqlOf
     }
 
     private void validateGuardrailLimits(MySqlConnectorConfig connectorConfig, BinlogConnectorConnection connection) {
-        GuardrailValidator.validateTableLimitHistorized(
-                connection::getAllTableIds,
-                connectorConfig,
-                connectorConfig.getTableFilters(),
-                schema.storeOnlyCapturedTables(),
-                schema.storeOnlyCapturedDatabases());
+        try {
+            Set<TableId> allTableIds = connection.getAllTableIds();
+            GuardrailValidator validator = new GuardrailValidator(connectorConfig, schema);
+            validator.validate(allTableIds);
+        }
+        catch (SQLException e) {
+            throw new DebeziumException("Failed to validate guardrail limits", e);
+        }
     }
 
 }
