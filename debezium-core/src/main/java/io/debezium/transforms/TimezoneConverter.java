@@ -101,7 +101,7 @@ public class TimezoneConverter<R extends ConnectRecord<R>> implements Transforma
     private static final String FIELD_BEFORE_PREFIX = Envelope.FieldName.BEFORE + ".";
     private static final String FIELD_AFTER_PREFIX = Envelope.FieldName.AFTER + ".";
     private static final Pattern TIMEZONE_OFFSET_PATTERN = Pattern.compile("^[+-]\\d{2}:\\d{2}(:\\d{2})?$");
-    private static final Pattern LIST_PATTERN = Pattern.compile("^\\[(source|topic|[\".\\w\\s_]+):([\".\\w\\s_]+(?::[\".\\w\\s_]+)?(?:,|]$))+$");
+    private static final Pattern LIST_PATTERN = Pattern.compile("^\\[(source|topic|[\".\\w\\s_#]+):([\".\\w\\s_#]+(?::[\".\\w\\s_#]+)?(?:,|]$))+$");
     private final Map<String, Set<String>> topicFieldsMap = new HashMap<>();
     private final Map<String, Set<String>> tableFieldsMap = new HashMap<>();
     private final Map<String, Set<String>> noPrefixFieldsMap = new HashMap<>();
