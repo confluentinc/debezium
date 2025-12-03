@@ -136,7 +136,7 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
             this.snapshotMetrics = changeEventSourceMetricsFactory.getSnapshotMetrics(taskContext, changeEventQueueMetrics,
                     metadataProvider, taskStateMetrics);
             this.streamingMetrics = changeEventSourceMetricsFactory.getStreamingMetrics(taskContext, changeEventQueueMetrics,
-                    metadataProvider, taskStateMetrics);
+                    metadataProvider);
             running = true;
 
             // run the snapshot source on a separate thread so start() won't block

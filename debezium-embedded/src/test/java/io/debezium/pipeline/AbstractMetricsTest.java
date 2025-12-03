@@ -340,26 +340,6 @@ public abstract class AbstractMetricsTest<T extends SourceConnector> extends Abs
             // MBean doesn't exist, which is fine
         }
 
-        // Wait for stale MBeans to be fully unregistered before starting
-        Awaitility.await("Waiting for stale MBeans to be unregistered")
-                .atMost(waitTimeForRecords() * 5L, TimeUnit.SECONDS)
-                .pollInterval(100, TimeUnit.MILLISECONDS)
-                .until(() -> {
-                    try {
-                        mBeanServer.getMBeanInfo(taskMetricsObjectName);
-                        return false;
-                    }
-                    catch (InstanceNotFoundException e) {
-                        try {
-                            mBeanServer.getMBeanInfo(snapshotMetricsObjectName);
-                            return false;
-                        }
-                        catch (InstanceNotFoundException e2) {
-                            return true;
-                        }
-                    }
-                });
-
         // Start connector
         start();
         assertConnectorIsRunning();
@@ -373,10 +353,10 @@ public abstract class AbstractMetricsTest<T extends SourceConnector> extends Abs
                 .until(() -> {
                     try {
                         // Verify MBeans exist and check snapshot state
-                        mBeanServer.getMBeanInfo(getSnapshotMetricsObjectName());
+                        mBeanServer.getMBeanInfo(snapshotMetricsObjectName);
                         mBeanServer.getMBeanInfo(taskMetricsObjectName);
 
-                        Object snapshotRunning = mBeanServer.getAttribute(getSnapshotMetricsObjectName(),
+                        Object snapshotRunning = mBeanServer.getAttribute(snapshotMetricsObjectName,
                                 "SnapshotRunning");
                         Object rebalanceExempt = mBeanServer.getAttribute(taskMetricsObjectName,
                                 "ConnectTaskRebalanceExempt");

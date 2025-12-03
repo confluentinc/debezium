@@ -29,13 +29,12 @@ public class DefaultChangeEventSourceMetricsFactory<P extends Partition> impleme
     }
 
     /**
-     * Returns the streaming change event source metrics with shared task state metrics.
+     * Returns the streaming change event source metrics.
      */
     @Override
     public <T extends CdcSourceTaskContext> StreamingChangeEventSourceMetrics<P> getStreamingMetrics(T taskContext,
                                                                                                      ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                                     EventMetadataProvider eventMetadataProvider,
-                                                                                                     TaskStateMetrics taskStateMetrics) {
+                                                                                                     EventMetadataProvider eventMetadataProvider) {
         return new DefaultStreamingChangeEventSourceMetrics<>(taskContext, changeEventQueueMetrics, eventMetadataProvider);
     }
 }

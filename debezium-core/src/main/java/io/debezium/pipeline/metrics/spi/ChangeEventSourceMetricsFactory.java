@@ -40,7 +40,7 @@ public interface ChangeEventSourceMetricsFactory<P extends Partition> {
                                                                                             TaskStateMetrics taskStateMetrics);
 
     /**
-     * Returns the streaming change event source metrics with shared task state metrics.
+     * Returns the streaming change event source metrics.
      *
      * @param taskContext
      *          The task context
@@ -48,15 +48,12 @@ public interface ChangeEventSourceMetricsFactory<P extends Partition> {
      *          The change event queue metrics
      * @param eventMetadataProvider
      *          The event metadata provider implementation
-     * @param taskStateMetrics
-     *          The shared task state metrics instance
      *
      * @return a streaming change event source metrics
      */
     <T extends CdcSourceTaskContext> StreamingChangeEventSourceMetrics<P> getStreamingMetrics(T taskContext,
                                                                                               ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                              EventMetadataProvider eventMetadataProvider,
-                                                                                              TaskStateMetrics taskStateMetrics);
+                                                                                              EventMetadataProvider eventMetadataProvider);
 
     default boolean connectionMetricHandledByCoordinator() {
         return true;

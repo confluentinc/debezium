@@ -36,8 +36,7 @@ public class MySqlChangeEventSourceMetricsFactory extends DefaultChangeEventSour
     @Override
     public <T extends CdcSourceTaskContext> StreamingChangeEventSourceMetrics<MySqlPartition> getStreamingMetrics(T taskContext,
                                                                                                                   ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                                                  EventMetadataProvider eventMetadataProvider,
-                                                                                                                  TaskStateMetrics taskStateMetrics) {
+                                                                                                                  EventMetadataProvider eventMetadataProvider) {
         return streamingMetrics;
     }
 

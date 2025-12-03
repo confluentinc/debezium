@@ -36,8 +36,7 @@ public class SqlServerMetricsFactory implements ChangeEventSourceMetricsFactory<
     @Override
     public <T extends CdcSourceTaskContext> StreamingChangeEventSourceMetrics<SqlServerPartition> getStreamingMetrics(T taskContext,
                                                                                                                       ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                                                      EventMetadataProvider eventMetadataProvider,
-                                                                                                                      TaskStateMetrics taskStateMetrics) {
+                                                                                                                      EventMetadataProvider eventMetadataProvider) {
         return new SqlServerStreamingTaskMetrics(taskContext, changeEventQueueMetrics,
                 eventMetadataProvider, partitions);
     }
