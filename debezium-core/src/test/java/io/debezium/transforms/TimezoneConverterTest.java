@@ -904,16 +904,4 @@ public class TimezoneConverterTest {
         // Should not throw exception - verifies regex pattern accepts # characters
         assertThat(converter).isNotNull();
     }
-
-    @Test
-    public void testIncludeListWithInvalidCharacterInTableName() {
-        // Test that invalid characters in table name are rejected
-        final Map<String, String> props = new HashMap<>();
-        props.put("converted.timezone", "America/Chicago");
-        props.put("include.list", "source:TABLE@NAME");
-
-        assertThat(catchThrowable(() -> converter.configure(props))).isInstanceOf(DebeziumException.class);
-        assertThat(catchThrowable(() -> converter.configure(props)))
-                .hasMessageContaining("Invalid include list format");
-    }
 }

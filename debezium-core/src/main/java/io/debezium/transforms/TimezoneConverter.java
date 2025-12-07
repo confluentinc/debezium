@@ -130,12 +130,16 @@ public class TimezoneConverter<R extends ConnectRecord<R>> implements Transforma
     @Override
     public R apply(R record) {
         if (record.value() == null || !smtManager.isValidEnvelope(record)) {
+            LOGGER.info("Skipping record: value is null or not a valid Debezium envelope");
             return record;
         }
 
         Struct value = (Struct) record.value();
         String table = getTableFromSource(value);
         String topic = record.topic();
+
+        LOGGER.info("Processing record - topic: {}, table: {}, includeList: {}, excludeList: {}",
+                topic, table, includeList, excludeList);
 
         if (includeList.isEmpty() && excludeList.isEmpty()) {
             handleAllRecords(value, table, topic);
@@ -176,6 +180,11 @@ public class TimezoneConverter<R extends ConnectRecord<R>> implements Transforma
         else if (!includeList.isEmpty()) {
             collectTablesAndTopics(includeList);
         }
+
+        LOGGER.info("TimezoneConverter configured - converted.timezone: '{}', include.list: {}, exclude.list: {}",
+                convertedTimezone, includeList, excludeList);
+        LOGGER.info("TimezoneConverter internal maps - topicFieldsMap: {}, tableFieldsMap: {}, noPrefixFieldsMap: {}",
+                topicFieldsMap, tableFieldsMap, noPrefixFieldsMap);
     }
 
     private void collectTablesAndTopics(List<String> list) {
@@ -317,8 +326,11 @@ public class TimezoneConverter<R extends ConnectRecord<R>> implements Transforma
 
     private void handleStructs(Struct value, Type type, String matchName, Set<String> fields) {
         if (type == null || matchName == null) {
+            LOGGER.info("handleStructs skipped - type: {}, matchName: {}", type, matchName);
             return;
         }
+
+        LOGGER.info("handleStructs - type: {}, matchName: {}, fields: {}", type, matchName, fields);
 
         Struct before = getStruct(value, Envelope.FieldName.BEFORE);
         Struct after = getStruct(value, Envelope.FieldName.AFTER);
@@ -347,12 +359,15 @@ public class TimezoneConverter<R extends ConnectRecord<R>> implements Transforma
         }
 
         if (before != null) {
+            LOGGER.info("Processing BEFORE struct with {} fields", before.schema().fields().size());
             handleValueForFields(before, type, beforeFields);
         }
         if (after != null) {
+            LOGGER.info("Processing AFTER struct with {} fields", after.schema().fields().size());
             handleValueForFields(after, type, afterFields);
         }
         if (source != null && !sourceFields.isEmpty()) {
+            LOGGER.info("Processing SOURCE struct with {} fields", source.schema().fields().size());
             handleValueForFields(source, type, sourceFields);
         }
     }
@@ -363,6 +378,7 @@ public class TimezoneConverter<R extends ConnectRecord<R>> implements Transforma
             String schemaName = field.schema().name();
 
             if (schemaName == null) {
+                LOGGER.info("Skipping field '{}': schema name is null (not a logical type)", field.name());
                 continue;
             }
 
@@ -372,15 +388,30 @@ public class TimezoneConverter<R extends ConnectRecord<R>> implements Transforma
                     || (type == Type.INCLUDE && fields.contains(field.name()))
                     || (type == Type.EXCLUDE && !fields.contains(field.name()));
 
+            LOGGER.info("Examining field '{}' - schemaName: '{}', supportedLogicalType: {}, shouldIncludeField: {}, type: {}",
+                    field.name(), schemaName, supportedLogicalType, shouldIncludeField, type);
+
             if (isUnsupportedLogicalType && shouldIncludeField) {
-                LOGGER.warn("Skipping conversion for unsupported logical type: " + schemaName + " for field: " + field.name());
+                LOGGER.warn("Skipping conversion for unsupported logical type: {} for field: {}", schemaName, field.name());
                 continue;
             }
 
             if (shouldIncludeField && supportedLogicalType) {
                 if (value.get(field) != null) {
+                    LOGGER.info("Converting field '{}' with schema '{}' from UTC to timezone '{}'",
+                            field.name(), schemaName, convertedTimezone);
                     handleValueForField(value, field);
                 }
+                else {
+                    LOGGER.info("Skipping field '{}': value is null", field.name());
+                }
+            }
+            else if (!supportedLogicalType) {
+                LOGGER.info("Skipping field '{}': schema '{}' is not a supported timestamp logical type", field.name(), schemaName);
+            }
+            else if (!shouldIncludeField) {
+                LOGGER.info("Skipping field '{}': not included in field filter (type: {}, fields: {})",
+                        field.name(), type, fields);
             }
         }
     }
@@ -388,8 +419,10 @@ public class TimezoneConverter<R extends ConnectRecord<R>> implements Transforma
     private void handleValueForField(Struct struct, org.apache.kafka.connect.data.Field field) {
         String fieldName = field.name();
         Schema schema = field.schema();
-        Object newValue = getTimestampWithTimezone(schema.name(), struct.get(fieldName));
+        Object oldValue = struct.get(fieldName);
+        Object newValue = getTimestampWithTimezone(schema.name(), oldValue);
         struct.put(fieldName, newValue);
+        LOGGER.info("Converted field '{}' from '{}' to '{}' (schema: '{}')", fieldName, oldValue, newValue, schema.name());
     }
 
     private Struct getStruct(Struct struct, String structName) {
@@ -404,7 +437,12 @@ public class TimezoneConverter<R extends ConnectRecord<R>> implements Transforma
     private String getTableFromSource(Struct value) {
         try {
             Struct source = value.getStruct(Envelope.FieldName.SOURCE);
-            return source.getString("table");
+            String table = source.getString("table");
+            String schema = source.getString("schema");
+            if (schema != null && table != null) {
+                return schema + "." + table;
+            }
+            return table;
         }
         catch (DataException ignored) {
         }
@@ -512,13 +550,20 @@ public class TimezoneConverter<R extends ConnectRecord<R>> implements Transforma
         String matchName = matchFieldsResult.getMatchName();
         Set<String> fields = matchFieldsResult.getFields();
 
+        LOGGER.info("handleInclude - table: {}, topic: {}, matchName: {}, fields: {}", table, topic, matchName, fields);
+
         if (matchName != null) {
             if (!fields.isEmpty()) {
+                LOGGER.info("Processing with INCLUDE mode for matchName: {}, specific fields: {}", matchName, fields);
                 handleStructs(value, Type.INCLUDE, matchName, fields);
             }
             else {
+                LOGGER.info("Processing with ALL mode for matchName: {} (no specific fields specified)", matchName);
                 handleStructs(value, Type.ALL, matchName, fields);
             }
+        }
+        else {
+            LOGGER.info("No match found for table '{}' or topic '{}' in include list - record will not be processed", table, topic);
         }
     }
 
