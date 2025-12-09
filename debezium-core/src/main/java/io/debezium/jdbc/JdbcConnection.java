@@ -1357,12 +1357,16 @@ public class JdbcConnection implements AutoCloseable {
 
     protected Map<TableId, List<Column>> getColumnsDetails(String catalogName, String schemaName,
                                                            String tableName, TableFilter tableFilter, ColumnNameFilter columnFilter, DatabaseMetaData metadata,
-                                                           final Set<TableId> viewIds)
+                                                           final Set<TableId> viewIds, boolean throwOnCaseInsensitiveColumnMismatch)
             throws SQLException {
-        Map<TableId, List<Column>> columnsByTable = new HashMap<>();
-        String tableNamePattern = createPatternFromName(tableName, metadata.getSearchStringEscape());
-        String schemaNamePattern = createPatternFromName(schemaName, metadata.getSearchStringEscape());
-        try (ResultSet columnMetadata = metadata.getColumns(catalogName, schemaNamePattern, tableNamePattern, null)) {
+                Map<TableId, List<Column>> columnsByTable = new HashMap<>();
+
+                // Track case-insensitive column names per table
+                Map<TableId, Set<String>> lowercaseColumnNamesByTable = new HashMap<>();
+        
+                String tableNamePattern = createPatternFromName(tableName, metadata.getSearchStringEscape());
+                String schemaNamePattern = createPatternFromName(schemaName, metadata.getSearchStringEscape());
+                try (ResultSet columnMetadata = metadata.getColumns(catalogName, schemaNamePattern, tableNamePattern, null)) {
             while (columnMetadata.next()) {
                 String metaCatalogName = resolveCatalogName(columnMetadata.getString(1));
                 String metaSchemaName = columnMetadata.getString(2);
@@ -1375,6 +1379,27 @@ public class JdbcConnection implements AutoCloseable {
                     continue;
                 }
 
+                final String columnName = columnMetadata.getString(4);
+
+                // Validate no case-sensitive duplicate columns
+                Set<String> seenLowercaseNames = lowercaseColumnNamesByTable.computeIfAbsent(tableId, t -> new HashSet<>());
+                String lowercaseColumnName = columnName.toLowerCase();
+
+                if (!seenLowercaseNames.add(lowercaseColumnName)) {
+                    String message = String.format("Table '%s' has columns that differ only by case. " +
+                                    "Column name: '%s'. " +
+                                    "Debezium does not support case-sensitive duplicate column names as this causes data corruption. " +
+                                    "Please rename one of the duplicate columns before running Debezium.",
+                            tableId, columnName);
+
+                    if (throwOnCaseInsensitiveColumnMismatch) {
+                        throw new DebeziumException(message);
+                    }
+                    else {
+                        LOGGER.warn(message);
+                    }
+                }
+
                 // add all included columns
                 readTableColumn(columnMetadata, tableId, columnFilter).ifPresent(column -> {
                     columnsByTable.computeIfAbsent(tableId, t -> new ArrayList<>())
@@ -1383,6 +1408,13 @@ public class JdbcConnection implements AutoCloseable {
             }
         }
         return columnsByTable;
+    }
+
+    protected Map<TableId, List<Column>> getColumnsDetails(String catalogName, String schemaName,
+                                                           String tableName, TableFilter tableFilter, ColumnNameFilter columnFilter, DatabaseMetaData metadata,
+                                                           final Set<TableId> viewIds)
+            throws SQLException {
+        return getColumnsDetails(catalogName, schemaName, tableName, tableFilter, columnFilter, metadata, viewIds, false);
     }
 
     protected Map<TableId, List<Attribute>> getAttributeDetails(TableId tableId, String tableType) {
