@@ -1544,19 +1544,20 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
 
         if (tableCount > maxTables) {
             String message = String.format(
-                    "Guardrail limit exceeded: %d tables/collections configured for capture, but maximum allowed is %d.",
+                    "Guardrail limit exceeded: %d tables/collections configured for capture, but maximum allowed is %d." +
+                            " Logged for internal auditing; no user action required.",
                     tableCount, maxTables);
 
-            if (isHistorizedSchemaValidatingAllTables) {
-                message += " Since 'schema.history.internal.store.only.captured.tables.ddl' is set to 'false', schemas " +
-                        "of all the tables in the database are being captured. Increase the guardrail limit to allow " +
-                        "the validation to pass. To reduce memory usage and validate only captured tables, consider " +
-                        "setting 'schema.history.internal.store.only.captured.tables.ddl=true' or " +
-                        "'schema.history.internal.store.only.captured.databases.ddl=true'. WARNING: Changing these " +
-                        "settings means the connector will NOT be able to automatically start capturing changes from " +
-                        "tables that were not originally added to the include list. You would need to do schema " +
-                        "history recovery to add those tables later.";
-            }
+            // if (isHistorizedSchemaValidatingAllTables) {
+            // message += " Since 'schema.history.internal.store.only.captured.tables.ddl' is set to 'false', schemas " +
+            // "of all the tables in the database are being captured. Increase the guardrail limit to allow " +
+            // "the validation to pass. To reduce memory usage and validate only captured tables, consider " +
+            // "setting 'schema.history.internal.store.only.captured.tables.ddl=true' or " +
+            // "'schema.history.internal.store.only.captured.databases.ddl=true'. WARNING: Changing these " +
+            // "settings means the connector will NOT be able to automatically start capturing changes from " +
+            // "tables that were not originally added to the include list. You would need to do schema " +
+            // "history recovery to add those tables later.";
+            // }
 
             // Log table list at trace level for troubleshooting
             if (tableNames != null && LOGGER.isTraceEnabled()) {

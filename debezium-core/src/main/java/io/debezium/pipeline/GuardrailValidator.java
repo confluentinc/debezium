@@ -98,7 +98,11 @@ public class GuardrailValidator {
                     .filter(tableId -> tableFilters.eligibleForSchemaDataCollectionFilter().isIncluded(tableId))
                     .map(TableId::toString)
                     .collect(Collectors.toList());
-            LOGGER.info("Validating guardrail limits against {} tables present in {}",
+            long capturedTablesCount = allTableIds.stream()
+                    .filter(tableId -> tableFilters.dataCollectionFilter().isIncluded(tableId))
+                    .count();
+            LOGGER.info("Capturing tables: {}. Validating guardrail limits against {} tables present in {}",
+                    capturedTablesCount,
                     tableNames.size(),
                     Boolean.TRUE.equals(storeOnlyCapturedDatabases) ? "the captured databases" : "all databases");
         }
