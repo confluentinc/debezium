@@ -225,7 +225,7 @@
         Ehcache-specific dependency version overrides.
         These can be removed when ehcache distribution refers to versions published to maven central.
         -->
-        <version.istack>3.0.7</version.istack>
+        <version.istack>4.2.0</version.istack>
         <version.fastinfoset>1.2.15</version.fastinfoset>
 
         <protobuf.output.directory>${project.basedir}/generated-sources</protobuf.output.directory>
