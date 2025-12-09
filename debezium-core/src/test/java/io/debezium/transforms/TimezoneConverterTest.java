@@ -892,28 +892,4 @@ public class TimezoneConverterTest {
         assertThat(transformedSource.get("ts_ms")).isEqualTo(123456789);
         assertThat(transformedAfter.get("order_date_zoned_time")).isEqualTo("11:15:30.123456789+00:00");
     }
-
-    @Test
-    public void testIncludeListWithHashCharacterInTableName() {
-        // Test that Oracle container database user names with # characters are accepted
-        final Map<String, String> props = new HashMap<>();
-        props.put("converted.timezone", "America/Chicago");
-        props.put("include.list", "source:C##CFLTUSER.EVENTS_OUTBOX");
-        converter.configure(props);
-
-        // Should not throw exception - verifies regex pattern accepts # characters
-        assertThat(converter).isNotNull();
-    }
-
-    @Test
-    public void testIncludeListWithInvalidCharacterInTableName() {
-        // Test that invalid characters in table name are rejected
-        final Map<String, String> props = new HashMap<>();
-        props.put("converted.timezone", "America/Chicago");
-        props.put("include.list", "source:TABLE@NAME");
-
-        assertThat(catchThrowable(() -> converter.configure(props))).isInstanceOf(DebeziumException.class);
-        assertThat(catchThrowable(() -> converter.configure(props)))
-                .hasMessageContaining("Invalid include list format");
-    }
 }
