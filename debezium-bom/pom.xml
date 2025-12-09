@@ -13,70 +13,70 @@
 
     <properties>
         <!-- check new release version at https://github.com/confluentinc/schema-registry/releases -->
-        <version.confluent.platform>7.0.16</version.confluent.platform>
+        <version.confluent.platform>7.3.0</version.confluent.platform>
 
         <!-- Connectors -->
-        <version.dropwizard>4.0.1</version.dropwizard>
+        <version.dropwizard>4.2.37</version.dropwizard>
         <version.jaxb>2.3.1</version.jaxb>
-        <version.jetty>9.4.12.v20180830</version.jetty>
+        <version.jetty>9.4.58.v20250814</version.jetty>
 
         <!-- Vitess dependencies -->
-        <version.vitess.grpc>23.0.0-rc1</version.vitess.grpc>
-        <version.joda>2.10.1</version.joda>
-        <version.google.protos>1.17.0</version.google.protos>
+        <version.vitess.grpc>23.0.0-rc2</version.vitess.grpc>
+        <version.joda>2.14.0</version.joda>
+        <version.google.protos>1.18.1</version.google.protos>
 
         <!-- Spanner and Vitess dependencies -->
-        <version.grpc>1.56.1</version.grpc>
+        <version.grpc>1.77.0</version.grpc>
 
         <!-- Tracing -->
-        <version.opentelemetry>1.23.0</version.opentelemetry>
+        <version.opentelemetry>1.57.0</version.opentelemetry>
 
         <!-- HTTP client -->
-        <version.okhttp>4.8.1</version.okhttp>
+        <version.okhttp>4.12.0</version.okhttp>
 
         <!-- Scripting -->
-        <version.groovy>4.0.17</version.groovy>
-        <version.graalvm.js>23.0.2</version.graalvm.js>
+        <version.groovy>4.0.29</version.groovy>
+        <version.graalvm.js>23.0.10</version.graalvm.js>
         <!-- Wasm -->
-        <version.chicory>1.4.0</version.chicory>
+        <version.chicory>1.6.0</version.chicory>
 
         <!-- Storages -->
 
         <!-- Redis -->
-        <version.jedis>6.0.0</version.jedis>
+        <version.jedis>6.2.0</version.jedis>
 
         <!-- S3 -->
-        <version.s3>2.26.30</version.s3>
+        <version.s3>2.40.4</version.s3>
 
         <!-- Blob Storage -->
-        <version.azure.blob>12.29.0</version.azure.blob>
+        <version.azure.blob>12.32.0</version.azure.blob>
 
         <!-- Azure Identity -->
-        <version.azure.identity>1.15.4</version.azure.identity>
+        <version.azure.identity>1.18.1</version.azure.identity>
 
         <!-- K8s Config Map Storage -->
-        <version.kubernetes.client>6.13.4</version.kubernetes.client>
+        <version.kubernetes.client>6.14.0</version.kubernetes.client>
 
         <!-- Debezium AI -->
-        <version.langchain4j>1.0.1</version.langchain4j>
+        <version.langchain4j>1.9.1</version.langchain4j>
 
         <!-- Open Lineage -->
-        <version.openlineage>1.31.0</version.openlineage>
+        <version.openlineage>1.40.1</version.openlineage>
 
         <!-- Testing -->
-        <version.junit>5.9.1</version.junit>
-        <version.junit.platform.launcher>1.9.3</version.junit.platform.launcher>
+        <version.junit>5.14.1</version.junit>
+        <version.junit.platform.launcher>1.14.1</version.junit.platform.launcher>
         <version.fest>1.4</version.fest>
         <version.assertj>3.27.6</version.assertj>
-        <version.jmh>1.21</version.jmh>
-        <version.awaitility>4.0.1</version.awaitility>
+        <version.jmh>1.37</version.jmh>
+        <version.awaitility>4.3.0</version.awaitility>
         <version.testcontainers>2.0.2</version.testcontainers>
-        <version.jsonpath>2.9.0</version.jsonpath>
-        <version.jsonassert>1.5.0</version.jsonassert>
-        <version.org.reflections>0.9.12</version.org.reflections>
-        <version.cassandra.unit>3.5.0.1</version.cassandra.unit>
-        <version.logback>1.2.13</version.logback>
-        <version.rest-assured>5.5.2</version.rest-assured>
+        <version.jsonpath>2.10.0</version.jsonpath>
+        <version.jsonassert>1.5.3</version.jsonassert>
+        <version.org.reflections>0.10.2</version.org.reflections>
+        <version.cassandra.unit>3.11.2.0</version.cassandra.unit>
+        <version.logback>1.5.21</version.logback>
+        <version.rest-assured>5.5.6</version.rest-assured>
     </properties>
 
     <dependencyManagement>
@@ -227,7 +227,7 @@
             <dependency>
                 <groupId>mil.nga</groupId>
                 <artifactId>wkb</artifactId>
-                <version>1.0.2</version>
+                <version>1.0.6</version>
             </dependency>
 
             <!-- MariaDB JDBC driver -->
@@ -717,7 +717,7 @@
             <dependency>
               <groupId>io.smallrye</groupId>
               <artifactId>smallrye-open-api-core</artifactId>
-              <version>2.1.2</version>
+              <version>2.3.1</version>
             </dependency>
 
             <!-- Debezium artifacts -->
