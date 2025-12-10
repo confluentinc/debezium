@@ -75,6 +75,8 @@ public abstract class BinlogSourceTask<P extends Partition, O extends OffsetCont
                         + "binlog_row_image=FULL and restart the connector.");
             }
         }
+        LOGGER.warn("Please ensure that the binlog is retained for at least the duration of any expected downtime "
+                + "of this connector to avoid data loss. The recommended binlog retention period is at least 7 days.");
     }
 
     /**
