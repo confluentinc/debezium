@@ -236,30 +236,26 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
 
             previousLogContext.set(taskContext.configureLoggingContext("streaming", partition));
 
-            paused = true;
-            streaming = true;
-
             try {
-
+                paused = true;
                 context.waitStreamingPaused();
 
                 previousLogContext.set(taskContext.configureLoggingContext("snapshot"));
                 LOGGER.info("Starting snapshot");
 
                 SnapshottingTask snapshottingTask = snapshotSource.getBlockingSnapshottingTask(partition, (O) offsetContext, snapshotConfiguration);
-                try {
-                    doSnapshot(snapshotSource, context, partition, (O) offsetContext, snapshottingTask);
-                }
-                catch (Exception e) {
-                    LOGGER.warn("Error while executing requested blocking snapshot.", e);
-                }
-                finally {
-                    eventDispatcher.setEventListener(streamingMetrics);
-                    resumeStreaming(partition);
-                }
-            }
-            catch (InterruptedException e) {
+                doSnapshot(snapshotSource, context, partition, (O) offsetContext, snapshottingTask);
+            } catch (InterruptedException e) {
                 throw new DebeziumException("Blocking snapshot has been interrupted");
+            } catch (Exception e) {
+                LOGGER.warn("Error while executing requested blocking snapshot.", e);
+            } finally {
+                eventDispatcher.setEventListener(streamingMetrics);
+                try {
+                    resumeStreaming(partition);
+                } catch (InterruptedException e) {
+                    throw new DebeziumException("Blocking snapshot has been interrupted");
+                }
             }
         });
     }
@@ -422,6 +418,7 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
         private final Lock lock = new ReentrantLock();
         private final Condition snapshotFinished = lock.newCondition();
         private final Condition streamingPaused = lock.newCondition();
+        private final Condition streamingRunning = lock.newCondition();
 
         @Override
         public boolean isPaused() {
@@ -434,11 +431,13 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
         }
 
         @Override
-        public void resumeStreaming() {
+        public void resumeStreaming() throws InterruptedException {
             lock.lock();
             try {
                 snapshotFinished.signalAll();
                 LOGGER.trace("Streaming will now resume.");
+                streamingRunning.await();
+                LOGGER.trace("Streaming resumed.");
             }
             finally {
                 lock.unlock();
@@ -462,6 +461,7 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
                     }
                 }
                 streaming = true;
+                streamingRunning.signalAll();
             }
             finally {
                 lock.unlock();
