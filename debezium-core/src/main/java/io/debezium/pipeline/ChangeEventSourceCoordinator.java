@@ -236,8 +236,9 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
 
             previousLogContext.set(taskContext.configureLoggingContext("streaming", partition));
 
+            paused = true;
+
             try {
-                paused = true;
                 context.waitStreamingPaused();
 
                 previousLogContext.set(taskContext.configureLoggingContext("snapshot"));
@@ -436,7 +437,11 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
             try {
                 snapshotFinished.signalAll();
                 LOGGER.trace("Streaming will now resume.");
-                streamingRunning.await();
+                if (running) {
+                    streamingRunning.await();
+                } else {
+                    throw new InterruptedException("Coordinator is stopping, interrupting the blocking snapshot thread.");
+                }
                 LOGGER.trace("Streaming resumed.");
             }
             finally {
@@ -485,9 +490,12 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
         public void waitStreamingPaused() throws InterruptedException {
             lock.lock();
             try {
-                while (streaming) {
+                while (streaming && running) {
                     LOGGER.trace("Requested a blocking snapshot. Waiting for streaming to be paused.");
                     streamingPaused.await();
+                }
+                if (!running) {
+                    throw new InterruptedException("Coordinator is stopping, interrupting the blocking snapshot request.");
                 }
             }
             finally {
