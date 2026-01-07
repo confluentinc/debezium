@@ -46,7 +46,6 @@ import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import io.debezium.pipeline.ErrorHandler;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Field;
@@ -95,6 +94,7 @@ import io.debezium.junit.ConditionalFail;
 import io.debezium.junit.EqualityCheck;
 import io.debezium.junit.SkipWhenDatabaseVersion;
 import io.debezium.junit.logging.LogInterceptor;
+import io.debezium.pipeline.ErrorHandler;
 import io.debezium.relational.RelationalChangeRecordEmitter;
 import io.debezium.relational.RelationalDatabaseConnectorConfig.DecimalHandlingMode;
 import io.debezium.relational.Table;
@@ -3968,8 +3968,8 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
 
         // Step 3: Start connector - should succeed (no duplicates yet)
         startConnector(config -> config
-                        .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "public.test_alter_case")
-                        .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL),
+                .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "public.test_alter_case")
+                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL),
                 true); // Wait for snapshot to complete
 
         // Step 4: Wait for streaming to start
@@ -4006,8 +4006,8 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
                         ");");
 
         startConnector(config -> config
-                        .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "public.test_rename")
-                        .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL),
+                .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "public.test_rename")
+                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL),
                 false);
 
         // Rename status to "Duration" (now conflicts with "duration")
@@ -4018,6 +4018,68 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
         waitForEngineShutdown();
 
         assertThat(logInterceptor.containsStacktraceElement("Table 'public.test_rename' has columns that differ only by case.")).isTrue();
+    }
+
+    @Test
+    public void shouldNotFailWhenExcludedTableHasCaseSensitiveDuplicateColumns() throws Exception {
+        // Create an excluded table WITH duplicate columns (should be ignored)
+        TestHelper.execute(
+                "DROP TABLE IF EXISTS excluded_table_with_duplicates;" +
+                        "CREATE TABLE excluded_table_with_duplicates (" +
+                        "  pk SERIAL PRIMARY KEY, " +
+                        "  duration INTEGER, " +
+                        "  \"Duration\" TEXT" +
+                        ");");
+
+        // Create an included table WITHOUT duplicate columns (should work normally)
+        TestHelper.execute(
+                "DROP TABLE IF EXISTS included_clean_table;" +
+                        "CREATE TABLE included_clean_table (" +
+                        "  pk SERIAL PRIMARY KEY, " +
+                        "  name TEXT" +
+                        ");");
+
+
+        // Insert data into both tables
+        TestHelper.execute("INSERT INTO excluded_table_with_duplicates (duration, \"Duration\") VALUES (100, 'excluded');");
+        TestHelper.execute("INSERT INTO included_clean_table (name) VALUES ('test1');");
+
+        // Start connector with table filtering - exclude the problematic table
+        Configuration config = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, false)
+                .with(PostgresConnectorConfig.SCHEMA_EXCLUDE_LIST, "postgis")
+                .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "public.included_clean_table")
+                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
+                .build();
+        start(PostgresConnector.class, config);
+
+        // Wait for streaming to start
+        waitForStreamingToStart();
+
+        // Verify snapshot record from included table was captured
+        SourceRecords records = consumeRecordsByTopic(1);
+        assertThat(records.recordsForTopic("test_server.public.included_clean_table")).hasSize(1);
+
+        SourceRecord record = records.recordsForTopic("test_server.public.included_clean_table").get(0);
+        Struct value = (Struct) record.value();
+        assertThat(((Struct) value.get("after")).getString("name")).isEqualTo("test1");
+
+        // Insert more data into both tables during streaming
+        TestHelper.execute("INSERT INTO excluded_table_with_duplicates (duration, \"Duration\") VALUES (200, 'excluded2');");
+        TestHelper.execute("INSERT INTO included_clean_table (name) VALUES ('test2');");
+
+        // Verify only the included table's data is captured
+        records = consumeRecordsByTopic(1);
+        assertThat(records.recordsForTopic("test_server.public.included_clean_table")).hasSize(1);
+
+        record = records.recordsForTopic("test_server.public.included_clean_table").get(0);
+        value = (Struct) record.value();
+        assertThat(((Struct) value.get("after")).getString("name")).isEqualTo("test2");
+
+        // Verify connector is still running (didn't crash)
+        assertConnectorIsRunning();
+
+        stopConnector();
     }
 
     private void assertHeartBeatRecord(SourceRecord heartbeat) {
