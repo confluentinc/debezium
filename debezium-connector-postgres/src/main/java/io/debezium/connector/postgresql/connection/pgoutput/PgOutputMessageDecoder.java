@@ -26,11 +26,11 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
-import io.debezium.DebeziumException;
 import org.postgresql.replication.fluent.logical.ChainedLogicalStreamBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.debezium.DebeziumException;
 import io.debezium.connector.postgresql.PostgresStreamingChangeEventSource.PgConnectionSupplier;
 import io.debezium.connector.postgresql.PostgresType;
 import io.debezium.connector.postgresql.TypeRegistry;
@@ -317,22 +317,11 @@ public class PgOutputMessageDecoder extends AbstractMessageDecoder {
 
         List<ColumnMetaData> columns = new ArrayList<>();
         Set<String> columnNames = new HashSet<>();
-        Set<String> seenLowercaseColumnNames = new HashSet<>();
         for (short i = 0; i < columnCount; ++i) {
             byte flags = buffer.get();
             String columnName = Strings.unquoteIdentifierPart(readString(buffer));
             int columnType = buffer.getInt();
             int attypmod = buffer.getInt();
-
-            if (!seenLowercaseColumnNames.add(columnName.toLowerCase())) {
-                throw new DebeziumException(
-                        String.format(
-                                "Table '%s' has columns that differ only by case. " +
-                                        "Column name: '%s'. " +
-                                        "Debezium does not support case-sensitive duplicate column names as this causes data corruption. " +
-                                        "Please rename one of the duplicate columns before running Debezium.",
-                                tableId, columnName));
-            }
 
             final PostgresType postgresType = typeRegistry.get(columnType);
             boolean key = isColumnInPrimaryKey(schemaName, tableName, columnName, primaryKeyColumns);
@@ -368,6 +357,25 @@ public class PgOutputMessageDecoder extends AbstractMessageDecoder {
         // "from the future" (with temporal respect to the current relate message #1) as a best effort attempt
         // to reflect the actual primary key state at time `t0`.
         primaryKeyColumns.retainAll(columnNames);
+
+        // Validate no case-sensitive duplicate columns for captured tables only
+        // This must happen BEFORE building the Table object because TableEditorImpl stores columns
+        // in a case-insensitive map, which would silently deduplicate them
+        if (decoderContext.getConfig().getTableFilters().dataCollectionFilter().isIncluded(tableId)) {
+            Set<String> seenLowercaseColumnNames = new HashSet<>();
+            for (ColumnMetaData column : columns) {
+                String columnName = column.getColumnName();
+                if (!seenLowercaseColumnNames.add(columnName.toLowerCase())) {
+                    throw new DebeziumException(
+                            String.format(
+                                    "Table '%s' has columns that differ only by case. " +
+                                            "Column name: '%s'. " +
+                                            "Debezium does not support case-sensitive duplicate column names as this causes data corruption. " +
+                                            "Please rename one of the duplicate columns before running Debezium.",
+                                    tableId, columnName));
+                }
+            }
+        }
 
         Table table = resolveRelationFromMetadata(new PgOutputRelationMetaData(relationId, schemaName, tableName, columns, primaryKeyColumns));
         decoderContext.getSchema().applySchemaChangesForTable(relationId, table);
