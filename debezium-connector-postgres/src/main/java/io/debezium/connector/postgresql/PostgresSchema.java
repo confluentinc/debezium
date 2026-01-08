@@ -10,24 +10,20 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.debezium.DebeziumException;
 import io.debezium.annotation.NotThreadSafe;
 import io.debezium.connector.postgresql.PostgresConnectorConfig.LogicalDecoder;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.connector.postgresql.connection.PostgresDefaultValueConverter;
 import io.debezium.connector.postgresql.connection.ReplicaIdentityInfo;
 import io.debezium.jdbc.JdbcConnection;
-import io.debezium.relational.Column;
 import io.debezium.relational.RelationalDatabaseSchema;
 import io.debezium.relational.Table;
 import io.debezium.relational.TableId;
@@ -262,21 +258,6 @@ public class PostgresSchema extends RelationalDatabaseSchema {
         if (isFilteredOut(table.id())) {
             LOGGER.trace("Skipping schema refresh for table '{}' with relation '{}' as table is filtered", table.id(), relationId);
             return;
-        }
-
-        // Validate no case-sensitive duplicate columns for captured tables
-        Set<String> seenLowercaseColumnNames = new HashSet<>();
-        for (Column column : table.columns()) {
-            String columnName = column.name();
-            if (!seenLowercaseColumnNames.add(columnName.toLowerCase())) {
-                throw new DebeziumException(
-                        String.format(
-                                "Table '%s' has columns that differ only by case. " +
-                                        "Column name: '%s'. " +
-                                        "Debezium does not support case-sensitive duplicate column names as this causes data corruption. " +
-                                        "Please rename one of the duplicate columns before running Debezium.",
-                                table.id(), columnName));
-            }
         }
 
         relationIdToTableId.put(relationId, table.id());
