@@ -1359,14 +1359,14 @@ public class JdbcConnection implements AutoCloseable {
                                                            String tableName, TableFilter tableFilter, ColumnNameFilter columnFilter, DatabaseMetaData metadata,
                                                            final Set<TableId> viewIds, boolean throwOnCaseInsensitiveColumnMismatch)
             throws SQLException {
-                Map<TableId, List<Column>> columnsByTable = new HashMap<>();
+        Map<TableId, List<Column>> columnsByTable = new HashMap<>();
 
-                // Track case-insensitive column names per table
-                Map<TableId, Set<String>> lowercaseColumnNamesByTable = new HashMap<>();
-        
-                String tableNamePattern = createPatternFromName(tableName, metadata.getSearchStringEscape());
-                String schemaNamePattern = createPatternFromName(schemaName, metadata.getSearchStringEscape());
-                try (ResultSet columnMetadata = metadata.getColumns(catalogName, schemaNamePattern, tableNamePattern, null)) {
+        // Track case-insensitive column names per table
+        Map<TableId, Set<String>> lowercaseColumnNamesByTable = new HashMap<>();
+
+        String tableNamePattern = createPatternFromName(tableName, metadata.getSearchStringEscape());
+        String schemaNamePattern = createPatternFromName(schemaName, metadata.getSearchStringEscape());
+        try (ResultSet columnMetadata = metadata.getColumns(catalogName, schemaNamePattern, tableNamePattern, null)) {
             while (columnMetadata.next()) {
                 String metaCatalogName = resolveCatalogName(columnMetadata.getString(1));
                 String metaSchemaName = columnMetadata.getString(2);
@@ -1387,9 +1387,9 @@ public class JdbcConnection implements AutoCloseable {
 
                 if (!seenLowercaseNames.add(lowercaseColumnName)) {
                     String message = String.format("Table '%s' has columns that differ only by case. " +
-                                    "Column name: '%s'. " +
-                                    "Debezium does not support case-sensitive duplicate column names as this causes data corruption. " +
-                                    "Please rename one of the duplicate columns before running Debezium.",
+                            "Column name: '%s'. " +
+                            "Debezium does not support case-sensitive duplicate column names as this causes data corruption. " +
+                            "Please rename one of the duplicate columns before running Debezium.",
                             tableId, columnName);
 
                     if (throwOnCaseInsensitiveColumnMismatch) {

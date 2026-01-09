@@ -22,7 +22,6 @@ import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigDef.Type;
@@ -1528,7 +1527,6 @@ public abstract class CommonConnectorConfig {
     protected final DefaultServiceRegistry serviceRegistry;
 
     protected CommonConnectorConfig(Configuration config, int defaultSnapshotFetchSize) {
-        super(CONFIG_DEFINITION.configDef(), config.asProperties());
         this.beanRegistry = new DefaultBeanRegistry();
         this.serviceRegistry = new DefaultServiceRegistry(config, beanRegistry);
         this.config = config;
