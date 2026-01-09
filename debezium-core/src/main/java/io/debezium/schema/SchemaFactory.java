@@ -157,7 +157,7 @@ public class SchemaFactory {
                 .field(AbstractSourceInfo.TIMESTAMP_KEY, Schema.INT64_SCHEMA)
                 .field(AbstractSourceInfo.SNAPSHOT_KEY, snapshotRecordSchema())
                 .field(AbstractSourceInfo.DATABASE_NAME_KEY, Schema.STRING_SCHEMA)
-                .field(AbstractSourceInfo.SEQUENCE_KEY, Schema.OPTIONAL_STRING_SCHEMA)
+                .field(AbstractSourceInfo.SEQUENCE_KEY, Schema.OPTIONAL_STRING_SCHEMA);
     }
 
     public Schema heartbeatKeySchema(SchemaNameAdjuster adjuster) {
