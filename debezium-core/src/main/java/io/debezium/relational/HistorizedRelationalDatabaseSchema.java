@@ -144,11 +144,6 @@ public abstract class HistorizedRelationalDatabaseSchema extends RelationalDatab
         return false;
     }
 
-    @Override
-    public SchemaHistory getSchemaHistory() {
-        return schemaHistory;
-    }
-
     /**
      * Returns the schema history instance for verification purposes.
      */

@@ -262,10 +262,10 @@ public interface SchemaHistory {
      */
     void initializeStorage();
 
-     /**
-     * Validates that the underlying storage is configured as needed by the specific implementation.
-     */
-     default void checkStorageSettings() {
+    /**
+    * Validates that the underlying storage is configured as needed by the specific implementation.
+    */
+    default void checkStorageSettings() {
         return;
     }
 
