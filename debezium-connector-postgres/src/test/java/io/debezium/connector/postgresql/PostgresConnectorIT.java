@@ -78,6 +78,7 @@ import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.connector.postgresql.connection.PostgresReplicationConnection;
 import io.debezium.connector.postgresql.connection.ReplicaIdentityInfo;
 import io.debezium.connector.postgresql.connection.ReplicationConnection;
+import io.debezium.connector.postgresql.connection.WalPositionLocator;
 import io.debezium.connector.postgresql.connection.pgoutput.PgOutputMessageDecoder;
 import io.debezium.connector.postgresql.junit.PostgresDatabaseVersionResolver;
 import io.debezium.connector.postgresql.junit.SkipTestDependingOnDecoderPluginNameRule;
@@ -3879,5 +3880,158 @@ public class PostgresConnectorIT extends AbstractAsyncEngineConnectorTest {
         assertThat(records.topics()).hasSize(3);
 
         stopConnector();
+    }
+
+    @Test
+    public void shouldFailAtStartupWhenReplicationSlotIsActive() throws Exception {
+        // Start with a clean slate
+        TestHelper.dropAllSchemas();
+        TestHelper.dropPublication();
+        TestHelper.dropDefaultReplicationSlot();
+        TestHelper.executeDDL("postgres_create_tables.ddl");
+
+        final String slotName = "active_slot_test";
+        TestHelper.create().dropReplicationSlot(slotName);
+
+        // Create an active replication slot by starting a replication connection and streaming
+        // This simulates another connector using the slot
+        try (ReplicationConnection activeConnection = TestHelper.createForReplication(slotName, false)) {
+            activeConnection.startStreaming(new WalPositionLocator());
+
+            // Verify the slot is active
+            try (PostgresConnection conn = TestHelper.create()) {
+                SlotState slotState = conn.getReplicationSlotState(slotName, TestHelper.decoderPlugin().getPostgresPluginName());
+                assertThat(slotState).isNotNull();
+                assertThat(slotState.slotIsActive()).isTrue();
+            }
+
+            // Try to start the connector with the same slot name - should fail immediately
+            Configuration config = TestHelper.defaultConfig()
+                    .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NO_DATA)
+                    .with(PostgresConnectorConfig.SLOT_NAME, slotName)
+                    .build();
+
+            start(PostgresConnector.class, config, (success, msg, error) -> {
+                assertThat(success).isFalse();
+                assertThat(error).isNotNull();
+                assertThat(error).isInstanceOf(DebeziumException.class);
+                assertThat(error.getMessage()).contains("replication slot '" + slotName + "' is already active");
+                assertThat(error.getMessage()).contains("another Postgres connector is using this slot");
+            });
+            assertConnectorNotRunning();
+        }
+        finally {
+            // Clean up
+            TestHelper.create().dropReplicationSlot(slotName);
+        }
+    }
+
+    @Test
+    public void shouldStartSuccessfullyWhenReplicationSlotExistsButIsInactive() throws Exception {
+        // Start with a clean slate
+        TestHelper.dropAllSchemas();
+        TestHelper.dropPublication();
+        TestHelper.dropDefaultReplicationSlot();
+        TestHelper.executeDDL("postgres_create_tables.ddl");
+
+        final String slotName = "inactive_slot_test";
+        TestHelper.create().dropReplicationSlot(slotName);
+
+        // Create a replication slot but don't keep it active (close the connection)
+        try (ReplicationConnection connection = TestHelper.createForReplication(slotName, false)) {
+            connection.createReplicationSlot();
+        }
+
+        // Verify the slot exists but is inactive
+        try (PostgresConnection conn = TestHelper.create()) {
+            SlotState slotState = conn.getReplicationSlotState(slotName, TestHelper.decoderPlugin().getPostgresPluginName());
+            assertThat(slotState).isNotNull();
+            assertThat(slotState.slotIsActive()).isFalse();
+        }
+
+        // Start the connector with the inactive slot - should succeed
+        Configuration config = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NO_DATA)
+                .with(PostgresConnectorConfig.SLOT_NAME, slotName)
+                .build();
+
+        start(PostgresConnector.class, config);
+        waitForStreamingRunning();
+        assertConnectorIsRunning();
+
+        stopConnector();
+        TestHelper.create().dropReplicationSlot(slotName);
+    }
+
+    @Test
+    public void shouldStartSuccessfullyWhenReplicationSlotDoesNotExist() throws Exception {
+        // Start with a clean slate
+        TestHelper.dropAllSchemas();
+        TestHelper.dropPublication();
+        TestHelper.dropDefaultReplicationSlot();
+        TestHelper.executeDDL("postgres_create_tables.ddl");
+
+        final String slotName = "nonexistent_slot_test";
+        TestHelper.create().dropReplicationSlot(slotName);
+
+        // Verify the slot doesn't exist
+        try (PostgresConnection conn = TestHelper.create()) {
+            SlotState slotState = conn.getReplicationSlotState(slotName, TestHelper.decoderPlugin().getPostgresPluginName());
+            assertThat(slotState).isNull();
+        }
+
+        // Start the connector - should create the slot and succeed
+        Configuration config = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NO_DATA)
+                .with(PostgresConnectorConfig.SLOT_NAME, slotName)
+                .build();
+
+        start(PostgresConnector.class, config);
+        waitForStreamingRunning();
+        assertConnectorIsRunning();
+
+        // Verify the slot was created
+        try (PostgresConnection conn = TestHelper.create()) {
+            SlotState slotState = conn.getReplicationSlotState(slotName, TestHelper.decoderPlugin().getPostgresPluginName());
+            assertThat(slotState).isNotNull();
+        }
+
+        stopConnector();
+        TestHelper.create().dropReplicationSlot(slotName);
+    }
+
+    @Test
+    public void shouldFailWithCorrectErrorMessageWhenSlotIsActive() throws Exception {
+        // Start with a clean slate
+        TestHelper.dropAllSchemas();
+        TestHelper.dropPublication();
+        TestHelper.dropDefaultReplicationSlot();
+        TestHelper.executeDDL("postgres_create_tables.ddl");
+
+        final String slotName = "error_message_test_slot";
+        TestHelper.create().dropReplicationSlot(slotName);
+
+        // Create an active replication slot
+        try (ReplicationConnection activeConnection = TestHelper.createForReplication(slotName, false)) {
+            activeConnection.startStreaming(new WalPositionLocator());
+
+            Configuration config = TestHelper.defaultConfig()
+                    .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NO_DATA)
+                    .with(PostgresConnectorConfig.SLOT_NAME, slotName)
+                    .build();
+
+            start(PostgresConnector.class, config, (success, msg, error) -> {
+                assertThat(success).isFalse();
+                assertThat(error).isInstanceOf(DebeziumException.class);
+                String errorMessage = error.getMessage();
+                assertThat(errorMessage).contains("replication slot '" + slotName + "' is already active");
+                assertThat(errorMessage).contains("another Postgres connector is using this slot");
+                assertThat(errorMessage).contains("Each Postgres connector must use its own unique replication slot");
+            });
+            assertConnectorNotRunning();
+        }
+        finally {
+            TestHelper.create().dropReplicationSlot(slotName);
+        }
     }
 }
