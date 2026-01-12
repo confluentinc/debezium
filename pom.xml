@@ -75,7 +75,7 @@
         <jdk.min.version>${debezium.java.source}</jdk.min.version>
 
         <!-- Maven Plugins -->
-        <version.compiler.plugin>3.13.0</version.compiler.plugin>
+        <version.compiler.plugin>3.8.1</version.compiler.plugin>
         <version.resources.plugin>3.1.0</version.resources.plugin>
         <version.dependency.plugin>3.1.1</version.dependency.plugin>
         <version.enforcer.plugin>3.6.1</version.enforcer.plugin>
