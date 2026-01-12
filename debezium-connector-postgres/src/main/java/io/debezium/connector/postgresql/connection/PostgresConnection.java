@@ -17,6 +17,7 @@ import java.sql.Types;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -646,7 +647,8 @@ public class PostgresConnection extends JdbcConnection {
 
     @Override
     protected Map<TableId, List<Column>> getColumnsDetails(String catalogName, String schemaName,
-                                                           String tableName, Tables.TableFilter tableFilter, Tables.ColumnNameFilter columnFilter, DatabaseMetaData metadata,
+                                                           String tableName, Tables.TableFilter tableFilter, Tables.ColumnNameFilter columnFilter,
+                                                           DatabaseMetaData metadata,
                                                            final Set<TableId> viewIds)
             throws SQLException {
         return getColumnsDetails(catalogName, schemaName, tableName, tableFilter, columnFilter, metadata, viewIds, true);
@@ -793,7 +795,7 @@ public class PostgresConnection extends JdbcConnection {
         if (columnName != null) {
             if (columnName.length() > 16348) {
                 throw new RuntimeException(
-                    "Unique index exceeded allowed size");
+                        "Unique index exceeded allowed size");
             }
             return !FUNCTION_DEFAULT_PATTERN.matcher(columnName).matches()
                     && !EXPRESSION_DEFAULT_PATTERN.matcher(columnName).matches();
