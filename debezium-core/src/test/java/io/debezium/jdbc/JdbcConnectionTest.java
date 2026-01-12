@@ -83,7 +83,8 @@ public class JdbcConnectionTest {
             driverManager.when(() -> DriverManager.getConnection(anyString(), any(Properties.class)))
                     .thenReturn(new NormalConnection());
 
-            JdbcConnection conn = new JdbcConnection(config, connFactory, "\"", "\"");
+            JdbcConnection conn = new JdbcConnection(config, connFactory, "\"", "\"",
+                    new ThreadNameContext("test-connector", "${debezium}-${connector.class.simple}-${topic.prefix}-${functionality}-${connector.name}-${task.id}", "0"));
             conn.connect();
             conn.close();
 
