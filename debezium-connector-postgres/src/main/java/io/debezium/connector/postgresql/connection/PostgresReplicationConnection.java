@@ -243,10 +243,12 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
                                     if (!isOnlyRead) {
                                         try {
                                             executeWithTimeout(stmt, createPublicationStmt);
-                                        } catch (SQLException ex) {
+                                        }
+                                        catch (SQLException ex) {
                                             if (PSQLState.QUERY_CANCELED.getState().equals(ex.getSQLState()) || SQL_LOCK_NOT_AVAILABLE.equals(ex.getSQLState())) {
                                                 throw new DebeziumException(PUBLICATION_QUERY_FAILURE_MESSAGE, ex);
-                                            } else {
+                                            }
+                                            else {
                                                 throw ex;
                                             }
                                         }
@@ -418,7 +420,8 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
         Set<TableId> desiredTables;
         try {
             desiredTables = determineCapturedTables();
-        } catch (Exception e) {
+        }
+        catch (Exception e) {
             throw new SQLException("Failed to determine captured tables", e);
         }
         if (desiredTables.isEmpty()) {
@@ -438,7 +441,7 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
         toRemove.removeAll(desiredTables);
 
         LOGGER.info("Publication '{}' has to be updated. Tables to add: {}, Tables to remove: {}",
-            publicationName, toAdd, toRemove);
+                publicationName, toAdd, toRemove);
         return true;
     }
 

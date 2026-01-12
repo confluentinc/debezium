@@ -32,7 +32,7 @@ import io.debezium.connector.binlog.util.BinlogTestConnection;
 import io.debezium.connector.binlog.util.TestHelper;
 import io.debezium.connector.binlog.util.UniqueDatabase;
 import io.debezium.data.Envelope;
-import io.debezium.embedded.EmbeddedEngine.CompletionResult;
+import io.debezium.embedded.DebeziumEngineTestUtils.CompletionResult;
 import io.debezium.jdbc.JdbcConnection;
 import io.debezium.junit.SkipTestRule;
 import io.debezium.junit.SkipWhenDatabaseVersion;

@@ -789,7 +789,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
         Set<String> DML_STATEMENTS = Set.of("INSERT ", "UPDATE ", "DELETE ", "REPLACE ");
         if (DML_STATEMENTS.contains(upperCasedStatementBegin)) {
             LOGGER.warn("Received DML of type {}, binlog probably contains events generated with statement or mixed based replication format",
-                upperCasedStatementBegin.trim());
+                    upperCasedStatementBegin.trim());
             return;
         }
         if (sql.equalsIgnoreCase("ROLLBACK")) {
@@ -1009,7 +1009,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
      * @param value the value to initialize the set based upon
      */
     protected abstract void initializeGtidSet(String value);
-    
+
     private Predicate<String> getGtidDmlSourceFilter() {
         if (connectorConfig.getConfig().getBoolean(BinlogConnectorConfig.GTID_SOURCE_FILTER_DML_EVENTS)) {
             return connectorConfig.getGtidSourceFilter();
