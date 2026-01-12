@@ -21,7 +21,7 @@ import org.slf4j.LoggerFactory;
 import com.mongodb.MongoCommandException;
 import com.mongodb.client.MongoClients;
 
-import io.debezium.junitn.Flaky;
+import io.debezium.junit.Flaky;
 import io.debezium.testing.testcontainers.util.DockerUtils;
 
 /**
