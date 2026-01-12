@@ -25,11 +25,11 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
-import io.debezium.DebeziumException;
 import org.postgresql.replication.fluent.logical.ChainedLogicalStreamBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.debezium.DebeziumException;
 import io.debezium.connector.postgresql.PostgresStreamingChangeEventSource.PgConnectionSupplier;
 import io.debezium.connector.postgresql.PostgresType;
 import io.debezium.connector.postgresql.TypeRegistry;
@@ -50,7 +50,6 @@ import io.debezium.data.Envelope;
 import io.debezium.relational.ColumnEditor;
 import io.debezium.relational.Table;
 import io.debezium.relational.TableId;
-import io.debezium.util.HexConverter;
 import io.debezium.util.Strings;
 
 /**

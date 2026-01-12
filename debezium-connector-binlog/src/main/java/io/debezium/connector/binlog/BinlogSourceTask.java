@@ -76,10 +76,10 @@ public abstract class BinlogSourceTask<P extends Partition, O extends OffsetCont
             }
         }
         LOGGER.warn("Please ensure that the binlog is retained for at least 7 days. In disaster "
-                    + "recovery scenarios, connector might be down for some time and then resume from "
-                    + "last read binlog position. In such cases, if the required binlog files are "
-                    + "available, the connector can recover seamlessly. If not, data recovery "
-                    + "mechanisms such as incremental or initial snapshot might need to be employed.");
+                + "recovery scenarios, connector might be down for some time and then resume from "
+                + "last read binlog position. In such cases, if the required binlog files are "
+                + "available, the connector can recover seamlessly. If not, data recovery "
+                + "mechanisms such as incremental or initial snapshot might need to be employed.");
     }
 
     /**
