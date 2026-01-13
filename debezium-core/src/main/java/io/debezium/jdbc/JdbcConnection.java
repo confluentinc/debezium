@@ -1327,9 +1327,9 @@ public class JdbcConnection implements AutoCloseable {
 
                 if (!seenLowercaseNames.add(lowercaseColumnName)) {
                     String message = String.format("Table '%s' has columns that differ only by case. " +
-                    "Column name: '%s'. " +
-                    "Debezium does not support case-sensitive duplicate column names as this causes data corruption. " +
-                    "Please rename one of the duplicate columns before running Debezium.",
+                                    "Column name: '%s'. " +
+                                    "Debezium does not support case-sensitive duplicate column names as this causes data corruption. " +
+                                    "Please rename one of the duplicate columns before running Debezium.",
                             tableId, columnName);
 
                     if (throwOnCaseInsensitiveColumnMismatch) {
