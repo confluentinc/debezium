@@ -10,6 +10,10 @@
   <artifactId>debezium-testing-testcontainers</artifactId>
   <name>Debezium Testing Testcontainers</name>
   <packaging>jar</packaging>
+  <properties>
+    <version.okio>3.4.0</version.okio>
+    <version.okhttp3.okhttp>4.9.2</version.okhttp3.okhttp>
+  </properties>
 
   <dependencies>
     <dependency>
@@ -28,7 +32,7 @@
     <dependency>
       <groupId>com.squareup.okhttp3</groupId>
       <artifactId>okhttp</artifactId>
-      <version>4.9.2</version>
+      <version>${version.okhttp3.okhttp}</version>
       <exclusions>
         <exclusion>
           <groupId>com.squareup.okio</groupId>
@@ -39,7 +43,7 @@
     <dependency>
       <groupId>com.squareup.okio</groupId>
       <artifactId>okio</artifactId>
-      <version>3.4.0</version>
+      <version>${version.okio}</version>
     </dependency>
     <dependency>
       <groupId>org.awaitility</groupId>
