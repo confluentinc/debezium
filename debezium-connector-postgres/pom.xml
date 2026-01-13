@@ -61,6 +61,18 @@
             <groupId>org.apache.kafka</groupId>
             <artifactId>connect-api</artifactId>
             <scope>provided</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.lz4</groupId>
+                    <artifactId>lz4-java</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <!-- pin lz4-java for CVE-2025-12183 - use at.yawk.lz4 - actively maintained fork -->
+        <dependency>
+            <groupId>at.yawk.lz4</groupId>
+            <artifactId>lz4-java</artifactId>
+            <version>1.10.1</version>
         </dependency>
         <dependency>
             <groupId>org.apache.kafka</groupId>
