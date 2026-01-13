@@ -652,8 +652,7 @@ public class PostgresConnection extends JdbcConnection {
 
     @Override
     protected Map<TableId, List<Column>> getColumnsDetails(String catalogName, String schemaName,
-                                                           String tableName, Tables.TableFilter tableFilter, Tables.ColumnNameFilter columnFilter,
-                                                           DatabaseMetaData metadata,
+                                                           String tableName, Tables.TableFilter tableFilter, Tables.ColumnNameFilter columnFilter, DatabaseMetaData metadata,
                                                            final Set<TableId> viewIds)
             throws SQLException {
         return getColumnsDetails(catalogName, schemaName, tableName, tableFilter, columnFilter, metadata, viewIds, true);
