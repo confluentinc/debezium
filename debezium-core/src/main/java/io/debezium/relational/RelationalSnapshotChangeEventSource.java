@@ -200,10 +200,20 @@ public abstract class RelationalSnapshotChangeEventSource<P extends Partition, O
                 if (connectionPool != null) {
                     for (JdbcConnection conn : connectionPool) {
                         if (!jdbcConnection.equals(conn)) {
-                            conn.close();
+                            if (conn.isValid()) {
+                                conn.close();
+                            }
+                            else {
+                                conn.clearStatementCache();
+                            }
                         }
                     }
                 }
+
+                if (!jdbcConnection.isValid()) {
+                    connection = createSnapshotConnection();
+                }
+
                 rollbackTransaction(connection);
             }
             catch (final Exception e) {
