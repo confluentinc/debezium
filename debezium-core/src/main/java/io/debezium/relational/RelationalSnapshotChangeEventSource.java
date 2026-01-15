@@ -204,7 +204,13 @@ public abstract class RelationalSnapshotChangeEventSource<P extends Partition, O
                         }
                     }
                 }
-                rollbackTransaction(connection);
+
+                if (!jdbcConnection.isValid()) {
+                    createSnapshotConnection();
+                }
+                else {
+                    rollbackTransaction(connection);
+                }
             }
             catch (final Exception e) {
                 LOGGER.error("Error in finally block", e);
