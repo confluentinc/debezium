@@ -331,7 +331,7 @@ public class Threads {
             future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
         }
         catch (TimeoutException e) {
-            LOGGER.error("Operation {} timed out after {} ms", operationName, timeout.toMillis());
+            LOGGER.debug("Operation {} timed out after {} ms", operationName, timeout.toMillis());
             future.cancel(true);
             throw e;
         }
