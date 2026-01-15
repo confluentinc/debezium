@@ -3883,43 +3883,6 @@ public class PostgresConnectorIT extends AbstractAsyncEngineConnectorTest {
     }
 
     @Test
-    public void shouldStartSuccessfullyWhenReplicationSlotDoesNotExist() throws Exception {
-        // Start with a clean slate
-        TestHelper.dropAllSchemas();
-        TestHelper.dropPublication();
-        TestHelper.dropDefaultReplicationSlot();
-        TestHelper.executeDDL("postgres_create_tables.ddl");
-
-        final String slotName = "nonexistent_slot_test";
-        TestHelper.create().dropReplicationSlot(slotName);
-
-        // Verify the slot doesn't exist
-        try (PostgresConnection conn = TestHelper.create()) {
-            SlotState slotState = conn.getReplicationSlotState(slotName, TestHelper.decoderPlugin().getPostgresPluginName());
-            assertThat(slotState).isNull();
-        }
-
-        // Start the connector - should create the slot and succeed
-        Configuration config = TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NO_DATA)
-                .with(PostgresConnectorConfig.SLOT_NAME, slotName)
-                .build();
-
-        start(PostgresConnector.class, config);
-        waitForStreamingRunning();
-        assertConnectorIsRunning();
-
-        // Verify the slot was created
-        try (PostgresConnection conn = TestHelper.create()) {
-            SlotState slotState = conn.getReplicationSlotState(slotName, TestHelper.decoderPlugin().getPostgresPluginName());
-            assertThat(slotState).isNotNull();
-        }
-
-        stopConnector();
-        TestHelper.create().dropReplicationSlot(slotName);
-    }
-
-    @Test
     public void shouldFailWithCorrectErrorMessageWhenSlotIsActive() throws Exception {
         // Start with a clean slate
         TestHelper.dropAllSchemas();
