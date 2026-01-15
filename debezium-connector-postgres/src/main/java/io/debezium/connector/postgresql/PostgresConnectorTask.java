@@ -302,12 +302,6 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                 LOGGER.info(jdbcConnection.serverInfo().toString());
             }
             slotInfo = jdbcConnection.getReplicationSlotState(connectorConfig.slotName(), connectorConfig.plugin().getPostgresPluginName());
-            if (slotInfo != null && slotInfo.slotIsActive()) {
-                throw new DebeziumException(
-                        "The replication slot '" + connectorConfig.slotName() + "' is already active. "
-                                + "This means that another Postgres connector is using this slot. "
-                                + "Each Postgres connector must use its own unique replication slot.");
-            }
         }
         catch (SQLException e) {
             LOGGER.warn("unable to load info of replication slot, Debezium will try to create the slot");
