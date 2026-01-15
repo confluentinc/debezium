@@ -407,7 +407,6 @@ public class JdbcConnection implements AutoCloseable {
      * @throws SQLException if there is an error connecting to the database
      */
     public void reconnect() throws SQLException {
-        clearStatementCache();
         establishConnection();
     }
 
@@ -962,7 +961,8 @@ public class JdbcConnection implements AutoCloseable {
     public synchronized void close() throws SQLException {
         if (conn != null) {
             try {
-                clearStatementCache();
+                statementCache.values().forEach(this::cleanupPreparedStatement);
+                statementCache.clear();
                 LOGGER.trace("Closing database connection");
                 doClose();
             }
@@ -970,11 +970,6 @@ public class JdbcConnection implements AutoCloseable {
                 conn = null;
             }
         }
-    }
-
-    public void clearStatementCache() {
-        statementCache.values().forEach(this::cleanupPreparedStatement);
-        statementCache.clear();
     }
 
     private void doClose() throws SQLException {

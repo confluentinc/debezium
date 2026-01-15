@@ -200,21 +200,17 @@ public abstract class RelationalSnapshotChangeEventSource<P extends Partition, O
                 if (connectionPool != null) {
                     for (JdbcConnection conn : connectionPool) {
                         if (!jdbcConnection.equals(conn)) {
-                            if (conn.isValid()) {
-                                conn.close();
-                            }
-                            else {
-                                conn.clearStatementCache();
-                            }
+                            conn.close();
                         }
                     }
                 }
 
                 if (!jdbcConnection.isValid()) {
-                    connection = createSnapshotConnection();
+                    createSnapshotConnection();
                 }
-
-                rollbackTransaction(connection);
+                else {
+                    rollbackTransaction(connection);
+                }
             }
             catch (final Exception e) {
                 LOGGER.error("Error in finally block", e);
