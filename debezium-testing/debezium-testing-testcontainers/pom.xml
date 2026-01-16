@@ -13,6 +13,7 @@
 
     <properties>
         <mockito.argLine>-javaagent:${org.mockito:mockito-core:jar}</mockito.argLine>
+        <version.okio>3.4.0</version.okio>
     </properties>
 
     <dependencies>
@@ -32,6 +33,17 @@
         <dependency>
             <groupId>com.squareup.okhttp3</groupId>
             <artifactId>okhttp</artifactId>
+            <exclusions>
+                <exclusion>
+                <groupId>com.squareup.okio</groupId>
+                <artifactId>okio</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>com.squareup.okio</groupId>
+            <artifactId>okio</artifactId>
+            <version>${version.okio}</version>
         </dependency>
         <dependency>
             <groupId>org.awaitility</groupId>
