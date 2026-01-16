@@ -120,12 +120,14 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
     }
 
     private void initSchema() {
+        LOGGER.info("Performing initial schema load");
         try {
             taskContext.refreshSchema(connection, true);
         }
         catch (SQLException e) {
             throw new DebeziumException("Error while executing initial schema load", e);
         }
+        LOGGER.info("Completed initial schema load");
     }
 
     @Override
