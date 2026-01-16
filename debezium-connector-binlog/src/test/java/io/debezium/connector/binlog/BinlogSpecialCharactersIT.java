@@ -50,7 +50,6 @@ public abstract class BinlogSpecialCharactersIT<C extends SourceConnector> exten
     public void testSnapshotSpecialCharactersTable() throws Exception {
         Configuration config = DATABASE.defaultConfig()
                 .with(BinlogConnectorConfig.SNAPSHOT_MODE, BinlogConnectorConfig.SnapshotMode.INITIAL_ONLY)
-                .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName(TABLE_NAME))
                 .with(BinlogConnectorConfig.TOPIC_PREFIX, TOPIC_PREFIX)
                 .build();
 
