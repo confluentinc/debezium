@@ -106,7 +106,7 @@ public class PostgresSnapshotChangeEventSource extends RelationalSnapshotChangeE
         if (snapshotterService.getSnapshotter().shouldStreamEventsStartingFromSnapshot() && startingSlotInfo == null) {
             setSnapshotTransactionIsolationLevel(snapshotContext.onDemand);
         }
-        schema.refresh(jdbcConnection, false);
+        // schema.refresh(jdbcConnection, false);
     }
 
     @Override
@@ -142,7 +142,7 @@ public class PostgresSnapshotChangeEventSource extends RelationalSnapshotChangeE
             LOGGER.info("Waiting a maximum of '{}' seconds for each table lock", lockTimeout.getSeconds());
             jdbcConnection.executeWithoutCommitting(statements.toString());
             // now that we have the locks, refresh the schema
-            schema.refresh(jdbcConnection, false);
+            //schema.refresh(jdbcConnection, false);
         }
     }
 
