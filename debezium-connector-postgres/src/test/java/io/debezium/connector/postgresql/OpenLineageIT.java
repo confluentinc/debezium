@@ -301,8 +301,6 @@ public class OpenLineageIT extends AbstractAsyncEngineConnectorTest {
                 "source.snapshot;STRING",
                 "source.db;STRING",
                 "source.sequence;STRING",
-                "source.ts_us;INT64",
-                "source.ts_ns;INT64",
                 "source.schema;STRING",
                 "source.table;STRING",
                 "source.txId;INT64",
@@ -313,9 +311,7 @@ public class OpenLineageIT extends AbstractAsyncEngineConnectorTest {
                 "transaction.total_order;INT64",
                 "transaction.data_collection_order;INT64",
                 "op;STRING",
-                "ts_ms;INT64",
-                "ts_us;INT64",
-                "ts_ns;INT64"));
+                "ts_ms;INT64"));
         assertCorrectOutputDataset(runningEvents.get(6).getOutputs(), "test_server.s2.a", List.of("before;STRUCT",
                 "before.pk;INT32",
                 "before.aa;INT32",
@@ -330,8 +326,6 @@ public class OpenLineageIT extends AbstractAsyncEngineConnectorTest {
                 "source.snapshot;STRING",
                 "source.db;STRING",
                 "source.sequence;STRING",
-                "source.ts_us;INT64",
-                "source.ts_ns;INT64",
                 "source.schema;STRING",
                 "source.table;STRING",
                 "source.txId;INT64",
@@ -342,9 +336,7 @@ public class OpenLineageIT extends AbstractAsyncEngineConnectorTest {
                 "transaction.total_order;INT64",
                 "transaction.data_collection_order;INT64",
                 "op;STRING",
-                "ts_ms;INT64",
-                "ts_us;INT64",
-                "ts_ns;INT64"));
+                "ts_ms;INT64"));
 
     }
 
