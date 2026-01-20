@@ -777,10 +777,18 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
     @SuppressWarnings("unchecked")
     protected void createAndDispatchSchemaChangeEvent(Table newTable, P partition, OffsetContext offsetContext, TableId tableId)
             throws SQLException {
+        // Use catalog from table ID if available, otherwise fall back to connector's database name.
+        // This handles databases like PostgreSQL and SQL Server where TableId.catalog() returns null
+        // because they use schema (not catalog) in their identifier structure.
+        String databaseName = newTable.id().catalog();
+        if (databaseName == null || databaseName.isEmpty()) {
+            databaseName = connectorConfig.getJdbcConfig().getDatabase();
+        }
+
         SchemaChangeEvent schemaChangeEvent = SchemaChangeEvent.ofCreate(
                 partition,
                 offsetContext,
-                newTable.id().catalog(),
+                databaseName,
                 newTable.id().schema(),
                 getTableDDL(tableId),
                 newTable,
