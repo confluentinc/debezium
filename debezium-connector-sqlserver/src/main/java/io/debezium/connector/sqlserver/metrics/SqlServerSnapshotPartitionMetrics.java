@@ -56,7 +56,7 @@ class SqlServerSnapshotPartitionMetrics extends AbstractSqlServerPartitionMetric
     }
 
     @Override
-    public boolean getSnapshotSkipped() {
+    public long getSnapshotSkipped() {
         return snapshotMeter.getSnapshotSkipped();
     }
 

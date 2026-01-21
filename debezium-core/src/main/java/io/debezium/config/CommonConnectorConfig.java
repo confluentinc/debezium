@@ -1353,7 +1353,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
             .withGroup(Field.createGroupEntry(Field.Group.ADVANCED, 46))
             .withType(Type.BOOLEAN)
             .withWidth(Width.SHORT)
-            .withDefault(true)
+            .withDefault(false)
             .withImportance(ConfigDef.Importance.LOW)
             .withValidation(Field::isBoolean)
             .withDescription(
