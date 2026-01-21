@@ -24,7 +24,7 @@ public interface SnapshotMetricsMXBean extends SchemaMetricsMXBean {
 
     long getSnapshotAborted();
 
-    boolean getSnapshotSkipped();
+    long getSnapshotSkipped();
 
     long getSnapshotDurationInSeconds();
 
