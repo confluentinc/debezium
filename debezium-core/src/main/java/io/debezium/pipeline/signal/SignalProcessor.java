@@ -190,6 +190,8 @@ public class SignalProcessor<P extends Partition, O extends OffsetContext> {
         LOGGER.debug("Received signal id = '{}', type = '{}', data = '{}'", signalRecord.getId(), signalRecord.getType(), signalRecord.getData());
         LOGGER.info("Action {} has been interrupted. The signal {} may not have been processed.", signalRecord.getType(), signalRecord);
         LOGGER.info("Action {} failed. The signal {} may not have been processed.", signalRecord.getType(), signalRecord);
+        LOGGER.info("Signal '{}' has been received but the type '{}' is not recognized", signalRecord.getId(), signalRecord.getType());
+        LOGGER.info("Signal '{}' has been received but the data '{}' cannot be parsed", signalRecord.getId(), signalRecord.getData());
         final SignalAction<P> action = signalActions.get(signalRecord.getType());
         if (action == null) {
             LOGGER.warn("Signal '{}' has been received but the type '{}' is not recognized", signalRecord.getId(), signalRecord.getType());
