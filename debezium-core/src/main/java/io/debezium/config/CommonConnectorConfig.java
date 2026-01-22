@@ -1868,6 +1868,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
         }
         List<org.apache.kafka.connect.data.Field> fields = event.schema().fields();
         if (fields.size() != 3) {
+            LOGGER.warn("Field {} part of signal '{}' is missing", fieldName, value);
             LOGGER.warn("The signal event '{}' should have 3 fields but has {}", event, fields.size());
             return Optional.empty();
         }
