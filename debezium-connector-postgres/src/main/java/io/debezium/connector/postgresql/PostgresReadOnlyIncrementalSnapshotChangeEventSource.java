@@ -247,7 +247,7 @@ public class PostgresReadOnlyIncrementalSnapshotChangeEventSource<P extends Post
     protected String getDatabaseName(Table table) {
         // PostgreSQL's TableId.catalog() returns null because PostgreSQL uses schema, not catalog.
         // Fall back to the configured database name.
-        String catalog = table.id().catalog();
+        String catalog = super.getDatabaseName(table);
         return catalog != null ? catalog : connectorConfig.getJdbcConfig().getDatabase();
     }
 }
