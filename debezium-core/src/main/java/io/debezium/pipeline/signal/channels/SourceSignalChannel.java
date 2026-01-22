@@ -81,6 +81,7 @@ public class SourceSignalChannel implements SignalChannelReader {
 
         LOGGER.trace("Received event from signaling table. Enqueue for process");
         try {
+            LOGGER.info("Exception while preparing to process the signal '{}'", value);
             Optional<SignalRecord> result = SignalRecord.buildSignalRecordFromChangeEventSource(value, connectorConfig);
             if (result.isEmpty()) {
                 return false;
