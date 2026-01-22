@@ -598,7 +598,7 @@ public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotTest<Postg
         // Step 6: Add table to publication - now events can be captured
         TestHelper.execute("ALTER PUBLICATION " + publicationName + " ADD TABLE s1.third_table;");
 
-        // Step 8: Send incremental snapshot signal
+        // Step 7: Send incremental snapshot signal
         // At this point:
         // - Table matches schema filter (s1)
         // - Table is now in publication
