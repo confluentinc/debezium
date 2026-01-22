@@ -337,7 +337,6 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
         }
 
         LOGGER.info("Starting streaming");
-        LOGGER.info("Logging for validation");
         streamingSource.execute(context, partition, offsetContext);
         LOGGER.info("Finished streaming");
     }

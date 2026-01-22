@@ -140,7 +140,6 @@ public class PostgresSnapshotChangeEventSource extends RelationalSnapshotChangeE
 
             LOGGER.info("Waiting a maximum of '{}' seconds for each table lock", lockTimeout.getSeconds());
             jdbcConnection.executeWithoutCommitting(statements.toString());
-            // now that we have the locks, refresh the schema
         }
     }
 
