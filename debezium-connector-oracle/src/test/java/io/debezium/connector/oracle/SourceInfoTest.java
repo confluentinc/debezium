@@ -51,7 +51,6 @@ public class SourceInfoTest {
         final Schema schema = SchemaBuilder.struct()
                 .name("io.debezium.connector.oracle.Source")
                 .field("version", Schema.STRING_SCHEMA)
-                .version(SchemaFactory.SOURCE_INFO_DEFAULT_SCHEMA_VERSION)
                 .field("connector", Schema.STRING_SCHEMA)
                 .field("name", Schema.STRING_SCHEMA)
                 .field("ts_ms", Schema.INT64_SCHEMA)
