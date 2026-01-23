@@ -653,7 +653,6 @@ public abstract class BinlogSourceInfoTest<S extends BinlogSourceInfo, O extends
         final Schema schema = SchemaBuilder.struct()
                 .name(String.format("io.debezium.connector.%s.Source", getModuleName()))
                 .field("version", Schema.STRING_SCHEMA)
-                .version(SchemaFactory.SOURCE_INFO_DEFAULT_SCHEMA_VERSION)
                 .field("connector", Schema.STRING_SCHEMA)
                 .field("name", Schema.STRING_SCHEMA)
                 .field("ts_ms", Schema.INT64_SCHEMA)
