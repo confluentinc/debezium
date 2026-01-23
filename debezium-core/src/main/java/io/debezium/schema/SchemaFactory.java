@@ -41,13 +41,6 @@ import io.debezium.relational.history.HistoryRecord;
 public class SchemaFactory {
 
     /*
-     * Source info schemas
-     */
-    private static final int SNAPSHOT_RECORD_SCHEMA_VERSION = 1;
-
-    public static final int SOURCE_INFO_DEFAULT_SCHEMA_VERSION = 1;
-
-    /*
      * Heartbeat schemas
      */
     private static final String HEARTBEAT_KEY_SCHEMA_NAME = "io.debezium.connector.common.ServerNameKey";
@@ -144,13 +137,11 @@ public class SchemaFactory {
     public Schema snapshotRecordSchema() {
         return Enum.builder(
                 Arrays.stream(SnapshotRecord.values()).map(java.lang.Enum::name).map(String::toLowerCase).toList())
-                .version(SNAPSHOT_RECORD_SCHEMA_VERSION)
                 .defaultValue(SnapshotRecord.FALSE.name().toLowerCase()).optional().build();
     }
 
     public SchemaBuilder sourceInfoSchemaBuilder() {
         return SchemaBuilder.struct()
-                .version(SOURCE_INFO_DEFAULT_SCHEMA_VERSION)
                 .field(AbstractSourceInfo.DEBEZIUM_VERSION_KEY, Schema.STRING_SCHEMA)
                 .field(AbstractSourceInfo.DEBEZIUM_CONNECTOR_KEY, Schema.STRING_SCHEMA)
                 .field(AbstractSourceInfo.SERVER_NAME_KEY, Schema.STRING_SCHEMA)
