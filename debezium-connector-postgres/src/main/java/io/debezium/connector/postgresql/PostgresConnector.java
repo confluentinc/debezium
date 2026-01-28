@@ -97,25 +97,43 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         // Distribute tables via round-robin
         List<List<TableId>> tablesByTask = SnapshotTableDistributor.distributeRoundRobin(allTables, numTasks);
 
-        // Generate task configs with overridden table.include.list
+        // Generate task configs
         List<Map<String, String>> taskConfigs = new ArrayList<>();
         for (int i = 0; i < numTasks; i++) {
             Map<String, String> taskProps = new HashMap<>(props);
             taskProps.put(CommonConnectorConfig.TASK_ID, String.valueOf(i));
 
-            // Override table.include.list with assigned tables (explicit names, no regex)
+            // Build assigned tables list for this task (explicit names, no regex)
             String assignedTables = tablesByTask.get(i).stream()
                     .map(TableId::identifier)
                     .collect(Collectors.joining(","));
-            taskProps.put(RelationalDatabaseConnectorConfig.TABLE_INCLUDE_LIST.name(), assignedTables);
 
-            // Remove exclude list since include is now explicit
-            taskProps.remove(RelationalDatabaseConnectorConfig.TABLE_EXCLUDE_LIST.name());
+            if (i == 0) {
+                // Task 0: Snapshots its assigned subset, but streams ALL tables
+                // - Keep original table.include.list for streaming (filters events for all tables)
+                // - Use snapshot.include.collection.list to limit snapshot to assigned tables only
+                taskProps.put(CommonConnectorConfig.SNAPSHOT_MODE_TABLES.name(), assignedTables);
+                // Remove exclude list to ensure streaming captures all tables matching include list
+                taskProps.remove(RelationalDatabaseConnectorConfig.TABLE_EXCLUDE_LIST.name());
+                LOGGER.info("Task 0 will snapshot {} tables: [{}], then stream all tables matching original filter",
+                        tablesByTask.get(i).size(), assignedTables);
+            }
+            else {
+                // Tasks 1-N: Snapshot their assigned tables only, no streaming
+                // Override table.include.list with assigned tables
+                taskProps.put(RelationalDatabaseConnectorConfig.TABLE_INCLUDE_LIST.name(), assignedTables);
+                // Remove exclude list since include is now explicit
+                taskProps.remove(RelationalDatabaseConnectorConfig.TABLE_EXCLUDE_LIST.name());
+                // Snapshot-only mode to avoid replication slot conflicts
+                taskProps.put(PostgresConnectorConfig.SNAPSHOT_MODE.name(),
+                        PostgresConnectorConfig.SnapshotMode.INITIAL_ONLY.getValue());
+            }
 
             taskConfigs.add(taskProps);
         }
 
-        LOGGER.info("Configured {} snapshot tasks for {} tables", numTasks, allTables.size());
+        LOGGER.info("Configured {} snapshot tasks for {} tables (task-0 will stream all tables, tasks 1-{} are snapshot-only)",
+                numTasks, allTables.size(), numTasks - 1);
         return taskConfigs;
     }
 
