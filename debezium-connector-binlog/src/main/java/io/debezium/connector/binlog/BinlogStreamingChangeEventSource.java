@@ -1315,24 +1315,8 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
                 }
 
                 if (ks == null && (sslMode == SSLMode.PREFERRED || sslMode == SSLMode.REQUIRED)) {
-                    trustManagers = new TrustManager[]{
-                            new X509TrustManager() {
-                                @Override
-                                public void checkClientTrusted(X509Certificate[] x509Certificates, String s)
-                                        throws CertificateException {
-                                }
-
-                                @Override
-                                public void checkServerTrusted(X509Certificate[] x509Certificates, String s)
-                                        throws CertificateException {
-                                }
-
-                                @Override
-                                public X509Certificate[] getAcceptedIssuers() {
-                                    return new X509Certificate[0];
-                                }
-                            }
-                    };
+                    // CC-37713: Use static class instead of anonymous inner class to prevent memory leak
+                    trustManagers = new TrustManager[]{ new NoOpX509TrustManager() };
                 }
                 else {
                     TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
@@ -1346,13 +1330,8 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
 
             // DBZ-1208 Resembles the logic from the upstream BinaryLogClient, only that
             // the accepted TLS version is passed to the constructed factory
-            final KeyManager[] finalKMS = keyManagers;
-            return new DefaultSSLSocketFactory(acceptedTlsVersion) {
-                @Override
-                protected void initSSLContext(SSLContext sc) throws GeneralSecurityException {
-                    sc.init(finalKMS, trustManagers, null);
-                }
-            };
+            // CC-37713: Use static class instead of anonymous inner class to prevent memory leak
+            return new ConfigurableSSLSocketFactory(acceptedTlsVersion, keyManagers, trustManagers);
         }
         return null;
     }
@@ -1375,6 +1354,50 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
     @FunctionalInterface
     private interface ChangeEventValidator<U> {
         void validate(TableId tableId, U row);
+    }
+
+    /**
+     * A no-op X509TrustManager that trusts all certificates.
+     * Used for PREFERRED and REQUIRED SSL modes when no truststore is configured.
+     * This is a static class to prevent holding a reference to the outer class instance,
+     * which could cause memory leaks due to phantom references (see CC-37713).
+     */
+    private static class NoOpX509TrustManager implements X509TrustManager {
+        @Override
+        public void checkClientTrusted(X509Certificate[] x509Certificates, String s)
+                throws CertificateException {
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] x509Certificates, String s)
+                throws CertificateException {
+        }
+
+        @Override
+        public X509Certificate[] getAcceptedIssuers() {
+            return new X509Certificate[0];
+        }
+    }
+
+    /**
+     * Configurable SSL Socket Factory that accepts a specific TLS version.
+     * This is a static class to prevent holding a reference to the outer class instance,
+     * which could cause memory leaks due to phantom references (see CC-37713).
+     */
+    private static class ConfigurableSSLSocketFactory extends DefaultSSLSocketFactory {
+        private final KeyManager[] keyManagers;
+        private final TrustManager[] trustManagers;
+
+        ConfigurableSSLSocketFactory(String acceptedTlsVersion, KeyManager[] keyManagers, TrustManager[] trustManagers) {
+            super(acceptedTlsVersion);
+            this.keyManagers = keyManagers;
+            this.trustManagers = trustManagers;
+        }
+
+        @Override
+        protected void initSSLContext(SSLContext sc) throws GeneralSecurityException {
+            sc.init(keyManagers, trustManagers, null);
+        }
     }
 
     /**
