@@ -5,7 +5,6 @@
  */
 package io.debezium.connector.sqlserver;
 
-import static io.debezium.config.CommonConnectorConfig.TASK_ID;
 import static io.debezium.connector.sqlserver.SqlServerConnectorConfig.DATABASE_NAMES;
 
 import java.sql.SQLException;
@@ -25,8 +24,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.debezium.DebeziumException;
+import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.connector.common.RelationalBaseSourceConnector;
+import io.debezium.connector.common.SnapshotTableDistributor;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.relational.TableId;
 import io.debezium.util.ThreadNameContext;
@@ -61,48 +62,48 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
 
     @Override
     public List<Map<String, String>> taskConfigs(int maxTasks) {
-        if (maxTasks > 1 && !properties.containsKey(DATABASE_NAMES.name())) {
-            throw new IllegalArgumentException("Only a single connector task may be started in single-partition mode");
+        if (properties == null) {
+            return Collections.emptyList();
         }
 
-        final SqlServerConnectorConfig config = new SqlServerConnectorConfig(Configuration.from(properties));
-
-        try (SqlServerConnection connection = connect(config)) {
-            return buildTaskConfigs(connection, config, maxTasks);
-        }
-        catch (SQLException e) {
-            throw new IllegalArgumentException("Could not build task configs", e);
-        }
-    }
-
-    private List<Map<String, String>> buildTaskConfigs(SqlServerConnection connection, SqlServerConnectorConfig config,
-                                                       int maxTasks) {
-        List<String> databaseNames = config.getDatabaseNames();
-
-        // Initialize the database list for each task
-        List<List<String>> databasesByTask = new ArrayList<>();
-        final int numTasks = Math.min(maxTasks, config.getDatabaseNames().size());
-        for (int i = 0; i < numTasks; i++) {
-            databasesByTask.add(new ArrayList<>());
+        // For single task or when maxTasks is 1, use current behavior
+        if (maxTasks <= 1) {
+            return Collections.singletonList(new HashMap<>(properties));
         }
 
-        // Add each database to a task list via round-robin.
-        for (int databaseNameIndex = 0; databaseNameIndex < databaseNames.size(); databaseNameIndex++) {
-            int taskIndex = databaseNameIndex % numTasks;
-            String realDatabaseName = connection.retrieveRealDatabaseName(databaseNames.get(databaseNameIndex));
-            databasesByTask.get(taskIndex).add(realDatabaseName);
+        // Resolve all tables matching include/exclude lists
+        List<TableId> allTables = getMatchingCollections(Configuration.from(properties));
+
+        // If no tables found or only one table, fall back to single task
+        if (allTables.isEmpty() || allTables.size() == 1) {
+            return Collections.singletonList(new HashMap<>(properties));
         }
 
-        // Create a task config for each task, assigning each a list of database names.
+        // Determine actual number of tasks (can't have more tasks than tables)
+        int numTasks = Math.min(maxTasks, allTables.size());
+
+        // Distribute tables via round-robin
+        List<List<TableId>> tablesByTask = SnapshotTableDistributor.distributeRoundRobin(allTables, numTasks);
+
+        // Generate task configs with overridden table.include.list
         List<Map<String, String>> taskConfigs = new ArrayList<>();
-        for (int taskIndex = 0; taskIndex < numTasks; taskIndex++) {
-            String taskDatabases = String.join(",", databasesByTask.get(taskIndex));
-            Map<String, String> taskProperties = new HashMap<>(properties);
-            taskProperties.put(SqlServerConnectorConfig.DATABASE_NAMES.name(), taskDatabases);
-            taskProperties.put(TASK_ID, String.valueOf(taskIndex));
-            taskConfigs.add(Collections.unmodifiableMap(taskProperties));
+        for (int i = 0; i < numTasks; i++) {
+            Map<String, String> taskProps = new HashMap<>(properties);
+            taskProps.put(CommonConnectorConfig.TASK_ID, String.valueOf(i));
+
+            // Override table.include.list with assigned tables (explicit names, no regex)
+            String assignedTables = tablesByTask.get(i).stream()
+                    .map(TableId::identifier)
+                    .collect(Collectors.joining(","));
+            taskProps.put(RelationalDatabaseConnectorConfig.TABLE_INCLUDE_LIST.name(), assignedTables);
+
+            // Remove exclude list since include is now explicit
+            taskProps.remove(RelationalDatabaseConnectorConfig.TABLE_EXCLUDE_LIST.name());
+
+            taskConfigs.add(taskProps);
         }
 
+        LOGGER.info("Configured {} snapshot tasks for {} tables", numTasks, allTables.size());
         return taskConfigs;
     }
 

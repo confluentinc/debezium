@@ -92,6 +92,7 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
     private volatile boolean running;
     private volatile boolean paused;
     private volatile boolean streaming;
+    private volatile boolean inIdleMode;
     protected volatile StreamingChangeEventSource<P, O> streamingSource;
     protected final ReentrantLock commitOffsetLock = new ReentrantLock();
 
@@ -212,6 +213,16 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
         LOGGER.debug("Snapshot result {}", snapshotResult);
 
         if (running && snapshotResult.isCompletedOrSkipped()) {
+            String taskId = connectorConfig.getTaskId();
+
+            // Only task 0 (or tasks without an explicit ID) proceeds to streaming
+            // Non-primary tasks enter idle mode after completing their snapshot portion
+            if (taskId != null && !taskId.isEmpty() && !"0".equals(taskId)) {
+                LOGGER.info("Snapshot task {} completed. Entering idle mode (streaming handled by task 0).", taskId);
+                enterIdleMode(context);
+                return;
+            }
+
             if (snapshotResult.isCompleted()) {
                 delayStreamingIfNeeded(context);
             }
@@ -244,6 +255,38 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
             LOGGER.info("The connector will wait for {}s before initiating streaming", timer.remaining().getSeconds());
             metronome.pause();
         }
+    }
+
+    /**
+     * Enters idle mode for non-primary tasks after snapshot completion.
+     * In multi-task snapshot mode, only task 0 proceeds to streaming while other tasks
+     * enter this idle state, keeping the task alive but returning empty polls.
+     *
+     * @param context the change event source context
+     * @throws InterruptedException if the idle loop is interrupted
+     */
+    protected void enterIdleMode(ChangeEventSourceContext context) throws InterruptedException {
+        inIdleMode = true;
+        Duration pollInterval = connectorConfig.getPollInterval();
+
+        LOGGER.info("Task entering idle mode. Will poll every {} ms until shutdown.", pollInterval.toMillis());
+
+        while (context.isRunning()) {
+            Thread.sleep(pollInterval.toMillis());
+        }
+
+        LOGGER.info("Idle mode ended. Task shutting down.");
+    }
+
+    /**
+     * Returns whether this coordinator is in idle mode.
+     * Non-primary tasks enter idle mode after completing their snapshot work
+     * in multi-task snapshot mode.
+     *
+     * @return true if in idle mode, false otherwise
+     */
+    public boolean isInIdleMode() {
+        return inIdleMode;
     }
 
     public void doBlockingSnapshot(P partition, OffsetContext offsetContext, SnapshotConfiguration snapshotConfiguration) {

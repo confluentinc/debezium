@@ -21,9 +21,11 @@ import org.slf4j.LoggerFactory;
 
 import io.debezium.DebeziumException;
 import io.debezium.annotation.Immutable;
+import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.connector.binlog.jdbc.BinlogConnectorConnection;
 import io.debezium.connector.common.RelationalBaseSourceConnector;
+import io.debezium.connector.common.SnapshotTableDistributor;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.relational.RelationalTableFilters;
 import io.debezium.relational.TableId;
@@ -53,10 +55,49 @@ public abstract class BinlogConnector<T extends BinlogConnectorConfig> extends R
 
     @Override
     public List<Map<String, String>> taskConfigs(int maxTasks) {
-        if (maxTasks > 1) {
-            throw new IllegalArgumentException("Only a single connector task may be started");
+        if (properties == null) {
+            return Collections.emptyList();
         }
-        return Collections.singletonList(properties);
+
+        // For single task or when maxTasks is 1, use current behavior
+        if (maxTasks <= 1) {
+            return Collections.singletonList(new HashMap<>(properties));
+        }
+
+        // Resolve all tables matching include/exclude lists
+        List<TableId> allTables = getMatchingCollections(Configuration.from(properties));
+
+        // If no tables found or only one table, fall back to single task
+        if (allTables.isEmpty() || allTables.size() == 1) {
+            return Collections.singletonList(new HashMap<>(properties));
+        }
+
+        // Determine actual number of tasks (can't have more tasks than tables)
+        int numTasks = Math.min(maxTasks, allTables.size());
+
+        // Distribute tables via round-robin
+        List<List<TableId>> tablesByTask = SnapshotTableDistributor.distributeRoundRobin(allTables, numTasks);
+
+        // Generate task configs with overridden table.include.list
+        List<Map<String, String>> taskConfigs = new ArrayList<>();
+        for (int i = 0; i < numTasks; i++) {
+            Map<String, String> taskProps = new HashMap<>(properties);
+            taskProps.put(CommonConnectorConfig.TASK_ID, String.valueOf(i));
+
+            // Override table.include.list with assigned tables (explicit names, no regex)
+            String assignedTables = tablesByTask.get(i).stream()
+                    .map(TableId::identifier)
+                    .collect(Collectors.joining(","));
+            taskProps.put(RelationalDatabaseConnectorConfig.TABLE_INCLUDE_LIST.name(), assignedTables);
+
+            // Remove exclude list since include is now explicit
+            taskProps.remove(RelationalDatabaseConnectorConfig.TABLE_EXCLUDE_LIST.name());
+
+            taskConfigs.add(taskProps);
+        }
+
+        LOGGER.info("Configured {} snapshot tasks for {} tables", numTasks, allTables.size());
+        return taskConfigs;
     }
 
     @Override
