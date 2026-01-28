@@ -6,6 +6,7 @@
 package io.debezium.connector.oracle;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -19,8 +20,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.debezium.DebeziumException;
+import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.connector.common.RelationalBaseSourceConnector;
+import io.debezium.connector.common.SnapshotTableDistributor;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.relational.TableId;
 import io.debezium.util.Strings;
@@ -48,11 +51,67 @@ public class OracleConnector extends RelationalBaseSourceConnector {
 
     @Override
     public List<Map<String, String>> taskConfigs(int maxTasks) {
-        if (maxTasks > 1) {
-            throw new IllegalArgumentException("Only a single connector task may be started");
+        if (properties == null) {
+            return Collections.emptyList();
         }
 
-        return Collections.singletonList(properties);
+        // For single task or when maxTasks is 1, use current behavior
+        if (maxTasks <= 1) {
+            return Collections.singletonList(new HashMap<>(properties));
+        }
+
+        // Resolve all tables matching include/exclude lists
+        List<TableId> allTables = getMatchingCollections(Configuration.from(properties));
+
+        // If no tables found or only one table, fall back to single task
+        if (allTables.isEmpty() || allTables.size() == 1) {
+            return Collections.singletonList(new HashMap<>(properties));
+        }
+
+        // Determine actual number of tasks (can't have more tasks than tables)
+        int numTasks = Math.min(maxTasks, allTables.size());
+
+        // Distribute tables via round-robin
+        List<List<TableId>> tablesByTask = SnapshotTableDistributor.distributeRoundRobin(allTables, numTasks);
+
+        // Generate task configs
+        List<Map<String, String>> taskConfigs = new ArrayList<>();
+        for (int i = 0; i < numTasks; i++) {
+            Map<String, String> taskProps = new HashMap<>(properties);
+            taskProps.put(CommonConnectorConfig.TASK_ID, String.valueOf(i));
+
+            // Build assigned tables list for this task (explicit names, no regex)
+            String assignedTables = tablesByTask.get(i).stream()
+                    .map(TableId::identifier)
+                    .collect(Collectors.joining(","));
+
+            if (i == 0) {
+                // Task 0: Snapshots its assigned subset, but streams ALL tables
+                // - Keep original table.include.list for streaming (filters events for all tables)
+                // - Use snapshot.include.collection.list to limit snapshot to assigned tables only
+                taskProps.put(CommonConnectorConfig.SNAPSHOT_MODE_TABLES.name(), assignedTables);
+                // Remove exclude list to ensure streaming captures all tables matching include list
+                taskProps.remove(RelationalDatabaseConnectorConfig.TABLE_EXCLUDE_LIST.name());
+                LOGGER.info("Task 0 will snapshot {} tables: [{}], then stream all tables matching original filter",
+                        tablesByTask.get(i).size(), assignedTables);
+            }
+            else {
+                // Tasks 1-N: Snapshot their assigned tables only, no streaming
+                // Override table.include.list with assigned tables
+                taskProps.put(RelationalDatabaseConnectorConfig.TABLE_INCLUDE_LIST.name(), assignedTables);
+                // Remove exclude list since include is now explicit
+                taskProps.remove(RelationalDatabaseConnectorConfig.TABLE_EXCLUDE_LIST.name());
+                // Snapshot-only mode to avoid log mining conflicts
+                taskProps.put(OracleConnectorConfig.SNAPSHOT_MODE.name(),
+                        OracleConnectorConfig.SnapshotMode.INITIAL_ONLY.getValue());
+            }
+
+            taskConfigs.add(taskProps);
+        }
+
+        LOGGER.info("Configured {} snapshot tasks for {} tables (task-0 will stream all tables, tasks 1-{} are snapshot-only)",
+                numTasks, allTables.size(), numTasks - 1);
+        return taskConfigs;
     }
 
     @Override
