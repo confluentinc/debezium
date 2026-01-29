@@ -76,7 +76,7 @@ public class DefaultSnapshotChangeEventSourceMetrics<P extends Partition> extend
     }
 
     @Override
-    public boolean getSnapshotSkipped() {
+    public long getSnapshotSkipped() {
         return snapshotMeter.getSnapshotSkipped();
     }
 
