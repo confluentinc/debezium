@@ -431,68 +431,8 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
 
     protected EventDeserializer createEventDeserializer() {
         final Map<Long, TableMapEventData> tableMapEventByTableId = new HashMap<>();
-        EventDeserializer eventDeserializer = new EventDeserializer() {
-            @Override
-            public Event nextEvent(ByteArrayInputStream inputStream) throws IOException {
-                try {
-                    // Delegate to the superclass ...
-                    Event event = super.nextEvent(inputStream);
-
-                    // We have to record the most recent TableMapEventData for each table number for our custom deserializers ...
-                    if (event.getHeader().getEventType() == EventType.TABLE_MAP) {
-                        TableMapEventData tableMapEvent = event.getData();
-                        tableMapEventByTableId.put(tableMapEvent.getTableId(), tableMapEvent);
-                    }
-
-                    // DBZ-2663 Handle for transaction payload and capture the table map event and add it to the map
-                    if (event.getHeader().getEventType() == EventType.TRANSACTION_PAYLOAD) {
-                        TransactionPayloadEventData transactionPayloadEventData = event.getData();
-                        /**
-                         * Loop over the uncompressed events in the transaction payload event and add the table map
-                         * event in the map of table events
-                         **/
-                        for (Event uncompressedEvent : transactionPayloadEventData.getUncompressedEvents()) {
-                            if (uncompressedEvent.getHeader().getEventType() == EventType.TABLE_MAP
-                                    && uncompressedEvent.getData() != null) {
-                                TableMapEventData tableMapEvent = uncompressedEvent.getData();
-                                tableMapEventByTableId.put(tableMapEvent.getTableId(), tableMapEvent);
-                            }
-                        }
-                    }
-
-                    // DBZ-5126 Clean cache on rotate event to prevent it from growing indefinitely.
-                    if (event.getHeader().getEventType() == EventType.ROTATE && event.getHeader().getTimestamp() != 0) {
-                        tableMapEventByTableId.clear();
-                    }
-                    return event;
-                }
-                // DBZ-217 In case an event couldn't be read we create a pseudo-event for the sake of logging
-                catch (EventDataDeserializationException edde) {
-                    // DBZ-3095 As of Java 15, when reaching EOF in the binlog stream, the polling loop in
-                    // BinaryLogClient#listenForEventPackets() keeps returning values != -1 from peek();
-                    // this causes the loop to never finish
-                    // Propagating the exception (either EOF or socket closed) causes the loop to be aborted
-                    // in this case
-                    if (edde.getCause() instanceof IOException) {
-                        throw edde;
-                    }
-
-                    EventHeaderV4 header = new EventHeaderV4();
-                    header.setEventType(EventType.INCIDENT);
-                    header.setTimestamp(edde.getEventHeader().getTimestamp());
-                    header.setServerId(edde.getEventHeader().getServerId());
-
-                    if (edde.getEventHeader() instanceof EventHeaderV4) {
-                        header.setEventLength(((EventHeaderV4) edde.getEventHeader()).getEventLength());
-                        header.setNextPosition(((EventHeaderV4) edde.getEventHeader()).getNextPosition());
-                        header.setFlags(((EventHeaderV4) edde.getEventHeader()).getFlags());
-                    }
-
-                    EventData data = new EventDataDeserializationExceptionData(edde);
-                    return new Event(header, data);
-                }
-            }
-        };
+        // CC-37713: Use static class instead of anonymous inner class to prevent memory leak
+        EventDeserializer eventDeserializer = new TableMapTrackingEventDeserializer(tableMapEventByTableId);
 
         eventDeserializer.setEventDataDeserializer(EventType.STOP, new StopEventDataDeserializer());
         eventDeserializer.setEventDataDeserializer(EventType.GTID, new GtidEventDataDeserializer());
@@ -1397,6 +1337,80 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
         @Override
         protected void initSSLContext(SSLContext sc) throws GeneralSecurityException {
             sc.init(keyManagers, trustManagers, null);
+        }
+    }
+
+    /**
+     * EventDeserializer that tracks table map events for custom deserializers.
+     * This is a static class to prevent holding a reference to the outer class instance,
+     * which could cause memory leaks due to phantom references (see CC-37713).
+     */
+    private static class TableMapTrackingEventDeserializer extends EventDeserializer {
+        private final Map<Long, TableMapEventData> tableMapEventByTableId;
+
+        TableMapTrackingEventDeserializer(Map<Long, TableMapEventData> tableMapEventByTableId) {
+            this.tableMapEventByTableId = tableMapEventByTableId;
+        }
+
+        @Override
+        public Event nextEvent(ByteArrayInputStream inputStream) throws IOException {
+            try {
+                // Delegate to the superclass ...
+                Event event = super.nextEvent(inputStream);
+
+                // We have to record the most recent TableMapEventData for each table number for our custom deserializers ...
+                if (event.getHeader().getEventType() == EventType.TABLE_MAP) {
+                    TableMapEventData tableMapEvent = event.getData();
+                    tableMapEventByTableId.put(tableMapEvent.getTableId(), tableMapEvent);
+                }
+
+                // DBZ-2663 Handle for transaction payload and capture the table map event and add it to the map
+                if (event.getHeader().getEventType() == EventType.TRANSACTION_PAYLOAD) {
+                    TransactionPayloadEventData transactionPayloadEventData = event.getData();
+                    /**
+                     * Loop over the uncompressed events in the transaction payload event and add the table map
+                     * event in the map of table events
+                     **/
+                    for (Event uncompressedEvent : transactionPayloadEventData.getUncompressedEvents()) {
+                        if (uncompressedEvent.getHeader().getEventType() == EventType.TABLE_MAP
+                                && uncompressedEvent.getData() != null) {
+                            TableMapEventData tableMapEvent = uncompressedEvent.getData();
+                            tableMapEventByTableId.put(tableMapEvent.getTableId(), tableMapEvent);
+                        }
+                    }
+                }
+
+                // DBZ-5126 Clean cache on rotate event to prevent it from growing indefinitely.
+                if (event.getHeader().getEventType() == EventType.ROTATE && event.getHeader().getTimestamp() != 0) {
+                    tableMapEventByTableId.clear();
+                }
+                return event;
+            }
+            // DBZ-217 In case an event couldn't be read we create a pseudo-event for the sake of logging
+            catch (EventDataDeserializationException edde) {
+                // DBZ-3095 As of Java 15, when reaching EOF in the binlog stream, the polling loop in
+                // BinaryLogClient#listenForEventPackets() keeps returning values != -1 from peek();
+                // this causes the loop to never finish
+                // Propagating the exception (either EOF or socket closed) causes the loop to be aborted
+                // in this case
+                if (edde.getCause() instanceof IOException) {
+                    throw edde;
+                }
+
+                EventHeaderV4 header = new EventHeaderV4();
+                header.setEventType(EventType.INCIDENT);
+                header.setTimestamp(edde.getEventHeader().getTimestamp());
+                header.setServerId(edde.getEventHeader().getServerId());
+
+                if (edde.getEventHeader() instanceof EventHeaderV4) {
+                    header.setEventLength(((EventHeaderV4) edde.getEventHeader()).getEventLength());
+                    header.setNextPosition(((EventHeaderV4) edde.getEventHeader()).getNextPosition());
+                    header.setFlags(((EventHeaderV4) edde.getEventHeader()).getFlags());
+                }
+
+                EventData data = new EventDataDeserializationExceptionData(edde);
+                return new Event(header, data);
+            }
         }
     }
 
