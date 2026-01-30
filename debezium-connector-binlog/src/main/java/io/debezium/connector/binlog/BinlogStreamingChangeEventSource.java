@@ -357,7 +357,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
       // Stop BinaryLogClient background threads
       client.disconnect();
       client.setThreadFactory(null);
-      client.setEventDeserializer(new EventDeserializer());
+      client.setEventDeserializer(null);
       client.setSslSocketFactory(null);
       for (BinaryLogClient.EventListener el : client.getEventListeners()) {
         client.unregisterEventListener(el);
