@@ -625,7 +625,7 @@ public abstract class RelationalSnapshotChangeEventSource<P extends Partition, O
 
         Instant sourceTableSnapshotTimestamp = getSnapshotSourceTimestamp(jdbcConnection, offset, table.id());
 
-        try (Statement statement = readTableStatement(jdbcConnection, rowCount);
+        try (Statement statement = readTableStatement(jdbcConnection, rowCount, table.id());
                 ResultSet rs = resultSetForDataEvents(selectStatement, statement)) {
 
             ColumnUtils.ColumnArray columnArray = ColumnUtils.toArray(rs, table);
@@ -821,7 +821,7 @@ public abstract class RelationalSnapshotChangeEventSource<P extends Partition, O
     /**
      * Allow per-connector query creation to override for best database performance depending on the table size.
      */
-    protected Statement readTableStatement(JdbcConnection jdbcConnection, OptionalLong tableSize) throws SQLException {
+    protected Statement readTableStatement(JdbcConnection jdbcConnection, OptionalLong tableSize, TableId tableId) throws SQLException {
         return jdbcConnection.readTableStatement(connectorConfig, tableSize);
     }
 
