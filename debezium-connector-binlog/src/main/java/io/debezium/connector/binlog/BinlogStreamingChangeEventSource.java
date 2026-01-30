@@ -348,11 +348,29 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
         }
         finally {
             try {
-                client.disconnect();
+                disconnectLogClient(client);
             }
             catch (Exception e) {
                 LOGGER.info("Exception while stopping binary log client", e);
             }
+        }
+    }
+
+    private static void disconnectLogClient(BinaryLogClient client) {
+        try {
+            // Stop BinaryLogClient background threads
+            client.disconnect();
+            client.setThreadFactory(null);
+            client.setEventDeserializer(null);
+            client.setSslSocketFactory(null);
+            for (BinaryLogClient.EventListener el : client.getEventListeners()) {
+                client.unregisterEventListener(el);
+            }
+            for (BinaryLogClient.LifecycleListener ll : client.getLifecycleListeners()) {
+                client.unregisterLifecycleListener(ll);
+            }
+        } catch (final Exception e) {
+            LOGGER.debug("Exception while closing client", e);
         }
     }
 
