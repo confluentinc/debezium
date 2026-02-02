@@ -20,6 +20,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Queue;
 import java.util.Set;
@@ -588,7 +589,7 @@ public abstract class RelationalSnapshotChangeEventSource<P extends Partition, O
             O offset = offsets.poll();
             try {
                 doCreateDataEventsForTable(sourceContext, snapshotContext, offset, snapshotReceiver, table, firstTable, lastTable, tableOrder, tableCount,
-                        selectStatement, rowCount, rowCountTablesKeySet, connection);
+                        selectStatement, rowCount, rowCountTablesKeySet, connection, OptionalInt.empty());
             }
             catch (SQLException e) {
                 notificationService.initialSnapshotNotificationService().notifyCompletedTableWithError(snapshotContext.partition,
@@ -607,7 +608,7 @@ public abstract class RelationalSnapshotChangeEventSource<P extends Partition, O
     protected void doCreateDataEventsForTable(ChangeEventSourceContext sourceContext, RelationalSnapshotContext<P, O> snapshotContext, O offset,
                                               SnapshotReceiver<P> snapshotReceiver, Table table,
                                               boolean firstTable, boolean lastTable, int tableOrder, int tableCount, String selectStatement, OptionalLong rowCount,
-                                              Set<TableId> rowCountTablesKeySet, JdbcConnection jdbcConnection)
+                                              Set<TableId> rowCountTablesKeySet, JdbcConnection jdbcConnection, OptionalInt snapshotFetchSize)
             throws InterruptedException, SQLException {
 
         if (!sourceContext.isRunning()) {
@@ -625,7 +626,7 @@ public abstract class RelationalSnapshotChangeEventSource<P extends Partition, O
 
         Instant sourceTableSnapshotTimestamp = getSnapshotSourceTimestamp(jdbcConnection, offset, table.id());
 
-        try (Statement statement = readTableStatement(jdbcConnection, rowCount);
+        try (Statement statement = readTableStatement(jdbcConnection, rowCount, snapshotFetchSize);
                 ResultSet rs = resultSetForDataEvents(selectStatement, statement)) {
 
             ColumnUtils.ColumnArray columnArray = ColumnUtils.toArray(rs, table);
@@ -821,7 +822,7 @@ public abstract class RelationalSnapshotChangeEventSource<P extends Partition, O
     /**
      * Allow per-connector query creation to override for best database performance depending on the table size.
      */
-    protected Statement readTableStatement(JdbcConnection jdbcConnection, OptionalLong tableSize) throws SQLException {
+    protected Statement readTableStatement(JdbcConnection jdbcConnection, OptionalLong tableSize, OptionalInt snapshotFetchSize) throws SQLException {
         return jdbcConnection.readTableStatement(connectorConfig, tableSize);
     }
 
