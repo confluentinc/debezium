@@ -473,6 +473,121 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
         Testing.print("Running DDL for '" + dbName + "': " + ddlStatements + " changing tables '" + tables + "'");
     }
 
+    /**
+     * Tests that after DDL parsing with table.include.list, only included tables remain in memory.
+     * This is a memory optimization - all DDL is still stored in history, but non-included tables
+     * are removed from the in-memory Tables object.
+     */
+    @Test
+    @FixFor("CC-38668")
+    public void shouldOnlyKeepIncludedTablesInMemoryAfterDdlParsing() throws InterruptedException {
+        // Configure with table.include.list to only capture one table
+        final Configuration config = DATABASE.defaultConfigWithoutDatabaseFilter()
+                .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
+                .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, "captured.ct")
+                .build();
+        schema = getSchema(config);
+        schema.initializeStorage();
+        final P partition = initializePartition(connectorConfig, config);
+        final O offset = initializeOffset(connectorConfig);
+
+        // Set up the server and parse DDL that creates multiple tables
+        offset.setBinlogStartPoint("binlog.001", 400);
+        schema.parseStreamingDdl(partition, IoUtil.readClassPathResource("ddl/mysql-schema-captured.ddl"), "db1",
+                offset, Instant.now()).forEach(x -> schema.applySchemaChange(x));
+
+        // Verify only the included table is in memory
+        assertThat(schema.tableIds()).hasSize(1);
+        assertTableIncluded("captured.ct");
+        assertTableExcluded("captured.nct");
+        assertTableExcluded("non_captured.nct");
+
+        schema.close();
+    }
+
+    /**
+     * Tests that when table.include.list is expanded, previously excluded tables can be
+     * recovered from schema history on restart. This verifies that all DDL is persisted
+     * even when tables are filtered from memory.
+     */
+    @Test
+    @FixFor("CC-38668")
+    public void shouldRecoverPreviouslyExcludedTablesWhenIncludeListExpands() throws InterruptedException {
+        // Phase 1: Configure with narrow table.include.list
+        final Configuration config = DATABASE.defaultConfigWithoutDatabaseFilter()
+                .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
+                .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, "captured.ct")
+                .build();
+        schema = getSchema(config);
+        schema.initializeStorage();
+        final P partition = initializePartition(connectorConfig, config);
+        final O offset = initializeOffset(connectorConfig);
+
+        // Parse DDL that creates multiple tables
+        offset.setBinlogStartPoint("binlog.001", 400);
+        schema.parseStreamingDdl(partition, IoUtil.readClassPathResource("ddl/mysql-schema-captured.ddl"), "db1",
+                offset, Instant.now()).forEach(x -> schema.applySchemaChange(x));
+
+        // Verify only captured.ct is in memory
+        assertThat(schema.tableIds()).hasSize(1);
+        assertTableIncluded("captured.ct");
+        schema.close();
+
+        // Phase 2: Restart with expanded table.include.list
+        final Configuration expandedConfig = DATABASE.defaultConfigWithoutDatabaseFilter()
+                .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
+                .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, "captured.ct,captured.nct")
+                .build();
+        schema = getSchema(expandedConfig);
+        schema.recover(Offsets.of(partition, offset));
+
+        // Verify both tables are now recovered into memory
+        assertThat(schema.tableIds()).hasSize(2);
+        assertTableIncluded("captured.ct");
+        assertTableIncluded("captured.nct");
+        // non_captured.nct should still be excluded since it's not in the new include list
+        assertTableExcluded("non_captured.nct");
+    }
+
+    /**
+     * Tests that memory optimization during recovery works correctly - only tables matching
+     * the filter are loaded into memory from schema history.
+     */
+    @Test
+    @FixFor("CC-38668")
+    public void shouldFilterTablesFromMemoryDuringRecovery() throws InterruptedException {
+        // Phase 1: Store all tables in history (no table filter during initial capture)
+        final Configuration fullConfig = DATABASE.defaultConfigWithoutDatabaseFilter()
+                .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
+                .build();
+        schema = getSchema(fullConfig);
+        schema.initializeStorage();
+        final P partition = initializePartition(connectorConfig, fullConfig);
+        final O offset = initializeOffset(connectorConfig);
+
+        offset.setBinlogStartPoint("binlog.001", 400);
+        schema.parseStreamingDdl(partition, IoUtil.readClassPathResource("ddl/mysql-schema-captured.ddl"), "db1",
+                offset, Instant.now()).forEach(x -> schema.applySchemaChange(x));
+
+        // All tables should be in memory initially
+        assertThat(schema.tableIds()).hasSize(3);
+        schema.close();
+
+        // Phase 2: Recover with table filter - only some tables should be in memory
+        final Configuration filteredConfig = DATABASE.defaultConfigWithoutDatabaseFilter()
+                .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
+                .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, "captured.ct")
+                .build();
+        schema = getSchema(filteredConfig);
+        schema.recover(Offsets.of(partition, offset));
+
+        // Only the filtered table should be in memory after recovery
+        assertThat(schema.tableIds()).hasSize(1);
+        assertTableIncluded("captured.ct");
+        assertTableExcluded("captured.nct");
+        assertTableExcluded("non_captured.nct");
+    }
+
     protected abstract P initializePartition(C connectorConfig, Configuration taskConfig);
 
     protected abstract O initializeOffset(C connectorConfig);

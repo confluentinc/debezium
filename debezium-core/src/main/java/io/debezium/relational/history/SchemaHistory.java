@@ -22,6 +22,7 @@ import io.debezium.pipeline.spi.Offsets;
 import io.debezium.pipeline.spi.Partition;
 import io.debezium.relational.HistorizedRelationalDatabaseSchema;
 import io.debezium.relational.Tables;
+import io.debezium.relational.Tables.TableFilter;
 import io.debezium.relational.ddl.DdlParser;
 
 /**
@@ -234,6 +235,42 @@ public interface SchemaHistory {
      */
     @Deprecated
     void recover(Map<Map<String, ?>, Map<String, ?>> offsets, Tables schema, DdlParser ddlParser) throws InterruptedException;
+
+    /**
+     * Recover the {@link Tables database schema} to a known point in its history, loading only tables
+     * that pass the provided filter into memory. This reduces memory usage by only keeping schemas
+     * for tables in the capture list.
+     *
+     * <p>The schema history still contains all DDL. If a table is later added to the capture list,
+     * its schema will be loaded from history on the next recovery.
+     *
+     * @param offsets the offsets map
+     * @param schema the table definitions
+     * @param ddlParser the DDL parser
+     * @param tableFilter filter to determine which tables to load into memory; if null, loads all tables
+     */
+    default void recover(Offsets<?, ?> offsets, Tables schema, DdlParser ddlParser, TableFilter tableFilter) throws InterruptedException {
+        Map<Map<String, ?>, Map<String, ?>> offsetMap = new HashMap<>();
+        for (Entry<? extends Partition, ? extends OffsetContext> entry : offsets) {
+            if (entry.getValue() != null) {
+                offsetMap.put(entry.getKey().getSourcePartition(), entry.getValue().getOffset());
+            }
+        }
+        recover(offsetMap, schema, ddlParser, tableFilter);
+    }
+
+    /**
+     * Recover with table filtering support.
+     *
+     * @param offsets the offsets map
+     * @param schema the table definitions
+     * @param ddlParser the DDL parser
+     * @param tableFilter filter to determine which tables to load into memory; if null, loads all tables
+     */
+    default void recover(Map<Map<String, ?>, Map<String, ?>> offsets, Tables schema, DdlParser ddlParser, TableFilter tableFilter) throws InterruptedException {
+        // Default delegates to non-filtered version for backward compatibility
+        recover(offsets, schema, ddlParser);
+    }
 
     /**
      * Stop recording history and release any resources acquired since {@link #configure(Configuration, HistoryRecordComparator, SchemaHistoryListener, boolean)}.

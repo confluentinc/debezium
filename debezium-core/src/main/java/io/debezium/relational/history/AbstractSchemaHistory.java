@@ -21,7 +21,9 @@ import io.debezium.config.Field;
 import io.debezium.document.Array;
 import io.debezium.document.Document;
 import io.debezium.function.Predicates;
+import io.debezium.relational.TableId;
 import io.debezium.relational.Tables;
+import io.debezium.relational.Tables.TableFilter;
 import io.debezium.relational.ddl.DdlParser;
 import io.debezium.relational.history.TableChanges.TableChange;
 import io.debezium.relational.history.TableChanges.TableChangeType;
@@ -142,6 +144,102 @@ public abstract class AbstractSchemaHistory implements SchemaHistory {
                     try {
                         logger.debug("Applying: {}", ddl);
                         ddlParser.parse(ddl, schema);
+                        listener.onChangeApplied(recovered);
+                    }
+                    catch (final ParsingException | MultipleParsingExceptions e) {
+                        if (skipUnparseableDDL) {
+                            logger.warn("Ignoring unparseable statements '{}' stored in database schema history", ddl, e);
+                        }
+                        else {
+                            throw e;
+                        }
+                    }
+                }
+            }
+            else {
+                logger.debug("Skipping: {}", recovered.ddl());
+            }
+        });
+        listener.recoveryStopped();
+    }
+
+    @Override
+    public void recover(Map<Map<String, ?>, Map<String, ?>> offsets, Tables schema, DdlParser ddlParser, TableFilter tableFilter)
+            throws InterruptedException {
+        if (tableFilter == null) {
+            // No filter provided, use standard recovery
+            recover(offsets, schema, ddlParser);
+            return;
+        }
+
+        listener.recoveryStarted();
+        Map<Document, HistoryRecord> stopPoints = new HashMap<>();
+        offsets.forEach((Map<String, ?> source, Map<String, ?> position) -> {
+            Document srcDocument = Document.create();
+            if (source != null) {
+                source.forEach(srcDocument::set);
+            }
+            stopPoints.put(srcDocument, new HistoryRecord(source, position, null, null, null, null, null));
+        });
+
+        recoverRecords(recovered -> {
+            listener.onChangeFromHistory(recovered);
+            Document srcDocument = recovered.document().getDocument(HistoryRecord.Fields.SOURCE);
+            if (stopPoints.containsKey(srcDocument) && comparator.isAtOrBefore(recovered, stopPoints.get(srcDocument))) {
+                Array tableChanges = recovered.tableChanges();
+                String ddl = recovered.ddl();
+
+                if (!preferDdl && tableChanges != null && !tableChanges.isEmpty()) {
+                    TableChanges changes = tableChangesSerializer.deserialize(tableChanges, useCatalogBeforeSchema);
+                    for (TableChange entry : changes) {
+                        TableId tableId = entry.getId();
+
+                        // Skip tables not in the filter to reduce memory usage
+                        if (!tableFilter.isIncluded(tableId)) {
+                            logger.trace("Skipping recovery of table '{}' - not in table filter", tableId);
+                            continue;
+                        }
+
+                        if (entry.getType() == TableChangeType.CREATE) {
+                            schema.overwriteTable(entry.getTable());
+                        }
+                        else if (entry.getType() == TableChangeType.ALTER) {
+                            if (entry.getPreviousId() != null) {
+                                schema.removeTable(entry.getPreviousId());
+                            }
+                            schema.overwriteTable(entry.getTable());
+                        }
+                        // DROP
+                        else {
+                            schema.removeTable(entry.getId());
+                        }
+                    }
+                    listener.onChangeApplied(recovered);
+                }
+                else if (ddl != null && ddlParser != null) {
+                    if (recovered.databaseName() != null) {
+                        ddlParser.setCurrentDatabase(recovered.databaseName());
+                    }
+                    if (recovered.schemaName() != null) {
+                        ddlParser.setCurrentSchema(recovered.schemaName());
+                    }
+                    if (likelyFiltered(ddl) && ddlFilter.test(ddl)) {
+                        logger.info("a DDL '{}' was filtered out of processing by regular expression '{}'", ddl,
+                                config.getString(DDL_FILTER));
+                        return;
+                    }
+                    try {
+                        logger.debug("Applying: {}", ddl);
+                        ddlParser.parse(ddl, schema);
+
+                        // Remove non-included tables that were added by DDL parsing
+                        for (TableId tableId : schema.tableIds()) {
+                            if (!tableFilter.isIncluded(tableId)) {
+                                logger.trace("Removing non-included table '{}' after DDL parse during recovery", tableId);
+                                schema.removeTable(tableId);
+                            }
+                        }
+
                         listener.onChangeApplied(recovered);
                     }
                     catch (final ParsingException | MultipleParsingExceptions e) {
