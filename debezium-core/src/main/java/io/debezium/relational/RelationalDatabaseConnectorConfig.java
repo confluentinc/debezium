@@ -354,7 +354,7 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
 
     public static final Field SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE = Field.create("snapshot.select.statement.overrides")
             .withDisplayName("List of tables where the default select statement used during snapshotting should be overridden.")
-            .withType(Type.STRING)
+            .withType(Type.PASSWORD)
             .withGroup(Field.createGroupEntry(Field.Group.CONNECTOR_SNAPSHOT, 8))
             .withWidth(Width.LONG)
             .withImportance(Importance.MEDIUM)
