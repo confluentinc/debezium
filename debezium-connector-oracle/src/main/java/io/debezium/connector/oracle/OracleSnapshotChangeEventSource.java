@@ -126,8 +126,9 @@ public class OracleSnapshotChangeEventSource extends RelationalSnapshotChangeEve
     protected void determineSnapshotOffset(RelationalSnapshotContext<OraclePartition, OracleOffsetContext> ctx,
                                            OracleOffsetContext previousOffset)
             throws Exception {
-
-        if (previousOffset != null && !snapshotterService.getSnapshotter().shouldStreamEventsStartingFromSnapshot()) {
+        // Support the existence of the case when the previous offset.
+        // e.g., schema_only_recovery snapshot mode
+        if (connectorConfig.getSnapshotMode() != OracleConnectorConfig.SnapshotMode.ALWAYS && previousOffset != null) {
             ctx.offset = previousOffset;
             tryStartingSnapshot(ctx);
             return;
