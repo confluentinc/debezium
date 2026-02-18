@@ -474,7 +474,8 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
     }
 
     /**
-     * Tests that after DDL parsing with table.include.list, only included tables remain in memory.
+     * Tests that after DDL parsing with table.include.list, only included tables remain in memory
+     * when storeOnlyCapturedTablesInMemory is enabled.
      * This is a memory optimization - all DDL is still stored in history, but non-included tables
      * are removed from the in-memory Tables object.
      */
@@ -482,8 +483,10 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
     @FixFor("CC-38668")
     public void shouldOnlyKeepIncludedTablesInMemoryAfterDdlParsing() throws InterruptedException {
         // Configure with table.include.list to only capture one table
+        // Enable memory optimization with STORE_ONLY_CAPTURED_TABLES_DDL_INMEMORY
         final Configuration config = DATABASE.defaultConfigWithoutDatabaseFilter()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
+                .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL_INMEMORY, true)
                 .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, "captured.ct")
                 .build();
         schema = getSchema(config);
@@ -514,8 +517,10 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
     @FixFor("CC-38668")
     public void shouldRecoverPreviouslyExcludedTablesWhenIncludeListExpands() throws InterruptedException {
         // Phase 1: Configure with narrow table.include.list
+        // Enable memory optimization with STORE_ONLY_CAPTURED_TABLES_DDL_INMEMORY
         final Configuration config = DATABASE.defaultConfigWithoutDatabaseFilter()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
+                .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL_INMEMORY, true)
                 .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, "captured.ct")
                 .build();
         schema = getSchema(config);
@@ -534,8 +539,10 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
         schema.close();
 
         // Phase 2: Restart with expanded table.include.list
+        // Keep memory optimization enabled
         final Configuration expandedConfig = DATABASE.defaultConfigWithoutDatabaseFilter()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
+                .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL_INMEMORY, true)
                 .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, "captured.ct,captured.nct")
                 .build();
         schema = getSchema(expandedConfig);
@@ -551,12 +558,12 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
 
     /**
      * Tests that memory optimization during recovery works correctly - only tables matching
-     * the filter are loaded into memory from schema history.
+     * the filter are loaded into memory from schema history when memory optimization is enabled.
      */
     @Test
     @FixFor("CC-38668")
     public void shouldFilterTablesFromMemoryDuringRecovery() throws InterruptedException {
-        // Phase 1: Store all tables in history (no table filter during initial capture)
+        // Phase 1: Store all tables in history (no table filter during initial capture, no memory optimization)
         final Configuration fullConfig = DATABASE.defaultConfigWithoutDatabaseFilter()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
                 .build();
@@ -573,9 +580,10 @@ public abstract class BinlogDatabaseSchemaTest<C extends BinlogConnectorConfig, 
         assertThat(schema.tableIds()).hasSize(3);
         schema.close();
 
-        // Phase 2: Recover with table filter - only some tables should be in memory
+        // Phase 2: Recover with table filter and memory optimization enabled - only some tables should be in memory
         final Configuration filteredConfig = DATABASE.defaultConfigWithoutDatabaseFilter()
                 .with(SchemaHistory.SKIP_UNPARSEABLE_DDL_STATEMENTS, false)
+                .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL_INMEMORY, true)
                 .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, "captured.ct")
                 .build();
         schema = getSchema(filteredConfig);

@@ -83,6 +83,18 @@ public interface SchemaHistory {
                     + "If set to true, then only DDL that manipulates a table from captured schema/database will be stored.")
             .withDefault(false);
 
+    Field STORE_ONLY_CAPTURED_TABLES_DDL_INMEMORY = Field.create(CONFIGURATION_FIELD_PREFIX_STRING + "store.only.captured.tables.ddl.inmemory")
+            .withDisplayName("Store only captured tables schema in memory")
+            .withType(Type.BOOLEAN)
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.LOW)
+            .withDescription("Controls whether non-captured table schemas are kept in memory. "
+                    + "By default (false) Debezium will store all table schemas in memory for backward compatibility. "
+                    + "If set to true, only schemas for tables in the capture list (table.include.list or not in table.exclude.list) "
+                    + "will be kept in memory, reducing memory usage. Note: enabling this may cause issues if tables are renamed "
+                    + "from non-captured to captured state, as the schema for the renamed table may not be available.")
+            .withDefault(false);
+
     Field DDL_FILTER = Field.createInternal(CONFIGURATION_FIELD_PREFIX_STRING + "ddl.filter")
             .withDisplayName("DDL filter")
             .withType(Type.STRING)
