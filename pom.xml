@@ -84,7 +84,7 @@
         <version.junit>4.12</version.junit>
         <version.fest>1.4</version.fest>
         <version.jmh>1.21</version.jmh>
-        <version.mockito>2.13.0</version.mockito>
+        <version.mockito>5.20.0</version.mockito>
 
         <!-- Maven Plugins -->
         <version.resources.plugin>2.7</version.resources.plugin>
