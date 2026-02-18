@@ -13,7 +13,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.regex.Pattern;
 
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigDef.Importance;
@@ -24,6 +23,7 @@ import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.re2j.Pattern;
 import com.mongodb.ConnectionString;
 
 import io.debezium.config.CommonConnectorConfig;
@@ -1165,7 +1165,7 @@ public class MongoDbConnectorConfig extends CommonConnectorConfig implements Sha
 
         if (fieldExcludeList != null) {
             for (String excludeField : PATTERN_SPILT.split(fieldExcludeList)) {
-                if (!FIELD_EXCLUDE_LIST_PATTERN.asPredicate().test(excludeField)) {
+                if (!FIELD_EXCLUDE_LIST_PATTERN.matcher(excludeField).find()) {
                     problems.accept(FIELD_EXCLUDE_LIST, excludeField, excludeField + " has invalid format (expecting " + QUALIFIED_FIELD_EXCLUDE_LIST_PATTERN + ")");
                     problemCount++;
                 }
@@ -1180,7 +1180,7 @@ public class MongoDbConnectorConfig extends CommonConnectorConfig implements Sha
 
         if (fieldRenamesList != null) {
             for (String renameField : PATTERN_SPILT.split(fieldRenamesList)) {
-                if (!FIELD_RENAMES_PATTERN.asPredicate().test(renameField)) {
+                if (!FIELD_RENAMES_PATTERN.matcher(renameField).find()) {
                     problems.accept(FIELD_EXCLUDE_LIST, renameField, renameField + " has invalid format (expecting " + QUALIFIED_FIELD_RENAMES_PATTERN + ")");
                     problemCount++;
                 }
