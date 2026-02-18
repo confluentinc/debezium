@@ -74,7 +74,7 @@
         <version.jsonpath>2.9.0</version.jsonpath>
         <version.jsonassert>1.5.0</version.jsonassert>
         <version.org.reflections>0.9.12</version.org.reflections>
-        <version.cassandra.unit>3.5.0.1</version.cassandra.unit>
+        <version.cassandra.unit>4.3.1.0</version.cassandra.unit>
         <version.logback>1.2.13</version.logback>
         <version.rest-assured>5.5.2</version.rest-assured>
     </properties>
