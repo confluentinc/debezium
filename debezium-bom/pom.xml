@@ -55,7 +55,7 @@
         <version.azure.identity>1.15.4</version.azure.identity>
 
         <!-- K8s Config Map Storage -->
-        <version.kubernetes.client>6.13.4</version.kubernetes.client>
+        <version.kubernetes.client>7.4.0</version.kubernetes.client>
 
         <!-- Debezium AI -->
         <version.langchain4j>1.0.1</version.langchain4j>
