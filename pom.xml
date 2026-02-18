@@ -166,7 +166,7 @@
         <version.com.google.protobuf.protoc>3.25.5</version.com.google.protobuf.protoc>
 
         <!-- Infinispan version for Oracle and Debezium Server sink -->
-        <version.infinispan>15.2.1.Final</version.infinispan>
+        <version.infinispan>16.0.3</version.infinispan>
         <version.infinispan.protostream>5.0.13.Final</version.infinispan.protostream>
 
         <!-- EhCache Specific Versions -->
