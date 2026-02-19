@@ -107,7 +107,8 @@ public abstract class AbstractExtractNewDocumentStateTestIT extends AbstractMong
         return TestHelper.getConfiguration(mongo).edit()
                 .with(MongoDbConnectorConfig.POLL_INTERVAL_MS, 10)
                 .with(MongoDbConnectorConfig.COLLECTION_INCLUDE_LIST, DB_NAME + "." + this.getCollectionName())
-                .with(CommonConnectorConfig.TOPIC_PREFIX, SERVER_NAME);
+                .with(CommonConnectorConfig.TOPIC_PREFIX, SERVER_NAME)
+                .with(CommonConnectorConfig.EXTENDED_HEADERS_ENABLED, true);
     }
 
     protected void restartConnectorWithConfig(Configuration config) throws InterruptedException {
