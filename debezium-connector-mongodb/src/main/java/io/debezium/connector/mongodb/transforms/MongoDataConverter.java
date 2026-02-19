@@ -79,7 +79,10 @@ public class MongoDataConverter {
 
             switch (type) {
                 case ARRAY:
-                    schemaMap.put(key, Map.of(traverseArray(value.asArray()), BsonType.ARRAY));
+                    Map<Object, BsonType> arraySchema = traverseArray(value.asArray());
+                    if (!arraySchema.isEmpty()) {
+                        schemaMap.put(key, Map.of(arraySchema, BsonType.ARRAY));
+                    }
                     break;
                 case DOCUMENT:
                     schemaMap.put(key, Map.of(parseBsonDocument(value.asDocument()), BsonType.DOCUMENT));
