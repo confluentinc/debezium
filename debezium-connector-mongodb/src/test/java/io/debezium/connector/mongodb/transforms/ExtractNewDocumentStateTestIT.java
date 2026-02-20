@@ -65,6 +65,12 @@ public class ExtractNewDocumentStateTestIT extends AbstractExtractNewDocumentSta
         return "functional";
     }
 
+    @Override
+    protected Configuration.Builder getBaseConfigBuilder() {
+        return super.getBaseConfigBuilder()
+                .with(CommonConnectorConfig.EXTENDED_HEADERS_ENABLED, true);
+    }
+
     @Test
     @FixFor("DBZ-5920")
     public void shouldTransformNestedDocuments() throws InterruptedException {
