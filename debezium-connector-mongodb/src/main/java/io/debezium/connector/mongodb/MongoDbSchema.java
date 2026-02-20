@@ -115,7 +115,7 @@ public class MongoDbSchema implements DatabaseSchema<CollectionId> {
     }
 
     @Override
-    public void assureNonEmptySchema() {
+    public void assureNonEmptySchema(boolean failOnNoTables) {
         if (collections.isEmpty()) {
             LOGGER.warn(DatabaseSchema.NO_CAPTURED_DATA_COLLECTIONS_WARNING);
         }
