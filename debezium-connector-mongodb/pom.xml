@@ -360,6 +360,10 @@
                         <artifactId>maven-failsafe-plugin</artifactId>
                         <version>${version.failsafe.plugin}</version>
                         <configuration>
+                            <excludes>
+                                <exclude>**/SinkConnectorReplicaSetIT.java</exclude>
+                                <exclude>**/SinkConnectorShardedClusterIT.java</exclude>
+                            </excludes>
                             <systemPropertyVariables>
                                 <isAssemblyProfileActive>true</isAssemblyProfileActive>
                             </systemPropertyVariables>

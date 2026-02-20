@@ -51,6 +51,7 @@ public class MongoEventRouterTestIT extends AbstractMongoConnectorIT {
                 .with(MongoDbConnectorConfig.POLL_INTERVAL_MS, 10)
                 .with(MongoDbConnectorConfig.COLLECTION_INCLUDE_LIST, DB_NAME + "." + this.getCollectionName())
                 .with(CommonConnectorConfig.TOPIC_PREFIX, SERVER_NAME)
+                .with(CommonConnectorConfig.EXTENDED_HEADERS_ENABLED, true)
                 .build();
 
         beforeEach(config);
