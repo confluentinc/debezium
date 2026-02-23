@@ -578,7 +578,7 @@ public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotTest<Postg
                 .atMost(10, TimeUnit.SECONDS)
                 .pollInterval(100, TimeUnit.MILLISECONDS)
                 .until(() -> {
-                    final int[] count = {0};
+                    final int[] count = { 0 };
                     consumeAvailableRecords(record -> {
                         if (record.topic().equals("test_server.s1.a")) {
                             count[0]++;
