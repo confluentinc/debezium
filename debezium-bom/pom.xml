@@ -71,7 +71,7 @@
         <version.jmh>1.21</version.jmh>
         <version.awaitility>4.0.1</version.awaitility>
         <version.testcontainers>2.0.2</version.testcontainers>
-        <version.jsonpath>2.9.0</version.jsonpath>
+        <version.jsonpath>3.0.0</version.jsonpath>
         <version.jsonassert>1.5.0</version.jsonassert>
         <version.org.reflections>0.9.12</version.org.reflections>
         <version.cassandra.unit>3.5.0.1</version.cassandra.unit>
