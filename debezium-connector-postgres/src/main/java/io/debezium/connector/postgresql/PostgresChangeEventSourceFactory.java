@@ -13,6 +13,7 @@ import io.debezium.connector.postgresql.spi.SlotCreationResult;
 import io.debezium.connector.postgresql.spi.SlotState;
 import io.debezium.jdbc.MainConnectionProvidingConnectionFactory;
 import io.debezium.pipeline.ErrorHandler;
+import io.debezium.pipeline.metrics.TaskStateMetrics;
 import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.source.snapshot.incremental.IncrementalSnapshotChangeEventSource;
 import io.debezium.pipeline.source.spi.ChangeEventSourceFactory;
@@ -39,6 +40,7 @@ public class PostgresChangeEventSourceFactory implements ChangeEventSourceFactor
     private final ReplicationConnection replicationConnection;
     private final SlotCreationResult slotCreatedInfo;
     private final SlotState startingSlotInfo;
+    private TaskStateMetrics taskStateMetrics;
 
     public PostgresChangeEventSourceFactory(PostgresConnectorConfig configuration, SnapshotterService snapshotterService,
                                             MainConnectionProvidingConnectionFactory<PostgresConnection> connectionFactory,
@@ -56,6 +58,10 @@ public class PostgresChangeEventSourceFactory implements ChangeEventSourceFactor
         this.replicationConnection = replicationConnection;
         this.slotCreatedInfo = slotCreatedInfo;
         this.startingSlotInfo = startingSlotInfo;
+    }
+
+    public void setTaskStateMetrics(TaskStateMetrics taskStateMetrics) {
+        this.taskStateMetrics = taskStateMetrics;
     }
 
     @Override
@@ -85,7 +91,8 @@ public class PostgresChangeEventSourceFactory implements ChangeEventSourceFactor
                 clock,
                 schema,
                 taskContext,
-                replicationConnection);
+                replicationConnection,
+                taskStateMetrics);
     }
 
     @Override

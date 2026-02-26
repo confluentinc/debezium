@@ -34,6 +34,7 @@ import io.debezium.connector.postgresql.connection.ReplicationStream;
 import io.debezium.connector.postgresql.connection.WalPositionLocator;
 import io.debezium.heartbeat.Heartbeat;
 import io.debezium.pipeline.ErrorHandler;
+import io.debezium.pipeline.metrics.TaskStateMetrics;
 import io.debezium.pipeline.source.spi.StreamingChangeEventSource;
 import io.debezium.relational.TableId;
 import io.debezium.snapshot.SnapshotterService;
@@ -75,6 +76,7 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
     private final SnapshotterService snapshotterService;
     private final DelayStrategy pauseNoMessage;
     private final ElapsedTimeStrategy connectionProbeTimer;
+    private final TaskStateMetrics taskStateMetrics;
 
     // Offset committing is an asynchronous operation.
     // When connector is restarted we cannot be sure about timing of recovery, offset committing etc.
@@ -96,7 +98,8 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
 
     public PostgresStreamingChangeEventSource(PostgresConnectorConfig connectorConfig, SnapshotterService snapshotterService,
                                               PostgresConnection connection, PostgresEventDispatcher<TableId> dispatcher, ErrorHandler errorHandler, Clock clock,
-                                              PostgresSchema schema, PostgresTaskContext taskContext, ReplicationConnection replicationConnection) {
+                                              PostgresSchema schema, PostgresTaskContext taskContext, ReplicationConnection replicationConnection,
+                                              TaskStateMetrics taskStateMetrics) {
         this.connectorConfig = connectorConfig;
         this.connection = connection;
         this.dispatcher = dispatcher;
@@ -108,6 +111,7 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
         this.snapshotterService = snapshotterService;
         this.replicationConnection = replicationConnection;
         this.connectionProbeTimer = ElapsedTimeStrategy.constant(Clock.system(), connectorConfig.statusUpdateInterval());
+        this.taskStateMetrics = taskStateMetrics;
 
     }
 
@@ -122,10 +126,21 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
     private void initSchema() {
         LOGGER.info("Performing initial schema load");
         try {
+            // Set DND flag to prevent rebalance during schema refresh
+            if (taskStateMetrics != null) {
+                taskStateMetrics.setConnectTaskDnd(1);
+                LOGGER.debug("Set ConnectTaskDnd=1 to prevent rebalance during schema refresh");
+            }
             taskContext.refreshSchema(connection, true);
         }
         catch (SQLException e) {
             throw new DebeziumException("Error while executing initial schema load", e);
+        }
+        finally {
+            if (taskStateMetrics != null) {
+                taskStateMetrics.setConnectTaskDnd(0);
+                LOGGER.debug("Set ConnectTaskDnd=0 after schema refresh completed");
+            }
         }
         LOGGER.info("Completed initial schema load");
     }

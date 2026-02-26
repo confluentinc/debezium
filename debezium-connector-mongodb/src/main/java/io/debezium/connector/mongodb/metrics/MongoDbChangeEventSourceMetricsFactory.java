@@ -37,7 +37,8 @@ public class MongoDbChangeEventSourceMetricsFactory extends DefaultChangeEventSo
     public <T extends CdcSourceTaskContext> MongoDbStreamingChangeEventSourceMetrics getStreamingMetrics(
                                                                                                          T taskContext,
                                                                                                          ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                                         EventMetadataProvider eventMetadataProvider) {
+                                                                                                         EventMetadataProvider eventMetadataProvider,
+                                                                                                         TaskStateMetrics taskStateMetrics) {
         if (streamingMetrics == null) {
             streamingMetrics = new MongoDbStreamingChangeEventSourceMetrics(taskContext, changeEventQueueMetrics,
                     eventMetadataProvider);

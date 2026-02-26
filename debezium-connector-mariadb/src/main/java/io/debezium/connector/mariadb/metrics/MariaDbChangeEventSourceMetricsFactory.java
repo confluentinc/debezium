@@ -42,7 +42,8 @@ public class MariaDbChangeEventSourceMetricsFactory extends DefaultChangeEventSo
     public <T extends CdcSourceTaskContext> StreamingChangeEventSourceMetrics<MariaDbPartition> getStreamingMetrics(
                                                                                                                     T taskContext,
                                                                                                                     ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                                                    EventMetadataProvider eventMetadataProvider) {
+                                                                                                                    EventMetadataProvider eventMetadataProvider,
+                                                                                                                    TaskStateMetrics taskStateMetrics) {
         return streamingMetrics;
     }
 
