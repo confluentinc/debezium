@@ -34,21 +34,29 @@ public class DefaultStreamingChangeEventSourceMetrics<P extends Partition> exten
     private final ConnectionMeter connectionMeter;
     private final StreamingMeter streamingMeter;
     private final ActivityMonitoringMeter activityMonitoringMeter;
+    private final TaskStateMetrics taskStateMetrics;
 
     public <T extends CdcSourceTaskContext> DefaultStreamingChangeEventSourceMetrics(T taskContext, ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                     EventMetadataProvider metadataProvider) {
+                                                                                     EventMetadataProvider metadataProvider, TaskStateMetrics taskStateMetrics) {
         super(taskContext, "streaming", changeEventQueueMetrics, metadataProvider);
+        this.taskStateMetrics = taskStateMetrics;
         streamingMeter = new StreamingMeter(taskContext, metadataProvider);
         connectionMeter = new ConnectionMeter();
         activityMonitoringMeter = new ActivityMonitoringMeter();
     }
 
     public <T extends CdcSourceTaskContext> DefaultStreamingChangeEventSourceMetrics(T taskContext, ChangeEventQueueMetrics changeEventQueueMetrics,
-                                                                                     EventMetadataProvider metadataProvider, Map<String, String> tags) {
+                                                                                     EventMetadataProvider metadataProvider, Map<String, String> tags,
+                                                                                     TaskStateMetrics taskStateMetrics) {
         super(taskContext, changeEventQueueMetrics, metadataProvider, tags);
+        this.taskStateMetrics = taskStateMetrics;
         streamingMeter = new StreamingMeter(taskContext, metadataProvider);
         connectionMeter = new ConnectionMeter();
         activityMonitoringMeter = new ActivityMonitoringMeter();
+    }
+
+    public TaskStateMetrics getTaskStateMetrics() {
+        return taskStateMetrics;
     }
 
     @Override

@@ -42,7 +42,7 @@ public class MongoDbStreamingChangeEventSourceMetrics extends DefaultStreamingCh
         super(taskContext, changeEventQueueMetrics, eventMetadataProvider, Collect.linkMapOf(
                 "context", "streaming",
                 "server", taskContext.getConnectorName(),
-                "task", taskContext.getTaskId()));
+                "task", taskContext.getTaskId()), null);
     }
 
     @Override
