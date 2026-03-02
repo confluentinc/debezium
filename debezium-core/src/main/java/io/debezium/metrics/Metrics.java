@@ -47,7 +47,7 @@ public abstract class Metrics {
         if (multiPartitionMode) {
             Map<String, String> tags = Collect.linkMapOf(
                     "server", connectorName,
-                    "task", connectorConfig.getTaskId(),
+                    "task", connectorConfig.getConnectorTaskId(),
                     "context", contextName);
             tags.putAll(connectorConfig.getCustomMetricTags());
             this.name = metricName(connectorType, tags);
