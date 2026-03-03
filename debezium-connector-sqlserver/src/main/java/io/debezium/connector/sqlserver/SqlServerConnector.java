@@ -74,6 +74,9 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
         // Resolve all tables matching include/exclude lists
         List<TableId> allTables = getMatchingCollections(Configuration.from(properties));
 
+        LOGGER.info("Resolved {} tables matching include/exclude filters:", allTables.size());
+        allTables.forEach(tableId -> LOGGER.info("  - {}", tableId.identifier()));
+
         // If no tables found or only one table, fall back to single task
         if (allTables.isEmpty() || allTables.size() == 1) {
             return Collections.singletonList(new HashMap<>(properties));
@@ -95,6 +98,9 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
             String assignedTables = tablesByTask.get(i).stream()
                     .map(TableId::identifier)
                     .collect(Collectors.joining(","));
+
+            LOGGER.info("Task {} assigned tables (raw identifiers): {}", i, assignedTables);
+            LOGGER.info("Task {} table count: {}", i, tablesByTask.get(i).size());
 
             if (i == 0) {
                 // Task 0: Snapshots its assigned subset, but streams ALL tables
