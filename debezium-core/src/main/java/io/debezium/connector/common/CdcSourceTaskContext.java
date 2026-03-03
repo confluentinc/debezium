@@ -110,6 +110,14 @@ public class CdcSourceTaskContext {
         return taskId;
     }
 
+    /**
+     * Returns the connector task ID, defaulting to "0" if taskId is null or empty.
+     * This is used for metrics to ensure a non-null value is always provided.
+     */
+    public String getConnectorTaskId() {
+        return (taskId == null || taskId.isEmpty()) ? "0" : taskId;
+    }
+
     public Map<String, String> getCustomMetricTags() {
         return customMetricTags;
     }

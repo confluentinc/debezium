@@ -28,7 +28,7 @@ class SqlServerStreamingTaskMetrics extends AbstractSqlServerTaskMetrics<SqlServ
                 (SqlServerPartition partition) -> new SqlServerStreamingPartitionMetrics(taskContext,
                         Collect.linkMapOf(
                                 "server", taskContext.getConnectorName(),
-                                "task", taskContext.getTaskId(),
+                                "task", taskContext.getConnectorTaskId(),
                                 "context", "streaming",
                                 "database", partition.getDatabaseName()),
                         metadataProvider));

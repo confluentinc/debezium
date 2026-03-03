@@ -32,7 +32,7 @@ public class MongoDbSnapshotChangeEventSourceMetrics extends DefaultSnapshotChan
                                                                                     EventMetadataProvider metadataProvider) {
         super(taskContext, changeEventQueueMetrics, metadataProvider,
                 Collect.linkMapOf("context", "snapshot", "server", taskContext.getConnectorName(), "task",
-                        taskContext.getTaskId()));
+                        taskContext.getConnectorTaskId()));
     }
 
     public <T extends CdcSourceTaskContext> MongoDbSnapshotChangeEventSourceMetrics(T taskContext,
@@ -41,7 +41,7 @@ public class MongoDbSnapshotChangeEventSourceMetrics extends DefaultSnapshotChan
                                                                                     TaskStateMetrics taskStateMetrics) {
         super(taskContext, changeEventQueueMetrics, metadataProvider,
                 Collect.linkMapOf("context", "snapshot", "server", taskContext.getConnectorName(), "task",
-                        taskContext.getTaskId()),
+                        taskContext.getConnectorTaskId()),
                 taskStateMetrics);
     }
 
