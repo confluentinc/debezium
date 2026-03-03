@@ -114,13 +114,15 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
             }
             else {
                 // Tasks 1-N: Snapshot their assigned tables only, no streaming
-                // Override table.include.list with assigned tables
-                taskProps.put(RelationalDatabaseConnectorConfig.TABLE_INCLUDE_LIST.name(), assignedTables);
-                // Remove exclude list since include is now explicit
+                // Use snapshot.include.collection.list to limit snapshot to assigned tables only
+                taskProps.put(CommonConnectorConfig.SNAPSHOT_MODE_TABLES.name(), assignedTables);
+                // Remove exclude list to ensure assigned tables can be snapshotted
                 taskProps.remove(RelationalDatabaseConnectorConfig.TABLE_EXCLUDE_LIST.name());
                 // Snapshot-only mode to avoid CDC conflicts
                 taskProps.put(SqlServerConnectorConfig.SNAPSHOT_MODE.name(),
                         SqlServerConnectorConfig.SnapshotMode.INITIAL_ONLY.getValue());
+                LOGGER.info("Task {} will snapshot {} tables: [{}] (snapshot-only, no streaming)",
+                        i, tablesByTask.get(i).size(), assignedTables);
             }
 
             taskConfigs.add(taskProps);
