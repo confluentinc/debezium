@@ -143,16 +143,21 @@ public interface MongoDbClientFactory {
     }
 
     /**
-     * Checks if the exception is caused by file access being denied.
-     * This is a temporary workaround for thread-based file access restrictions in cloud environments.
+     * Checks if the exception chain contains an AccessDeniedException,
+     * indicating the thread doesn't have permission to access the file.
+     *
+     * @param e the exception to check
+     * @return true if caused by file access denial
      */
     static boolean isFileAccessDenied(Throwable e) {
         Throwable current = e;
         while (current != null) {
-            if (current instanceof java.nio.file.AccessDeniedException) {
+            if (current instanceof AccessDeniedException) {
                 return true;
             }
-            if (current.getMessage() != null && current.getMessage().contains("AccessDeniedException")) {
+            // Also check the exception message for access denied patterns
+            String message = current.getMessage();
+            if (message != null && (message.contains("AccessDeniedException") || message.contains("Access denied to thread"))) {
                 return true;
             }
             current = current.getCause();
