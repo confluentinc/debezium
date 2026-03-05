@@ -101,9 +101,42 @@ public class MongoDbConnector extends BaseSourceConnector {
 
         // Validate connection when connection string is otherwise valid
         if (csValidation.errorMessages().isEmpty()) {
-            validateConnection(config, csValidation);
+            try {
+                validateConnection(config, csValidation);
+            }
+            catch (Exception e) {
+                // Temporary workaround: Skip connection validation if file access is denied.
+                // This happens when validation runs on a thread that doesn't have access to
+                // /mnt/secrets/ (e.g., validation threads vs task threads).
+                // Connection will be validated when the task starts on an allowed thread.
+                if (isFileAccessDenied(e)) {
+                    LOGGER.warn("Skipping connection validation due to file access restrictions. " +
+                            "Connection will be validated when task starts. Error: {}", e.getMessage());
+                }
+                else {
+                    throw e;
+                }
+            }
         }
         return new Config(new ArrayList<>(validation.values()));
+    }
+
+    /**
+     * Checks if the exception is caused by file access being denied.
+     * This is a temporary workaround for thread-based file access restrictions in cloud environments.
+     */
+    private boolean isFileAccessDenied(Throwable e) {
+        Throwable current = e;
+        while (current != null) {
+            if (current instanceof java.nio.file.AccessDeniedException) {
+                return true;
+            }
+            if (current.getMessage() != null && current.getMessage().contains("AccessDeniedException")) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     public void validateConnection(Configuration config, ConfigValue connectionStringValidation) {
@@ -155,6 +188,15 @@ public class MongoDbConnector extends BaseSourceConnector {
         }
         catch (InterruptedException e) {
             throw new DebeziumException(e);
+        }
+        catch (Exception e) {
+            // Temporary workaround: Skip if file access is denied.
+            // This happens when called from a thread without access to /mnt/secrets/.
+            if (isFileAccessDenied(e)) {
+                LOGGER.warn("Skipping getMatchingCollections due to file access restrictions. Error: {}", e.getMessage());
+                return List.of();
+            }
+            throw e;
         }
     }
 }
