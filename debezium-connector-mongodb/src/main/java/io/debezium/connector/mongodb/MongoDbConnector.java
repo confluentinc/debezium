@@ -93,16 +93,14 @@ public class MongoDbConnector extends BaseSourceConnector {
 
     @Override
     public Config validate(Map<String, String> connectorConfigs) {
+        LOGGER.info("MongoDbConnector.validate() called - skipping connection validation (temporary workaround)");
         final Configuration config = Configuration.from(connectorConfigs);
 
-        // Validate all fields and get connection string validation result
+        // Validate all fields only - skip connection validation entirely
+        // Temporary workaround: Connection validation is skipped because validation threads
+        // don't have access to /mnt/secrets/. Connection will be validated when task starts.
         Map<String, ConfigValue> validation = validateAllFields(config);
-        ConfigValue csValidation = validation.get(MongoDbConnectorConfig.CONNECTION_STRING.name());
 
-        // Validate connection when connection string is otherwise valid
-        if (csValidation.errorMessages().isEmpty()) {
-            validateConnection(config, csValidation);
-        }
         return new Config(new ArrayList<>(validation.values()));
     }
 
@@ -150,11 +148,10 @@ public class MongoDbConnector extends BaseSourceConnector {
     @SuppressWarnings("unchecked")
     @Override
     public List<CollectionId> getMatchingCollections(Configuration config) {
-        try (MongoDbConnection connection = MongoDbConnections.create(config)) {
-            return connection.collections();
-        }
-        catch (InterruptedException e) {
-            throw new DebeziumException(e);
-        }
+        // Temporary workaround: Skip connection creation entirely during validation
+        // because validation threads don't have access to /mnt/secrets/.
+        // Return empty list - collections will be discovered when task starts.
+        LOGGER.info("getMatchingCollections() called - skipping (temporary workaround for file access restrictions)");
+        return List.of();
     }
 }
