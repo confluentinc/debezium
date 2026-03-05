@@ -57,12 +57,10 @@ public class MongoDbConnector extends BaseSourceConnector {
 
     @Override
     public void start(Map<String, String> props) {
-        // Validate the configuration ...
+        // Temporary workaround: Skip validateAndRecord because validation threads
+        // don't have access to /mnt/secrets/. Validation will happen when task starts.
+        LOGGER.info("MongoDbConnector.start() called - skipping validateAndRecord (temporary workaround)");
         final Configuration config = Configuration.from(props);
-
-        if (!config.validateAndRecord(MongoDbConnectorConfig.ALL_FIELDS, LOGGER::error)) {
-            throw new DebeziumException("Error configuring an instance of " + getClass().getSimpleName() + "; check the logs for details");
-        }
         this.config = config;
         LOGGER.info("Successfully started MongoDB connector");
     }
@@ -93,15 +91,10 @@ public class MongoDbConnector extends BaseSourceConnector {
 
     @Override
     public Config validate(Map<String, String> connectorConfigs) {
-        LOGGER.info("MongoDbConnector.validate() called - skipping connection validation (temporary workaround)");
-        final Configuration config = Configuration.from(connectorConfigs);
-
-        // Validate all fields only - skip connection validation entirely
-        // Temporary workaround: Connection validation is skipped because validation threads
-        // don't have access to /mnt/secrets/. Connection will be validated when task starts.
-        Map<String, ConfigValue> validation = validateAllFields(config);
-
-        return new Config(new ArrayList<>(validation.values()));
+        // Temporary workaround: Skip all validation because validation threads
+        // don't have access to /mnt/secrets/. Validation will happen when task starts.
+        LOGGER.info("MongoDbConnector.validate() called - skipping all validation (temporary workaround)");
+        return new Config(new ArrayList<>());
     }
 
     public void validateConnection(Configuration config, ConfigValue connectionStringValidation) {
