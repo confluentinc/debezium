@@ -189,5 +189,14 @@ public class MongoDbConnector extends BaseSourceConnector {
         catch (InterruptedException e) {
             throw new DebeziumException(e);
         }
+        catch (Exception e) {
+            // Temporary workaround: Skip if file access is denied.
+            // This happens when called from a thread without access to /mnt/secrets/.
+            if (isFileAccessDenied(e)) {
+                LOGGER.warn("Skipping getMatchingCollections due to file access restrictions. Error: {}", e.getMessage());
+                return List.of();
+            }
+            throw e;
+        }
     }
 }
