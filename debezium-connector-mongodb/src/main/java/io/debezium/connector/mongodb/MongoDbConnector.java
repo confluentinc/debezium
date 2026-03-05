@@ -93,53 +93,15 @@ public class MongoDbConnector extends BaseSourceConnector {
 
     @Override
     public Config validate(Map<String, String> connectorConfigs) {
-        LOGGER.info("MongoDbConnector.validate() called - version with AccessDeniedException workaround");
+        LOGGER.info("MongoDbConnector.validate() called - skipping connection validation (temporary workaround)");
         final Configuration config = Configuration.from(connectorConfigs);
 
-        // Validate all fields and get connection string validation result
+        // Validate all fields only - skip connection validation entirely
+        // Temporary workaround: Connection validation is skipped because validation threads
+        // don't have access to /mnt/secrets/. Connection will be validated when task starts.
         Map<String, ConfigValue> validation = validateAllFields(config);
-        ConfigValue csValidation = validation.get(MongoDbConnectorConfig.CONNECTION_STRING.name());
 
-        // Validate connection when connection string is otherwise valid
-        if (csValidation.errorMessages().isEmpty()) {
-            try {
-                validateConnection(config, csValidation);
-            }
-            catch (Exception e) {
-                // Temporary workaround: Skip connection validation if file access is denied.
-                // This happens when validation runs on a thread that doesn't have access to
-                // /mnt/secrets/ (e.g., validation threads vs task threads).
-                // Connection will be validated when the task starts on an allowed thread.
-                LOGGER.info("Caught exception in validate(): {} - checking if file access denied", e.getClass().getName());
-                if (isFileAccessDenied(e)) {
-                    LOGGER.warn("Skipping connection validation due to file access restrictions. " +
-                            "Connection will be validated when task starts. Error: {}", e.getMessage());
-                }
-                else {
-                    LOGGER.error("Exception is NOT file access denied, rethrowing: {}", e.getMessage());
-                    throw e;
-                }
-            }
-        }
         return new Config(new ArrayList<>(validation.values()));
-    }
-
-    /**
-     * Checks if the exception is caused by file access being denied.
-     * This is a temporary workaround for thread-based file access restrictions in cloud environments.
-     */
-    private boolean isFileAccessDenied(Throwable e) {
-        Throwable current = e;
-        while (current != null) {
-            if (current instanceof java.nio.file.AccessDeniedException) {
-                return true;
-            }
-            if (current.getMessage() != null && current.getMessage().contains("AccessDeniedException")) {
-                return true;
-            }
-            current = current.getCause();
-        }
-        return false;
     }
 
     public void validateConnection(Configuration config, ConfigValue connectionStringValidation) {
@@ -186,20 +148,10 @@ public class MongoDbConnector extends BaseSourceConnector {
     @SuppressWarnings("unchecked")
     @Override
     public List<CollectionId> getMatchingCollections(Configuration config) {
-        try (MongoDbConnection connection = MongoDbConnections.create(config)) {
-            return connection.collections();
-        }
-        catch (InterruptedException e) {
-            throw new DebeziumException(e);
-        }
-        catch (Exception e) {
-            // Temporary workaround: Skip if file access is denied.
-            // This happens when called from a thread without access to /mnt/secrets/.
-            if (isFileAccessDenied(e)) {
-                LOGGER.warn("Skipping getMatchingCollections due to file access restrictions. Error: {}", e.getMessage());
-                return List.of();
-            }
-            throw e;
-        }
+        // Temporary workaround: Skip connection creation entirely during validation
+        // because validation threads don't have access to /mnt/secrets/.
+        // Return empty list - collections will be discovered when task starts.
+        LOGGER.info("getMatchingCollections() called - skipping (temporary workaround for file access restrictions)");
+        return List.of();
     }
 }
