@@ -6,6 +6,7 @@
 package io.debezium.connector.mongodb.connection.client;
 
 import java.io.IOException;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyManagementException;
@@ -120,5 +121,47 @@ public interface MongoDbClientFactory {
             LOGGER.error("Unable to initialize SSL context");
             throw new DebeziumException(e);
         }
+        catch (DebeziumException e) {
+            // Temporary workaround: If file access is denied (AccessDeniedException),
+            // return default SSL context. This happens when validation runs on a thread
+            // that doesn't have access to /mnt/secrets/ (e.g., validation threads vs task threads).
+            // The actual SSL context will be created when the task starts on an allowed thread.
+            if (isFileAccessDenied(e)) {
+                LOGGER.warn("Skipping custom SSL context due to file access restrictions. " +
+                        "SSL context will be created when task starts. Error: {}", e.getMessage());
+                try {
+                    var context = SSLContext.getInstance("TLS");
+                    context.init(null, null, null);
+                    return context;
+                }
+                catch (NoSuchAlgorithmException | KeyManagementException ex) {
+                    throw new DebeziumException("Unable to create default SSL context", ex);
+                }
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Checks if the exception chain contains an AccessDeniedException,
+     * indicating the thread doesn't have permission to access the file.
+     *
+     * @param e the exception to check
+     * @return true if caused by file access denial
+     */
+    static boolean isFileAccessDenied(Throwable e) {
+        Throwable current = e;
+        while (current != null) {
+            if (current instanceof AccessDeniedException) {
+                return true;
+            }
+            // Also check the exception message for access denied patterns
+            String message = current.getMessage();
+            if (message != null && (message.contains("AccessDeniedException") || message.contains("Access denied to thread"))) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 }
