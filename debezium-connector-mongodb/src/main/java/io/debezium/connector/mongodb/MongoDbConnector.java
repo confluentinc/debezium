@@ -93,6 +93,7 @@ public class MongoDbConnector extends BaseSourceConnector {
 
     @Override
     public Config validate(Map<String, String> connectorConfigs) {
+        LOGGER.info("MongoDbConnector.validate() called - version with AccessDeniedException workaround");
         final Configuration config = Configuration.from(connectorConfigs);
 
         // Validate all fields and get connection string validation result
@@ -109,11 +110,13 @@ public class MongoDbConnector extends BaseSourceConnector {
                 // This happens when validation runs on a thread that doesn't have access to
                 // /mnt/secrets/ (e.g., validation threads vs task threads).
                 // Connection will be validated when the task starts on an allowed thread.
+                LOGGER.info("Caught exception in validate(): {} - checking if file access denied", e.getClass().getName());
                 if (isFileAccessDenied(e)) {
                     LOGGER.warn("Skipping connection validation due to file access restrictions. " +
                             "Connection will be validated when task starts. Error: {}", e.getMessage());
                 }
                 else {
+                    LOGGER.error("Exception is NOT file access denied, rethrowing: {}", e.getMessage());
                     throw e;
                 }
             }
