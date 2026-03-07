@@ -38,6 +38,9 @@
         <!-- HTTP client -->
         <version.okhttp>4.9.2</version.okhttp>
 
+        <!-- Kotlin-stdlib dependency -->
+        <version.kotlin>1.6.0</version.kotlin>
+
         <!-- Scripting -->
         <version.groovy>4.0.17</version.groovy>
         <version.graalvm.js>23.0.2</version.graalvm.js>
@@ -55,6 +58,9 @@
 
         <!-- K8s Config Map Storage -->
         <version.kubernetes.client>6.13.4</version.kubernetes.client>
+
+        <!-- Commons -->
+        <version.commons.lang3>3.18.0</version.commons.lang3>
 
         <!-- Testing -->
         <version.junit>4.13.1</version.junit>
@@ -165,10 +171,22 @@
                 <artifactId>zstd-jni</artifactId>
                 <version>${version.zstd-jni}</version>
             </dependency>
+            <!-- Commons -->
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>${version.commons.lang3}</version>
+            </dependency>
             <dependency>
                 <groupId>io.confluent</groupId>
                 <artifactId>kafka-connect-avro-converter</artifactId>
                 <version>${version.confluent.platform}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>org.apache.commons</groupId>
+                        <artifactId>commons-lang3</artifactId>
+                    </exclusion>
+                </exclusions>
             </dependency>
             <dependency>
                 <groupId>io.confluent</groupId>
@@ -540,6 +558,19 @@
                 <groupId>com.squareup.okhttp3</groupId>
                 <artifactId>okhttp</artifactId>
                 <version>${version.okhttp}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>org.jetbrains.kotlin</groupId>
+                        <artifactId>kotlin-stdlib</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+
+            <!-- Kotlin Depedency -->
+            <dependency>
+                <groupId>org.jetbrains.kotlin</groupId>
+                <artifactId>kotlin-stdlib</artifactId>
+                <version>${version.kotlin}</version>
             </dependency>
 
             <!-- Test dependencies -->
@@ -620,6 +651,16 @@
               <groupId>com.squareup.okhttp3</groupId>
               <artifactId>logging-interceptor</artifactId>
               <version>${version.okhttp}</version>
+              <exclusions>
+                  <exclusion>
+                      <groupId>org.jetbrains.kotlin</groupId>
+                      <artifactId>kotlin-stdlib</artifactId>
+                  </exclusion>
+                  <exclusion>
+                      <groupId>org.jetbrains.kotlin</groupId>
+                      <artifactId>kotlin-stdlib-common</artifactId>
+                  </exclusion>
+              </exclusions>
             </dependency>
             <dependency>
                 <groupId>io.opentelemetry.javaagent</groupId>
