@@ -270,7 +270,17 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
                                             ? String.format("CREATE PUBLICATION %s WITH (publish_via_partition_root = true);", publicationName)
                                             : String.format("CREATE PUBLICATION %s;", publicationName);
                                     LOGGER.info("Creating publication with statement '{}'", createPublicationWithNoTablesStmt);
-                                    stmt.execute(createPublicationWithNoTablesStmt);
+                                    try {
+                                        executeWithTimeout(stmt, createPublicationWithNoTablesStmt);
+                                    }
+                                    catch (SQLException ex) {
+                                        if (PSQLState.QUERY_CANCELED.getState().equals(ex.getSQLState()) || SQL_LOCK_NOT_AVAILABLE.equals(ex.getSQLState())) {
+                                            throw new DebeziumException(PUBLICATION_QUERY_FAILURE_MESSAGE, ex);
+                                        }
+                                        else {
+                                            throw ex;
+                                        }
+                                    }
                                     break;
                             }
                         }
