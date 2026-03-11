@@ -39,6 +39,17 @@
             <groupId>org.mongodb</groupId>
             <artifactId>mongodb-driver-sync</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>provider-integration</artifactId>
+            <version>${provider.integration.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>s3</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
 
         <!-- Testing -->
         <dependency>
@@ -172,6 +183,8 @@
         <mongodb.replica.size>1</mongodb.replica.size>
         <mongodb.shard.size>2</mongodb.shard.size>
         <mongodb.shard.replica.size>${mongodb.replica.size}</mongodb.shard.replica.size>
+        <!-- Provider integration for AWS IAM auth -->
+        <provider.integration.version>0.216.0</provider.integration.version>
     </properties>
     <build>
         <plugins>
