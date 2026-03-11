@@ -48,6 +48,13 @@
                     <groupId>software.amazon.awssdk</groupId>
                     <artifactId>s3</artifactId>
                 </exclusion>
+                <!-- Exclude slf4j-reload4j to prevent a circular logging delegation loop:
+                     slf4j-reload4j (SLF4J->log4j) conflicts with log4j-over-slf4j (log4j->SLF4J)
+                     from debezium-testing-testcontainers, causing StackOverflowError in tests. -->
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-reload4j</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
 
