@@ -43,6 +43,12 @@
             <groupId>io.confluent</groupId>
             <artifactId>provider-integration</artifactId>
             <version>${provider.integration.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>s3</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- Testing -->
