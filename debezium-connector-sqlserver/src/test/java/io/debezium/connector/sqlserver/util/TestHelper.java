@@ -515,21 +515,23 @@ public class TestHelper {
     }
 
     public static void disableCdcAndDropTables(SqlServerConnection connection) throws SQLException {
-        // Disable CDC and drop the corresponding source tables
+        // Disable CDC on all tracked tables across all schemas
         connection.query(
-                "SELECT name FROM sys.tables WHERE is_tracked_by_cdc = 1",
+                "SELECT t.name, SCHEMA_NAME(t.schema_id) AS schema_name FROM sys.tables t WHERE t.is_tracked_by_cdc = 1",
                 rs -> {
                     while (rs.next()) {
                         String tableName = rs.getString(1);
-                        disableTableCdc(connection, tableName);
-                        connection.execute("DROP TABLE IF EXISTS [dbo].[" + tableName + "]");
+                        String schemaName = rs.getString(2);
+                        connection.execute(
+                                "EXEC sys.sp_cdc_disable_table @source_schema = N'" + schemaName
+                                        + "', @source_name = N'" + tableName + "', @capture_instance = 'all'");
                     }
                 });
-        // Drop any remaining non-system user tables (e.g. tables where CDC was manually disabled)
+        // Drop all non-system user tables across all schemas
         connection.execute(
                 "DECLARE @sql NVARCHAR(MAX) = ''; "
-                        + "SELECT @sql += 'DROP TABLE [dbo].[' + name + ']; ' "
-                        + "FROM sys.tables WHERE schema_id = SCHEMA_ID('dbo') AND type = 'U' AND is_ms_shipped = 0; "
+                        + "SELECT @sql += 'DROP TABLE [' + SCHEMA_NAME(schema_id) + '].[' + name + ']; ' "
+                        + "FROM sys.tables WHERE type = 'U' AND is_ms_shipped = 0; "
                         + "EXEC sp_executesql @sql;");
     }
 
