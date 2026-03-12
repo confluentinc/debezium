@@ -53,6 +53,7 @@ import org.awaitility.Awaitility;
 import org.jetbrains.annotations.NotNull;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
@@ -108,9 +109,13 @@ public class SqlServerConnectorIT extends AbstractAsyncEngineConnectorTest {
 
     private SqlServerConnection connection;
 
+    @BeforeClass
+    public static void beforeClass() {
+        TestHelper.createTestDatabase();
+    }
+
     @Before
     public void before() throws SQLException, InterruptedException {
-        TestHelper.createTestDatabase();
         connection = TestHelper.testConnection();
         connection.execute(
                 "CREATE TABLE tablea (id int primary key, cola varchar(30))",
@@ -131,6 +136,7 @@ public class SqlServerConnectorIT extends AbstractAsyncEngineConnectorTest {
     @After
     public void after() throws SQLException {
         if (connection != null) {
+            TestHelper.disableCdcAndDropTables(connection);
             connection.close();
         }
     }
