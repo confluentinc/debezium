@@ -335,6 +335,14 @@ public class TestHelper {
             Awaitility.await().atMost(60, TimeUnit.SECONDS).until(() -> connection.prepareQueryAndMap(IS_CDC_ENABLED, preparer -> {
                 preparer.setString(1, name);
             }, connection.singleResultMapper(rs -> rs.getLong(1), "")) == 1L);
+
+            // wait for SQL Server Agent to be fully running (started by sp_cdc_enable_db)
+            Awaitility.await().atMost(60, TimeUnit.SECONDS).until(() -> {
+                String status = connection.queryAndMap(
+                        "SELECT status_desc FROM sys.dm_server_services WHERE servicename LIKE N'SQL Server Agent%'",
+                        rs -> rs.next() ? rs.getString(1) : null);
+                return "Running".equalsIgnoreCase(status);
+            });
         }
         catch (SQLException e) {
             LOGGER.error("Failed to enable CDC on database " + name);
