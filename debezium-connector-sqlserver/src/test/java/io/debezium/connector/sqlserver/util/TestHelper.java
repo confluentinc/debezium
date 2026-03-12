@@ -506,6 +506,19 @@ public class TestHelper {
         });
     }
 
+    public static void disableCdcAndDropTables(SqlServerConnection connection) throws SQLException {
+        // Disable CDC and drop the corresponding source tables
+        connection.query(
+                "SELECT name FROM sys.tables WHERE is_tracked_by_cdc = 1",
+                rs -> {
+                    while (rs.next()) {
+                        String tableName = rs.getString(1);
+                        disableTableCdc(connection, tableName);
+                        connection.execute("DROP TABLE IF EXISTS [dbo].[" + tableName + "]");
+                    }
+                });
+    }
+
     static void executeAndCommit(JdbcConnection connection, String stmt, JdbcConnection.StatementPreparer preparer) throws SQLException {
         connection.prepareUpdate(stmt, preparer);
         connection.commit();
