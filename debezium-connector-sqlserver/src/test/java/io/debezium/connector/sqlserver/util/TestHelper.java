@@ -515,24 +515,33 @@ public class TestHelper {
     }
 
     public static void disableCdcAndDropTables(SqlServerConnection connection) throws SQLException {
-        // Disable CDC on all tracked tables across all schemas
-        connection.query(
-                "SELECT t.name, SCHEMA_NAME(t.schema_id) AS schema_name FROM sys.tables t WHERE t.is_tracked_by_cdc = 1",
-                rs -> {
-                    while (rs.next()) {
-                        String tableName = rs.getString(1);
-                        String schemaName = rs.getString(2);
-                        connection.execute(
-                                "EXEC sys.sp_cdc_disable_table @source_schema = N'" + schemaName
-                                        + "', @source_name = N'" + tableName + "', @capture_instance = 'all'");
-                    }
-                });
-        // Drop all non-system user tables across all schemas
-        connection.execute(
-                "DECLARE @sql NVARCHAR(MAX) = ''; "
-                        + "SELECT @sql += 'DROP TABLE [' + SCHEMA_NAME(schema_id) + '].[' + name + ']; ' "
-                        + "FROM sys.tables WHERE type = 'U' AND is_ms_shipped = 0; "
-                        + "EXEC sp_executesql @sql;");
+        try {
+            // Disable CDC using cdc.change_tables to get actual capture instance names.
+            // This handles renamed tables correctly (sys.tables.name changes but capture instance retains original name).
+            connection.query(
+                    "SELECT capture_instance, OBJECT_SCHEMA_NAME(source_object_id), OBJECT_NAME(source_object_id) FROM cdc.change_tables",
+                    rs -> {
+                        while (rs.next()) {
+                            String captureInstance = rs.getString(1);
+                            String schemaName = rs.getString(2);
+                            String tableName = rs.getString(3);
+                            connection.execute(
+                                    "EXEC sys.sp_cdc_disable_table @source_schema = N'" + schemaName
+                                            + "', @source_name = N'" + tableName
+                                            + "', @capture_instance = N'" + captureInstance + "'");
+                        }
+                    });
+            // Drop all non-system user tables across all schemas
+            connection.execute(
+                    "DECLARE @sql NVARCHAR(MAX) = ''; "
+                            + "SELECT @sql += 'DROP TABLE [' + SCHEMA_NAME(schema_id) + '].[' + name + ']; ' "
+                            + "FROM sys.tables WHERE type = 'U' AND is_ms_shipped = 0; "
+                            + "EXEC sp_executesql @sql;");
+        }
+        catch (Exception e) {
+            LOGGER.warn("Failed to disable CDC and drop tables, recreating database as fallback: {}", e.getMessage(), e);
+            createTestDatabase();
+        }
     }
 
     static void executeAndCommit(JdbcConnection connection, String stmt, JdbcConnection.StatementPreparer preparer) throws SQLException {

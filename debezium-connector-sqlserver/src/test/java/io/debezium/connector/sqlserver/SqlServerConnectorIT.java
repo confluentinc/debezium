@@ -1053,7 +1053,9 @@ public class SqlServerConnectorIT extends AbstractAsyncEngineConnectorTest {
     @FixFor("DBZ-4346")
     public void shouldReportConfigurationErrorForUserNotHavingAccessToCDCTableInInitialMode() throws Exception {
         // First create a new user with only db_datareader role
-        String testUserCreateSql = "IF EXISTS (select 1 from sys.server_principals where name = 'test_user')\n"
+        String testUserCreateSql = "IF EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'test_user')\n"
+                + "DROP USER test_user\n"
+                + "IF EXISTS (select 1 from sys.server_principals where name = 'test_user')\n"
                 + "DROP LOGIN test_user\n"
                 + "CREATE LOGIN test_user WITH PASSWORD = 'Password!'\n"
                 + "CREATE USER test_user FOR LOGIN test_user\n"
@@ -1077,7 +1079,9 @@ public class SqlServerConnectorIT extends AbstractAsyncEngineConnectorTest {
     @FixFor("DBZ-4346")
     public void shouldNotReportConfigurationErrorForUserNotHavingAccessToCDCTableInInitialOnlyMode() throws Exception {
         // First create a new user with only db_datareader role
-        String testUserCreateSql = "IF EXISTS (select 1 from sys.server_principals where name = 'test_user')\n"
+        String testUserCreateSql = "IF EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'test_user')\n"
+                + "DROP USER test_user\n"
+                + "IF EXISTS (select 1 from sys.server_principals where name = 'test_user')\n"
                 + "DROP LOGIN test_user\n"
                 + "CREATE LOGIN test_user WITH PASSWORD = 'Password!'\n"
                 + "CREATE USER test_user FOR LOGIN test_user\n"
