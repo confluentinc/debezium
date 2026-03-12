@@ -335,6 +335,14 @@ public class TestHelper {
             Awaitility.await().atMost(60, TimeUnit.SECONDS).until(() -> connection.prepareQueryAndMap(IS_CDC_ENABLED, preparer -> {
                 preparer.setString(1, name);
             }, connection.singleResultMapper(rs -> rs.getLong(1), "")) == 1L);
+
+            // wait for SQL Server Agent to be fully running (started by sp_cdc_enable_db)
+            Awaitility.await().atMost(60, TimeUnit.SECONDS).until(() -> {
+                String status = connection.queryAndMap(
+                        "SELECT status_desc FROM sys.dm_server_services WHERE servicename LIKE N'SQL Server Agent%'",
+                        rs -> rs.next() ? rs.getString(1) : null);
+                return "Running".equalsIgnoreCase(status);
+            });
         }
         catch (SQLException e) {
             LOGGER.error("Failed to enable CDC on database " + name);
@@ -504,6 +512,27 @@ public class TestHelper {
         executeAndCommit(connection, ADJUST_CDC_POLLING_INTERVAL, preparer -> {
             preparer.setInt(1, interval);
         });
+    }
+
+    public static void disableCdcAndDropTables(SqlServerConnection connection) throws SQLException {
+        // Disable CDC on all tracked tables across all schemas
+        connection.query(
+                "SELECT t.name, SCHEMA_NAME(t.schema_id) AS schema_name FROM sys.tables t WHERE t.is_tracked_by_cdc = 1",
+                rs -> {
+                    while (rs.next()) {
+                        String tableName = rs.getString(1);
+                        String schemaName = rs.getString(2);
+                        connection.execute(
+                                "EXEC sys.sp_cdc_disable_table @source_schema = N'" + schemaName
+                                        + "', @source_name = N'" + tableName + "', @capture_instance = 'all'");
+                    }
+                });
+        // Drop all non-system user tables across all schemas
+        connection.execute(
+                "DECLARE @sql NVARCHAR(MAX) = ''; "
+                        + "SELECT @sql += 'DROP TABLE [' + SCHEMA_NAME(schema_id) + '].[' + name + ']; ' "
+                        + "FROM sys.tables WHERE type = 'U' AND is_ms_shipped = 0; "
+                        + "EXEC sp_executesql @sql;");
     }
 
     static void executeAndCommit(JdbcConnection connection, String stmt, JdbcConnection.StatementPreparer preparer) throws SQLException {
