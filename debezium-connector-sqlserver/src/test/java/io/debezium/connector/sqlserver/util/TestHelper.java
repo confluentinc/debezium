@@ -525,6 +525,12 @@ public class TestHelper {
                         connection.execute("DROP TABLE IF EXISTS [dbo].[" + tableName + "]");
                     }
                 });
+        // Drop any remaining non-system user tables (e.g. tables where CDC was manually disabled)
+        connection.execute(
+                "DECLARE @sql NVARCHAR(MAX) = ''; "
+                        + "SELECT @sql += 'DROP TABLE [dbo].[' + name + ']; ' "
+                        + "FROM sys.tables WHERE schema_id = SCHEMA_ID('dbo') AND type = 'U' AND is_ms_shipped = 0; "
+                        + "EXEC sp_executesql @sql;");
     }
 
     static void executeAndCommit(JdbcConnection connection, String stmt, JdbcConnection.StatementPreparer preparer) throws SQLException {
