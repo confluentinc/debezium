@@ -687,6 +687,7 @@ public abstract class BinlogSnapshotChangeEventSource<P extends BinlogPartition,
                     getClass(),
                     connectorConfig.getLogicalName(),
                     "lock-heartbeat",
+                    threadNameContext,
                     true);
             Runnable task = () -> {
                 synchronized (binlogConnectionMutex) {
