@@ -26,7 +26,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionService;
 import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -688,6 +687,7 @@ public abstract class BinlogSnapshotChangeEventSource<P extends BinlogPartition,
                     getClass(),
                     connectorConfig.getLogicalName(),
                     "lock-heartbeat",
+                    ThreadNameContext.from(connectorConfig),
                     true);
             Runnable task = () -> {
                 synchronized (binlogConnectionMutex) {

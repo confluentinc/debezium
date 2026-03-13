@@ -204,6 +204,7 @@ public class MariaDbConnectorTask extends BinlogSourceTask<MariaDbPartition, Mar
 
         errorHandler = new MariaDbErrorHandler(connectorConfig, queue, errorHandler);
 
+        final Configuration heartbeatConfig = config;
         final BinlogEventMetadataProvider metadataProvider = new BinlogEventMetadataProvider();
 
         SignalProcessor<MariaDbPartition, MariaDbOffsetContext> signalProcessor = new SignalProcessor<>(
