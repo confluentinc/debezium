@@ -1,0 +1,3 @@
+[cherry-pick "worktree-run_manual"]
+	tag = debezium-sync
+	upstream = v3.2.5-hotfix-x
