@@ -63,7 +63,6 @@ public class SourceInfoTest {
     public void schemaIsCorrect() {
         final Schema schema = SchemaBuilder.struct()
                 .name("io.debezium.connector.postgresql.Source")
-                .version(SchemaFactory.SOURCE_INFO_DEFAULT_SCHEMA_VERSION)
                 .field("version", Schema.STRING_SCHEMA)
                 .field("connector", Schema.STRING_SCHEMA)
                 .field("name", Schema.STRING_SCHEMA)
@@ -71,8 +70,6 @@ public class SourceInfoTest {
                 .field("snapshot", SchemaFactory.get().snapshotRecordSchema())
                 .field("db", Schema.STRING_SCHEMA)
                 .field("sequence", Schema.OPTIONAL_STRING_SCHEMA)
-                .field("ts_us", Schema.OPTIONAL_INT64_SCHEMA)
-                .field("ts_ns", Schema.OPTIONAL_INT64_SCHEMA)
                 .field("schema", Schema.STRING_SCHEMA)
                 .field("table", Schema.STRING_SCHEMA)
                 .field("txId", Schema.OPTIONAL_INT64_SCHEMA)

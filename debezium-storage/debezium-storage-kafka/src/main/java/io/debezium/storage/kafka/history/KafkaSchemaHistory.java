@@ -43,6 +43,8 @@ import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigDef.Type;
 import org.apache.kafka.common.config.ConfigDef.Width;
 import org.apache.kafka.common.config.ConfigResource;
+import org.apache.kafka.common.errors.GroupAuthorizationException;
+import org.apache.kafka.common.errors.TopicAuthorizationException;
 import org.apache.kafka.common.errors.TopicExistsException;
 import org.apache.kafka.common.errors.UnsupportedVersionException;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -68,6 +70,7 @@ import io.debezium.relational.history.SchemaHistoryException;
 import io.debezium.relational.history.SchemaHistoryListener;
 import io.debezium.util.Collect;
 import io.debezium.util.Loggings;
+import io.debezium.util.ThreadNameContext;
 import io.debezium.util.Threads;
 
 /**
@@ -168,7 +171,8 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
             .withValidation(Field::isPositiveInteger);
 
     public static Field.Set ALL_FIELDS = Field.setOf(TOPIC, BOOTSTRAP_SERVERS, NAME, RECOVERY_POLL_INTERVAL_MS,
-            RECOVERY_POLL_ATTEMPTS, INTERNAL_CONNECTOR_CLASS, INTERNAL_CONNECTOR_ID, KAFKA_QUERY_TIMEOUT_MS);
+            RECOVERY_POLL_ATTEMPTS, INTERNAL_CONNECTOR_CLASS, INTERNAL_CONNECTOR_ID, INTERNAL_CONNECTOR_NAME, INTERNAL_CONNECTOR_THREAD_NAME_PATTERN, INTERNAL_TASK_ID,
+            KAFKA_QUERY_TIMEOUT_MS);
 
     private static final String CONSUMER_PREFIX = CONFIGURATION_FIELD_PREFIX_STRING + "consumer.";
     private static final String PRODUCER_PREFIX = CONFIGURATION_FIELD_PREFIX_STRING + "producer.";
@@ -245,16 +249,19 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
                 .withDefault(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class)
                 .withDefault(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class)
                 .build();
-        if (LOGGER.isInfoEnabled()) {
-            LOGGER.info("KafkaSchemaHistory Consumer config: {}", consumerConfig.withMaskedPasswords());
-            LOGGER.info("KafkaSchemaHistory Producer config: {}", producerConfig.withMaskedPasswords());
-        }
 
         try {
             final String connectorClassname = config.getString(INTERNAL_CONNECTOR_CLASS);
+            ThreadNameContext threadNameContext = new ThreadNameContext(config.getString(INTERNAL_CONNECTOR_NAME),
+                    config.getString(INTERNAL_CONNECTOR_THREAD_NAME_PATTERN),
+                    config.getString(INTERNAL_TASK_ID));
             if (connectorClassname != null) {
-                checkTopicSettingsExecutor = Threads.newSingleThreadExecutor((Class<? extends SourceConnector>) Class.forName(connectorClassname),
-                        config.getString(INTERNAL_CONNECTOR_ID), "db-history-config-check", true);
+                checkTopicSettingsExecutor = Threads.newSingleThreadExecutor(
+                        (Class<? extends SourceConnector>) Class.forName(connectorClassname),
+                        config.getString(INTERNAL_CONNECTOR_ID),
+                        "db-history-config-check",
+                        threadNameContext,
+                        true);
             }
         }
         catch (ClassNotFoundException e) {
@@ -629,6 +636,35 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
         }
 
         return configs.values().iterator().next();
+    }
+
+    @Override
+    public void verifyReadAccess() {
+        LOGGER.info("Verifying read access to database schema history topic '{}'", topicName);
+
+        try (KafkaConsumer<String, String> verificationConsumer = new KafkaConsumer<>(consumerConfig.asProperties())) {
+            // Subscribe to the topic
+            verificationConsumer.subscribe(Collect.arrayListOf(topicName));
+
+            // Perform a dummy poll to verify we can actually read from the topic
+            // This will trigger any permission or connectivity issues
+            ConsumerRecords<String, String> records = verificationConsumer.poll(this.pollInterval);
+
+            LOGGER.info("Successfully verified read access to database schema history topic '{}', read {} records during verification",
+                    topicName, records.count());
+        }
+        catch (GroupAuthorizationException e) {
+            throw new SchemaHistoryException("Failed to read from schema history topic '" + topicName + "'. " +
+                    "Read ACL is not granted for the consumer group.", e);
+        }
+        catch (TopicAuthorizationException e) {
+            throw new SchemaHistoryException("Failed to read from schema history topic '" + topicName + "'. " +
+                    "Read ACL is not granted for the topic.", e);
+        }
+        catch (Exception e) {
+            throw new SchemaHistoryException("Failed to read from schema history topic '" + topicName + "'. " +
+                    "An unexpected error occurred during verification: " + e.getMessage(), e);
+        }
     }
 
     private static Validator forKafka(final Validator validator) {

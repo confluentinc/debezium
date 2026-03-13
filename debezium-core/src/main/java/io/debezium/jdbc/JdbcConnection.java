@@ -71,6 +71,7 @@ import io.debezium.util.BoundedConcurrentHashMap.EvictionListener;
 import io.debezium.util.Collect;
 import io.debezium.util.ColumnUtils;
 import io.debezium.util.Strings;
+import io.debezium.util.ThreadNameContext;
 import io.debezium.util.Threads;
 
 /**
@@ -330,6 +331,7 @@ public class JdbcConnection implements AutoCloseable {
     private final Operations initialOps;
     private final String openingQuoteCharacter;
     private final String closingQuoteCharacter;
+    protected final ThreadNameContext threadNameContext;
     private volatile Connection conn;
     private final int queryTimeout;
 
@@ -339,8 +341,9 @@ public class JdbcConnection implements AutoCloseable {
      * @param config the configuration; may not be null
      * @param connectionFactory the connection factory; may not be null
      */
-    public JdbcConnection(JdbcConfiguration config, ConnectionFactory connectionFactory, String openingQuoteCharacter, String closingQuoteCharacter) {
-        this(config, connectionFactory, null, openingQuoteCharacter, closingQuoteCharacter);
+    public JdbcConnection(JdbcConfiguration config, ConnectionFactory connectionFactory, String openingQuoteCharacter, String closingQuoteCharacter,
+                          ThreadNameContext threadNameContext) {
+        this(config, connectionFactory, null, openingQuoteCharacter, closingQuoteCharacter, threadNameContext);
     }
 
     /**
@@ -354,12 +357,13 @@ public class JdbcConnection implements AutoCloseable {
      * @param closingQuotingChar the closing quoting character
      */
     protected JdbcConnection(JdbcConfiguration config, ConnectionFactory connectionFactory, Operations initialOperations,
-                             String openingQuotingChar, String closingQuotingChar) {
+                             String openingQuotingChar, String closingQuotingChar, ThreadNameContext threadNameContext) {
         this.config = config;
         this.factory = new ConnectionFactoryDecorator(connectionFactory);
         this.initialOps = initialOperations;
         this.openingQuoteCharacter = openingQuotingChar;
         this.closingQuoteCharacter = closingQuotingChar;
+        this.threadNameContext = threadNameContext;
         this.conn = null;
         this.queryTimeout = (int) config.getQueryTimeout().toSeconds();
         this.likeWildcardCharacters = getLikeWildcardCharacters();
@@ -433,6 +437,7 @@ public class JdbcConnection implements AutoCloseable {
                     if (LOGGER.isTraceEnabled()) {
                         LOGGER.trace("executing '{}'", sqlStatement);
                     }
+
                     statement.execute(sqlStatement);
                 }
             }
@@ -780,7 +785,7 @@ public class JdbcConnection implements AutoCloseable {
      * @see #execute(Operations)
      */
     public JdbcConnection prepareUpdate(String stmt, StatementPreparer preparer) throws SQLException {
-        final PreparedStatement statement = createPreparedStatement(stmt);
+        PreparedStatement statement = createPreparedStatement(stmt);
         if (preparer != null) {
             preparer.accept(statement);
         }
@@ -788,8 +793,36 @@ public class JdbcConnection implements AutoCloseable {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("Executing statement '{}' with {}s timeout", stmt, queryTimeout);
         }
-        statement.execute();
+
+        try {
+            statement.execute();
+        }
+        catch (SQLException e) {
+            // Check if this is a connection-related error that warrants retry
+            if (isConnectionException(e)) {
+                LOGGER.warn("Connection was closed, reconnecting and retrying", e);
+
+                close();
+                connect();
+
+                statement = createPreparedStatement(stmt);
+                if (preparer != null) {
+                    preparer.accept(statement);
+                }
+                statement.execute();
+            }
+            else {
+                throw e;
+            }
+        }
         return this;
+    }
+
+    /**
+     * Checks if the exception indicates a connection issue.
+     */
+    private boolean isConnectionException(SQLException e) {
+        return (e.getMessage() != null && e.getMessage().contains("No operations allowed after connection closed."));
     }
 
     /**
@@ -990,7 +1023,7 @@ public class JdbcConnection implements AutoCloseable {
                 catch (SQLException e) {
                     throw new RuntimeException(e);
                 }
-            }, Duration.ofSeconds(WAIT_FOR_CLOSE_SECONDS), JdbcConnection.class.getSimpleName(), "jdbc-connection-close");
+            }, Duration.ofSeconds(WAIT_FOR_CLOSE_SECONDS), JdbcConnection.class.getSimpleName(), "jdbc-connection-close", threadNameContext);
         }
         catch (TimeoutException | InterruptedException e) {
             LOGGER.warn("Failed to close database connection by calling close(), attempting abort()");
@@ -1247,7 +1280,7 @@ public class JdbcConnection implements AutoCloseable {
             for (TableId includeTable : tableIds) {
                 LOGGER.debug("Retrieving columns of table {}", includeTable);
 
-                Map<TableId, List<Column>> cols = getColumnsDetails(catalogName, schemaName, includeTable.table(), tableFilter,
+                Map<TableId, List<Column>> cols = getColumnsDetails(catalogName, includeTable.schema(), includeTable.table(), tableFilter,
                         columnFilter, metadata, viewIds);
                 columnsByTable.putAll(cols);
             }
@@ -1324,9 +1357,13 @@ public class JdbcConnection implements AutoCloseable {
 
     protected Map<TableId, List<Column>> getColumnsDetails(String catalogName, String schemaName,
                                                            String tableName, TableFilter tableFilter, ColumnNameFilter columnFilter, DatabaseMetaData metadata,
-                                                           final Set<TableId> viewIds)
+                                                           final Set<TableId> viewIds, boolean throwOnCaseInsensitiveColumnMismatch)
             throws SQLException {
         Map<TableId, List<Column>> columnsByTable = new HashMap<>();
+
+        // Track case-insensitive column names per table
+        Map<TableId, Set<String>> lowercaseColumnNamesByTable = new HashMap<>();
+
         String tableNamePattern = createPatternFromName(tableName, metadata.getSearchStringEscape());
         String schemaNamePattern = createPatternFromName(schemaName, metadata.getSearchStringEscape());
         try (ResultSet columnMetadata = metadata.getColumns(catalogName, schemaNamePattern, tableNamePattern, null)) {
@@ -1342,6 +1379,27 @@ public class JdbcConnection implements AutoCloseable {
                     continue;
                 }
 
+                final String columnName = columnMetadata.getString(4);
+
+                // Validate no case-sensitive duplicate columns
+                Set<String> seenLowercaseNames = lowercaseColumnNamesByTable.computeIfAbsent(tableId, t -> new HashSet<>());
+                String lowercaseColumnName = columnName.toLowerCase();
+
+                if (!seenLowercaseNames.add(lowercaseColumnName)) {
+                    String message = String.format("Table '%s' has columns that differ only by case. " +
+                            "Column name: '%s'. " +
+                            "Debezium does not support case-sensitive duplicate column names as this causes data corruption. " +
+                            "Please rename one of the duplicate columns before running Debezium.",
+                            tableId, columnName);
+
+                    if (throwOnCaseInsensitiveColumnMismatch) {
+                        throw new DebeziumException(message);
+                    }
+                    else {
+                        LOGGER.warn(message);
+                    }
+                }
+
                 // add all included columns
                 readTableColumn(columnMetadata, tableId, columnFilter).ifPresent(column -> {
                     columnsByTable.computeIfAbsent(tableId, t -> new ArrayList<>())
@@ -1350,6 +1408,13 @@ public class JdbcConnection implements AutoCloseable {
             }
         }
         return columnsByTable;
+    }
+
+    protected Map<TableId, List<Column>> getColumnsDetails(String catalogName, String schemaName,
+                                                           String tableName, TableFilter tableFilter, ColumnNameFilter columnFilter, DatabaseMetaData metadata,
+                                                           final Set<TableId> viewIds)
+            throws SQLException {
+        return getColumnsDetails(catalogName, schemaName, tableName, tableFilter, columnFilter, metadata, viewIds, false);
     }
 
     protected Map<TableId, List<Attribute>> getAttributeDetails(TableId tableId, String tableType) {

@@ -28,7 +28,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
-import java.util.regex.Pattern;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
@@ -66,6 +65,7 @@ import com.github.shyiko.mysql.binlog.network.DefaultSSLSocketFactory;
 import com.github.shyiko.mysql.binlog.network.SSLMode;
 import com.github.shyiko.mysql.binlog.network.SSLSocketFactory;
 import com.github.shyiko.mysql.binlog.network.ServerException;
+import com.google.re2j.Pattern;
 
 import io.debezium.DebeziumException;
 import io.debezium.annotation.SingleThreadAccess;
@@ -92,6 +92,8 @@ import io.debezium.snapshot.mode.NeverSnapshotter;
 import io.debezium.time.Conversions;
 import io.debezium.util.Clock;
 import io.debezium.util.Metronome;
+import io.debezium.util.Strings;
+import io.debezium.util.ThreadNameContext;
 import io.debezium.util.Threads;
 
 /**
@@ -106,8 +108,8 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
     private static final Logger LOGGER = LoggerFactory.getLogger(BinlogStreamingChangeEventSource.class);
 
     private static final String KEEPALIVE_THREAD_NAME = "blc-keepalive";
-    private static final String SET_STATEMENT_REGEX = "SET STATEMENT .* FOR";
-    private static final Pattern TRUNCATE_STATEMENT_PATTERN = Pattern.compile("(SET STATEMENT .*)?TRUNCATE TABLE .*", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    private static final java.util.regex.Pattern TRUNCATE_STATEMENT_PATTERN = java.util.regex.Pattern.compile("(SET STATEMENT .*)?TRUNCATE TABLE .*",
+            java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.DOTALL);
 
     private final BinaryLogClient client;
     private final BinlogStreamingChangeEventSourceMetrics<?, P> metrics;
@@ -128,6 +130,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
     private final Map<String, Thread> binaryLogClientThreads = new ConcurrentHashMap<>(4);
     private final EnumMap<EventType, BlockingConsumer<Event>> eventHandlers = new EnumMap<>(EventType.class);
     private final float heartbeatIntervalFactor = 0.8f;
+    private final ThreadNameContext threadNameContext;
 
     private int startingRowNumber = 0;
     private long initialEventsToSkip = 0L;
@@ -162,12 +165,13 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
         this.client = createBinaryLogClient(taskContext, connectorConfig, binaryLogClientThreads, connection);
         this.gtidDmlSourceFilter = getGtidDmlSourceFilter();
         this.isGtidModeEnabled = connection.isGtidModeEnabled();
+        this.threadNameContext = ThreadNameContext.from(connectorConfig);
     }
 
     @Override
     public void execute(ChangeEventSourceContext context, P partition, O offsetContext) throws InterruptedException {
         if (!(snapshotterService.getSnapshotter() instanceof NeverSnapshotter)) {
-            taskContext.getSchema().assureNonEmptySchema();
+            taskContext.getSchema().assureNonEmptySchema(connectorConfig.failOnNoTables());
         }
         final Set<Envelope.Operation> skippedOperations = connectorConfig.getSkippedOperations();
 
@@ -311,6 +315,8 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
                             metronome.pause();
                         }
                     }
+                    // Rename any BinlogClientThreads as per ThreadNamePattern that are created and named in binlogClient
+                    renameBinaryLogClientThreads();
                 }
                 catch (TimeoutException e) {
                     // If the client thread is interrupted *before* the client could connect, the client throws a timeout exception
@@ -328,7 +334,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
                 catch (AuthenticationException e) {
                     throw new DebeziumException(String.format(
                             "Failed to authenticate to the database at %s:%d with user '%s'",
-                            connectorConfig.getHostName(), connectorConfig.getPort(), connectorConfig.getUserName()), e);
+                            connectorConfig.getHostName(), connectorConfig.getPort(), connectorConfig.getUserName()), sanitizeAuthenticationException(e));
                 }
                 catch (Throwable e) {
                     throw new DebeziumException(String.format(
@@ -343,12 +349,40 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
         }
         finally {
             try {
-                client.disconnect();
+                disconnectLogClient(client);
             }
             catch (Exception e) {
                 LOGGER.info("Exception while stopping binary log client", e);
             }
         }
+    }
+
+    private static void disconnectLogClient(BinaryLogClient client) {
+        try {
+            // Stop BinaryLogClient background threads
+            client.disconnect();
+            client.setThreadFactory(null);
+            client.setEventDeserializer(new EventDeserializer());
+            client.setSslSocketFactory(null);
+            for (BinaryLogClient.EventListener el : client.getEventListeners()) {
+                client.unregisterEventListener(el);
+            }
+            for (BinaryLogClient.LifecycleListener ll : client.getLifecycleListeners()) {
+                client.unregisterLifecycleListener(ll);
+            }
+        }
+        catch (final Exception e) {
+            LOGGER.debug("Exception while closing client", e);
+        }
+    }
+
+    static AuthenticationException sanitizeAuthenticationException(AuthenticationException e) {
+        String sanitizedError = e.getMessage()
+                .replaceAll("[^\\P{Cc}\t\r\n]", "");
+        AuthenticationException sanitized = new AuthenticationException(sanitizedError,
+                e.getErrorCode(), e.getSqlState());
+        sanitized.setStackTrace(e.getStackTrace());
+        return sanitized;
     }
 
     @Override
@@ -372,20 +406,59 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
         return isGtidModeEnabled;
     }
 
+    /**
+     * The mysql-binlog-connector-java library creates some threads directly with different thread names
+     * Renames BinaryLogClient threads that were created outside ThreadFactory.
+     */
+    private void renameBinaryLogClientThreads() {
+        binaryLogClientThreads.entrySet().stream()
+                .filter(e -> e.getValue().getName().startsWith("blc-"))
+                .forEach(e -> renameThread(e.getKey(), e.getValue()));
+    }
+
+    /**
+     * Renames a single BinaryLogClient thread and updates its map entry.
+     *
+     * @param oldMapKey the current map key
+     * @param thread the thread to rename
+     */
+    private void renameThread(String oldMapKey, Thread thread) {
+        final String oldThreadName = thread.getName();
+        // There are three threads created by BinaryLogClient that are to be renamed accordingly
+        // There are blc-, blc-keepalive, blc-disconnect
+        final String threadType = oldThreadName.contains("keepalive") ? "-keepalive"
+                : oldThreadName.contains("disconnect") ? "-disconnect"
+                        : "";
+
+        final String newThreadName = Threads.buildThreadName(
+                BinlogStreamingChangeEventSource.class,
+                connectorConfig.getLogicalName(),
+                "binlog-client" + threadType,
+                threadNameContext);
+        thread.setName(newThreadName);
+        final String newMapKey = newThreadName + "-" + thread.getId();
+        binaryLogClientThreads.remove(oldMapKey);
+        binaryLogClientThreads.put(newMapKey, thread);
+    }
+
     // todo: perhaps refactor back out to a binary log configurator instance?
     protected BinaryLogClient createBinaryLogClient(BinlogTaskContext<?> taskContext,
                                                     BinlogConnectorConfig connectorConfig,
                                                     Map<String, Thread> clientThreads,
                                                     BinlogConnectorConnection connection) {
         final BinaryLogClient client = taskContext.getBinaryLogClient();
+        final ThreadNameContext threadNameContext = ThreadNameContext.from(connectorConfig);
         client.setThreadFactory(
                 Threads.threadFactory(
-                        getConnectorClass(),
+                        BinlogStreamingChangeEventSource.class,
                         connectorConfig.getLogicalName(),
                         "binlog-client",
+                        threadNameContext,
                         false,
                         false,
-                        x -> clientThreads.put(x.getName(), x)));
+                        x -> {
+                            clientThreads.put(x.getName() + "-" + x.getId(), x);
+                        }));
         client.setServerId(connectorConfig.getServerId());
 
         client.setSSLMode(sslModeFor(connectorConfig.getSslMode()));
@@ -525,7 +598,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
         long eventTs = event.getHeader().getTimestamp();
 
         if (eventTs == 0) {
-            LOGGER.trace("Received unexpected event with 0 timestamp: {}", event);
+            LOGGER.trace("Received unexpected event with 0 timestamp: {}", (EventHeader) event.getHeader());
             return;
         }
 
@@ -539,7 +612,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
     protected abstract void setEventTimestamp(Event event, long eventTs);
 
     protected void ignoreEvent(O offsetContext, Event event) {
-        LOGGER.trace("Ignoring event due to missing handler: {}", event);
+        LOGGER.trace("Ignoring event due to missing handler: {}", (EventHeader) event.getHeader());
     }
 
     protected void handleEvent(P partition, O offsetContext, ChangeEventSourceContext context, Event event) {
@@ -711,7 +784,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
     protected void handleQueryEvent(P partition, O offsetContext, Event event) throws InterruptedException {
         Instant eventTime = Conversions.toInstantFromMillis(eventTimestamp.toEpochMilli());
         QueryEventData command = unwrapData(event);
-        LOGGER.debug("Received query command: {}", event);
+        LOGGER.trace("Received query command: {}", (EventHeader) event.getHeader());
         String sql = command.getSql().trim();
         if (sql.equalsIgnoreCase("BEGIN")) {
             handleTransactionBegin(partition, offsetContext, event, command.getThreadId());
@@ -722,20 +795,21 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
             return;
         }
 
-        String upperCasedStatementBegin = removeSetStatement(sql).toUpperCase();
+        String upperCasedStatementBegin = Strings.removeSetStatement(sql).toUpperCase();
 
         if (upperCasedStatementBegin.startsWith("XA ")) {
             // This is an XA transaction, and we currently ignore these and do nothing ...
             return;
         }
         if (!TRUNCATE_STATEMENT_PATTERN.matcher(sql).matches() && schema.ddlFilter().test(sql)) {
-            LOGGER.debug("DDL '{}' was filtered out of processing", sql);
+            LOGGER.trace("DDL '{}' was filtered out of processing", sql);
             return;
         }
         // Check and exclude DML statements from DDL statements handling logic.
         Set<String> DML_STATEMENTS = Set.of("INSERT ", "UPDATE ", "DELETE ", "REPLACE ");
         if (DML_STATEMENTS.contains(upperCasedStatementBegin)) {
-            LOGGER.warn("Received DML '" + sql + "' for processing, binlog probably contains events generated with statement or mixed based replication format");
+            LOGGER.warn("Received DML of type {}, binlog probably contains events generated with statement or mixed based replication format",
+                    upperCasedStatementBegin.trim());
             return;
         }
         if (sql.equalsIgnoreCase("ROLLBACK")) {
@@ -776,10 +850,6 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
         }
     }
 
-    private String removeSetStatement(String sql) {
-        return sql.replaceAll(SET_STATEMENT_REGEX, "").trim();
-    }
-
     /**
      * Handle a change in the table metadata.<p></p>
      *
@@ -803,7 +873,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
         String tableName = metadata.getTable();
         TableId tableId = new TableId(databaseName, null, tableName);
         if (schema.assignTableNumber(tableNumber, tableId)) {
-            LOGGER.debug("Received update table metadata event: {}", event);
+            LOGGER.trace("Received update table metadata event: {}", event);
         }
         else {
             informAboutUnknownTableIfRequired(partition, offsetContext, event, tableId);
@@ -1001,7 +1071,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
                 LOGGER.error(
                         "Encountered change event '{}' at offset {} for table {} whose schema isn't known to this connector. One possible cause is an incomplete database schema history topic. Take a new snapshot in this case.{}"
                                 + "Use the mysqlbinlog tool to view the problematic event: mysqlbinlog --start-position={} --stop-position={} --verbose {}",
-                        event, offsetContext.getOffset(), tableId, System.lineSeparator(), eventHeader.getPosition(),
+                        eventHeader, offsetContext.getOffset(), tableId, System.lineSeparator(), eventHeader.getPosition(),
                         eventHeader.getNextPosition(), offsetContext.getSource().binlogFilename());
                 throw new DebeziumException("Encountered change event for table " + tableId
                         + " whose schema isn't known to this connector");
@@ -1011,7 +1081,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
                         "Encountered change event '{}' at offset {} for table {} whose schema isn't known to this connector. One possible cause is an incomplete database schema history topic. Take a new snapshot in this case.{}"
                                 + "The event will be ignored.{}"
                                 + "Use the mysqlbinlog tool to view the problematic event: mysqlbinlog --start-position={} --stop-position={} --verbose {}",
-                        event, offsetContext.getOffset(), tableId, System.lineSeparator(), System.lineSeparator(),
+                        eventHeader, offsetContext.getOffset(), tableId, System.lineSeparator(), System.lineSeparator(),
                         eventHeader.getPosition(), eventHeader.getNextPosition(), offsetContext.getSource().binlogFilename());
             }
             else {
@@ -1019,7 +1089,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
                         "Encountered change event '{}' at offset {} for table {} whose schema isn't known to this connector. One possible cause is an incomplete database schema history topic. Take a new snapshot in this case.{}"
                                 + "The event will be ignored.{}"
                                 + "Use the mysqlbinlog tool to view the problematic event: mysqlbinlog --start-position={} --stop-position={} --verbose {}",
-                        event, offsetContext.getOffset(), tableId, System.lineSeparator(), System.lineSeparator(),
+                        eventHeader, offsetContext.getOffset(), tableId, System.lineSeparator(), System.lineSeparator(),
                         eventHeader.getPosition(), eventHeader.getNextPosition(), offsetContext.getSource().binlogFilename());
             }
         }
@@ -1090,11 +1160,11 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
             throws InterruptedException {
         if (skipEvent) {
             // We can skip this because we should already be at least this far ...
-            LOGGER.info("Skipping previously processed row event: {}", event);
+            LOGGER.info("Skipping previously processed row event: {}", (EventHeader) event.getHeader());
             return;
         }
         if (ignoreDmlEventByGtidSource) {
-            LOGGER.debug("Skipping DML event because this GTID source is filtered: {}", event);
+            LOGGER.debug("Skipping DML event because this GTID source is filtered: {}", (EventHeader) event.getHeader());
             return;
         }
         final T data = unwrapData(event);
@@ -1127,7 +1197,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
             }
             else {
                 // All rows were previously processed ...
-                LOGGER.debug("Skipping previously processed {} event: {}", changeType, event);
+                LOGGER.debug("Skipping previously processed {} event: {}", changeType, event.getHeader());
             }
         }
         else {
@@ -1150,7 +1220,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
     }
 
     protected void logEvent(O offsetContext, Event event) {
-        LOGGER.trace("Received event: {}", event);
+        LOGGER.trace("Received event: {}", (EventHeader) event.getHeader());
     }
 
     private void logStreamingSourceState(Level severity) {
@@ -1310,24 +1380,8 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
                 }
 
                 if (ks == null && (sslMode == SSLMode.PREFERRED || sslMode == SSLMode.REQUIRED)) {
-                    trustManagers = new TrustManager[]{
-                            new X509TrustManager() {
-                                @Override
-                                public void checkClientTrusted(X509Certificate[] x509Certificates, String s)
-                                        throws CertificateException {
-                                }
-
-                                @Override
-                                public void checkServerTrusted(X509Certificate[] x509Certificates, String s)
-                                        throws CertificateException {
-                                }
-
-                                @Override
-                                public X509Certificate[] getAcceptedIssuers() {
-                                    return new X509Certificate[0];
-                                }
-                            }
-                    };
+                    // CC-37713: Use static class instead of anonymous inner class to prevent memory leak
+                    trustManagers = new TrustManager[]{ new NoOpX509TrustManager() };
                 }
                 else {
                     TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
@@ -1341,13 +1395,8 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
 
             // DBZ-1208 Resembles the logic from the upstream BinaryLogClient, only that
             // the accepted TLS version is passed to the constructed factory
-            final KeyManager[] finalKMS = keyManagers;
-            return new DefaultSSLSocketFactory(acceptedTlsVersion) {
-                @Override
-                protected void initSSLContext(SSLContext sc) throws GeneralSecurityException {
-                    sc.init(finalKMS, trustManagers, null);
-                }
-            };
+            // CC-37713: Use static class instead of anonymous inner class to prevent memory leak
+            return new ConfigurableSSLSocketFactory(acceptedTlsVersion, keyManagers, trustManagers);
         }
         return null;
     }
@@ -1370,6 +1419,50 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
     @FunctionalInterface
     private interface ChangeEventValidator<U> {
         void validate(TableId tableId, U row);
+    }
+
+    /**
+     * A no-op X509TrustManager that trusts all certificates.
+     * Used for PREFERRED and REQUIRED SSL modes when no truststore is configured.
+     * This is a static class to prevent holding a reference to the outer class instance,
+     * which could cause memory leaks due to phantom references (see CC-37713).
+     */
+    private static class NoOpX509TrustManager implements X509TrustManager {
+        @Override
+        public void checkClientTrusted(X509Certificate[] x509Certificates, String s)
+                throws CertificateException {
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] x509Certificates, String s)
+                throws CertificateException {
+        }
+
+        @Override
+        public X509Certificate[] getAcceptedIssuers() {
+            return new X509Certificate[0];
+        }
+    }
+
+    /**
+     * Configurable SSL Socket Factory that accepts a specific TLS version.
+     * This is a static class to prevent holding a reference to the outer class instance,
+     * which could cause memory leaks due to phantom references (see CC-37713).
+     */
+    private static class ConfigurableSSLSocketFactory extends DefaultSSLSocketFactory {
+        private final KeyManager[] keyManagers;
+        private final TrustManager[] trustManagers;
+
+        ConfigurableSSLSocketFactory(String acceptedTlsVersion, KeyManager[] keyManagers, TrustManager[] trustManagers) {
+            super(acceptedTlsVersion);
+            this.keyManagers = keyManagers;
+            this.trustManagers = trustManagers;
+        }
+
+        @Override
+        protected void initSSLContext(SSLContext sc) throws GeneralSecurityException {
+            sc.init(keyManagers, trustManagers, null);
+        }
     }
 
     /**

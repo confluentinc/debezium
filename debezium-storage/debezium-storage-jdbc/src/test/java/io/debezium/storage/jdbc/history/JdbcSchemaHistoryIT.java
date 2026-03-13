@@ -36,6 +36,7 @@ import io.debezium.jdbc.JdbcConnection;
 import io.debezium.relational.history.SchemaHistory;
 import io.debezium.storage.jdbc.offset.JdbcOffsetBackingStoreConfig;
 import io.debezium.util.Testing;
+import io.debezium.util.ThreadNameContext;
 
 public class JdbcSchemaHistoryIT extends AbstractAsyncEngineConnectorTest {
 
@@ -119,7 +120,9 @@ public class JdbcSchemaHistoryIT extends AbstractAsyncEngineConnectorTest {
                 .with(MySqlConnectorConfig.HOSTNAME, container.getHost())
                 .with(MySqlConnectorConfig.PORT, container.getMappedPort(PORT))
                 .with(MySqlConnectorConfig.USER, USER)
+                .with("jdbc.creds.provider.user", USER)
                 .with(MySqlConnectorConfig.PASSWORD, PASSWORD)
+                .with("jdbc.creds.provider.password", PASSWORD)
                 .with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, DBNAME)
                 .with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, DBNAME + "." + TABLE_NAME)
                 .with(MySqlConnectorConfig.SERVER_ID, 18765)
@@ -145,7 +148,8 @@ public class JdbcSchemaHistoryIT extends AbstractAsyncEngineConnectorTest {
                 .withDatabase(DBNAME)
                 .build();
         final String url = "jdbc:mysql://${hostname}:${port}/${dbname}";
-        return new JdbcConnection(jdbcConfig, JdbcConnection.patternBasedFactory(url), "`", "`");
+        return new JdbcConnection(jdbcConfig, JdbcConnection.patternBasedFactory(url), "`", "`",
+                new ThreadNameContext("test-connector", "${debezium}-${connector.class.simple}-${topic.prefix}-${functionality}-${connector.name}-${task.id}", "0"));
     }
 
     @Test

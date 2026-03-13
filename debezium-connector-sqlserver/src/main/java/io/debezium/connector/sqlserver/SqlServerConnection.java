@@ -51,6 +51,7 @@ import io.debezium.pipeline.spi.Partition;
 import io.debezium.relational.Column;
 import io.debezium.relational.Table;
 import io.debezium.relational.TableId;
+import io.debezium.util.ThreadNameContext;
 
 /**
  * {@link JdbcConnection} extension to be used with Microsoft SQL Server
@@ -146,7 +147,8 @@ public class SqlServerConnection extends JdbcConnection {
     public SqlServerConnection(SqlServerConnectorConfig config, SqlServerValueConverters valueConverters,
                                Set<Envelope.Operation> skippedOperations,
                                boolean useSingleDatabase) {
-        super(config.getJdbcConfig(), createConnectionFactory(config.getJdbcConfig(), useSingleDatabase), OPENING_QUOTING_CHARACTER, CLOSING_QUOTING_CHARACTER);
+        super(config.getJdbcConfig(), createConnectionFactory(config.getJdbcConfig(), useSingleDatabase), OPENING_QUOTING_CHARACTER, CLOSING_QUOTING_CHARACTER,
+                ThreadNameContext.from(config));
 
         defaultValueConverter = new SqlServerDefaultValueConverter(this::connection, valueConverters);
         this.queryFetchSize = config.getQueryFetchSize();

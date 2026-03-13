@@ -17,6 +17,7 @@ import java.sql.Types;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -62,6 +63,7 @@ import io.debezium.relational.Tables;
 import io.debezium.spi.schema.DataCollectionId;
 import io.debezium.util.Clock;
 import io.debezium.util.Metronome;
+import io.debezium.util.ThreadNameContext;
 
 /**
  * {@link JdbcConnection} connection extension used for connecting to Postgres instances.
@@ -107,8 +109,9 @@ public class PostgresConnection extends JdbcConnection {
      * @param valueConverterBuilder supplies a configured {@link PostgresValueConverter} for a given {@link TypeRegistry}
      * @param connectionUsage a symbolic name of the connection to be tracked in monitoring tools
      */
-    public PostgresConnection(JdbcConfiguration config, PostgresValueConverterBuilder valueConverterBuilder, String connectionUsage) {
-        super(addDefaultSettings(config, connectionUsage), FACTORY, PostgresConnection::validateServerVersion, "\"", "\"");
+    public PostgresConnection(JdbcConfiguration config, PostgresValueConverterBuilder valueConverterBuilder, String connectionUsage,
+                              ThreadNameContext threadNameContext) {
+        super(addDefaultSettings(config, connectionUsage), FACTORY, PostgresConnection::validateServerVersion, "\"", "\"", threadNameContext);
 
         if (Objects.isNull(valueConverterBuilder)) {
             this.typeRegistry = null;
@@ -129,10 +132,13 @@ public class PostgresConnection extends JdbcConnection {
      * @param connectionUsage a symbolic name of the connection to be tracked in monitoring tools
      */
     public PostgresConnection(PostgresConnectorConfig config, TypeRegistry typeRegistry, String connectionUsage) {
-        super(addDefaultSettings(config.getJdbcConfig(), connectionUsage),
+        super(
+                addDefaultSettings(config.getJdbcConfig(), connectionUsage),
                 FACTORY,
                 PostgresConnection::validateServerVersion,
-                "\"", "\"");
+                "\"",
+                "\"",
+                ThreadNameContext.from(config));
 
         if (Objects.isNull(typeRegistry)) {
             this.typeRegistry = null;
@@ -152,8 +158,8 @@ public class PostgresConnection extends JdbcConnection {
      * @param config {@link Configuration} instance, may not be null.
      * @param connectionUsage a symbolic name of the connection to be tracked in monitoring tools
      */
-    public PostgresConnection(JdbcConfiguration config, String connectionUsage) {
-        this(config, null, connectionUsage);
+    public PostgresConnection(JdbcConfiguration config, String connectionUsage, ThreadNameContext threadNameContext) {
+        this(config, null, connectionUsage, threadNameContext);
     }
 
     static JdbcConfiguration addDefaultSettings(JdbcConfiguration configuration, String connectionUsage) {
@@ -639,6 +645,15 @@ public class PostgresConnection extends JdbcConnection {
         return doReadTableColumn(columnMetadata, tableId, columnFilter);
     }
 
+    @Override
+    protected Map<TableId, List<Column>> getColumnsDetails(String catalogName, String schemaName,
+                                                           String tableName, Tables.TableFilter tableFilter, Tables.ColumnNameFilter columnFilter,
+                                                           DatabaseMetaData metadata,
+                                                           final Set<TableId> viewIds)
+            throws SQLException {
+        return getColumnsDetails(catalogName, schemaName, tableName, tableFilter, columnFilter, metadata, viewIds, true);
+    }
+
     public Optional<Column> readColumnForDecoder(ResultSet columnMetadata, TableId tableId, Tables.ColumnNameFilter columnNameFilter)
             throws SQLException {
         return doReadTableColumn(columnMetadata, tableId, columnNameFilter).map(ColumnEditor::create);
@@ -754,7 +769,7 @@ public class PostgresConnection extends JdbcConnection {
                 default:
                     Object x = rs.getObject(columnIndex);
                     if (x != null) {
-                        LOGGER.trace("rs getobject returns class: {}; rs getObject value is: {}", x.getClass(), x);
+                        LOGGER.trace("rs getobject returns class: {}; rs columnIndex is: {}", x.getClass(), columnIndex);
                     }
                     return x;
             }
@@ -778,6 +793,10 @@ public class PostgresConnection extends JdbcConnection {
     @Override
     protected boolean isTableUniqueIndexIncluded(String indexName, String columnName) {
         if (columnName != null) {
+            if (columnName.length() > 16348) {
+                throw new RuntimeException(
+                        "Unique index exceeded allowed size");
+            }
             return !FUNCTION_DEFAULT_PATTERN.matcher(columnName).matches()
                     && !EXPRESSION_DEFAULT_PATTERN.matcher(columnName).matches();
         }
@@ -850,7 +869,7 @@ public class PostgresConnection extends JdbcConnection {
 
     public boolean validateLogPosition(Partition partition, OffsetContext offset, CommonConnectorConfig config) {
 
-        final Lsn storedLsn = ((PostgresOffsetContext) offset).lastCommitLsn();
+        final Lsn storedLsn = ((PostgresOffsetContext) offset).lastCompletelyProcessedLsn();
         final String slotName = ((PostgresConnectorConfig) config).slotName();
         final String postgresPluginName = ((PostgresConnectorConfig) config).plugin().getPostgresPluginName();
 
@@ -858,6 +877,13 @@ public class PostgresConnection extends JdbcConnection {
             SlotState slotState = getReplicationSlotState(slotName, postgresPluginName);
             if (slotState == null) {
                 return false;
+            }
+            if (slotState.slotIsActive()) {
+                throw new DebeziumException(
+                        "The replication slot '" + slotName + "' is already active. "
+                                + "This means that another Postgres connector or another Postgres process"
+                                + " on the database is using this slot. Each Postgres connector"
+                                + " must use its own unique replication slot.");
             }
             LOGGER.info("Slot '{}' has restart LSN '{}'", slotName, slotState.slotRestartLsn());
             return storedLsn == null || slotState.slotRestartLsn().compareTo(storedLsn) <= 0;

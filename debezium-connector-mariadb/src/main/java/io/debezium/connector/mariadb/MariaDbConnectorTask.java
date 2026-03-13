@@ -54,6 +54,7 @@ import io.debezium.snapshot.SnapshotterService;
 import io.debezium.spi.snapshot.Snapshotter;
 import io.debezium.spi.topic.TopicNamingStrategy;
 import io.debezium.util.Clock;
+import io.debezium.util.ThreadNameContext;
 
 /**
  * The MariaDB connector task that performs snapshot and streaming of changes from the database.
@@ -101,7 +102,7 @@ public class MariaDbConnectorTask extends BinlogSourceTask<MariaDbPartition, Mar
 
         final MainConnectionProvidingConnectionFactory<BinlogConnectorConnection> connectionFactory = new DefaultMainConnectionProvidingConnectionFactory<>(() -> {
             final MariaDbConnectionConfiguration connectionConfig = new MariaDbConnectionConfiguration(config);
-            return new MariaDbConnection(connectionConfig, new MariaDbFieldReader(connectorConfig));
+            return new MariaDbConnection(connectionConfig, new MariaDbFieldReader(connectorConfig), ThreadNameContext.from(connectorConfig));
         });
 
         this.connection = connectionFactory.mainConnection();
@@ -225,7 +226,8 @@ public class MariaDbConnectorTask extends BinlogSourceTask<MariaDbPartition, Mar
                 new HeartbeatFactory<>().getScheduledHeartbeat(connectorConfig,
                         () -> new MariaDbConnection(
                                 new MariaDbConnectionConfiguration(config),
-                                getFieldReader(connectorConfig)),
+                                getFieldReader(connectorConfig),
+                                ThreadNameContext.from(connectorConfig)),
                         new BinlogHeartbeatErrorHandler(),
                         queue),
                 schemaNameAdjuster,
@@ -278,6 +280,8 @@ public class MariaDbConnectorTask extends BinlogSourceTask<MariaDbPartition, Mar
 
     @Override
     protected void doStop() {
+        shutdownQueue(queue);
+
         try {
             if (connection != null) {
                 connection.close();

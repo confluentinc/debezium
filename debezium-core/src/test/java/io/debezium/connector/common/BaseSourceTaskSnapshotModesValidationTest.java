@@ -125,14 +125,16 @@ public class BaseSourceTaskSnapshotModesValidationTest {
         Offsets previousOffsets = Offsets.of(partition, null);
 
         HistorizedDatabaseSchema databaseSchema = mock(HistorizedDatabaseSchema.class);
-        when(databaseSchema.isHistorized()).thenReturn(true);
         SchemaHistory schemaHistory = mock(SchemaHistory.class);
+        when(databaseSchema.isHistorized()).thenReturn(true);
         when(databaseSchema.getSchemaHistory()).thenReturn(schemaHistory);
+
         Snapshotter snapshotter = mock(Snapshotter.class);
 
         baseSourceTask.validateSchemaHistory(commonConnectorConfig, logPositionValidator, previousOffsets, databaseSchema, snapshotter);
 
         verify(databaseSchema).initializeStorage();
+        verify(schemaHistory).verifyReadAccess();
     }
 
     @Test
@@ -147,8 +149,8 @@ public class BaseSourceTaskSnapshotModesValidationTest {
 
         Offsets previousOffsets = Offsets.of(partition, offset);
         HistorizedDatabaseSchema databaseSchema = mock(HistorizedDatabaseSchema.class);
-        when(databaseSchema.isHistorized()).thenReturn(true);
         SchemaHistory schemaHistory = mock(SchemaHistory.class);
+        when(databaseSchema.isHistorized()).thenReturn(true);
         when(databaseSchema.getSchemaHistory()).thenReturn(schemaHistory);
         Snapshotter snapshotter = mock(Snapshotter.class);
         when(snapshotter.shouldSnapshotOnSchemaError()).thenReturn(true);
@@ -156,6 +158,7 @@ public class BaseSourceTaskSnapshotModesValidationTest {
         baseSourceTask.validateSchemaHistory(commonConnectorConfig, logPositionValidator, previousOffsets, databaseSchema, snapshotter);
 
         verify(databaseSchema).initializeStorage();
+        verify(schemaHistory).verifyReadAccess();
 
     }
 
@@ -196,13 +199,15 @@ public class BaseSourceTaskSnapshotModesValidationTest {
 
         Offsets previousOffsets = Offsets.of(partition, offset);
         HistorizedDatabaseSchema databaseSchema = mock(HistorizedDatabaseSchema.class);
-        when(databaseSchema.isHistorized()).thenReturn(true);
         SchemaHistory schemaHistory = mock(SchemaHistory.class);
+        when(databaseSchema.isHistorized()).thenReturn(true);
         when(databaseSchema.getSchemaHistory()).thenReturn(schemaHistory);
         when(schemaHistory.exists()).thenReturn(true);
         Snapshotter snapshotter = mock(Snapshotter.class);
 
         baseSourceTask.validateSchemaHistory(commonConnectorConfig, logPositionValidator, previousOffsets, databaseSchema, snapshotter);
+
+        verify(schemaHistory).verifyReadAccess();
 
     }
 
@@ -223,8 +228,8 @@ public class BaseSourceTaskSnapshotModesValidationTest {
 
         Offsets previousOffsets = Offsets.of(partition, offset);
         HistorizedDatabaseSchema databaseSchema = mock(HistorizedDatabaseSchema.class);
-        when(databaseSchema.isHistorized()).thenReturn(true);
         SchemaHistory schemaHistory = mock(SchemaHistory.class);
+        when(databaseSchema.isHistorized()).thenReturn(true);
         when(databaseSchema.getSchemaHistory()).thenReturn(schemaHistory);
         when(schemaHistory.exists()).thenReturn(true);
         Snapshotter snapshotter = mock(Snapshotter.class);
@@ -251,10 +256,10 @@ public class BaseSourceTaskSnapshotModesValidationTest {
 
         Offsets previousOffsets = Offsets.of(partition, offset);
         HistorizedDatabaseSchema databaseSchema = mock(HistorizedDatabaseSchema.class);
-        when(databaseSchema.isHistorized()).thenReturn(true);
         SchemaHistory schemaHistory = mock(SchemaHistory.class);
+        when(databaseSchema.isHistorized()).thenReturn(true);
         when(databaseSchema.getSchemaHistory()).thenReturn(schemaHistory);
-        when(databaseSchema.getSchemaHistory().exists()).thenReturn(true);
+        when(schemaHistory.exists()).thenReturn(true);
         Snapshotter snapshotter = mock(Snapshotter.class);
         when(snapshotter.shouldSnapshotOnDataError()).thenReturn(true);
         when(snapshotter.shouldStream()).thenReturn(true);
@@ -262,6 +267,7 @@ public class BaseSourceTaskSnapshotModesValidationTest {
         baseSourceTask.validateSchemaHistory(commonConnectorConfig, logPositionValidator, previousOffsets, databaseSchema, snapshotter);
 
         assertThat(previousOffsets.getTheOnlyOffset()).isNull();
+        verify(schemaHistory).verifyReadAccess();
 
     }
 

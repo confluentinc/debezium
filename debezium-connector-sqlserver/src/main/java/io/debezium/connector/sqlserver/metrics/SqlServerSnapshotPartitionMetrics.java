@@ -10,6 +10,7 @@ import java.util.concurrent.ConcurrentMap;
 
 import io.debezium.connector.common.CdcSourceTaskContext;
 import io.debezium.pipeline.meters.SnapshotMeter;
+import io.debezium.pipeline.metrics.TaskStateMetrics;
 import io.debezium.pipeline.source.spi.EventMetadataProvider;
 import io.debezium.relational.TableId;
 import io.debezium.spi.schema.DataCollectionId;
@@ -20,9 +21,10 @@ class SqlServerSnapshotPartitionMetrics extends AbstractSqlServerPartitionMetric
     private final SnapshotMeter snapshotMeter;
 
     SqlServerSnapshotPartitionMetrics(CdcSourceTaskContext taskContext, Map<String, String> tags,
-                                      EventMetadataProvider metadataProvider) {
+                                      EventMetadataProvider metadataProvider,
+                                      TaskStateMetrics taskStateMetrics) {
         super(taskContext, tags, metadataProvider);
-        snapshotMeter = new SnapshotMeter(taskContext.getClock());
+        snapshotMeter = new SnapshotMeter(taskContext.getClock(), taskStateMetrics);
     }
 
     @Override
@@ -36,27 +38,27 @@ class SqlServerSnapshotPartitionMetrics extends AbstractSqlServerPartitionMetric
     }
 
     @Override
-    public boolean getSnapshotRunning() {
+    public long getSnapshotRunning() {
         return snapshotMeter.getSnapshotRunning();
     }
 
     @Override
-    public boolean getSnapshotPaused() {
+    public long getSnapshotPaused() {
         return snapshotMeter.getSnapshotPaused();
     }
 
     @Override
-    public boolean getSnapshotCompleted() {
+    public long getSnapshotCompleted() {
         return snapshotMeter.getSnapshotCompleted();
     }
 
     @Override
-    public boolean getSnapshotAborted() {
+    public long getSnapshotAborted() {
         return snapshotMeter.getSnapshotAborted();
     }
 
     @Override
-    public boolean getSnapshotSkipped() {
+    public long getSnapshotSkipped() {
         return snapshotMeter.getSnapshotSkipped();
     }
 

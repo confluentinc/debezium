@@ -9,6 +9,8 @@ package io.debezium.connector.mysql.antlr.listener;
 import java.util.List;
 
 import org.antlr.v4.runtime.tree.ParseTreeListener;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.debezium.antlr.AntlrDdlParser;
 import io.debezium.connector.mysql.antlr.MySqlAntlrDdlParser;
@@ -26,6 +28,7 @@ import io.debezium.text.ParsingException;
  */
 public class AlterViewParserListener extends MySqlParserBaseListener {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(AlterViewParserListener.class);
     private final MySqlAntlrDdlParser parser;
     private final List<ParseTreeListener> listeners;
 
@@ -44,8 +47,8 @@ public class AlterViewParserListener extends MySqlParserBaseListener {
 
             tableEditor = parser.databaseTables().editTable(tableId);
             if (tableEditor == null) {
-                throw new ParsingException(null, "Trying to alter view " + tableId.toString()
-                        + ", which does not exist. Query:" + AntlrDdlParser.getText(ctx));
+                LOGGER.trace("Trying to alter view {}, which does not exist. Query: {}", tableId, AntlrDdlParser.getText(ctx));
+                throw new ParsingException(null, "Trying to alter view " + tableId.toString() + ", which does not exist.");
             }
             // alter view will override existing columns for a new one
             tableEditor.columnNames().forEach(tableEditor::removeColumn);

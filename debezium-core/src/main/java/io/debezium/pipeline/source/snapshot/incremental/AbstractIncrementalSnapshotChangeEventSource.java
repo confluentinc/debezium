@@ -22,13 +22,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.apache.kafka.connect.data.Struct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.re2j.Pattern;
 
 import io.debezium.DebeziumException;
 import io.debezium.annotation.NotThreadSafe;
@@ -779,7 +780,7 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
         SchemaChangeEvent schemaChangeEvent = SchemaChangeEvent.ofCreate(
                 partition,
                 offsetContext,
-                newTable.id().catalog(),
+                getDatabaseName(newTable),
                 newTable.id().schema(),
                 getTableDDL(tableId),
                 newTable,
@@ -809,5 +810,19 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
         // default behavior is to return a null value, this allows connectors that require DDL
         // for a schemaChangeEvent to implement this, such as Oracle
         return null;
+    }
+
+    /**
+     * Returns the database name to use for schema change events.
+     * <p>
+     * The default implementation returns the catalog from the table's identifier.
+     * Connectors where {@link TableId#catalog()} returns null (e.g., PostgreSQL)
+     * should override this method to provide the appropriate database name.
+     *
+     * @param table the table for which to get the database name
+     * @return the database name; must not be null
+     */
+    protected String getDatabaseName(Table table) {
+        return table.id().catalog();
     }
 }

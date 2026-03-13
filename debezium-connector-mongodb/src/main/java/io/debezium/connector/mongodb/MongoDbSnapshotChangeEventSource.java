@@ -18,7 +18,6 @@ import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -29,6 +28,7 @@ import org.bson.conversions.Bson;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.re2j.Pattern;
 import com.mongodb.client.ChangeStreamIterable;
 import com.mongodb.client.MongoChangeStreamCursor;
 import com.mongodb.client.MongoCollection;
@@ -222,7 +222,7 @@ public class MongoDbSnapshotChangeEventSource extends AbstractSnapshotChangeEven
 
         LOGGER.info("Creating snapshot worker pool with {} worker thread(s)", numThreads);
         final ExecutorService executorService = Threads.newFixedThreadPool(MongoDbConnector.class, taskContext.getServerName(), "snapshot-main",
-                connectorConfig.getSnapshotMaxThreads());
+                io.debezium.util.ThreadNameContext.from(connectorConfig), connectorConfig.getSnapshotMaxThreads());
 
         final AtomicBoolean aborted = new AtomicBoolean(false);
         final AtomicInteger threadCounter = new AtomicInteger(0);

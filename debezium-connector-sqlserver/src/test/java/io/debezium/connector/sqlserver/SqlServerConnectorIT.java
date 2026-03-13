@@ -14,6 +14,7 @@ import static io.debezium.connector.sqlserver.util.TestHelper.waitForStreamingSt
 import static io.debezium.data.Envelope.FieldName.AFTER;
 import static io.debezium.relational.RelationalDatabaseConnectorConfig.SCHEMA_EXCLUDE_LIST;
 import static io.debezium.relational.RelationalDatabaseConnectorConfig.SCHEMA_INCLUDE_LIST;
+import static io.debezium.relational.history.SchemaHistory.SCHEMA_HISTORY_RECOVERY_DELAY_MS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.entry;
 import static org.junit.Assert.assertEquals;
@@ -35,6 +36,7 @@ import java.util.Set;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -68,6 +70,7 @@ import io.debezium.data.VerifyRecord;
 import io.debezium.doc.FixFor;
 import io.debezium.embedded.async.AbstractAsyncEngineConnectorTest;
 import io.debezium.embedded.async.RetryingCallable;
+import io.debezium.engine.DebeziumEngine;
 import io.debezium.heartbeat.DatabaseHeartbeatImpl;
 import io.debezium.junit.ConditionalFail;
 import io.debezium.junit.Flaky;
@@ -3093,6 +3096,7 @@ public class SqlServerConnectorIT extends AbstractAsyncEngineConnectorTest {
                 .with(SqlServerConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
                 .with(SqlServerConnectorConfig.STORE_ONLY_CAPTURED_TABLES_DDL, "true")
                 .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.tablea")
+                .with(CommonConnectorConfig.LOG_POSITION_CHECK_ENABLED, true)
                 .build();
 
         // Start the connector ...
@@ -3148,6 +3152,69 @@ public class SqlServerConnectorIT extends AbstractAsyncEngineConnectorTest {
         assertThat(records.recordsForTopic("server1.testDB1.dbo.tablea").size()).isEqualTo(9);
         assertThat(records.topics().size()).isEqualTo(1 + 1);
         assertThat(records.ddlRecordsForDatabase("testDB1").size()).isEqualTo(1);
+        stopConnector();
+    }
+
+    @Test
+    public void shouldProcessPurgedLogsWhenDownAndResumeFromMinimumLsn() throws SQLException, InterruptedException {
+
+        Testing.Files.delete(SCHEMA_HISTORY_PATH);
+
+        purgeDatabaseLogs();
+
+        // Use the DB configuration to define the connector's configuration ...
+        Configuration config = TestHelper.defaultConfig()
+                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
+                .with(SqlServerConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
+                .with(SqlServerConnectorConfig.STORE_ONLY_CAPTURED_TABLES_DDL, "true")
+                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.tablea")
+                .build();
+
+        // Start the connector ...
+        start(SqlServerConnector.class, config);
+
+        // Consume the first records due to startup and initialization of the database ...
+        // Testing.Print.enable();
+        SourceRecords records = consumeRecordsByTopic(1 + 1); // CREATE 1 tables + 1 data
+        assertThat(records.recordsForTopic("server1.testDB1.dbo.tablea").size()).isEqualTo(1);
+        assertThat(records.topics().size()).isEqualTo(1 + 1);
+        assertThat(records.ddlRecordsForDatabase("testDB1").size()).isEqualTo(1);
+
+        // Check that all records are valid, can be serialized and deserialized ...
+        records.forEach(this::validate);
+
+        stopConnector();
+
+        connection.execute(
+                "INSERT INTO tablea VALUES(100,'100')",
+                "INSERT INTO tablea VALUES(200,'200')");
+
+        start(SqlServerConnector.class, config);
+        records = consumeRecordsByTopic(2);
+        stopConnector();
+
+        connection.execute(
+                "INSERT INTO tablea VALUES(300,'300')",
+                "INSERT INTO tablea VALUES(400,'400')");
+
+        purgeDatabaseLogs();
+
+        // No records to consume
+        start(SqlServerConnector.class, config);
+
+        connection.execute(
+                "INSERT INTO tablea VALUES(700,'700')",
+                "INSERT INTO tablea VALUES(800,'800')");
+
+        // CREATE 2 data (resume from the available LSN)
+        records = consumeRecordsByTopic(2);
+        List<SourceRecord> tableARecords = records.recordsForTopic("server1.testDB1.dbo.tablea");
+
+        assertThat(tableARecords.size()).isEqualTo(2);
+        assertThat(records.topics().size()).isEqualTo(1);
+
+        VerifyRecord.isValidInsert(tableARecords.get(0), "id", 700);
+        VerifyRecord.isValidInsert(tableARecords.get(1), "id", 800);
         stopConnector();
     }
 
@@ -3334,6 +3401,50 @@ public class SqlServerConnectorIT extends AbstractAsyncEngineConnectorTest {
         }
         finally {
             TestHelper.disableTableCdc(connection, "heartbeat");
+        }
+    }
+
+    @Test
+    public void taskStartShouldNotWaitOnSchemaHistoryRecovery() throws InterruptedException {
+        // Introduce a delay of 10 seconds in recovering every record in schema history. This is
+        // done to increase the time taken to recovery schema history.
+        Configuration config = TestHelper.defaultConfig()
+                .with(SCHEMA_HISTORY_RECOVERY_DELAY_MS, 10_000)
+                .with(SqlServerConnectorConfig.LOG_POSITION_CHECK_ENABLED, false)
+                .build();
+
+        start(SqlServerConnector.class, config);
+        logger.info("Sleeping for 2 seconds to allow connector to start and commit an offset");
+        Thread.sleep(2_000);
+
+        stopConnector();
+
+        CountDownLatch taskStartLatch = new CountDownLatch(1);
+
+        Thread startConnectorThread = new Thread(() -> {
+            logger.info("Starting connector again");
+            start(SqlServerConnector.class, config, new DebeziumEngine.ConnectorCallback() {
+                @Override
+                public void taskStarted() {
+                    taskStartLatch.countDown();
+                }
+            });
+        });
+
+        startConnectorThread.start();
+
+        logger.info("Waiting for task to start");
+
+        // Wait for 5 seconds for the task to be started
+        Awaitility.await().atMost(5, TimeUnit.SECONDS).until(() -> taskStartLatch.getCount() == 0);
+
+        logger.info("Task has started, even though the schema history recovery will take long time");
+
+        // fail the test if task did not start in 5 seconds
+        if (taskStartLatch.getCount() != 0) {
+            throw new AssertionError("Task did not start in 5 seconds after " +
+                    "connector was started. Task's start method should be lightweight and " +
+                    "hence this is not expected.");
         }
     }
 

@@ -41,13 +41,6 @@ import io.debezium.relational.history.HistoryRecord;
 public class SchemaFactory {
 
     /*
-     * Source info schemas
-     */
-    private static final int SNAPSHOT_RECORD_SCHEMA_VERSION = 1;
-
-    public static final int SOURCE_INFO_DEFAULT_SCHEMA_VERSION = 1;
-
-    /*
      * Heartbeat schemas
      */
     private static final String HEARTBEAT_KEY_SCHEMA_NAME = "io.debezium.connector.common.ServerNameKey";
@@ -144,22 +137,18 @@ public class SchemaFactory {
     public Schema snapshotRecordSchema() {
         return Enum.builder(
                 Arrays.stream(SnapshotRecord.values()).map(java.lang.Enum::name).map(String::toLowerCase).toList())
-                .version(SNAPSHOT_RECORD_SCHEMA_VERSION)
                 .defaultValue(SnapshotRecord.FALSE.name().toLowerCase()).optional().build();
     }
 
     public SchemaBuilder sourceInfoSchemaBuilder() {
         return SchemaBuilder.struct()
-                .version(SOURCE_INFO_DEFAULT_SCHEMA_VERSION)
                 .field(AbstractSourceInfo.DEBEZIUM_VERSION_KEY, Schema.STRING_SCHEMA)
                 .field(AbstractSourceInfo.DEBEZIUM_CONNECTOR_KEY, Schema.STRING_SCHEMA)
                 .field(AbstractSourceInfo.SERVER_NAME_KEY, Schema.STRING_SCHEMA)
                 .field(AbstractSourceInfo.TIMESTAMP_KEY, Schema.INT64_SCHEMA)
                 .field(AbstractSourceInfo.SNAPSHOT_KEY, snapshotRecordSchema())
                 .field(AbstractSourceInfo.DATABASE_NAME_KEY, Schema.STRING_SCHEMA)
-                .field(AbstractSourceInfo.SEQUENCE_KEY, Schema.OPTIONAL_STRING_SCHEMA)
-                .field(AbstractSourceInfo.TIMESTAMP_US_KEY, Schema.OPTIONAL_INT64_SCHEMA)
-                .field(AbstractSourceInfo.TIMESTAMP_NS_KEY, Schema.OPTIONAL_INT64_SCHEMA);
+                .field(AbstractSourceInfo.SEQUENCE_KEY, Schema.OPTIONAL_STRING_SCHEMA);
     }
 
     public Schema heartbeatKeySchema(SchemaNameAdjuster adjuster) {
@@ -435,11 +424,7 @@ public class SchemaFactory {
             public Envelope build() {
                 builder.field(Envelope.FieldName.OPERATION, Envelope.OPERATION_REQUIRED ? Schema.STRING_SCHEMA : Schema.OPTIONAL_STRING_SCHEMA);
                 builder.field(Envelope.FieldName.TIMESTAMP, Schema.OPTIONAL_INT64_SCHEMA);
-                builder.field(Envelope.FieldName.TIMESTAMP_US, Schema.OPTIONAL_INT64_SCHEMA);
-                builder.field(Envelope.FieldName.TIMESTAMP_NS, Schema.OPTIONAL_INT64_SCHEMA);
-                if (builder.field(Envelope.FieldName.TRANSACTION) == null) {
-                    builder.field(Envelope.FieldName.TRANSACTION, transactionBlockSchema());
-                }
+                builder.field(Envelope.FieldName.TRANSACTION, transactionBlockSchema());
                 checkFieldIsDefined(Envelope.FieldName.OPERATION);
                 checkFieldIsDefined(Envelope.FieldName.BEFORE);
                 checkFieldIsDefined(Envelope.FieldName.AFTER);

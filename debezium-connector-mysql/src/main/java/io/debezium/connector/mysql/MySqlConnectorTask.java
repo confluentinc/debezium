@@ -49,6 +49,7 @@ import io.debezium.snapshot.SnapshotterService;
 import io.debezium.spi.snapshot.Snapshotter;
 import io.debezium.spi.topic.TopicNamingStrategy;
 import io.debezium.util.Clock;
+import io.debezium.util.ThreadNameContext;
 
 /**
  * The main task executing streaming from MySQL.
@@ -92,7 +93,7 @@ public class MySqlConnectorTask extends BinlogSourceTask<MySqlPartition, MySqlOf
 
         MainConnectionProvidingConnectionFactory<BinlogConnectorConnection> connectionFactory = new DefaultMainConnectionProvidingConnectionFactory<>(() -> {
             final MySqlConnectionConfiguration connectionConfig = new MySqlConnectionConfiguration(config);
-            return new MySqlConnection(connectionConfig, MySqlFieldReaderResolver.resolve(connectorConfig));
+            return new MySqlConnection(connectionConfig, MySqlFieldReaderResolver.resolve(connectorConfig), ThreadNameContext.from(connectorConfig));
         });
 
         connection = connectionFactory.mainConnection();
@@ -218,7 +219,8 @@ public class MySqlConnectorTask extends BinlogSourceTask<MySqlPartition, MySqlOf
                         connectorConfig,
                         () -> new MySqlConnection(
                                 new MySqlConnectionConfiguration(heartbeatConfig),
-                                MySqlFieldReaderResolver.resolve(connectorConfig)),
+                                MySqlFieldReaderResolver.resolve(connectorConfig),
+                                ThreadNameContext.from(connectorConfig)),
                         new BinlogHeartbeatErrorHandler(),
                         queue),
                 schemaNameAdjuster, signalProcessor, connectorConfig.getServiceRegistry().tryGetService(DebeziumHeaderProducer.class));
@@ -285,6 +287,8 @@ public class MySqlConnectorTask extends BinlogSourceTask<MySqlPartition, MySqlOf
 
     @Override
     protected void doStop() {
+        shutdownQueue(queue);
+
         try {
             if (connection != null) {
                 connection.close();

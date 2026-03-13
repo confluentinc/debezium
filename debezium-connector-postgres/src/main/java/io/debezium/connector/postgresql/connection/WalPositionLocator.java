@@ -5,14 +5,11 @@
  */
 package io.debezium.connector.postgresql.connection;
 
-import java.util.HashSet;
 import java.util.Optional;
-import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.debezium.DebeziumException;
 import io.debezium.connector.postgresql.connection.ReplicationMessage.Operation;
 
 /**
@@ -45,7 +42,6 @@ public class WalPositionLocator {
     private boolean passMessages = true;
     private Lsn startStreamingLsn = null;
     private boolean storeLsnAfterLastEventStoredLsn = false;
-    private Set<Lsn> lsnSeen = new HashSet<>(1_000);
 
     public WalPositionLocator(Lsn lastCommitStoredLsn, Lsn lastEventStoredLsn, Operation lastProcessedMessageType) {
         this.lastCommitStoredLsn = lastCommitStoredLsn;
@@ -70,8 +66,6 @@ public class WalPositionLocator {
      */
     public Optional<Lsn> resumeFromLsn(Lsn currentLsn, ReplicationMessage message) {
         LOGGER.trace("Processing LSN '{}', operation '{}'", currentLsn, message.getOperation());
-
-        lsnSeen.add(currentLsn);
 
         if (firstLsnReceived == null) {
             firstLsnReceived = currentLsn;
@@ -158,14 +152,7 @@ public class WalPositionLocator {
         if (startStreamingLsn == null || startStreamingLsn.equals(lsn)) {
             LOGGER.info("Message with LSN '{}' arrived, switching off the filtering", lsn);
             passMessages = true;
-            lsnSeen = new HashSet<>(); // Empty the Map as it might be large and is no longer needed
             return false;
-        }
-        if (lsn.isValid() && !lsnSeen.contains(lsn)) {
-            throw new DebeziumException(String.format(
-                    "Message with LSN '%s' not present among LSNs seen in the location phase '%s'. This is unexpected and can lead to an infinite loop or a data loss.",
-                    lsn,
-                    lsnSeen));
         }
         LOGGER.debug("Message with LSN '{}' filtered", lsn);
         return true;

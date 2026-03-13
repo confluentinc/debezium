@@ -6,13 +6,14 @@
 package io.debezium.relational;
 
 import java.util.function.Predicate;
-import java.util.regex.Pattern;
 
 import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigDef.Type;
 import org.apache.kafka.common.config.ConfigDef.Width;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.source.SourceConnector;
+
+import com.google.re2j.Pattern;
 
 import io.debezium.config.ConfigDefinition;
 import io.debezium.config.Configuration;
@@ -131,6 +132,9 @@ public abstract class HistorizedRelationalDatabaseConnectorConfig extends Relati
                 .withDefault(SchemaHistory.NAME, getLogicalName() + "-schemahistory")
                 .withDefault(SchemaHistory.INTERNAL_CONNECTOR_CLASS, connectorClass.getName())
                 .withDefault(SchemaHistory.INTERNAL_CONNECTOR_ID, logicalName)
+                .withDefault(SchemaHistory.INTERNAL_CONNECTOR_THREAD_NAME_PATTERN, connectorThreadNamePattern)
+                .withDefault(SchemaHistory.INTERNAL_CONNECTOR_NAME, connectorName())
+                .withDefault(SchemaHistory.INTERNAL_TASK_ID, getConnectorTaskId())
                 .build();
 
         HistoryRecordComparator historyComparator = getHistoryRecordComparator();

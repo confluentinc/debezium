@@ -22,6 +22,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.connector.postgresql.PostgresConnectorConfig.SnapshotMode;
 import io.debezium.connector.postgresql.connection.PostgresDefaultValueConverter;
@@ -73,6 +74,7 @@ public class PostgresDefaultValueConverterIT extends AbstractAsyncEngineConnecto
     @FixFor({ "DBZ-4736", "DBZ-5384" })
     public void shouldSetTheNullValueInStreaming() throws Exception {
         Configuration.Builder configBuilder = TestHelper.defaultConfig()
+                .with(CommonConnectorConfig.FAIL_ON_NO_TABLES, false)
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL.getValue())
                 .with(PostgresConnectorConfig.SCHEMA_INCLUDE_LIST, "s1");
         start(PostgresConnector.class, configBuilder.build());

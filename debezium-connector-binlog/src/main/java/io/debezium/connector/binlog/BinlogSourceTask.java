@@ -11,9 +11,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.debezium.DebeziumException;
+import io.debezium.connector.base.ChangeEventQueue;
 import io.debezium.connector.binlog.jdbc.BinlogConnectorConnection;
 import io.debezium.connector.common.BaseSourceTask;
 import io.debezium.heartbeat.HeartbeatErrorHandler;
+import io.debezium.pipeline.DataChangeEvent;
 import io.debezium.pipeline.spi.OffsetContext;
 import io.debezium.pipeline.spi.Partition;
 import io.debezium.spi.snapshot.Snapshotter;
@@ -72,6 +74,34 @@ public abstract class BinlogSourceTask<P extends Partition, O extends OffsetCont
                         + "required for this connector to work properly. Change the database configuration to use a "
                         + "binlog_row_image=FULL and restart the connector.");
             }
+        }
+        LOGGER.warn("Please ensure that the binlog is retained for at least 7 days. In disaster "
+                + "recovery scenarios, connector might be down for some time and then resume from "
+                + "last read binlog position. In such cases, if the required binlog files are "
+                + "available, the connector can recover seamlessly. If not, data recovery "
+                + "mechanisms such as incremental or initial snapshot might need to be employed.");
+    }
+
+    /**
+     * Safely shuts down the change event queue to prevent thread leaks.
+     * This method should be called by subclasses in their doStop() method.
+     *
+     * @param queue the change event queue to shutdown, may be null
+     */
+    protected void shutdownQueue(ChangeEventQueue<DataChangeEvent> queue) {
+        if (queue != null) {
+            try {
+                LOGGER.info("Shutting down change event queue to unblock any waiting threads");
+                queue.shutdown();
+                LOGGER.info("Successfully shut down change event queue");
+            }
+            catch (Exception e) {
+                // Log error but don't throw - continue with other cleanup operations
+                LOGGER.error("Error during change event queue shutdown", e);
+            }
+        }
+        else {
+            LOGGER.debug("No change event queue to shutdown (queue is null)");
         }
     }
 

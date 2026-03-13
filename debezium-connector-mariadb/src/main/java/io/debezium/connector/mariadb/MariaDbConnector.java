@@ -16,6 +16,7 @@ import io.debezium.connector.binlog.BinlogConnector;
 import io.debezium.connector.mariadb.jdbc.MariaDbConnection;
 import io.debezium.connector.mariadb.jdbc.MariaDbConnectionConfiguration;
 import io.debezium.connector.mariadb.jdbc.MariaDbFieldReader;
+import io.debezium.util.ThreadNameContext;
 
 /**
  * A Debezium source connector that creates tasks and reads changes from MariaDB's binary transaction logs,
@@ -49,8 +50,8 @@ public class MariaDbConnector extends BinlogConnector<MariaDbConnectorConfig> {
     }
 
     @Override
-    protected MariaDbConnection createConnection(Configuration config, MariaDbConnectorConfig connectorConfig) {
-        return new MariaDbConnection(new MariaDbConnectionConfiguration(config), new MariaDbFieldReader(connectorConfig));
+    protected MariaDbConnection createConnection(Configuration config, MariaDbConnectorConfig connectorConfig, ThreadNameContext threadNameContext) {
+        return new MariaDbConnection(new MariaDbConnectionConfiguration(config), new MariaDbFieldReader(connectorConfig), threadNameContext);
     }
 
     @Override

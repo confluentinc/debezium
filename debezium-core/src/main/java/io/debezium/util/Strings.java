@@ -23,9 +23,10 @@ import java.util.StringTokenizer;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
+
+import com.google.re2j.Matcher;
+import com.google.re2j.Pattern;
+import com.google.re2j.PatternSyntaxException;
 
 import io.debezium.annotation.ThreadSafe;
 import io.debezium.text.ParsingException;
@@ -44,6 +45,7 @@ import io.debezium.text.TokenStream.Tokens;
 public final class Strings {
 
     private static final Pattern TIME_PATTERN = Pattern.compile("([0-9]*):([0-9]*):([0-9]*)(\\.([0-9]*))?");
+    private static final Pattern SET_STATEMENT_FOR_PATTERN = Pattern.compile("^SET STATEMENT .*? FOR ", Pattern.CASE_INSENSITIVE);
 
     /**
      * Generate the set of values that are included in the list.
@@ -812,7 +814,7 @@ public final class Strings {
         Matcher matcher = TIME_PATTERN.matcher(timeString);
 
         if (!matcher.matches()) {
-            throw new RuntimeException("Unexpected format for TIME column: " + timeString);
+            throw new RuntimeException("Unexpected format for TIME column");
         }
 
         long hours = Long.parseLong(matcher.group(1));
@@ -1352,4 +1354,13 @@ public final class Strings {
                 .toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * Removes from the given SQL statement any `SET STATEMENT ... FOR` prefix.
+     *
+     * @param sql The SQL statement; may not be null
+     * @return The SQL statement without a `SET` prefix
+     */
+    public static String removeSetStatement(String sql) {
+        return SET_STATEMENT_FOR_PATTERN.matcher(sql).replaceFirst("");
+    }
 }

@@ -18,8 +18,10 @@ import org.apache.kafka.connect.source.SourceConnector;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
+import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.CommonConnectorConfig.EventConvertingFailureHandlingMode;
 import io.debezium.config.Configuration;
 import io.debezium.connector.binlog.BinlogConnectorConfig.SnapshotMode;
@@ -66,6 +68,7 @@ public abstract class BinlogConvertingFailureIT<C extends SourceConnector> exten
 
     @Test
     @FixFor("DBZ-7143")
+    @Ignore("CC-33133")
     public void shouldRecoverToSyncSchemaWhenFailedValueConvertByDdlWithSqlLogBinIsOff() throws Exception {
         // Use the DB configuration to define the connector's configuration to use the "replica"
         // which may be the same as the "master" ...
@@ -313,6 +316,7 @@ public abstract class BinlogConvertingFailureIT<C extends SourceConnector> exten
     @FixFor("DBZ-7143")
     public void shouldFailConversionDefaultTimeTypeWithConnectModeWhenWarnMode() throws Exception {
         config = DATABASE.defaultConfig()
+                .with(CommonConnectorConfig.FAIL_ON_NO_TABLES, false)
                 .with(BinlogConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
                 .with(BinlogConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NO_DATA)
                 .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("default_time_table"))

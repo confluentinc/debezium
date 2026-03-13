@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import io.debezium.config.Configuration;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
+import io.debezium.schema.AbstractTopicNamingStrategy;
 import io.debezium.util.Strings;
 
 /**
@@ -24,6 +25,7 @@ import io.debezium.util.Strings;
 public abstract class RelationalBaseSourceConnector extends BaseSourceConnector {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(RelationalBaseSourceConnector.class);
+    private static final String SERVER_ID = "database.server.id";
 
     @Override
     public Config validate(Map<String, String> connectorConfigs) {
@@ -33,11 +35,19 @@ public abstract class RelationalBaseSourceConnector extends BaseSourceConnector 
         Map<String, ConfigValue> results = validateAllFields(config);
 
         if (Strings.isNullOrEmpty(config.getString(RelationalDatabaseConnectorConfig.PASSWORD))) {
-            LOGGER.debug("The connection password is empty");
+            LOGGER.info("The connection password is empty");
         }
 
+        results.values().stream()
+                .filter(configValue -> !configValue.errorMessages().isEmpty())
+                .forEach(configValue -> LOGGER.warn("ConfigValue '{}' has errors: {}", configValue.name(), configValue.errorMessages()));
         // Only if there are no config errors ...
-        if (results.values().stream().allMatch(configValue -> configValue.errorMessages().isEmpty())) {
+        if (results.values().stream()
+                .filter(
+                        configValue -> !(configValue.name().equals(RelationalDatabaseConnectorConfig.TOPIC_PREFIX.name())
+                                || configValue.name().equals(AbstractTopicNamingStrategy.TOPIC_HEARTBEAT_PREFIX.name())
+                                || configValue.name().equals(SERVER_ID)))
+                .allMatch(configValue -> configValue.errorMessages().isEmpty())) {
             // ... validate the connection too
             validateConnection(results, config);
         }

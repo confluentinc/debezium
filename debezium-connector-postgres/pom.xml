@@ -23,6 +23,7 @@
         <postgres.password>postgres</postgres.password>
         <postgres.db.name>postgres</postgres.db.name>
         <postgres.encoding>UTF8</postgres.encoding>
+        <credential.providers.version>0.151.0</credential.providers.version>
         <postgres.system.lang>en_US.utf8</postgres.system.lang>
         <postgres.image>quay.io/debezium/postgres:${version.postgres.server}</postgres.image>
         <postgres.config.file>/usr/share/postgresql/postgresql.conf.sample</postgres.config.file>
@@ -31,6 +32,8 @@
         <docker.initimage>ln -fs /usr/share/zoneinfo/US/Samoa /etc/localtime &amp;&amp; echo timezone=US/Samoa &gt;&gt; ${postgres.config.file}</docker.initimage>
         <docker.dbs>debezium/postgres-server-test-database</docker.dbs>
         <docker.filter>${docker.dbs}</docker.filter>
+        <version.lz4.java>1.10.1</version.lz4.java>
+        <version.commons.lang3>3.18.0</version.commons.lang3>
 
         <protobuf.output.directory>${project.basedir}/generated-sources</protobuf.output.directory>
 
@@ -62,6 +65,18 @@
             <groupId>org.apache.kafka</groupId>
             <artifactId>connect-api</artifactId>
             <scope>provided</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.lz4</groupId>
+                    <artifactId>lz4-java</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <!-- pin lz4-java for CVE-2025-12183 - use at.yawk.lz4 - actively maintained fork -->
+        <dependency>
+            <groupId>at.yawk.lz4</groupId>
+            <artifactId>lz4-java</artifactId>
+            <version>${version.lz4.java}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.kafka</groupId>
@@ -72,6 +87,17 @@
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>credential-providers</artifactId>
+            <version>${credential.providers.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-reload4j</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
 
@@ -120,9 +146,25 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+            <version>${version.commons.lang3}</version>
+        </dependency>
+        <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-avro-converter</artifactId>
             <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.apache.commons</groupId>
+                    <artifactId>commons-lang3</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>io.debezium</groupId>

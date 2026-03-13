@@ -19,16 +19,20 @@ import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigValue;
 import org.apache.kafka.connect.connector.Task;
 import org.apache.kafka.connect.source.ExactlyOnceSupport;
+import org.postgresql.core.ServerVersion;
+import org.postgresql.core.Version;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.debezium.DebeziumException;
 import io.debezium.config.Configuration;
 import io.debezium.connector.common.RelationalBaseSourceConnector;
+import io.debezium.connector.postgresql.PostgresConnectorConfig.LogicalDecoder;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.connector.postgresql.connection.ServerInfo;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.relational.TableId;
+import io.debezium.util.ThreadNameContext;
 import io.debezium.util.Threads;
 
 /**
@@ -93,25 +97,43 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
 
         final PostgresConnectorConfig postgresConfig = new PostgresConnectorConfig(config);
         final ConfigValue hostnameValue = configValues.get(RelationalDatabaseConnectorConfig.HOSTNAME.name());
+        final ConfigValue portValue = configValues.get(PostgresConnectorConfig.PORT.name());
+        final ConfigValue userValue = configValues.get(PostgresConnectorConfig.USER.name());
+        final ConfigValue passwordValue = configValues.get(PostgresConnectorConfig.PASSWORD.name());
         Duration timeout = postgresConfig.getConnectionValidationTimeout();
+        ThreadNameContext threadNameContext = ThreadNameContext.from(postgresConfig);
         // Try to connect to the database ...
         try {
             Threads.runWithTimeout(PostgresConnector.class, () -> {
-                try (PostgresConnection connection = new PostgresConnection(postgresConfig.getJdbcConfig(), PostgresConnection.CONNECTION_VALIDATE_CONNECTION)) {
+                try (PostgresConnection connection = new PostgresConnection(postgresConfig.getJdbcConfig(),
+                        PostgresConnection.CONNECTION_VALIDATE_CONNECTION, threadNameContext)) {
                     try {
                         // Prepare connection without initial statement execution
                         connection.connection(false);
                         testConnection(connection);
                         checkReadOnlyMode(connection, postgresConfig);
                         checkLoginReplicationRoles(connection);
+                        if (LogicalDecoder.PGOUTPUT.equals(postgresConfig.plugin())) {
+                            int pgversion = checkPostgresVersionForPgoutputSupport(connection, postgresConfig);
+                            if (ServerVersion.v10.getVersionNum() > pgversion) {
+                                final String errorMessage = "PGOUTPUT plugin is only supported on postgres server version 10+";
+                                LOGGER.error(errorMessage);
+                                hostnameValue.addErrorMessage(errorMessage);
+                                pluginNameValue.addErrorMessage(errorMessage);
+                            }
+                        }
                     }
-                    catch (SQLException e) {
+                    catch (Exception e) {
                         LOGGER.error("Failed testing connection for {} with user '{}'", connection.connectionString(),
                                 connection.username(), e);
                         hostnameValue.addErrorMessage("Error while validating connector config: " + e.getMessage());
+                        databaseValue.addErrorMessage("Error while validating connector config: " + e.getMessage());
+                        portValue.addErrorMessage("Error while validating connector config: " + e.getMessage());
+                        userValue.addErrorMessage("Error while validating connector config: " + e.getMessage());
+                        passwordValue.addErrorMessage("Error while validating connector config: " + e.getMessage());
                     }
                 }
-            }, timeout, postgresConfig.getLogicalName(), "connection-validation");
+            }, timeout, postgresConfig.getLogicalName(), "connection-validation", threadNameContext);
         }
         catch (TimeoutException e) {
             hostnameValue.addErrorMessage("Connection validation timed out after " + timeout.toMillis() + " ms");
@@ -175,6 +197,17 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
                 connection.username());
     }
 
+    private static int checkPostgresVersionForPgoutputSupport(PostgresConnection connection, PostgresConnectorConfig postgresConfig) throws SQLException {
+        // check for DB version and LogicalDecoder compatibility
+        final Version dbVersion = ServerVersion.from(
+                connection.queryAndMap(
+                        "SHOW server_version",
+                        connection.singleResultMapper(
+                                rs -> rs.getString("server_version"),
+                                "Could not fetch db version")));
+        return dbVersion.getVersionNum();
+    }
+
     @Override
     protected Map<String, ConfigValue> validateAllFields(Configuration config) {
         return config.validate(PostgresConnectorConfig.ALL_FIELDS);
@@ -184,7 +217,9 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
     @Override
     public List<TableId> getMatchingCollections(Configuration config) {
         PostgresConnectorConfig connectorConfig = new PostgresConnectorConfig(config);
-        try (PostgresConnection connection = new PostgresConnection(connectorConfig.getJdbcConfig(), PostgresConnection.CONNECTION_GENERAL)) {
+        ThreadNameContext threadNameContext = ThreadNameContext.from(connectorConfig);
+        try (PostgresConnection connection = new PostgresConnection(connectorConfig.getJdbcConfig(), PostgresConnection.CONNECTION_GENERAL,
+                threadNameContext)) {
             return connection.readTableNames(connectorConfig.databaseName(), null, null, new String[]{ "TABLE" }).stream()
                     .filter(tableId -> connectorConfig.getTableFilters().dataCollectionFilter().isIncluded(tableId))
                     .collect(Collectors.toList());

@@ -75,12 +75,12 @@
         <jdk.min.version>${debezium.java.source}</jdk.min.version>
 
         <!-- Maven Plugins -->
-        <version.compiler.plugin>3.13.0</version.compiler.plugin>
+        <version.compiler.plugin>3.8.1</version.compiler.plugin>
         <version.resources.plugin>3.1.0</version.resources.plugin>
         <version.dependency.plugin>3.1.1</version.dependency.plugin>
         <version.enforcer.plugin>3.6.1</version.enforcer.plugin>
 
-        <version.maven>3.9.8</version.maven>
+        <version.maven>3.9.4</version.maven>
         <version.jar.plugin>3.0.2</version.jar.plugin>
         <version.source.plugin>3.1.0</version.source.plugin>
         <version.assembly.plugin>3.1.1</version.assembly.plugin>
@@ -116,7 +116,7 @@
 
         <!-- Kafka no longer needs ZooKeeper and Neetty but it is kept for testing with older Kafka dependencies -->
         <version.zookeeper>3.8.4</version.zookeeper>
-        <version.netty>4.1.118.Final</version.netty>
+        <version.netty>4.1.129.Final</version.netty>
 
         <!-- ANTLR -->
         <!-- Align with Antlr runtime version pulled in via Quarkus -->
@@ -208,15 +208,12 @@
         <module>debezium-embedded</module>
         <module>debezium-connector-mysql</module>
         <module>debezium-connector-postgres</module>
-        <module>debezium-connector-mongodb</module>
         <module>debezium-connector-sqlserver</module>
-        <module>debezium-connector-oracle</module>
         <module>debezium-connector-binlog</module>
         <module>debezium-connector-mariadb</module>
-        <module>debezium-connector-jdbc</module>
+        <module>debezium-connector-mongodb</module>
         <module>debezium-microbenchmark-engine</module>
         <module>debezium-microbenchmark</module>
-        <module>debezium-microbenchmark-oracle</module>
         <module>debezium-quarkus-outbox-common</module>
         <module>debezium-quarkus-outbox</module>
         <module>debezium-quarkus-outbox-reactive</module>
@@ -225,8 +222,6 @@
         <module>debezium-schema-generator</module>
         <module>debezium-storage</module>
         <module>debezium-interceptor</module>
-        <module>debezium-sink</module>
-        <module>debezium-ai</module>
         <module>quarkus-debezium-parent</module>
         <module>debezium-openlineage</module>
         <module>debezium-common</module>
@@ -411,6 +406,35 @@
                                     </packagesToScan>
                                 </serviceRegistrationRule>
                             </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.5.1</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <shadedArtifactAttached>true</shadedArtifactAttached>
+                            <shadedClassifierName>shaded</shadedClassifierName>
+                            <artifactSet>
+                                <includes>io.debezium:*</includes>
+                            </artifactSet>
+                            <relocations>
+                                <relocation>
+                                    <pattern>io.debezium.connector</pattern>
+                                    <shadedPattern>io.debezium.connector.v2</shadedPattern>
+                                </relocation>
+                            </relocations>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                            </transformers>
                         </configuration>
                     </execution>
                 </executions>

@@ -26,8 +26,6 @@ import java.util.function.IntSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 
 import javax.lang.model.SourceVersion;
@@ -40,6 +38,9 @@ import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.config.ConfigValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.re2j.Pattern;
+import com.google.re2j.PatternSyntaxException;
 
 import io.debezium.annotation.Immutable;
 import io.debezium.function.Predicates;
@@ -453,11 +454,12 @@ public final class Field {
             if (groupName != null) {
                 for (int i = 0; i != fields.length; ++i) {
                     Field f = fields[i];
-                    configDef.define(f.name(), f.type(), f.defaultValue(), null, f.importance(), f.description(),
+                    ConfigDef.Validator validator = (f.validator instanceof ConfigDef.Validator) ? (ConfigDef.Validator) f.validator : null;
+                    configDef.define(f.name(), f.type(), f.defaultValue(), validator, f.importance(), f.description(),
                             groupName, i + 1, f.width(), f.displayName(), f.dependents(), null);
                     if (!f.deprecatedAliases().isEmpty()) {
                         for (String alias : f.deprecatedAliases()) {
-                            configDef.define(alias, f.type(), f.defaultValue(), null, f.importance(), f.description(),
+                            configDef.define(alias, f.type(), f.defaultValue(), validator, f.importance(), f.description(),
                                     groupName, i + 1, f.width(), f.displayName(), f.dependents(), null);
                         }
                     }
@@ -466,11 +468,12 @@ public final class Field {
             else {
                 for (int i = 0; i != fields.length; ++i) {
                     Field f = fields[i];
-                    configDef.define(f.name(), f.type(), f.defaultValue(), null, f.importance(), f.description(),
+                    ConfigDef.Validator validator = (f.validator instanceof ConfigDef.Validator) ? (ConfigDef.Validator) f.validator : null;
+                    configDef.define(f.name(), f.type(), f.defaultValue(), validator, f.importance(), f.description(),
                             null, 1, f.width(), f.displayName(), f.dependents(), null);
                     if (!f.deprecatedAliases().isEmpty()) {
                         for (String alias : f.deprecatedAliases()) {
-                            configDef.define(alias, f.type(), f.defaultValue(), null, f.importance(), f.description(),
+                            configDef.define(alias, f.type(), f.defaultValue(), validator, f.importance(), f.description(),
                                     null, 1, f.width(), f.displayName(), f.dependents(), null);
                         }
                     }
@@ -1121,7 +1124,7 @@ public final class Field {
         }
     }
 
-    public static class EnumRecommender<T extends Enum<T>> implements Recommender, Validator {
+    public static class EnumRecommender<T extends Enum<T>> implements Recommender, Validator, ConfigDef.Validator {
 
         private final List<Object> validValues;
         private final java.util.Set<String> literals;
@@ -1162,6 +1165,20 @@ public final class Field {
                 return 1;
             }
             return 0;
+        }
+
+        @Override
+        public void ensureValid(String name, Object value) {
+            if (value == null) {
+                if (defaultOption != null) {
+                    throw new ConfigException(name, value, "Value must be one of " + literalsStr);
+                }
+                return;
+            }
+            String trimmed = value.toString().trim().toLowerCase();
+            if (!literals.contains(trimmed)) {
+                throw new ConfigException(name, value, "Value must be one of " + literalsStr);
+            }
         }
     }
 

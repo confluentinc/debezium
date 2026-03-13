@@ -10,10 +10,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.re2j.Pattern;
 
 import io.debezium.config.Configuration;
 import io.debezium.config.Field;
@@ -29,6 +30,7 @@ import io.debezium.text.MultipleParsingExceptions;
 import io.debezium.text.ParsingException;
 import io.debezium.util.Clock;
 import io.debezium.util.Loggings;
+import io.debezium.util.Strings;
 
 /**
  * @author Randall Hauch
@@ -38,7 +40,8 @@ public abstract class AbstractSchemaHistory implements SchemaHistory {
 
     protected final Logger logger = LoggerFactory.getLogger(getClass());
 
-    public static Field.Set ALL_FIELDS = Field.setOf(NAME, INTERNAL_CONNECTOR_CLASS, INTERNAL_CONNECTOR_ID);
+    public static Field.Set ALL_FIELDS = Field.setOf(NAME, INTERNAL_CONNECTOR_CLASS, INTERNAL_CONNECTOR_ID, INTERNAL_CONNECTOR_NAME,
+            INTERNAL_CONNECTOR_THREAD_NAME_PATTERN, INTERNAL_TASK_ID);
 
     protected Configuration config;
     private HistoryRecordComparator comparator = HistoryRecordComparator.INSTANCE;
@@ -131,7 +134,8 @@ public abstract class AbstractSchemaHistory implements SchemaHistory {
                     if (recovered.schemaName() != null) {
                         ddlParser.setCurrentSchema(recovered.schemaName()); // may be null
                     }
-                    if (ddlFilter.test(ddl)) {
+                    // Fast-path: only run expensive regex if DDL likely matches filter patterns
+                    if (likelyFiltered(ddl) && ddlFilter.test(ddl)) {
                         logger.info("a DDL '{}' was filtered out of processing by regular expression '{}'",
                                 Loggings.maybeRedactSensitiveData(ddl), config.getString(DDL_FILTER));
                         return;
@@ -156,6 +160,34 @@ public abstract class AbstractSchemaHistory implements SchemaHistory {
             }
         });
         listener.recoveryStopped();
+    }
+
+    private boolean likelyFiltered(String ddl) {
+        String ddlWork = Strings.removeSetStatement(ddl).trim().toUpperCase();
+
+        String ddlNormalized = ddlWork.replaceAll("\\s+", " ");
+
+        return ddlNormalized.startsWith("DROP TEMPORARY TABLE IF EXISTS") ||
+                (ddlNormalized.startsWith("INSERT INTO") &&
+                        (ddlNormalized.contains("RDS_HEARTBEAT2") ||
+                                ddlNormalized.contains("RDS_SYSINFO") ||
+                                ddlNormalized.contains("RDS_MONITOR")))
+                ||
+                (ddlNormalized.startsWith("DELETE FROM") &&
+                        (ddlNormalized.contains("RDS_SYSINFO") ||
+                                ddlNormalized.contains("RDS_MONITOR")))
+                ||
+                ddlNormalized.startsWith("FLUSH RELAY LOGS") ||
+                ddlNormalized.startsWith("SAVEPOINT ") ||
+                (ddlNormalized.startsWith("#") && ddlNormalized.contains("DUMMY EVENT")) ||
+                ddlNormalized.startsWith("TRUNCATE TABLE") ||
+                ddlNormalized.startsWith("REPLACE INTO") ||
+                ((ddlNormalized.startsWith("CREATE") || ddlNormalized.startsWith("ALTER") || ddlNormalized.startsWith("DROP")) &&
+                        (ddlNormalized.contains(" VIEW") || ddlNormalized.contains(" FUNCTION") || ddlNormalized.contains(" PROCEDURE")
+                                || ddlNormalized.contains(" TRIGGER")))
+                ||
+                // Inspired from tests
+                ddlNormalized.startsWith("CREATE ROLE");
     }
 
     protected abstract void storeRecord(HistoryRecord record) throws SchemaHistoryException;

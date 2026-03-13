@@ -16,15 +16,15 @@ public interface SnapshotMetricsMXBean extends SchemaMetricsMXBean {
 
     int getRemainingTableCount();
 
-    boolean getSnapshotRunning();
+    long getSnapshotRunning();
 
-    boolean getSnapshotPaused();
+    long getSnapshotPaused();
 
-    boolean getSnapshotCompleted();
+    long getSnapshotCompleted();
 
-    boolean getSnapshotAborted();
+    long getSnapshotAborted();
 
-    boolean getSnapshotSkipped();
+    long getSnapshotSkipped();
 
     long getSnapshotDurationInSeconds();
 

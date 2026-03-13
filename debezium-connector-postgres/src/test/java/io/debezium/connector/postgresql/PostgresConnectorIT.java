@@ -17,6 +17,7 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
 
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
@@ -59,6 +60,7 @@ import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestRule;
+import org.postgresql.core.ServerVersion;
 import org.postgresql.util.PSQLState;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -76,6 +78,7 @@ import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.connector.postgresql.connection.PostgresReplicationConnection;
 import io.debezium.connector.postgresql.connection.ReplicaIdentityInfo;
 import io.debezium.connector.postgresql.connection.ReplicationConnection;
+import io.debezium.connector.postgresql.connection.WalPositionLocator;
 import io.debezium.connector.postgresql.connection.pgoutput.PgOutputMessageDecoder;
 import io.debezium.connector.postgresql.junit.PostgresDatabaseVersionResolver;
 import io.debezium.connector.postgresql.junit.SkipTestDependingOnDecoderPluginNameRule;
@@ -174,6 +177,18 @@ public class PostgresConnectorIT extends AbstractAsyncEngineConnectorTest {
         Config validateConfig = new PostgresConnector().validate(config.asMap());
         validateConfig.configValues().forEach(configValue -> assertTrue("Unexpected error for: " + configValue.name(),
                 configValue.errorMessages().isEmpty()));
+    }
+
+    @Test
+    public void shouldCaptureErrorForInvalidPgoutputDecoder() {
+        assumeTrue(ServerVersion.v10.getVersionNum() > TestHelper.getServerVersion().getVersionNum());
+        Configuration config = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.PLUGIN_NAME, "pgoutput")
+                .build();
+        Config validatedConfig = new PostgresConnector().validate(config.asMap());
+
+        assertConfigurationErrors(validatedConfig, PostgresConnectorConfig.HOSTNAME, 1);
+        assertConfigurationErrors(validatedConfig, PostgresConnectorConfig.PLUGIN_NAME, 1);
     }
 
     @Test
@@ -1475,6 +1490,7 @@ public class PostgresConnectorIT extends AbstractAsyncEngineConnectorTest {
         TestHelper.execute(setupStmt);
         Configuration.Builder configBuilder = TestHelper.defaultConfig()
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL.getValue())
+                .with(CommonConnectorConfig.FAIL_ON_NO_TABLES, false)
                 .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.TRUE)
                 .with(PostgresConnectorConfig.SCHEMA_INCLUDE_LIST, "s1")
                 .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "s1.b")
@@ -2085,8 +2101,14 @@ public class PostgresConnectorIT extends AbstractAsyncEngineConnectorTest {
                 .until(() -> {
                     // Required due to DBZ-3158, creates empty transaction
                     TestHelper.create().execute("vacuum full").close();
-                    return (boolean) ManagementFactory.getPlatformMBeanServer()
+                    Object attribute = ManagementFactory.getPlatformMBeanServer()
                             .getAttribute(getSnapshotMetricsObjectName("postgres", TestHelper.TEST_SERVER), "SnapshotCompleted");
+                    if (attribute instanceof Long) {
+                        return (Long) attribute == 1L;
+                    }
+                    else {
+                        return (Boolean) attribute;
+                    }
                 });
 
         // wait for the second streaming phase
@@ -3643,6 +3665,7 @@ public class PostgresConnectorIT extends AbstractAsyncEngineConnectorTest {
         TestHelper.dropPublication("cdc");
 
         Configuration.Builder configBuilder = TestHelper.defaultConfig()
+                .with(CommonConnectorConfig.FAIL_ON_NO_TABLES, false)
                 .with(PostgresConnectorConfig.PUBLICATION_NAME, "cdc")
                 .with(PostgresConnectorConfig.PUBLICATION_AUTOCREATE_MODE, PostgresConnectorConfig.AutoCreateMode.NO_TABLES.getValue());
 
@@ -3673,6 +3696,23 @@ public class PostgresConnectorIT extends AbstractAsyncEngineConnectorTest {
     protected String getTxId(Struct value) {
         final String txId = value.getString(TransactionStructMaker.DEBEZIUM_TRANSACTION_ID_KEY);
         return Arrays.stream(txId.split(":")).findFirst().get();
+    }
+
+    @Test
+    public void shouldFailIfNotTablesToCapture() throws Exception {
+        final LogInterceptor logInterceptor = new LogInterceptor(RelationalDatabaseSchema.class);
+        TestHelper.dropAllSchemas();
+        TestHelper.dropPublication("cdc");
+
+        Configuration.Builder configBuilder = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.PUBLICATION_NAME, "cdc")
+                .with(PostgresConnectorConfig.PUBLICATION_AUTOCREATE_MODE, PostgresConnectorConfig.AutoCreateMode.NO_TABLES.getValue());
+
+        start(PostgresConnector.class, configBuilder.build());
+        assertConnectorIsRunning();
+        waitForSnapshotToBeCompleted();
+
+        assertThat(logInterceptor.containsMessage(DatabaseSchema.NO_CAPTURED_DATA_COLLECTIONS_WARNING)).isTrue();
     }
 
     private Predicate<SourceRecord> stopOnPKPredicate(int pkValue) {
@@ -3758,7 +3798,14 @@ public class PostgresConnectorIT extends AbstractAsyncEngineConnectorTest {
         assertThat(key.width).isNotNull();
         assertThat(key.group).isNotNull();
         assertThat(key.orderInGroup).isGreaterThan(0);
-        assertThat(key.validator).isNull();
+        if ((key.validator != null)) {
+            assertThat(key.validator)
+                    .withFailMessage("Validator should be instance of ConfigDef.Validator for field: %s", expected.name())
+                    .isInstanceOf(ConfigDef.Validator.class);
+        }
+        else {
+            assertThat(key.validator).isNull();
+        }
         assertThat(key.recommender).isNull();
     }
 
@@ -3884,5 +3931,59 @@ public class PostgresConnectorIT extends AbstractAsyncEngineConnectorTest {
         assertThat(records.topics()).hasSize(3);
 
         stopConnector();
+    }
+
+    @Test
+    public void shouldFailWithCorrectErrorMessageWhenSlotIsActive() throws Exception {
+        // Start with a clean slate
+        TestHelper.dropAllSchemas();
+        TestHelper.dropPublication();
+        TestHelper.dropDefaultReplicationSlot();
+
+        // Create the s1 schema and s1.a table
+        TestHelper.execute(CREATE_TABLES_STMT);
+
+        final String slotName = "error_message_test_slot";
+        TestHelper.create().dropReplicationSlot(slotName);
+
+        Configuration config = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NO_DATA)
+                .with(PostgresConnectorConfig.SLOT_NAME, slotName)
+                .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, false)
+                .build();
+
+        // Step 1: Start connector to establish a previous offset
+        start(PostgresConnector.class, config);
+        assertConnectorIsRunning();
+
+        // Wait for connector to be ready then insert data
+        waitForStreamingRunning("postgres", TestHelper.TEST_SERVER);
+
+        // Insert some data so the connector processes events and has a valid offset
+        TestHelper.execute("INSERT INTO s1.a (aa) VALUES (1);");
+        consumeRecordsByTopic(1);
+
+        // Stop the connector (but keep the slot)
+        stopConnector();
+
+        // Step 2: Occupy the slot with another connection
+        try (ReplicationConnection activeConnection = TestHelper.createForReplication(slotName, false)) {
+            activeConnection.startStreaming(new WalPositionLocator());
+
+            // Step 3: Try to restart connector - now it has a previous offset
+            // and validateLogPosition will be called, triggering the fail-fast check
+            start(PostgresConnector.class, config, (success, msg, error) -> {
+                assertThat(success).isFalse();
+                assertThat(error).isInstanceOf(DebeziumException.class);
+                String errorMessage = error.getMessage();
+                assertThat(errorMessage).contains("replication slot '" + slotName + "' is already active");
+                assertThat(errorMessage).contains("another Postgres connector is using this slot");
+                assertThat(errorMessage).contains("Each Postgres connector must use its own unique replication slot");
+            });
+            assertConnectorNotRunning();
+        }
+        finally {
+            TestHelper.create().dropReplicationSlot(slotName);
+        }
     }
 }

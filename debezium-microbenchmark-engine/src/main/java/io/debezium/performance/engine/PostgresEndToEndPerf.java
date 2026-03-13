@@ -60,6 +60,7 @@ import io.debezium.engine.format.Json;
 import io.debezium.engine.format.KeyValueChangeEventFormat;
 import io.debezium.jdbc.JdbcConfiguration;
 import io.debezium.util.IoUtil;
+import io.debezium.util.ThreadNameContext;
 
 /**
  * Basic end-to-end comparison between {@link io.debezium.embedded.EmbeddedEngine} and {@link io.debezium.embedded.async.AsyncEmbeddedEngine}.
@@ -217,7 +218,10 @@ public class PostgresEndToEndPerf {
     }
 
     private static PostgresConnection getTestConnection() {
-        PostgresConnection connection = new PostgresConnection(defaultJdbcConfig(), "test_connection");
+        PostgresConnection connection = new PostgresConnection(defaultJdbcConfig(), "test_connection", new ThreadNameContext(
+                "test-connector",
+                "${debezium}-${connector.class.simple}-${topic.prefix}-${functionality}-${connector.name}-${task.id}",
+                "0"));
         try {
             connection.setAutoCommit(false);
         }

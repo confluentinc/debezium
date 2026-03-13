@@ -18,6 +18,7 @@ import io.debezium.connector.binlog.jdbc.BinlogFieldReader;
 import io.debezium.connector.binlog.jdbc.ConnectionConfiguration;
 import io.debezium.connector.mariadb.gtid.MariaDbGtidSet;
 import io.debezium.connector.mariadb.gtid.MariaDbGtidSet.MariaDbGtid;
+import io.debezium.util.ThreadNameContext;
 
 /**
  * A concrete implementation of {@link BinlogConnectorConnection} for MariaDB.
@@ -28,8 +29,9 @@ public class MariaDbConnection extends BinlogConnectorConnection {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MariaDbConnection.class);
 
-    public MariaDbConnection(ConnectionConfiguration configuration, BinlogFieldReader fieldReader) {
-        super(configuration, fieldReader);
+    public MariaDbConnection(ConnectionConfiguration configuration, BinlogFieldReader fieldReader,
+                             ThreadNameContext threadNameContext) {
+        super(configuration, fieldReader, threadNameContext);
     }
 
     @Override

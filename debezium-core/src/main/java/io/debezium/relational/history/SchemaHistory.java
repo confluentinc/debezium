@@ -53,6 +53,15 @@ public interface SchemaHistory {
                     + "which it cannot parse. If skipping is enabled then Debezium can miss metadata changes.")
             .withDefault(false);
 
+    // Not intended to be used in production code. This is only for testing.
+    Field SCHEMA_HISTORY_RECOVERY_DELAY_MS = Field.createInternal(CONFIGURATION_FIELD_PREFIX_STRING + "recovery.delay.ms")
+            .withDisplayName("Schema history recovery delay in milliseconds")
+            .withType(Type.LONG)
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.LOW)
+            .withDescription("Specifies the amount of time in milliseconds to wait between processing schema history records.")
+            .withDefault(0L);
+
     Field STORE_ONLY_CAPTURED_TABLES_DDL = Field.create(CONFIGURATION_FIELD_PREFIX_STRING + "store.only.captured.tables.ddl")
             .withDisplayName("Store only DDL that modifies tables that are captured based on include/exclude lists")
             .withType(Type.BOOLEAN)
@@ -129,6 +138,31 @@ public interface SchemaHistory {
             .withWidth(Width.SHORT)
             .withImportance(Importance.HIGH)
             .withDescription("The unique identifier of the Debezium connector")
+            .withNoValidation();
+
+    Field INTERNAL_CONNECTOR_NAME = Field.create(CONFIGURATION_FIELD_PREFIX_STRING + "connector.name")
+            .withDisplayName("Debezium connector name")
+            .withType(Type.STRING)
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.HIGH)
+            .withDescription("The unique name of the Debezium connector")
+            .withNoValidation();
+
+    Field INTERNAL_CONNECTOR_THREAD_NAME_PATTERN = Field.create(CONFIGURATION_FIELD_PREFIX_STRING + "connector.thread.name.pattern")
+            .withDisplayName("Debezium Connector Thread Name Pattern")
+            .withType(Type.STRING)
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.HIGH)
+            .withDescription("The pattern name of the Debezium connector threads")
+            .withDefault("${debezium}-${connector.class.simple}-${topic.prefix}-${functionality}")
+            .withNoValidation();
+
+    Field INTERNAL_TASK_ID = Field.create(CONFIGURATION_FIELD_PREFIX_STRING + "task.id")
+            .withDisplayName("Debezium Connector Task Id")
+            .withType(Type.STRING)
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.HIGH)
+            .withDescription("The Task Id of Debezium connector")
             .withNoValidation();
 
     // Temporary preference for DDL over logical schema due to DBZ-32
@@ -238,9 +272,19 @@ public interface SchemaHistory {
     void initializeStorage();
 
     /**
-     * Validates that the underlying storage is configured as needed by the specific implementation.
-     */
+    * Validates that the underlying storage is configured as needed by the specific implementation.
+    */
     default void checkStorageSettings() {
         return;
+    }
+
+    /**
+     * Performs a dummy read from the schema history storage to verify read access.
+     * This is useful to validate permissions when a connector starts for the first time.
+     *
+     * @throws SchemaHistoryException if the verification fails (e.g., due to permission or connectivity issues)
+     */
+    default void verifyReadAccess() {
+        // Default implementation does nothing - only implementations that need verification should override
     }
 }

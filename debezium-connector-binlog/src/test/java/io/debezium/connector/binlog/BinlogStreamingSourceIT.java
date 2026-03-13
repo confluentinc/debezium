@@ -157,6 +157,8 @@ public abstract class BinlogStreamingSourceIT<C extends SourceConnector> extends
         return DATABASE.defaultConfig()
                 .with(BinlogConnectorConfig.USER, "replicator")
                 .with(BinlogConnectorConfig.PASSWORD, "replpass")
+                .with("jdbc.creds.provider.user", "replicator")
+                .with("jdbc.creds.provider.password", "replpass")
                 .with(BinlogConnectorConfig.INCLUDE_SCHEMA_CHANGES, false)
                 .with(BinlogConnectorConfig.INCLUDE_SQL_QUERY, false)
                 .with(BinlogConnectorConfig.SNAPSHOT_MODE, BinlogConnectorConfig.SnapshotMode.NEVER);
@@ -368,6 +370,37 @@ public abstract class BinlogStreamingSourceIT<C extends SourceConnector> extends
     }
 
     @Test
+    public void shouldRenameBinaryLogClientThreads() throws Exception {
+        config = simpleConfig().build();
+        start(getConnectorClass(), config);
+
+        // Wait for connector to start and create BinaryLogClient threads
+        waitForStreamingRunning(getConnectorName(), DATABASE.getServerName(), "streaming");
+
+        // Wait for thread renaming to complete (happens asynchronously after connection)
+        final String expectedPrefix = "debezium-binlogstreamingchangeeventsource-"
+                + DATABASE.getServerName() + "-binlog-client";
+        // Wait until all the threads are created and renamed
+        Thread.sleep(5000L);
+
+        // Verify renamed threads exist
+        final long debeziumThreadCount = Thread.getAllStackTraces().keySet().stream()
+                .filter(t -> t.getName().startsWith(expectedPrefix))
+                .count();
+
+        assertThat(debeziumThreadCount).isGreaterThanOrEqualTo(2);
+
+        // Verify no old "blc-" threads remain
+        final long blcThreadCount = Thread.getAllStackTraces().keySet().stream()
+                .filter(t -> t.getName().startsWith("blc-"))
+                .count();
+
+        assertThat(blcThreadCount).isEqualTo(0);
+
+        stopConnector();
+    }
+
+    @Test
     @FixFor("DBZ-342")
     public void shouldHandleMySQLTimeCorrectly() throws Exception {
         final UniqueDatabase REGRESSION_DATABASE = TestHelper.getUniqueDatabase("logical_server_name", "regression_test")
@@ -538,6 +571,8 @@ public abstract class BinlogStreamingSourceIT<C extends SourceConnector> extends
         config = simpleConfig()
                 .with(BinlogConnectorConfig.USER, "snapper")
                 .with(BinlogConnectorConfig.PASSWORD, "snapperpass")
+                .with("jdbc.creds.provider.user", "snapper")
+                .with("jdbc.creds.provider.password", "snapperpass")
                 .with(AbstractTopicNamingStrategy.DEFAULT_HEARTBEAT_TOPIC_PREFIX, HEARTBEAT_TOPIC_PREFIX_VALUE)
                 .with(Heartbeat.HEARTBEAT_INTERVAL, "100")
                 .with(DatabaseHeartbeatImpl.HEARTBEAT_ACTION_QUERY_PROPERTY_NAME,

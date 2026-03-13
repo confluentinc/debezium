@@ -31,13 +31,14 @@ import java.util.function.IntSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.apache.kafka.common.config.ConfigValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.re2j.Matcher;
+import com.google.re2j.Pattern;
 
 import io.debezium.annotation.Immutable;
 import io.debezium.config.Field.ValidationOutput;
@@ -64,7 +65,8 @@ public interface Configuration {
 
     Logger CONFIGURATION_LOGGER = LoggerFactory.getLogger(Configuration.class);
 
-    Pattern PASSWORD_PATTERN = Pattern.compile(".*secret$|.*password$|.*sasl\\.jaas\\.config$|.*basic\\.auth\\.user\\.info|.*registry\\.auth\\.client-secret",
+    Pattern PASSWORD_PATTERN = Pattern.compile(
+            ".*secret$|.*password$|.*sasl\\.jaas\\.config$|.*\\.api\\.(key|secret)$|.*basic\\.auth\\.user\\.info|.*registry\\.auth\\.client-secret",
             Pattern.CASE_INSENSITIVE);
 
     /**

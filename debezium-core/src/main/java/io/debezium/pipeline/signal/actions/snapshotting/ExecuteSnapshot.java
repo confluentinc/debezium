@@ -7,11 +7,12 @@ package io.debezium.pipeline.signal.actions.snapshotting;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.re2j.Pattern;
 
 import io.debezium.DebeziumException;
 import io.debezium.document.Array;
@@ -87,6 +88,16 @@ public class ExecuteSnapshot<P extends Partition> extends AbstractSnapshotSignal
 
     private List<AdditionalCondition> getAdditionalConditions(Document data, SnapshotType type) {
 
+        // This was added back to maintain backward compatibility. Should be removed in the next
+        // CCloud debezium upgrade.
+        Optional<String> oldAdditionalConditionField = getAdditionalCondition(data);
+        if (oldAdditionalConditionField.isPresent() && type.equals(SnapshotType.INCREMENTAL)) {
+            return List.of(AdditionalCondition.AdditionalConditionBuilder.builder()
+                    .dataCollection(Pattern.compile(MATCH_ALL_PATTERN, Pattern.CASE_INSENSITIVE))
+                    .filter(oldAdditionalConditionField.orElse(""))
+                    .build());
+        }
+
         return Optional.ofNullable(data.getArray(FIELD_ADDITIONAL_CONDITIONS)).orElse(Array.create()).streamValues()
                 .map(this::buildAdditionalCondition)
                 .collect(Collectors.toList());
@@ -112,6 +123,12 @@ public class ExecuteSnapshot<P extends Partition> extends AbstractSnapshotSignal
         return dataCollectionsArray.streamValues()
                 .map(v -> v.asString().trim())
                 .collect(Collectors.toList());
+    }
+
+    @Deprecated
+    public static Optional<String> getAdditionalCondition(Document data) {
+        String additionalCondition = data.getString(FIELD_ADDITIONAL_CONDITION);
+        return Strings.isNullOrBlank(additionalCondition) ? Optional.empty() : Optional.of(additionalCondition);
     }
 
     public static Optional<String> getSurrogateKey(Document data) {

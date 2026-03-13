@@ -29,6 +29,7 @@ import org.postgresql.replication.fluent.logical.ChainedLogicalStreamBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.debezium.DebeziumException;
 import io.debezium.connector.postgresql.PostgresStreamingChangeEventSource.PgConnectionSupplier;
 import io.debezium.connector.postgresql.PostgresType;
 import io.debezium.connector.postgresql.TypeRegistry;
@@ -49,7 +50,6 @@ import io.debezium.data.Envelope;
 import io.debezium.relational.ColumnEditor;
 import io.debezium.relational.Table;
 import io.debezium.relational.TableId;
-import io.debezium.util.HexConverter;
 import io.debezium.util.Strings;
 
 /**
@@ -186,7 +186,6 @@ public class PgOutputMessageDecoder extends AbstractMessageDecoder {
             final int lastPos = content.length - 1;
             content[lastPos - 1] = SPACE;
             content[lastPos] = SPACE;
-            LOGGER.trace("Message arrived from database {}", HexConverter.convertToHexString(content));
         }
 
         final MessageType messageType = MessageType.forType((char) buffer.get());
@@ -316,13 +315,30 @@ public class PgOutputMessageDecoder extends AbstractMessageDecoder {
             primaryKeyColumns = connection.readTableUniqueIndices(databaseMetadata, tableId);
         }
 
+        // Check if table should be validated (only included tables)
+        boolean isTableIncluded = decoderContext.getConfig().getTableFilters().dataCollectionFilter().isIncluded(tableId);
+
         List<ColumnMetaData> columns = new ArrayList<>();
         Set<String> columnNames = new HashSet<>();
+        Set<String> seenLowercaseColumnNames = new HashSet<>();
         for (short i = 0; i < columnCount; ++i) {
             byte flags = buffer.get();
             String columnName = Strings.unquoteIdentifierPart(readString(buffer));
             int columnType = buffer.getInt();
             int attypmod = buffer.getInt();
+
+            // Validate no case-sensitive duplicate columns for captured tables only
+            // This must happen BEFORE building the Table object because TableEditorImpl stores columns
+            // in a case-insensitive map, which would silently deduplicate them
+            if (isTableIncluded && !seenLowercaseColumnNames.add(columnName.toLowerCase())) {
+                throw new DebeziumException(
+                        String.format(
+                                "Table '%s' has columns that differ only by case. " +
+                                        "Column name: '%s'. " +
+                                        "Debezium does not support case-sensitive duplicate column names as this causes data corruption. " +
+                                        "Please rename one of the duplicate columns before running Debezium.",
+                                tableId, columnName));
+            }
 
             final PostgresType postgresType = typeRegistry.get(columnType);
             boolean key = isColumnInPrimaryKey(schemaName, tableName, columnName, primaryKeyColumns);

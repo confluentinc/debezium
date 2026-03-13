@@ -429,8 +429,6 @@ public class MongoEventRouterTest {
                 // .field(Envelope.FieldName.SOURCE, SchemaBuilder.struct().build())
                 .field(Envelope.FieldName.OPERATION, Schema.OPTIONAL_STRING_SCHEMA)
                 .field(Envelope.FieldName.TIMESTAMP, Schema.OPTIONAL_INT64_SCHEMA)
-                .field(Envelope.FieldName.TIMESTAMP_US, Schema.OPTIONAL_INT64_SCHEMA)
-                .field(Envelope.FieldName.TIMESTAMP_NS, Schema.OPTIONAL_INT64_SCHEMA)
                 .field(Envelope.FieldName.TRANSACTION, TransactionMonitor.TRANSACTION_BLOCK_SCHEMA)
                 .build();
 
@@ -486,8 +484,6 @@ public class MongoEventRouterTest {
                 // .field(Envelope.FieldName.SOURCE, SchemaBuilder.struct().build())
                 .field(Envelope.FieldName.OPERATION, Schema.OPTIONAL_STRING_SCHEMA)
                 .field(Envelope.FieldName.TIMESTAMP, Schema.OPTIONAL_INT64_SCHEMA)
-                .field(Envelope.FieldName.TIMESTAMP_US, Schema.OPTIONAL_INT64_SCHEMA)
-                .field(Envelope.FieldName.TIMESTAMP_NS, Schema.OPTIONAL_INT64_SCHEMA)
                 .field(Envelope.FieldName.TRANSACTION, TransactionMonitor.TRANSACTION_BLOCK_SCHEMA)
                 .build();
 
@@ -657,7 +653,7 @@ public class MongoEventRouterTest {
     @Test(expected = ConfigException.class)
     public void shouldFailOnInvalidConfigurationForTopicRegex() {
         final Map<String, String> config = new HashMap<>();
-        config.put(MongoEventRouterConfigDefinition.ROUTE_TOPIC_REGEX.name(), " [[a-z]");
+        config.put(MongoEventRouterConfigDefinition.ROUTE_TOPIC_REGEX.name(), " [[a-z");
         router.configure(config);
     }
 
@@ -959,8 +955,6 @@ public class MongoEventRouterTest {
                 // .field(Envelope.FieldName.SOURCE, SchemaBuilder.struct().build())
                 .field(Envelope.FieldName.OPERATION, Schema.OPTIONAL_STRING_SCHEMA)
                 .field(Envelope.FieldName.TIMESTAMP, Schema.OPTIONAL_INT64_SCHEMA)
-                .field(Envelope.FieldName.TIMESTAMP_US, Schema.OPTIONAL_INT64_SCHEMA)
-                .field(Envelope.FieldName.TIMESTAMP_NS, Schema.OPTIONAL_INT64_SCHEMA)
                 .field(Envelope.FieldName.TRANSACTION, TransactionMonitor.TRANSACTION_BLOCK_SCHEMA)
                 .build();
 

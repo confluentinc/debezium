@@ -233,6 +233,8 @@ public abstract class UniqueDatabase {
                 .with(BinlogConnectorConfig.PORT, System.getProperty("database.port", "3306"))
                 .with(BinlogConnectorConfig.USER, "snapper")
                 .with(BinlogConnectorConfig.PASSWORD, "snapperpass")
+                .with("jdbc.creds.provider.user", "snapper")
+                .with("jdbc.creds.provider.password", "snapperpass")
                 .with("driver.allowPublicKeyRetrieval", "true");
 
         builder = applyConnectorDefaultJdbcConfiguration(builder);
@@ -252,6 +254,7 @@ public abstract class UniqueDatabase {
      */
     public Configuration.Builder defaultConfig() {
         return defaultConfigWithoutDatabaseFilter()
+                .with("name", "test-connector")
                 .with(BinlogConnectorConfig.DATABASE_INCLUDE_LIST, getDatabaseName());
     }
 
@@ -261,6 +264,7 @@ public abstract class UniqueDatabase {
      */
     public Configuration.Builder defaultConfigWithoutDatabaseFilter() {
         return defaultJdbcConfigBuilder()
+                .with("name", "test-connector")
                 .with(BinlogConnectorConfig.SERVER_ID, 18765)
                 .with(BinlogConnectorConfig.POLL_INTERVAL_MS, 10)
                 .with(BinlogConnectorConfig.SCHEMA_HISTORY, FileSchemaHistory.class)

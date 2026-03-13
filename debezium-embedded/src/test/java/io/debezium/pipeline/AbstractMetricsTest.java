@@ -50,7 +50,7 @@ public abstract class AbstractMetricsTest<T extends SourceConnector> extends Abs
 
     protected abstract long expectedEvents();
 
-    protected abstract boolean snapshotCompleted();
+    protected abstract long snapshotCompleted();
 
     protected String task() {
         return null;
@@ -208,10 +208,10 @@ public abstract class AbstractMetricsTest<T extends SourceConnector> extends Abs
         assertThat(mBeanServer.getAttribute(getSnapshotMetricsObjectName(), "CapturedTables")).isEqualTo(new String[]{ tableName() });
         assertThat(mBeanServer.getAttribute(getSnapshotMetricsObjectName(), "TotalNumberOfEventsSeen")).isEqualTo(2L);
         assertThat(mBeanServer.getAttribute(getSnapshotMetricsObjectName(), "RemainingTableCount")).isEqualTo(0);
-        assertThat(mBeanServer.getAttribute(getSnapshotMetricsObjectName(), "SnapshotRunning")).isEqualTo(false);
-        assertThat(mBeanServer.getAttribute(getSnapshotMetricsObjectName(), "SnapshotAborted")).isEqualTo(false);
-        assertThat(mBeanServer.getAttribute(getSnapshotMetricsObjectName(), "SnapshotCompleted")).isEqualTo(true);
-        assertThat(mBeanServer.getAttribute(getSnapshotMetricsObjectName(), "SnapshotPaused")).isEqualTo(false);
+        assertThat(mBeanServer.getAttribute(getSnapshotMetricsObjectName(), "SnapshotRunning")).isEqualTo(0L);
+        assertThat(mBeanServer.getAttribute(getSnapshotMetricsObjectName(), "SnapshotAborted")).isEqualTo(0L);
+        assertThat(mBeanServer.getAttribute(getSnapshotMetricsObjectName(), "SnapshotCompleted")).isEqualTo(1L);
+        assertThat(mBeanServer.getAttribute(getSnapshotMetricsObjectName(), "SnapshotPaused")).isEqualTo(0L);
         assertThat(mBeanServer.getAttribute(getSnapshotMetricsObjectName(), "SnapshotPausedDurationInSeconds")).isEqualTo(0L);
     }
 
@@ -227,10 +227,10 @@ public abstract class AbstractMetricsTest<T extends SourceConnector> extends Abs
         assertThat(mBeanServer.getAttribute(objectName, "CapturedTables")).isEqualTo(new String[]{ tableName() });
         assertThat(mBeanServer.getAttribute(objectName, "TotalNumberOfEventsSeen")).isEqualTo(2L);
         assertThat(mBeanServer.getAttribute(objectName, "RemainingTableCount")).isEqualTo(0);
-        assertThat(mBeanServer.getAttribute(objectName, "SnapshotRunning")).isEqualTo(false);
-        assertThat(mBeanServer.getAttribute(objectName, "SnapshotAborted")).isEqualTo(false);
-        assertThat(mBeanServer.getAttribute(objectName, "SnapshotCompleted")).isEqualTo(true);
-        assertThat(mBeanServer.getAttribute(objectName, "SnapshotPaused")).isEqualTo(false);
+        assertThat(mBeanServer.getAttribute(objectName, "SnapshotRunning")).isEqualTo(0L);
+        assertThat(mBeanServer.getAttribute(objectName, "SnapshotAborted")).isEqualTo(0L);
+        assertThat(mBeanServer.getAttribute(objectName, "SnapshotCompleted")).isEqualTo(1L);
+        assertThat(mBeanServer.getAttribute(objectName, "SnapshotPaused")).isEqualTo(0L);
         assertThat(mBeanServer.getAttribute(objectName, "SnapshotPausedDurationInSeconds")).isEqualTo(0L);
     }
 
@@ -318,6 +318,68 @@ public abstract class AbstractMetricsTest<T extends SourceConnector> extends Abs
                 .isEqualTo(expectedEvents);
     }
 
+    @Test
+    public void testConnectTaskDndMetric() throws Exception {
+        executeInsertStatements();
+
+        final MBeanServer mBeanServer = ManagementFactory.getPlatformMBeanServer();
+        final ObjectName taskMetricsObjectName = getTaskMetricsObjectName();
+        final ObjectName snapshotMetricsObjectName = getSnapshotMetricsObjectName();
+
+        // Explicitly remove any stale MBeans from previous test runs
+        try {
+            mBeanServer.unregisterMBean(taskMetricsObjectName);
+        }
+        catch (InstanceNotFoundException e) {
+            // MBean doesn't exist, which is fine
+        }
+
+        try {
+            mBeanServer.unregisterMBean(snapshotMetricsObjectName);
+        }
+        catch (InstanceNotFoundException e) {
+            // MBean doesn't exist, which is fine
+        }
+
+        // Start connector
+        start();
+        assertConnectorIsRunning();
+
+        // Wait for MBeans to be registered and snapshot to start
+        // Poll frequently (5ms) to catch snapshot while running since it completes quickly
+        Awaitility.await("Waiting for snapshot to start and DND to be set")
+                .atMost(waitTimeForRecords() * 30L, TimeUnit.SECONDS)
+                .pollInterval(5, TimeUnit.MILLISECONDS)
+                .ignoreException(InstanceNotFoundException.class)
+                .until(() -> {
+                    try {
+                        // Verify MBeans exist and check snapshot state
+                        mBeanServer.getMBeanInfo(snapshotMetricsObjectName);
+                        mBeanServer.getMBeanInfo(taskMetricsObjectName);
+
+                        Object snapshotRunning = mBeanServer.getAttribute(snapshotMetricsObjectName,
+                                "SnapshotRunning");
+                        Object dnd = mBeanServer.getAttribute(taskMetricsObjectName,
+                                "ConnectTaskDnd");
+
+                        // During snapshot, both should be 1
+                        return Long.valueOf(1).equals(snapshotRunning)
+                                && Long.valueOf(1).equals(dnd);
+                    }
+                    catch (InstanceNotFoundException e) {
+                        return false;
+                    }
+                });
+
+        // Wait for snapshot to complete
+        waitForSnapshotToBeCompleted(connector(), server(), task(), database());
+
+        // After snapshot: ConnectTaskDnd should be 0
+        assertThat(mBeanServer.getAttribute(taskMetricsObjectName, "ConnectTaskDnd"))
+                .as("ConnectTaskDnd should be 0 after snapshot completes")
+                .isEqualTo(0L);
+    }
+
     protected ObjectName getSnapshotMetricsObjectName() throws MalformedObjectNameException {
         return getSnapshotMetricsObjectName(connector(), server());
     }
@@ -334,5 +396,9 @@ public abstract class AbstractMetricsTest<T extends SourceConnector> extends Abs
     protected ObjectName getMultiplePartitionStreamingMetricsObjectNameCustomTags(Map<String, String> customTags) throws MalformedObjectNameException {
         // Only SQL Server manage partition scoped metrics
         return getStreamingMetricsObjectName(connector(), server(), customTags);
+    }
+
+    protected ObjectName getTaskMetricsObjectName() throws MalformedObjectNameException {
+        return getTaskMetricsObjectName(connector(), server(), task());
     }
 }

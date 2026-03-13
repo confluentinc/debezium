@@ -25,6 +25,7 @@ import io.debezium.relational.ColumnFilterMode;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.relational.Table;
 import io.debezium.relational.TableId;
+import io.debezium.util.ThreadNameContext;
 
 @RunWith(MockitoJUnitRunner.class)
 public class RowValueConstructorChunkQueryBuilderTest {
@@ -70,8 +71,8 @@ public class RowValueConstructorChunkQueryBuilderTest {
 
         public NullHandlingJdbcConnection(JdbcConfiguration config, ConnectionFactory connectionFactory,
                                           String openingQuoteCharacter, String closingQuoteCharacter,
-                                          boolean nullsLast) {
-            super(config, connectionFactory, openingQuoteCharacter, closingQuoteCharacter);
+                                          boolean nullsLast, ThreadNameContext threadNameContext) {
+            super(config, connectionFactory, openingQuoteCharacter, closingQuoteCharacter, threadNameContext);
             this.nullsLast = nullsLast;
         }
 
@@ -84,7 +85,7 @@ public class RowValueConstructorChunkQueryBuilderTest {
     @Test
     public void testBuildQueryOnePkColumn() {
         final ChunkQueryBuilder<TableId> chunkQueryBuilder = new RowValueConstructorChunkQueryBuilder<>(
-                config(), new JdbcConnection(config().getJdbcConfig(), config -> null, "\"", "\""));
+                config(), new JdbcConnection(config().getJdbcConfig(), config -> null, "\"", "\"", ThreadNameContext.from(config())));
         final IncrementalSnapshotContext<TableId> context = new SignalBasedIncrementalSnapshotContext<>();
         final Column pk1 = Column.editor().name("pk1").optional(false).create();
         final Column val1 = Column.editor().name("val1").create();
@@ -104,7 +105,7 @@ public class RowValueConstructorChunkQueryBuilderTest {
     @Test
     public void testBuildQueryOnePkColumnWithAdditionalCondition() {
         final ChunkQueryBuilder<TableId> chunkQueryBuilder = new RowValueConstructorChunkQueryBuilder<>(
-                config(), new JdbcConnection(config().getJdbcConfig(), config -> null, "\"", "\""));
+                config(), new JdbcConnection(config().getJdbcConfig(), config -> null, "\"", "\"", ThreadNameContext.from(config())));
         final IncrementalSnapshotContext<TableId> context = new SignalBasedIncrementalSnapshotContext<>();
         final Column pk1 = Column.editor().name("pk1").optional(false).create();
         final Column val1 = Column.editor().name("val1").create();
@@ -125,7 +126,7 @@ public class RowValueConstructorChunkQueryBuilderTest {
     @Test
     public void testBuildQueryTwoPkColumnsWithAdditionalConditionWithSurrogateKey() {
         final ChunkQueryBuilder<TableId> chunkQueryBuilder = new RowValueConstructorChunkQueryBuilder<>(
-                config(), new JdbcConnection(config().getJdbcConfig(), config -> null, "\"", "\""));
+                config(), new JdbcConnection(config().getJdbcConfig(), config -> null, "\"", "\"", ThreadNameContext.from(config())));
         final IncrementalSnapshotContext<TableId> context = new SignalBasedIncrementalSnapshotContext<>();
         final Column pk1 = Column.editor().name("pk1").optional(false).create();
         final Column pk2 = Column.editor().name("pk2").optional(false).create();
@@ -149,7 +150,7 @@ public class RowValueConstructorChunkQueryBuilderTest {
     @Test
     public void testBuildQueryThreePkColumns() {
         final ChunkQueryBuilder<TableId> chunkQueryBuilder = new RowValueConstructorChunkQueryBuilder<>(
-                config(), new JdbcConnection(config().getJdbcConfig(), config -> null, "\"", "\""));
+                config(), new JdbcConnection(config().getJdbcConfig(), config -> null, "\"", "\"", ThreadNameContext.from(config())));
         final IncrementalSnapshotContext<TableId> context = new SignalBasedIncrementalSnapshotContext<>();
         final Column pk1 = Column.editor().name("pk1").optional(false).create();
         final Column pk2 = Column.editor().name("pk2").optional(false).create();
@@ -174,7 +175,7 @@ public class RowValueConstructorChunkQueryBuilderTest {
     @Test
     public void testBuildQueryThreePkColumnsWithAdditionalCondition() {
         final ChunkQueryBuilder<TableId> chunkQueryBuilder = new RowValueConstructorChunkQueryBuilder<>(
-                config(), new JdbcConnection(config().getJdbcConfig(), config -> null, "\"", "\""));
+                config(), new JdbcConnection(config().getJdbcConfig(), config -> null, "\"", "\"", ThreadNameContext.from(config())));
         final IncrementalSnapshotContext<TableId> context = new SignalBasedIncrementalSnapshotContext<>();
         final Column pk1 = Column.editor().name("pk1").optional(false).create();
         final Column pk2 = Column.editor().name("pk2").optional(false).create();
@@ -201,7 +202,7 @@ public class RowValueConstructorChunkQueryBuilderTest {
         final RelationalDatabaseConnectorConfig config = buildConfig(config().getJdbcConfig().edit()
                 .with(RelationalDatabaseConnectorConfig.MSG_KEY_COLUMNS, "s1.table1:pk1").build());
         final ChunkQueryBuilder<TableId> chunkQueryBuilder = new RowValueConstructorChunkQueryBuilder<>(
-                config, new JdbcConnection(config.getJdbcConfig(), c -> null, "\"", "\""));
+                config, new JdbcConnection(config.getJdbcConfig(), c -> null, "\"", "\"", ThreadNameContext.from(config())));
         final IncrementalSnapshotContext<TableId> context = new SignalBasedIncrementalSnapshotContext<>();
         final Column pk1 = Column.editor().name("pk1").optional(true).create();
         final Column val1 = Column.editor().name("val1").create();
@@ -222,7 +223,7 @@ public class RowValueConstructorChunkQueryBuilderTest {
         final RelationalDatabaseConnectorConfig config = buildConfig(config().getJdbcConfig().edit()
                 .with(RelationalDatabaseConnectorConfig.MSG_KEY_COLUMNS, "s1.table1:pk1,pk2,pk3").build());
         final ChunkQueryBuilder<TableId> chunkQueryBuilder = new RowValueConstructorChunkQueryBuilder<>(
-                config, new NullHandlingJdbcConnection(config.getJdbcConfig(), c -> null, "\"", "\"", false));
+                config, new NullHandlingJdbcConnection(config.getJdbcConfig(), c -> null, "\"", "\"", false, ThreadNameContext.from(config)));
         final IncrementalSnapshotContext<TableId> context = new SignalBasedIncrementalSnapshotContext<>();
         final Column pk1 = Column.editor().name("pk1").optional(true).create();
         final Column pk2 = Column.editor().name("pk2").optional(true).create();
