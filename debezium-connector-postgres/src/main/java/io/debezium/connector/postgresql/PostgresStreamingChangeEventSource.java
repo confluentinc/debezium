@@ -113,7 +113,8 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
         this.snapshotterService = snapshotterService;
         this.replicationConnection = replicationConnection;
         this.connectionProbeTimer = ElapsedTimeStrategy.constant(Clock.system(), connectorConfig.statusUpdateInterval());
-        this.lsnFlushExecutor = Threads.newSingleThreadExecutor(PostgresStreamingChangeEventSource.class, connectorConfig.getLogicalName(), "lsn-flush");
+        this.lsnFlushExecutor = Threads.newSingleThreadExecutor(PostgresStreamingChangeEventSource.class, connectorConfig.getLogicalName(), "lsn-flush",
+                ThreadNameContext.from(connectorConfig));
     }
 
     @Override

@@ -219,7 +219,8 @@ public class MySqlConnectorTask extends BinlogSourceTask<MySqlPartition, MySqlOf
                         connectorConfig,
                         () -> new MySqlConnection(
                                 new MySqlConnectionConfiguration(heartbeatConfig),
-                                MySqlFieldReaderResolver.resolve(connectorConfig)),
+                                MySqlFieldReaderResolver.resolve(connectorConfig),
+                                ThreadNameContext.from(connectorConfig)),
                         new BinlogHeartbeatErrorHandler(),
                         queue),
                 schemaNameAdjuster, signalProcessor, connectorConfig.getServiceRegistry().tryGetService(DebeziumHeaderProducer.class));

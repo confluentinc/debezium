@@ -222,7 +222,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                     metadataProvider,
                     new HeartbeatFactory<>().getScheduledHeartbeat(
                             connectorConfig,
-                            () -> new PostgresConnection(connectorConfig.getJdbcConfig(), PostgresConnection.CONNECTION_GENERAL),
+                            () -> new PostgresConnection(connectorConfig.getJdbcConfig(), PostgresConnection.CONNECTION_GENERAL, threadNameContext),
                             exception -> {
                                 String sqlErrorId = exception.getSQLState();
                                 switch (sqlErrorId) {

@@ -226,7 +226,8 @@ public class MariaDbConnectorTask extends BinlogSourceTask<MariaDbPartition, Mar
                 new HeartbeatFactory<>().getScheduledHeartbeat(connectorConfig,
                         () -> new MariaDbConnection(
                                 new MariaDbConnectionConfiguration(config),
-                                getFieldReader(connectorConfig)),
+                                getFieldReader(connectorConfig),
+                                ThreadNameContext.from(connectorConfig)),
                         new BinlogHeartbeatErrorHandler(),
                         queue),
                 schemaNameAdjuster,
