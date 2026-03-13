@@ -1,0 +1,10 @@
+#	SOURCE_SHA	SUBJECT	UPSTREAM_SHA	MATCH_METHOD	UPSTREAM_SUBJECT
+18	4fc9cfe875e57e1df8902e5b1b0bf8f501eee7db	Return delete.tombstone.handling.mode from ExtractNewRecordState config method (#130)	54a7084978	Message match	DBZ-8776: Return delete.tombstone.handling.mode from ExtractNewRecordState config method
+40	210b5f979db36446154ae6a6025c9390ab342abe	DBZ-9158: cherry picking publication change (#183)	8a6dbc107d	DBZ ticket (DBZ-9158)	DBZ-9158: pr suggest
+50	8324e0594d24e167d06ddd11baa3e9d5d6a8c9f7	CC-36321: DBZ-9395: Selectively call ALTER PUBLICATION for filtered publication (#199)	a8e1557b32	DBZ ticket (DBZ-9395)	DBZ-9395: Fix tests
+56	e7ea34166d50ce8d78c37ae1e68c57b35f5d50ad	CC-36147 - Cherry-pick DBZ-9427: Introduce guardrail to limit number of tables captured (#203)	a920481423	DBZ ticket (DBZ-9427)	DBZ-9427: Renamed the configs and addressed review comments
+62	1fc3a307e25e491489bf2c3dbd8b90652e243c1b	CC-37431: Gracefully cleanup the coordinator while stopping the task	08b56785fe	Message match	DBZ-9617: Gracefully cleanup the coordinator while stopping the task
+63	2e832e3d5d62482eb1cc198820581bdb6a229c29	CC-37278 Backport changes from DBZ-9549 in v2 (#213)	355bf3bf7b	DBZ ticket (DBZ-9549)	DBZ-9549 Remove getDdlChanges completely
+69	3fbbdc62ce20e40fb34f05048081f37420443b70	CC-37129: DBZ-9427: Validate guardrail against all tables for schema-history based connectors (#242)	a920481423	DBZ ticket (DBZ-9427)	DBZ-9427: Renamed the configs and addressed review comments
+72	e81d5b4c3a4cc5fd2180dcb3852a92b10401d9c8	CC-37752 - Cherry-pick DBZ-9564 (#251)	ee10d49304	DBZ ticket (DBZ-9564)	DBZ-9564 Address inlining comment
+88	91160b6119cb58f35225f6f10d0fb722d3330215	DBZ-9504 Always return NoOpLineageEmitter when open lineage integrati… (#277)	f557464ac2	DBZ ticket (DBZ-9504)	DBZ-9504 No-op emitter is not forced for context created from headers
