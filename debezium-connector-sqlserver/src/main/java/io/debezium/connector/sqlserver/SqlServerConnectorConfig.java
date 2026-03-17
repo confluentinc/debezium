@@ -484,7 +484,7 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
 
     public static final Field STREAMING_FETCH_SIZE = Field.create("streaming.fetch.size")
             .withDisplayName("Streaming fetch size")
-            .withDefault(0)
+            .withDefault(5000)
             .withType(Type.INT)
             .withImportance(Importance.LOW)
             .withDescription("Specifies the maximum number of rows that should be read in one go from each table while streaming. "
