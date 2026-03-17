@@ -473,7 +473,7 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
 
     public static final Field DATA_QUERY_MODE = Field.create("data.query.mode")
             .withDisplayName("Data query mode")
-            .withEnum(DataQueryMode.class, DataQueryMode.FUNCTION)
+            .withEnum(DataQueryMode.class, DataQueryMode.DIRECT)
             .withWidth(Width.SHORT)
             .withImportance(Importance.LOW)
             .withDescription("Controls how the connector queries CDC data. "
@@ -484,7 +484,7 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
 
     public static final Field STREAMING_FETCH_SIZE = Field.create("streaming.fetch.size")
             .withDisplayName("Streaming fetch size")
-            .withDefault(0)
+            .withDefault(5000)
             .withType(Type.INT)
             .withImportance(Importance.LOW)
             .withDescription("Specifies the maximum number of rows that should be read in one go from each table while streaming. "
