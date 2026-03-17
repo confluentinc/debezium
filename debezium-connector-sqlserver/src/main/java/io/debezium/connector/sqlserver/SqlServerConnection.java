@@ -155,7 +155,6 @@ public class SqlServerConnection extends JdbcConnection {
 
         getAllChangesForTable = buildGetAllChangesForTableQuery(config.getDataQueryMode(), skippedOperations);
 
-        LOGGER.info("Query for data mode : {}", getAllChangesForTable);
         this.config = config;
         this.useSingleDatabase = useSingleDatabase;
 
