@@ -587,12 +587,6 @@
                 <version>${version.rocketmq}</version>
             </dependency>
 
-            <!-- S3 Storage -->
-            <dependency>
-                <groupId>software.amazon.awssdk</groupId>
-                <artifactId>s3</artifactId>
-                <version>${version.s3}</version>
-            </dependency>
 
             <!-- Azure Blob Storage -->
             <dependency>
