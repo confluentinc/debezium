@@ -84,7 +84,7 @@ public class SqlServerConnection extends JdbcConnection {
     private static final String GET_ALL_CHANGES_FOR_TABLE_SELECT = "SELECT [__$start_lsn], [__$seqval], [__$operation], [__$update_mask], #, "
             + LSN_TIMESTAMP_SELECT_STATEMENT;
     private static final String GET_ALL_CHANGES_FOR_TABLE_FROM_FUNCTION = "FROM #db.cdc.#function(?, ?, N'all update old')";
-    private static final String GET_ALL_CHANGES_FOR_TABLE_FROM_DIRECT = "FROM #db.cdc.#table";
+    private static final String GET_ALL_CHANGES_FOR_TABLE_FROM_DIRECT = "FROM #db.cdc.#table with (nolock)";
     private static final String GET_ALL_CHANGES_FOR_TABLE_FROM_FUNCTION_ORDER_BY = "ORDER BY [__$start_lsn] ASC, [__$seqval] ASC, [__$operation] ASC";
     private static final String GET_ALL_CHANGES_FOR_TABLE_FROM_DIRECT_ORDER_BY = "ORDER BY [__$start_lsn] ASC, [__$command_id] ASC, [__$seqval] ASC, [__$operation] ASC";
 
@@ -155,6 +155,7 @@ public class SqlServerConnection extends JdbcConnection {
 
         getAllChangesForTable = buildGetAllChangesForTableQuery(config.getDataQueryMode(), skippedOperations);
 
+        LOGGER.info("Query for data mode : {}", getAllChangesForTable);
         this.config = config;
         this.useSingleDatabase = useSingleDatabase;
 

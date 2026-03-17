@@ -473,7 +473,7 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
 
     public static final Field DATA_QUERY_MODE = Field.create("data.query.mode")
             .withDisplayName("Data query mode")
-            .withEnum(DataQueryMode.class, DataQueryMode.FUNCTION)
+            .withEnum(DataQueryMode.class, DataQueryMode.DIRECT)
             .withWidth(Width.SHORT)
             .withImportance(Importance.LOW)
             .withDescription("Controls how the connector queries CDC data. "
