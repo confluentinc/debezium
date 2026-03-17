@@ -592,6 +592,16 @@
                 <groupId>software.amazon.awssdk</groupId>
                 <artifactId>s3</artifactId>
                 <version>${version.s3}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>software.amazon.awssdk</groupId>
+                        <artifactId>checksums</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>software.amazon.awssdk</groupId>
+                        <artifactId>checksums-spi</artifactId>
+                    </exclusion>
+                </exclusions>
             </dependency>
 
             <!-- Azure Blob Storage -->
