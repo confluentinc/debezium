@@ -51,9 +51,6 @@
         <!-- Redis -->
         <version.jedis>6.0.0</version.jedis>
 
-        <!-- S3 -->
-        <version.s3>2.26.30</version.s3>
-
         <!-- Blob Storage -->
         <version.azure.blob>12.29.0</version.azure.blob>
 
@@ -587,12 +584,6 @@
                 <version>${version.rocketmq}</version>
             </dependency>
 
-            <!-- S3 Storage -->
-            <dependency>
-                <groupId>software.amazon.awssdk</groupId>
-                <artifactId>s3</artifactId>
-                <version>${version.s3}</version>
-            </dependency>
 
             <!-- Azure Blob Storage -->
             <dependency>
