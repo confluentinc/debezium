@@ -110,6 +110,7 @@ public class TestHelper {
                 .withDefault(JdbcConfiguration.USER, "sa")
                 .withDefault(JdbcConfiguration.PASSWORD, "Password!")
                 .withDefault("encrypt", "false")
+                .withDefault("trustServerCertificate", "true")
                 .build();
     }
 
