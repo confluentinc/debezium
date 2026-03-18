@@ -109,7 +109,7 @@ public class TestHelper {
                 .withDefault(JdbcConfiguration.PORT, 1433)
                 .withDefault(JdbcConfiguration.USER, "sa")
                 .withDefault(JdbcConfiguration.PASSWORD, "Password!")
-                .withDefault("trustServerCertificate", "true")
+                .withDefault("encrypt", "false")
                 .build();
     }
 
