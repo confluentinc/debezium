@@ -79,6 +79,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
     private volatile ErrorHandler errorHandler;
     private volatile PostgresSchema schema;
+    private volatile boolean fastSnapshotOnly;
 
     private Partition.Provider<PostgresPartition> partitionProvider = null;
     private OffsetContext.Loader<PostgresOffsetContext> offsetContextLoader = null;
@@ -173,10 +174,22 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
             LOGGER.info("Found previous offset {}", previousOffset);
         }
 
-        try {
-            SlotState slotInfo = getSlotState(connectorConfig);
+        fastSnapshotOnly = connectorConfig.isFastSnapshot() && !connectorConfig.isFastSnapshotPrimary();
+        if (fastSnapshotOnly) {
+            LOGGER.info("Fast snapshot: this is a snapshot-only task, will idle after snapshot completes");
+        }
 
-            SlotCreationResult slotCreatedInfo = tryToCreateSlot(snapshotter, connectorConfig, slotInfo);
+        try {
+            SlotState slotInfo = null;
+            SlotCreationResult slotCreatedInfo = null;
+
+            if (!fastSnapshotOnly) {
+                slotInfo = getSlotState(connectorConfig);
+                slotCreatedInfo = tryToCreateSlot(snapshotter, connectorConfig, slotInfo);
+            }
+            else {
+                LOGGER.info("Fast snapshot: skipping replication slot setup for snapshot-only task");
+            }
 
             try {
                 jdbcConnection.commit();
@@ -259,7 +272,8 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                     snapshotterService,
                     slotInfo,
                     signalProcessor,
-                    notificationService);
+                    notificationService,
+                    fastSnapshotOnly);
 
             coordinator.start(taskContext, this.queue, metadataProvider);
 
@@ -358,6 +372,15 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
     }
 
     @Override
+    public void commit() throws InterruptedException {
+        if (fastSnapshotOnly) {
+            LOGGER.trace("Fast snapshot: skipping offset commit for snapshot-only task");
+            return;
+        }
+        super.commit();
+    }
+
+    @Override
     protected Optional<ErrorHandler> getErrorHandler() {
         return Optional.of(errorHandler);
     }
@@ -408,11 +431,6 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
     @Override
     public void commitRecord(SourceRecord record, RecordMetadata metadata) throws InterruptedException {
         // Do nothing
-    }
-
-    @Override
-    public void commit() throws InterruptedException {
-        shouldPerformCommit.set(true);
     }
 
     @Override

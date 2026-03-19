@@ -8,6 +8,7 @@ package io.debezium.connector.postgresql;
 
 import java.sql.SQLException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -25,6 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.debezium.DebeziumException;
+import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.connector.common.RelationalBaseSourceConnector;
 import io.debezium.connector.postgresql.PostgresConnectorConfig.LogicalDecoder;
@@ -71,8 +73,56 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
 
     @Override
     public List<Map<String, String>> taskConfigs(int maxTasks) {
-        // this will always have just one task with the given list of properties
-        return props == null ? Collections.emptyList() : Collections.singletonList(new HashMap<>(props));
+        if (props == null) {
+            return Collections.emptyList();
+        }
+
+        Configuration config = Configuration.from(props);
+        boolean fastSnapshot = config.getBoolean(PostgresConnectorConfig.FAST_SNAPSHOT);
+
+        if (!fastSnapshot) {
+            return Collections.singletonList(new HashMap<>(props));
+        }
+
+        List<TableId> tables = getMatchingCollections(config);
+        if (tables.isEmpty()) {
+            LOGGER.warn("Fast snapshot enabled but no matching tables found, falling back to single task");
+            return Collections.singletonList(new HashMap<>(props));
+        }
+
+        int numTasks = (int) Math.ceil(tables.size() / 2.0);
+        LOGGER.info("Fast snapshot: creating {} tasks for {} tables: {}", numTasks, tables.size(),
+                tables.stream().map(TableId::toString).collect(Collectors.joining(", ")));
+
+        List<Map<String, String>> taskConfigsList = new ArrayList<>();
+        for (int i = 0; i < numTasks; i++) {
+            int startIdx = i * 2;
+            int endIdx = Math.min(startIdx + 2, tables.size());
+            if (startIdx >= tables.size()) {
+                break;
+            }
+
+            List<TableId> assignedTables = tables.subList(startIdx, endIdx);
+            String snapshotTables = assignedTables.stream()
+                    .map(TableId::toString)
+                    .collect(Collectors.joining(","));
+
+            Map<String, String> taskProps = new HashMap<>(props);
+            taskProps.put(CommonConnectorConfig.SNAPSHOT_MODE_TABLES.name(), snapshotTables);
+            taskProps.put(PostgresConnectorConfig.FAST_SNAPSHOT.name(), "true");
+            taskProps.put(PostgresConnectorConfig.FAST_SNAPSHOT_PRIMARY.name(), String.valueOf(i == 0));
+            taskProps.put(CommonConnectorConfig.TASK_ID, String.valueOf(i));
+
+            boolean isPrimary = (i == 0);
+            LOGGER.info("Fast snapshot task {}: primary={}, assigned tables=[{}]", i, isPrimary, snapshotTables);
+            for (TableId table : assignedTables) {
+                LOGGER.info("  Task {} -> table: {}", i, table);
+            }
+
+            taskConfigsList.add(taskProps);
+        }
+
+        return taskConfigsList;
     }
 
     @Override

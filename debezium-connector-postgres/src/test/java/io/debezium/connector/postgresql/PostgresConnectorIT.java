@@ -29,6 +29,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -3985,5 +3986,177 @@ public class PostgresConnectorIT extends AbstractAsyncEngineConnectorTest {
         finally {
             TestHelper.create().dropReplicationSlot(slotName);
         }
+    }
+
+    @Test
+    public void shouldGenerateCorrectTaskConfigsForFastSnapshot() throws Exception {
+        String setupStmt = "DROP SCHEMA IF EXISTS fs1 CASCADE;" +
+                "DROP SCHEMA IF EXISTS fs2 CASCADE;" +
+                "CREATE SCHEMA fs1;" +
+                "CREATE SCHEMA fs2;" +
+                "CREATE TABLE fs1.t1 (pk SERIAL PRIMARY KEY, val integer);" +
+                "CREATE TABLE fs1.t2 (pk SERIAL PRIMARY KEY, val integer);" +
+                "CREATE TABLE fs2.t3 (pk SERIAL PRIMARY KEY, val integer);" +
+                "CREATE TABLE fs2.t4 (pk SERIAL PRIMARY KEY, val integer);" +
+                "INSERT INTO fs1.t1 (val) VALUES (10);" +
+                "INSERT INTO fs1.t2 (val) VALUES (20);" +
+                "INSERT INTO fs2.t3 (val) VALUES (30);" +
+                "INSERT INTO fs2.t4 (val) VALUES (40);";
+        TestHelper.execute(setupStmt);
+
+        Configuration config = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.FAST_SNAPSHOT, true)
+                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL.getValue())
+                .with(RelationalDatabaseConnectorConfig.TABLE_INCLUDE_LIST, "fs1.t1,fs1.t2,fs2.t3,fs2.t4")
+                .build();
+
+        connector = new PostgresConnector();
+        connector.start(config.asMap());
+
+        // 4 tables / 2 per task = 2 tasks
+        List<Map<String, String>> taskConfigs = connector.taskConfigs(10);
+        logger.info("Fast snapshot generated {} task configs", taskConfigs.size());
+        assertThat(taskConfigs.size()).isEqualTo(2);
+
+        // Task 0 should be primary
+        Map<String, String> task0 = taskConfigs.get(0);
+        assertThat(task0.get(PostgresConnectorConfig.FAST_SNAPSHOT_PRIMARY.name())).isEqualTo("true");
+        assertThat(task0.get(PostgresConnectorConfig.FAST_SNAPSHOT.name())).isEqualTo("true");
+        String task0Tables = task0.get("snapshot.include.collection.list");
+        assertThat(task0Tables).isNotNull();
+        logger.info("Task 0 snapshot tables: {}", task0Tables);
+
+        // Task 1 should not be primary
+        Map<String, String> task1 = taskConfigs.get(1);
+        assertThat(task1.get(PostgresConnectorConfig.FAST_SNAPSHOT_PRIMARY.name())).isEqualTo("false");
+        assertThat(task1.get(PostgresConnectorConfig.FAST_SNAPSHOT.name())).isEqualTo("true");
+        String task1Tables = task1.get("snapshot.include.collection.list");
+        assertThat(task1Tables).isNotNull();
+        logger.info("Task 1 snapshot tables: {}", task1Tables);
+
+        // All 4 tables should be assigned across both tasks
+        String allAssigned = task0Tables + "," + task1Tables;
+        assertThat(allAssigned).contains("fs1.t1");
+        assertThat(allAssigned).contains("fs1.t2");
+        assertThat(allAssigned).contains("fs2.t3");
+        assertThat(allAssigned).contains("fs2.t4");
+
+        // table.include.list should remain the full list (used for streaming)
+        assertThat(task0.get("table.include.list")).isEqualTo("fs1.t1,fs1.t2,fs2.t3,fs2.t4");
+        assertThat(task1.get("table.include.list")).isEqualTo("fs1.t1,fs1.t2,fs2.t3,fs2.t4");
+
+        connector.stop();
+    }
+
+    @Test
+    public void shouldFallBackToSingleTaskWhenFastSnapshotDisabled() throws Exception {
+        TestHelper.execute(SETUP_TABLES_STMT);
+
+        Configuration config = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.FAST_SNAPSHOT, false)
+                .build();
+
+        connector = new PostgresConnector();
+        connector.start(config.asMap());
+
+        List<Map<String, String>> taskConfigs = connector.taskConfigs(10);
+        assertThat(taskConfigs.size()).isEqualTo(1);
+        assertThat(taskConfigs.get(0).get(PostgresConnectorConfig.FAST_SNAPSHOT_PRIMARY.name())).isNull();
+        logger.info("Fast snapshot disabled: single task config returned as expected");
+
+        connector.stop();
+    }
+
+    @Test
+    public void shouldHandleOddNumberOfTablesInFastSnapshot() throws Exception {
+        String setupStmt = "DROP SCHEMA IF EXISTS fs3 CASCADE;" +
+                "CREATE SCHEMA fs3;" +
+                "CREATE TABLE fs3.t1 (pk SERIAL PRIMARY KEY, val integer);" +
+                "CREATE TABLE fs3.t2 (pk SERIAL PRIMARY KEY, val integer);" +
+                "CREATE TABLE fs3.t3 (pk SERIAL PRIMARY KEY, val integer);" +
+                "INSERT INTO fs3.t1 (val) VALUES (1);" +
+                "INSERT INTO fs3.t2 (val) VALUES (2);" +
+                "INSERT INTO fs3.t3 (val) VALUES (3);";
+        TestHelper.execute(setupStmt);
+
+        Configuration config = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.FAST_SNAPSHOT, true)
+                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL.getValue())
+                .with(RelationalDatabaseConnectorConfig.TABLE_INCLUDE_LIST, "fs3.t1,fs3.t2,fs3.t3")
+                .build();
+
+        connector = new PostgresConnector();
+        connector.start(config.asMap());
+
+        // 3 tables / 2 per task = 2 tasks (ceil)
+        List<Map<String, String>> taskConfigs = connector.taskConfigs(10);
+        assertThat(taskConfigs.size()).isEqualTo(2);
+
+        String task0Tables = taskConfigs.get(0).get("snapshot.include.collection.list");
+        assertThat(task0Tables.split(",")).hasSize(2);
+        logger.info("Task 0 (odd case) tables: {}", task0Tables);
+
+        String task1Tables = taskConfigs.get(1).get("snapshot.include.collection.list");
+        assertThat(task1Tables.split(",")).hasSize(1);
+        logger.info("Task 1 (odd case) tables: {}", task1Tables);
+
+        connector.stop();
+    }
+
+    @Test
+    public void shouldSnapshotWithFastSnapshotUsingMultipleTasks() throws Exception {
+        String setupStmt = "DROP SCHEMA IF EXISTS fs4 CASCADE;" +
+                "CREATE SCHEMA fs4;" +
+                "CREATE TABLE fs4.t1 (pk SERIAL PRIMARY KEY, val integer);" +
+                "CREATE TABLE fs4.t2 (pk SERIAL PRIMARY KEY, val integer);" +
+                "CREATE TABLE fs4.t3 (pk SERIAL PRIMARY KEY, val integer);" +
+                "CREATE TABLE fs4.t4 (pk SERIAL PRIMARY KEY, val integer);" +
+                "INSERT INTO fs4.t1 (val) VALUES (10);" +
+                "INSERT INTO fs4.t1 (val) VALUES (11);" +
+                "INSERT INTO fs4.t2 (val) VALUES (20);" +
+                "INSERT INTO fs4.t2 (val) VALUES (21);" +
+                "INSERT INTO fs4.t3 (val) VALUES (30);" +
+                "INSERT INTO fs4.t3 (val) VALUES (31);" +
+                "INSERT INTO fs4.t4 (val) VALUES (40);" +
+                "INSERT INTO fs4.t4 (val) VALUES (41);";
+        TestHelper.execute(setupStmt);
+
+        // Start with fast snapshot enabled and tasks.max high enough
+        Configuration config = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.FAST_SNAPSHOT, true)
+                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL.getValue())
+                .with(RelationalDatabaseConnectorConfig.TABLE_INCLUDE_LIST, "fs4.t1,fs4.t2,fs4.t3,fs4.t4")
+                .with("tasks.max", 4)
+                .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, true)
+                .build();
+
+        start(PostgresConnector.class, config);
+        assertConnectorIsRunning();
+
+        // Wait for all records from both tasks to arrive
+        // Both tasks snapshot in parallel, so records may arrive in any order
+        waitForAvailableRecords(30, TimeUnit.SECONDS);
+
+        // 4 tables x 2 rows each = 8 snapshot records total
+        SourceRecords records = consumeAvailableRecordsByTopic();
+        int totalRecords = records.allRecordsInOrder().size();
+        logger.info("Fast snapshot multi-task: received {} total records", totalRecords);
+        assertThat(totalRecords).isEqualTo(8);
+
+        List<SourceRecord> t1Records = records.recordsForTopic(topicName("fs4.t1"));
+        assertThat(t1Records).hasSize(2);
+        logger.info("Fast snapshot multi-task: fs4.t1 got {} records", t1Records.size());
+
+        List<SourceRecord> t2Records = records.recordsForTopic(topicName("fs4.t2"));
+        assertThat(t2Records).hasSize(2);
+        logger.info("Fast snapshot multi-task: fs4.t2 got {} records", t2Records.size());
+
+        List<SourceRecord> t3Records = records.recordsForTopic(topicName("fs4.t3"));
+        assertThat(t3Records).hasSize(2);
+        logger.info("Fast snapshot multi-task: fs4.t3 got {} records", t3Records.size());
+
+        List<SourceRecord> t4Records = records.recordsForTopic(topicName("fs4.t4"));
+        assertThat(t4Records).hasSize(2);
+        logger.info("Fast snapshot multi-task: fs4.t4 got {} records", t4Records.size());
     }
 }

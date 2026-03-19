@@ -6,6 +6,7 @@
 package io.debezium.connector.postgresql;
 
 import java.sql.SQLException;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.kafka.connect.source.SourceConnector;
 import org.slf4j.Logger;
@@ -13,6 +14,7 @@ import org.slf4j.LoggerFactory;
 
 import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
+import io.debezium.connector.common.CdcSourceTaskContext;
 import io.debezium.connector.postgresql.spi.SlotState;
 import io.debezium.pipeline.ChangeEventSourceCoordinator;
 import io.debezium.pipeline.ErrorHandler;
@@ -24,8 +26,10 @@ import io.debezium.pipeline.source.spi.ChangeEventSource;
 import io.debezium.pipeline.source.spi.ChangeEventSource.ChangeEventSourceContext;
 import io.debezium.pipeline.source.spi.SnapshotChangeEventSource;
 import io.debezium.pipeline.spi.Offsets;
+import io.debezium.pipeline.spi.SnapshotResult;
 import io.debezium.schema.DatabaseSchema;
 import io.debezium.snapshot.SnapshotterService;
+import io.debezium.util.LoggingContext;
 
 /**
  * Coordinates one or more {@link ChangeEventSource}s and executes them in order. Extends the base
@@ -37,6 +41,7 @@ public class PostgresChangeEventSourceCoordinator extends ChangeEventSourceCoord
 
     private final SnapshotterService snapshotterService;
     private final SlotState slotInfo;
+    private final boolean fastSnapshotOnly;
 
     public PostgresChangeEventSourceCoordinator(Offsets<PostgresPartition, PostgresOffsetContext> previousOffsets,
                                                 ErrorHandler errorHandler,
@@ -47,11 +52,35 @@ public class PostgresChangeEventSourceCoordinator extends ChangeEventSourceCoord
                                                 EventDispatcher<PostgresPartition, ?> eventDispatcher, DatabaseSchema<?> schema,
                                                 SnapshotterService snapshotterService, SlotState slotInfo,
                                                 SignalProcessor<PostgresPartition, PostgresOffsetContext> signalProcessor,
-                                                NotificationService<PostgresPartition, PostgresOffsetContext> notificationService) {
+                                                NotificationService<PostgresPartition, PostgresOffsetContext> notificationService,
+                                                boolean fastSnapshotOnly) {
         super(previousOffsets, errorHandler, connectorType, connectorConfig, changeEventSourceFactory,
                 changeEventSourceMetricsFactory, eventDispatcher, schema, signalProcessor, notificationService, snapshotterService);
         this.snapshotterService = snapshotterService;
         this.slotInfo = slotInfo;
+        this.fastSnapshotOnly = fastSnapshotOnly;
+    }
+
+    @Override
+    protected void executeChangeEventSources(CdcSourceTaskContext taskContext, SnapshotChangeEventSource<PostgresPartition, PostgresOffsetContext> snapshotSource,
+                                             Offsets<PostgresPartition, PostgresOffsetContext> previousOffsets,
+                                             AtomicReference<LoggingContext.PreviousContext> previousLogContext, ChangeEventSourceContext context)
+            throws InterruptedException {
+        if (fastSnapshotOnly) {
+            // Snapshot-only task: run snapshot then idle
+            final PostgresPartition partition = previousOffsets.getTheOnlyPartition();
+            final PostgresOffsetContext previousOffset = previousOffsets.getTheOnlyOffset();
+
+            previousLogContext.set(taskContext.configureLoggingContext("snapshot", partition));
+            SnapshotResult<PostgresOffsetContext> snapshotResult = doSnapshot(snapshotSource, context, partition, previousOffset);
+
+            LOGGER.info("Fast snapshot: snapshot-only task completed with result {}, entering idle mode", snapshotResult);
+            // Do not call streamEvents() — just return and let poll() return empty results
+            return;
+        }
+
+        // Primary task: normal behavior (snapshot + streaming)
+        super.executeChangeEventSources(taskContext, snapshotSource, previousOffsets, previousLogContext, context);
     }
 
     @Override

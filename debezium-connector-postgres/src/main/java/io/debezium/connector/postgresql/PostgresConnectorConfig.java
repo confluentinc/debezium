@@ -820,6 +820,20 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
             .withDescription(
                     "Any optional parameters used by logical decoding plugin. Semi-colon separated. E.g. 'add-tables=public.table,public.table2;include-lsn=true'");
 
+    public static final Field FAST_SNAPSHOT = Field.create("fast.snapshot")
+            .withDisplayName("Fast Snapshot")
+            .withType(Type.BOOLEAN)
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTOR_SNAPSHOT, 10))
+            .withImportance(Importance.LOW)
+            .withDefault(false)
+            .withDescription("When enabled, the connector creates multiple tasks during snapshot to parallelize table reads. "
+                    + "After snapshot completes, only the primary task continues streaming.");
+
+    public static final Field FAST_SNAPSHOT_PRIMARY = Field.createInternal("fast.snapshot.primary")
+            .withType(Type.BOOLEAN)
+            .withDefault(true)
+            .withDescription("Internal. When true, this task continues streaming after snapshot. When false, the task idles after snapshot.");
+
     public static final Field MAX_RETRIES = Field.create("slot.max.retries")
             .withDisplayName("Retry count")
             .withType(Type.INT)
@@ -1384,6 +1398,14 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
         return getConfig().getInteger(MONEY_FRACTION_DIGITS);
     }
 
+    public boolean isFastSnapshot() {
+        return getConfig().getBoolean(FAST_SNAPSHOT);
+    }
+
+    public boolean isFastSnapshotPrimary() {
+        return getConfig().getBoolean(FAST_SNAPSHOT_PRIMARY);
+    }
+
     @Override
     protected SourceInfoStructMaker<? extends AbstractSourceInfo> getSourceInfoStructMaker(Version version) {
         return getSourceInfoStructMaker(SOURCE_INFO_STRUCT_MAKER, Module.name(), Module.version(), this);
@@ -1444,7 +1466,9 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
                     UNAVAILABLE_VALUE_PLACEHOLDER,
                     LOGICAL_DECODING_MESSAGE_PREFIX_INCLUDE_LIST,
                     LOGICAL_DECODING_MESSAGE_PREFIX_EXCLUDE_LIST,
-                    PUBLISH_VIA_PARTITION_ROOT)
+                    PUBLISH_VIA_PARTITION_ROOT,
+                    FAST_SNAPSHOT,
+                    FAST_SNAPSHOT_PRIMARY)
             .excluding(INCLUDE_SCHEMA_CHANGES)
             .create();
 
