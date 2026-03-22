@@ -79,7 +79,7 @@ public class PostgresConnection extends JdbcConnection {
     public static final String CONNECTION_HEARTBEAT = "Debezium Heartbeat";
     public static final String CONNECTION_GENERAL = "Debezium General";
 
-    private static final Pattern FUNCTION_DEFAULT_PATTERN = Pattern.compile("^[(]?[A-Za-z0-9_.]+\\((?:.+(?:, ?.+)*)?\\)");
+    private static final Pattern FUNCTION_DEFAULT_PATTERN = Pattern.compile("^[(]?[A-Za-z0-9_.]+\\((?:[^()]*+(?:\\([^()]*+\\))?)*+\\)");
     private static final Pattern EXPRESSION_DEFAULT_PATTERN = Pattern.compile("\\(+(?:.+(?:[+ - * / < > = ~ ! @ # % ^ & | ` ?] ?.+)+)+\\)");
     private static Logger LOGGER = LoggerFactory.getLogger(PostgresConnection.class);
 
