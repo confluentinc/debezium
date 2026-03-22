@@ -113,4 +113,33 @@ public class PostgresDefaultValueConverterIT {
         Assert.assertEquals(nonNumericalConvertedValue, Optional.of(" 1 "));
     }
 
+    @Test
+    public void shouldReturnPlaceholderForNestedFunctionDefault() {
+        // Nested function calls like date_trunc('day', now()) must be detected as functions
+        final Column dateColumn = Column.editor().type("date").jdbcType(Types.DATE)
+                .defaultValueExpression("date_trunc('day', now())").create();
+        final Optional<Object> converted = postgresDefaultValueConverter.parseDefaultValue(
+                dateColumn,
+                dateColumn.defaultValueExpression().orElse(null));
+
+        // Function defaults return a placeholder (epoch for date type), not the expression itself
+        Assert.assertTrue(converted.isPresent());
+    }
+
+    @Test
+    public void shouldResistReDoSOnMaliciousDefaultValue() {
+        // Crafted input that would cause exponential backtracking with vulnerable regex
+        String maliciousInput = "func(" + "a,".repeat(50) + "X";
+        final Column intColumn = Column.editor().type("int4").jdbcType(Types.INTEGER)
+                .defaultValueExpression(maliciousInput).create();
+
+        long start = System.nanoTime();
+        postgresDefaultValueConverter.parseDefaultValue(
+                intColumn,
+                intColumn.defaultValueExpression().orElse(null));
+        long durationMs = (System.nanoTime() - start) / 1_000_000;
+
+        Assert.assertTrue("Regex should complete in under 1 second but took " + durationMs + "ms", durationMs < 1000);
+    }
+
 }
