@@ -139,13 +139,14 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
                     else {
                         LOGGER.debug("Successfully tested connection for {} with user '{}'", connection.connectionString(), username);
                     }
+                    LOGGER.info("Checking database existence and connected principal's access to CDC table based on "
+                        + "configured snapshot mode");
                     final List<String> noAccessDatabaseNames = new ArrayList<>();
                     for (String databaseName : sqlServerConfig.getDatabaseNames()) {
                         if (sqlServerConfig.getSnapshotMode() == SqlServerConnectorConfig.SnapshotMode.INITIAL_ONLY) {
                             connection.retrieveRealDatabaseName(databaseName);
                         }
                         else {
-                            LOGGER.info("Checking if connected principal has access to CDC table");
                             if (!connection.checkIfConnectedUserHasAccessToCDCTable(databaseName)) {
                                 noAccessDatabaseNames.add(databaseName);
                             }
