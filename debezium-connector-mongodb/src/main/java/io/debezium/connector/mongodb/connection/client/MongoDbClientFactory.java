@@ -53,6 +53,14 @@ public interface MongoDbClientFactory {
     }
 
     /**
+     * Releases any resources held by this factory.
+     * Called when the connector task stops.
+     */
+    default void close() {
+        // no-op by default
+    }
+
+    /**
      * Creates keystore
      *
      * @param type     keyfile type

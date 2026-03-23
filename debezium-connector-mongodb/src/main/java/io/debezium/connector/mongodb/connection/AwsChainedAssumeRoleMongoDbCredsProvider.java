@@ -63,4 +63,12 @@ public class AwsChainedAssumeRoleMongoDbCredsProvider implements MongoDbAuthProv
 
     return builder.credential(credential);
   }
+
+  @Override
+  public void close() {
+    if (chainedCredentialsProvider != null) {
+      chainedCredentialsProvider.close();
+      LOGGER.info("Closed AWS IAM authentication provider for MongoDB");
+    }
+  }
 }
