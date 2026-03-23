@@ -119,4 +119,8 @@ public class MongoDbConnectionContext {
         }
         return getClusterDescription().getType() != ClusterType.REPLICA_SET;
     }
+
+    public void close() {
+        clientFactory.close();
+    }
 }
