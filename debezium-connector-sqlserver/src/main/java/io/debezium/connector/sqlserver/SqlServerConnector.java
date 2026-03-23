@@ -139,25 +139,28 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
                     else {
                         LOGGER.debug("Successfully tested connection for {} with user '{}'", connection.connectionString(), username);
                     }
-                    LOGGER.info("Checking if connected principal has access to CDC table");
-                    if (sqlServerConfig.getSnapshotMode() != SqlServerConnectorConfig.SnapshotMode.INITIAL_ONLY) {
-                        final List<String> noAccessDatabaseNames = new ArrayList<>();
-                        for (String databaseName : sqlServerConfig.getDatabaseNames()) {
+                    final List<String> noAccessDatabaseNames = new ArrayList<>();
+                    for (String databaseName : sqlServerConfig.getDatabaseNames()) {
+                        if (sqlServerConfig.getSnapshotMode() == SqlServerConnectorConfig.SnapshotMode.INITIAL_ONLY) {
+                            connection.retrieveRealDatabaseName(databaseName);
+                        }
+                        else {
+                            LOGGER.info("Checking if connected principal has access to CDC table");
                             if (!connection.checkIfConnectedUserHasAccessToCDCTable(databaseName)) {
                                 noAccessDatabaseNames.add(databaseName);
                             }
                         }
-                        if (!noAccessDatabaseNames.isEmpty()) {
-                            String principalDescription = isCredentialProviderConfigured
-                                    ? "token-identified principal"
-                                    : "User " + config.getString(RelationalDatabaseConnectorConfig.USER);
-                            String entityType = isCredentialProviderConfigured ? "principal" : "user";
-                            String errorMessage = String.format(
-                                    "%s does not have access to CDC schema in the following databases: %s. This %s can only be used in initial_only snapshot mode",
-                                    principalDescription, String.join(", ", noAccessDatabaseNames), entityType);
-                            LOGGER.error(errorMessage);
-                            userValue.addErrorMessage(errorMessage);
-                        }
+                    }
+                    if (!noAccessDatabaseNames.isEmpty()) {
+                        String principalDescription = isCredentialProviderConfigured
+                                ? "token-identified principal"
+                                : "User " + config.getString(RelationalDatabaseConnectorConfig.USER);
+                        String entityType = isCredentialProviderConfigured ? "principal" : "user";
+                        String errorMessage = String.format(
+                                "%s does not have access to CDC schema in the following databases: %s. This %s can only be used in initial_only snapshot mode",
+                                principalDescription, String.join(", ", noAccessDatabaseNames), entityType);
+                        LOGGER.error(errorMessage);
+                        userValue.addErrorMessage(errorMessage);
                     }
                 }
                 catch (Exception e) {
