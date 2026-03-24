@@ -27,4 +27,12 @@ public interface MongoDbAuthProvider {
      * @return The builder with authentication configuration applied
      */
     Builder addAuthConfig(Builder builder);
+
+    /**
+     * Releases any resources held by this provider.
+     * Called when the connector task stops.
+     */
+    default void close() {
+        // no-op by default
+    }
 }
