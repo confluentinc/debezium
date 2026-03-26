@@ -820,8 +820,8 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
             .withDescription(
                     "Any optional parameters used by logical decoding plugin. Semi-colon separated. E.g. 'add-tables=public.table,public.table2;include-lsn=true'");
 
-    public static final Field FAST_SNAPSHOT = Field.create("fast.snapshot")
-            .withDisplayName("Fast Snapshot")
+    public static final Field SMART_SNAPSHOT = Field.create("smart.snapshot")
+            .withDisplayName("Smart Snapshot")
             .withType(Type.BOOLEAN)
             .withGroup(Field.createGroupEntry(Field.Group.CONNECTOR_SNAPSHOT, 10))
             .withImportance(Importance.LOW)
@@ -829,7 +829,7 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
             .withDescription("When enabled, the connector creates multiple tasks during snapshot to parallelize table reads. "
                     + "After snapshot completes, only the primary task continues streaming.");
 
-    public static final Field FAST_SNAPSHOT_PRIMARY = Field.createInternal("fast.snapshot.primary")
+    public static final Field SMART_SNAPSHOT_PRIMARY = Field.createInternal("smart.snapshot.primary")
             .withType(Type.BOOLEAN)
             .withDefault(true)
             .withDescription("Internal. When true, this task continues streaming after snapshot. When false, the task idles after snapshot.");
@@ -1398,12 +1398,12 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
         return getConfig().getInteger(MONEY_FRACTION_DIGITS);
     }
 
-    public boolean isFastSnapshot() {
-        return getConfig().getBoolean(FAST_SNAPSHOT);
+    public boolean isSmartSnapshot() {
+        return getConfig().getBoolean(SMART_SNAPSHOT);
     }
 
-    public boolean isFastSnapshotPrimary() {
-        return getConfig().getBoolean(FAST_SNAPSHOT_PRIMARY);
+    public boolean isSmartSnapshotPrimary() {
+        return getConfig().getBoolean(SMART_SNAPSHOT_PRIMARY);
     }
 
     @Override
@@ -1467,8 +1467,8 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
                     LOGICAL_DECODING_MESSAGE_PREFIX_INCLUDE_LIST,
                     LOGICAL_DECODING_MESSAGE_PREFIX_EXCLUDE_LIST,
                     PUBLISH_VIA_PARTITION_ROOT,
-                    FAST_SNAPSHOT,
-                    FAST_SNAPSHOT_PRIMARY)
+                    SMART_SNAPSHOT,
+                    SMART_SNAPSHOT_PRIMARY)
             .excluding(INCLUDE_SCHEMA_CHANGES)
             .create();
 

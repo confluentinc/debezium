@@ -78,20 +78,20 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         }
 
         Configuration config = Configuration.from(props);
-        boolean fastSnapshot = config.getBoolean(PostgresConnectorConfig.FAST_SNAPSHOT);
+        boolean smartSnapshot = config.getBoolean(PostgresConnectorConfig.SMART_SNAPSHOT);
 
-        if (!fastSnapshot) {
+        if (!smartSnapshot) {
             return Collections.singletonList(new HashMap<>(props));
         }
 
         List<TableId> tables = getMatchingCollections(config);
         if (tables.isEmpty()) {
-            LOGGER.warn("Fast snapshot enabled but no matching tables found, falling back to single task");
+            LOGGER.warn("Smart snapshot enabled but no matching tables found, falling back to single task");
             return Collections.singletonList(new HashMap<>(props));
         }
 
         int numTasks = (int) Math.ceil(tables.size() / 2.0);
-        LOGGER.info("Fast snapshot: creating {} tasks for {} tables: {}", numTasks, tables.size(),
+        LOGGER.info("Smart snapshot: creating {} tasks for {} tables: {}", numTasks, tables.size(),
                 tables.stream().map(TableId::toString).collect(Collectors.joining(", ")));
 
         List<Map<String, String>> taskConfigsList = new ArrayList<>();
@@ -109,12 +109,12 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
 
             Map<String, String> taskProps = new HashMap<>(props);
             taskProps.put(CommonConnectorConfig.SNAPSHOT_MODE_TABLES.name(), snapshotTables);
-            taskProps.put(PostgresConnectorConfig.FAST_SNAPSHOT.name(), "true");
-            taskProps.put(PostgresConnectorConfig.FAST_SNAPSHOT_PRIMARY.name(), String.valueOf(i == 0));
+            taskProps.put(PostgresConnectorConfig.SMART_SNAPSHOT.name(), "true");
+            taskProps.put(PostgresConnectorConfig.SMART_SNAPSHOT_PRIMARY.name(), String.valueOf(i == 0));
             taskProps.put(CommonConnectorConfig.TASK_ID, String.valueOf(i));
 
             boolean isPrimary = (i == 0);
-            LOGGER.info("Fast snapshot task {}: primary={}, assigned tables=[{}]", i, isPrimary, snapshotTables);
+            LOGGER.info("Smart snapshot task {}: primary={}, assigned tables=[{}]", i, isPrimary, snapshotTables);
             for (TableId table : assignedTables) {
                 LOGGER.info("  Task {} -> table: {}", i, table);
             }

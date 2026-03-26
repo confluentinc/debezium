@@ -41,7 +41,7 @@ public class PostgresChangeEventSourceCoordinator extends ChangeEventSourceCoord
 
     private final SnapshotterService snapshotterService;
     private final SlotState slotInfo;
-    private final boolean fastSnapshotOnly;
+    private final boolean smartSnapshotOnly;
 
     public PostgresChangeEventSourceCoordinator(Offsets<PostgresPartition, PostgresOffsetContext> previousOffsets,
                                                 ErrorHandler errorHandler,
@@ -53,12 +53,12 @@ public class PostgresChangeEventSourceCoordinator extends ChangeEventSourceCoord
                                                 SnapshotterService snapshotterService, SlotState slotInfo,
                                                 SignalProcessor<PostgresPartition, PostgresOffsetContext> signalProcessor,
                                                 NotificationService<PostgresPartition, PostgresOffsetContext> notificationService,
-                                                boolean fastSnapshotOnly) {
+                                                boolean smartSnapshotOnly) {
         super(previousOffsets, errorHandler, connectorType, connectorConfig, changeEventSourceFactory,
                 changeEventSourceMetricsFactory, eventDispatcher, schema, signalProcessor, notificationService, snapshotterService);
         this.snapshotterService = snapshotterService;
         this.slotInfo = slotInfo;
-        this.fastSnapshotOnly = fastSnapshotOnly;
+        this.smartSnapshotOnly = smartSnapshotOnly;
     }
 
     @Override
@@ -66,7 +66,7 @@ public class PostgresChangeEventSourceCoordinator extends ChangeEventSourceCoord
                                              Offsets<PostgresPartition, PostgresOffsetContext> previousOffsets,
                                              AtomicReference<LoggingContext.PreviousContext> previousLogContext, ChangeEventSourceContext context)
             throws InterruptedException {
-        if (fastSnapshotOnly) {
+        if (smartSnapshotOnly) {
             // Snapshot-only task: run snapshot then idle
             final PostgresPartition partition = previousOffsets.getTheOnlyPartition();
             final PostgresOffsetContext previousOffset = previousOffsets.getTheOnlyOffset();

@@ -4005,7 +4005,7 @@ public class PostgresConnectorIT extends AbstractAsyncEngineConnectorTest {
         TestHelper.execute(setupStmt);
 
         Configuration config = TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.FAST_SNAPSHOT, true)
+                .with(PostgresConnectorConfig.SMART_SNAPSHOT, true)
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL.getValue())
                 .with(RelationalDatabaseConnectorConfig.TABLE_INCLUDE_LIST, "fs1.t1,fs1.t2,fs2.t3,fs2.t4")
                 .build();
@@ -4015,21 +4015,21 @@ public class PostgresConnectorIT extends AbstractAsyncEngineConnectorTest {
 
         // 4 tables / 2 per task = 2 tasks
         List<Map<String, String>> taskConfigs = connector.taskConfigs(10);
-        logger.info("Fast snapshot generated {} task configs", taskConfigs.size());
+        logger.info("Smart snapshot generated {} task configs", taskConfigs.size());
         assertThat(taskConfigs.size()).isEqualTo(2);
 
         // Task 0 should be primary
         Map<String, String> task0 = taskConfigs.get(0);
-        assertThat(task0.get(PostgresConnectorConfig.FAST_SNAPSHOT_PRIMARY.name())).isEqualTo("true");
-        assertThat(task0.get(PostgresConnectorConfig.FAST_SNAPSHOT.name())).isEqualTo("true");
+        assertThat(task0.get(PostgresConnectorConfig.SMART_SNAPSHOT_PRIMARY.name())).isEqualTo("true");
+        assertThat(task0.get(PostgresConnectorConfig.SMART_SNAPSHOT.name())).isEqualTo("true");
         String task0Tables = task0.get("snapshot.include.collection.list");
         assertThat(task0Tables).isNotNull();
         logger.info("Task 0 snapshot tables: {}", task0Tables);
 
         // Task 1 should not be primary
         Map<String, String> task1 = taskConfigs.get(1);
-        assertThat(task1.get(PostgresConnectorConfig.FAST_SNAPSHOT_PRIMARY.name())).isEqualTo("false");
-        assertThat(task1.get(PostgresConnectorConfig.FAST_SNAPSHOT.name())).isEqualTo("true");
+        assertThat(task1.get(PostgresConnectorConfig.SMART_SNAPSHOT_PRIMARY.name())).isEqualTo("false");
+        assertThat(task1.get(PostgresConnectorConfig.SMART_SNAPSHOT.name())).isEqualTo("true");
         String task1Tables = task1.get("snapshot.include.collection.list");
         assertThat(task1Tables).isNotNull();
         logger.info("Task 1 snapshot tables: {}", task1Tables);
@@ -4053,7 +4053,7 @@ public class PostgresConnectorIT extends AbstractAsyncEngineConnectorTest {
         TestHelper.execute(SETUP_TABLES_STMT);
 
         Configuration config = TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.FAST_SNAPSHOT, false)
+                .with(PostgresConnectorConfig.SMART_SNAPSHOT, false)
                 .build();
 
         connector = new PostgresConnector();
@@ -4061,8 +4061,8 @@ public class PostgresConnectorIT extends AbstractAsyncEngineConnectorTest {
 
         List<Map<String, String>> taskConfigs = connector.taskConfigs(10);
         assertThat(taskConfigs.size()).isEqualTo(1);
-        assertThat(taskConfigs.get(0).get(PostgresConnectorConfig.FAST_SNAPSHOT_PRIMARY.name())).isNull();
-        logger.info("Fast snapshot disabled: single task config returned as expected");
+        assertThat(taskConfigs.get(0).get(PostgresConnectorConfig.SMART_SNAPSHOT_PRIMARY.name())).isNull();
+        logger.info("Smart snapshot disabled: single task config returned as expected");
 
         connector.stop();
     }
@@ -4080,7 +4080,7 @@ public class PostgresConnectorIT extends AbstractAsyncEngineConnectorTest {
         TestHelper.execute(setupStmt);
 
         Configuration config = TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.FAST_SNAPSHOT, true)
+                .with(PostgresConnectorConfig.SMART_SNAPSHOT, true)
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL.getValue())
                 .with(RelationalDatabaseConnectorConfig.TABLE_INCLUDE_LIST, "fs3.t1,fs3.t2,fs3.t3")
                 .build();
@@ -4123,7 +4123,7 @@ public class PostgresConnectorIT extends AbstractAsyncEngineConnectorTest {
 
         // Start with fast snapshot enabled and tasks.max high enough
         Configuration config = TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.FAST_SNAPSHOT, true)
+                .with(PostgresConnectorConfig.SMART_SNAPSHOT, true)
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL.getValue())
                 .with(RelationalDatabaseConnectorConfig.TABLE_INCLUDE_LIST, "fs4.t1,fs4.t2,fs4.t3,fs4.t4")
                 .with("tasks.max", 4)
@@ -4140,23 +4140,23 @@ public class PostgresConnectorIT extends AbstractAsyncEngineConnectorTest {
         // 4 tables x 2 rows each = 8 snapshot records total
         SourceRecords records = consumeAvailableRecordsByTopic();
         int totalRecords = records.allRecordsInOrder().size();
-        logger.info("Fast snapshot multi-task: received {} total records", totalRecords);
+        logger.info("Smart snapshot multi-task: received {} total records", totalRecords);
         assertThat(totalRecords).isEqualTo(8);
 
         List<SourceRecord> t1Records = records.recordsForTopic(topicName("fs4.t1"));
         assertThat(t1Records).hasSize(2);
-        logger.info("Fast snapshot multi-task: fs4.t1 got {} records", t1Records.size());
+        logger.info("Smart snapshot multi-task: fs4.t1 got {} records", t1Records.size());
 
         List<SourceRecord> t2Records = records.recordsForTopic(topicName("fs4.t2"));
         assertThat(t2Records).hasSize(2);
-        logger.info("Fast snapshot multi-task: fs4.t2 got {} records", t2Records.size());
+        logger.info("Smart snapshot multi-task: fs4.t2 got {} records", t2Records.size());
 
         List<SourceRecord> t3Records = records.recordsForTopic(topicName("fs4.t3"));
         assertThat(t3Records).hasSize(2);
-        logger.info("Fast snapshot multi-task: fs4.t3 got {} records", t3Records.size());
+        logger.info("Smart snapshot multi-task: fs4.t3 got {} records", t3Records.size());
 
         List<SourceRecord> t4Records = records.recordsForTopic(topicName("fs4.t4"));
         assertThat(t4Records).hasSize(2);
-        logger.info("Fast snapshot multi-task: fs4.t4 got {} records", t4Records.size());
+        logger.info("Smart snapshot multi-task: fs4.t4 got {} records", t4Records.size());
     }
 }

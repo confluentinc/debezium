@@ -79,7 +79,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
     private volatile ErrorHandler errorHandler;
     private volatile PostgresSchema schema;
-    private volatile boolean fastSnapshotOnly;
+    private volatile boolean smartSnapshotOnly;
 
     private Partition.Provider<PostgresPartition> partitionProvider = null;
     private OffsetContext.Loader<PostgresOffsetContext> offsetContextLoader = null;
@@ -174,21 +174,21 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
             LOGGER.info("Found previous offset {}", previousOffset);
         }
 
-        fastSnapshotOnly = connectorConfig.isFastSnapshot() && !connectorConfig.isFastSnapshotPrimary();
-        if (fastSnapshotOnly) {
-            LOGGER.info("Fast snapshot: this is a snapshot-only task, will idle after snapshot completes");
+        smartSnapshotOnly = connectorConfig.isSmartSnapshot() && !connectorConfig.isSmartSnapshotPrimary();
+        if (smartSnapshotOnly) {
+            LOGGER.info("Smart snapshot: this is a snapshot-only task, will idle after snapshot completes");
         }
 
         try {
             SlotState slotInfo = null;
             SlotCreationResult slotCreatedInfo = null;
 
-            if (!fastSnapshotOnly) {
+            if (!smartSnapshotOnly) {
                 slotInfo = getSlotState(connectorConfig);
                 slotCreatedInfo = tryToCreateSlot(snapshotter, connectorConfig, slotInfo);
             }
             else {
-                LOGGER.info("Fast snapshot: skipping replication slot setup for snapshot-only task");
+                LOGGER.info("Smart snapshot: skipping replication slot setup for snapshot-only task");
             }
 
             try {
@@ -273,7 +273,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                     slotInfo,
                     signalProcessor,
                     notificationService,
-                    fastSnapshotOnly);
+                    smartSnapshotOnly);
 
             coordinator.start(taskContext, this.queue, metadataProvider);
 
@@ -373,8 +373,8 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
     @Override
     public void commit() throws InterruptedException {
-        if (fastSnapshotOnly) {
-            LOGGER.trace("Fast snapshot: skipping offset commit for snapshot-only task");
+        if (smartSnapshotOnly) {
+            LOGGER.trace("Smart snapshot: skipping offset commit for snapshot-only task");
             return;
         }
         super.commit();
