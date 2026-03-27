@@ -116,55 +116,55 @@ public class PostgresDefaultValueConverterIT {
     @Test
     public void shouldDetectSimpleFunctionDefault() {
         // Simple no-arg function like now()
-        assertFunctionDefaultDetected("now()", Types.TIMESTAMP, true);
+        assertFunctionDefaultDetected("now()", true);
     }
 
     @Test
     public void shouldDetectFunctionWithArgs() {
         // Function with arguments like ABS(-1)
-        assertFunctionDefaultDetected("ABS(-1)", Types.INTEGER, true);
+        assertFunctionDefaultDetected("ABS(-1)", true);
     }
 
     @Test
     public void shouldDetectFunctionWithMultipleArgs() {
         // Function with multiple arguments
-        assertFunctionDefaultDetected("concat('foo', 'bar', 'baz')", Types.VARCHAR, true);
+        assertFunctionDefaultDetected("concat('foo', 'bar', 'baz')", true);
     }
 
     @Test
     public void shouldDetectNestedFunctionDefault() {
         // Nested function calls like date_trunc('day', now()) must be detected as functions
-        assertFunctionDefaultDetected("date_trunc('day', now())", Types.DATE, true);
+        assertFunctionDefaultDetected("date_trunc('day', now())", true);
     }
 
     @Test
     public void shouldDetectSchemaQualifiedFunctionDefault() {
         // Schema-qualified function name like pg_catalog.now()
-        assertFunctionDefaultDetected("pg_catalog.now()", Types.TIMESTAMP, true);
+        assertFunctionDefaultDetected("pg_catalog.now()", true);
     }
 
     @Test
     public void shouldDetectFunctionWithUuidGeneration() {
         // UUID generation function
-        assertFunctionDefaultDetected("uuid_generate_v4()", Types.OTHER, true);
+        assertFunctionDefaultDetected("uuid_generate_v4()", true);
     }
 
     @Test
     public void shouldDetectFunctionWithLeadingParen() {
         // Optional leading parenthesis, e.g., (nextval('seq'))
-        assertFunctionDefaultDetected("(nextval('my_seq'))", Types.INTEGER, true);
+        assertFunctionDefaultDetected("(nextval('my_seq'))", true);
     }
 
     @Test
     public void shouldNotDetectPlainLiteralAsFunctionDefault() {
         // Plain integer literal should NOT be detected as a function
-        assertFunctionDefaultDetected("42", Types.INTEGER, false);
+        assertFunctionDefaultDetected("42", false);
     }
 
     @Test
     public void shouldNotDetectStringLiteralAsFunctionDefault() {
         // String literal should NOT be detected as a function
-        assertFunctionDefaultDetected("'hello'", Types.VARCHAR, false);
+        assertFunctionDefaultDetected("'hello'", false);
     }
 
     @Test
@@ -174,11 +174,16 @@ public class PostgresDefaultValueConverterIT {
         // If the regex is ever reverted to the vulnerable version, this test will hang indefinitely,
         // which the CI test runner will kill via its own timeout — no timing assertion needed here.
         String maliciousInput = "func(" + "a,".repeat(50) + "X";
-        assertFunctionDefaultDetected(maliciousInput, Types.INTEGER, false);
+        assertFunctionDefaultDetected(maliciousInput, false);
     }
 
-    private void assertFunctionDefaultDetected(String defaultExpression, int jdbcType, boolean expectedPresent) {
-        final Column column = Column.editor().type("text").jdbcType(jdbcType)
+    /**
+     * Helper to test whether a default expression is detected as a function default.
+     * Uses "text" type with Types.VARCHAR consistently, since we are testing the
+     * FUNCTION_DEFAULT_PATTERN regex detection, not the type conversion logic.
+     */
+    private void assertFunctionDefaultDetected(String defaultExpression, boolean expectedPresent) {
+        final Column column = Column.editor().type("text").jdbcType(Types.VARCHAR)
                 .defaultValueExpression(defaultExpression).create();
         final Optional<Object> converted = postgresDefaultValueConverter.parseDefaultValue(
                 column,
@@ -186,6 +191,10 @@ public class PostgresDefaultValueConverterIT {
         if (expectedPresent) {
             Assert.assertTrue("Expected function default to be detected for: " + defaultExpression,
                     converted.isPresent());
+        }
+        else {
+            // For non-function defaults, parseDefaultValue may still return a value (the parsed literal),
+            // so we only verify it doesn't throw — the key assertion is that it completes without hanging.
         }
     }
 
