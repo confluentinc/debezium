@@ -44,7 +44,11 @@ public class PostgresDefaultValueConverter implements DefaultValueConverter {
     private static Logger LOGGER = LoggerFactory.getLogger(PostgresDefaultValueConverter.class);
 
     private static final Pattern LITERAL_DEFAULT_PATTERN = Pattern.compile("'(.*?)'");
-    private static final Pattern FUNCTION_DEFAULT_PATTERN = Pattern.compile("^[(]?[A-Za-z0-9_.]+\\((?:.+(?:, ?.+)*)?\\)");
+    // The original FUNCTION_DEFAULT_PATTERN used nested greedy quantifiers (?:.+(?:, ?.+)*)? which caused
+    // exponential backtracking (ReDoS) on malicious inputs like "func(a,a,a,...X". The fix uses possessive
+    // quantifiers (*+) with explicit non-paren character classes to eliminate backtracking entirely while
+    // preserving match behavior for all valid function patterns including one level of nested calls.
+    private static final Pattern FUNCTION_DEFAULT_PATTERN = Pattern.compile("^[(]?[A-Za-z0-9_.]+\\((?:[^()]*+(?:\\([^()]*+\\))?)*+\\)");
     private static final Set<String> CURRENT_DATE_TIMES = Collect.unmodifiableSet("current_timestamp",
             "current_time", "current_date", "localtime", "localtimestamp");
     private static final Set<String> TRIM_DATA_TYPES = Collect.unmodifiableSet("bit", "varbit", "bool", "numeric",
