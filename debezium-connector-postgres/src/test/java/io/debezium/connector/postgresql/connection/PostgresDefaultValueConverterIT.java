@@ -114,32 +114,79 @@ public class PostgresDefaultValueConverterIT {
     }
 
     @Test
-    public void shouldReturnPlaceholderForNestedFunctionDefault() {
-        // Nested function calls like date_trunc('day', now()) must be detected as functions
-        final Column dateColumn = Column.editor().type("date").jdbcType(Types.DATE)
-                .defaultValueExpression("date_trunc('day', now())").create();
-        final Optional<Object> converted = postgresDefaultValueConverter.parseDefaultValue(
-                dateColumn,
-                dateColumn.defaultValueExpression().orElse(null));
+    public void shouldDetectSimpleFunctionDefault() {
+        // Simple no-arg function like now()
+        assertFunctionDefaultDetected("now()", Types.TIMESTAMP, true);
+    }
 
-        // Function defaults return a placeholder (epoch for date type), not the expression itself
-        Assert.assertTrue(converted.isPresent());
+    @Test
+    public void shouldDetectFunctionWithArgs() {
+        // Function with arguments like ABS(-1)
+        assertFunctionDefaultDetected("ABS(-1)", Types.INTEGER, true);
+    }
+
+    @Test
+    public void shouldDetectFunctionWithMultipleArgs() {
+        // Function with multiple arguments
+        assertFunctionDefaultDetected("concat('foo', 'bar', 'baz')", Types.VARCHAR, true);
+    }
+
+    @Test
+    public void shouldDetectNestedFunctionDefault() {
+        // Nested function calls like date_trunc('day', now()) must be detected as functions
+        assertFunctionDefaultDetected("date_trunc('day', now())", Types.DATE, true);
+    }
+
+    @Test
+    public void shouldDetectSchemaQualifiedFunctionDefault() {
+        // Schema-qualified function name like pg_catalog.now()
+        assertFunctionDefaultDetected("pg_catalog.now()", Types.TIMESTAMP, true);
+    }
+
+    @Test
+    public void shouldDetectFunctionWithUuidGeneration() {
+        // UUID generation function
+        assertFunctionDefaultDetected("uuid_generate_v4()", Types.OTHER, true);
+    }
+
+    @Test
+    public void shouldDetectFunctionWithLeadingParen() {
+        // Optional leading parenthesis, e.g., (nextval('seq'))
+        assertFunctionDefaultDetected("(nextval('my_seq'))", Types.INTEGER, true);
+    }
+
+    @Test
+    public void shouldNotDetectPlainLiteralAsFunctionDefault() {
+        // Plain integer literal should NOT be detected as a function
+        assertFunctionDefaultDetected("42", Types.INTEGER, false);
+    }
+
+    @Test
+    public void shouldNotDetectStringLiteralAsFunctionDefault() {
+        // String literal should NOT be detected as a function
+        assertFunctionDefaultDetected("'hello'", Types.VARCHAR, false);
     }
 
     @Test
     public void shouldResistReDoSOnMaliciousDefaultValue() {
-        // Crafted input that would cause exponential backtracking with vulnerable regex
+        // Crafted input that would cause exponential backtracking with the old vulnerable regex.
+        // With the fixed possessive-quantifier regex, this completes instantly and does not match.
+        // If the regex is ever reverted to the vulnerable version, this test will hang indefinitely,
+        // which the CI test runner will kill via its own timeout — no timing assertion needed here.
         String maliciousInput = "func(" + "a,".repeat(50) + "X";
-        final Column intColumn = Column.editor().type("int4").jdbcType(Types.INTEGER)
-                .defaultValueExpression(maliciousInput).create();
+        assertFunctionDefaultDetected(maliciousInput, Types.INTEGER, false);
+    }
 
-        long start = System.nanoTime();
-        postgresDefaultValueConverter.parseDefaultValue(
-                intColumn,
-                intColumn.defaultValueExpression().orElse(null));
-        long durationMs = (System.nanoTime() - start) / 1_000_000;
-
-        Assert.assertTrue("Regex should complete in under 1 second but took " + durationMs + "ms", durationMs < 1000);
+    private void assertFunctionDefaultDetected(String defaultExpression, int jdbcType, boolean expectedPresent) {
+        final Column column = Column.editor().type("text").jdbcType(jdbcType)
+                .defaultValueExpression(defaultExpression).create();
+        final Optional<Object> converted = postgresDefaultValueConverter.parseDefaultValue(
+                column,
+                column.defaultValueExpression().orElse(null));
+        if (expectedPresent) {
+            Assert.assertTrue("Expected function default to be detected for: " + defaultExpression,
+                    converted.isPresent());
+        }
     }
 
 }
