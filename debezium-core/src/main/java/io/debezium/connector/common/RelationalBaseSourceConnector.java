@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Map;
 
 import org.apache.kafka.common.config.Config;
+import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +26,28 @@ import io.debezium.util.Strings;
 public abstract class RelationalBaseSourceConnector extends BaseSourceConnector {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(RelationalBaseSourceConnector.class);
+
+    private Map<String, String> connectorProps;
+
+    @Override
+    public void start(Map<String, String> props) {
+        this.connectorProps = props;
+    }
+
+    /**
+     * Enriches the given {@link ConfigDef} with per-table snapshot select statement override
+     * properties as {@link org.apache.kafka.common.config.ConfigDef.Type#PASSWORD} when
+     * connector properties are available (i.e. after {@link #start(Map)} has been called).
+     *
+     * @param configDef the base config definition to enrich
+     * @return the enriched config definition
+     */
+    protected ConfigDef enrichConfigDef(ConfigDef configDef) {
+        if (connectorProps != null) {
+            RelationalDatabaseConnectorConfig.addSnapshotSelectOverridesToConfigDef(configDef, connectorProps);
+        }
+        return configDef;
+    }
 
     @Override
     public Config validate(Map<String, String> connectorConfigs) {

@@ -44,7 +44,7 @@ public class MySqlConnector extends BinlogConnector<MySqlConnectorConfig> {
 
     @Override
     public ConfigDef config() {
-        return MySqlConnectorConfig.configDef();
+        return enrichConfigDef(MySqlConnectorConfig.configDef());
     }
 
     @Override
