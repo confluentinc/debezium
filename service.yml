@@ -15,6 +15,7 @@ semaphore:
     - master
     - main
     - /^\d+\.\d+\.x$/
+    - /^\d+\.\d+\.\d+\.x$/
     - /v\d+\.\d+\.\d+\-hotfix\-x/
     - /v\d+\.\d+\.\d+\-orcl\-hotfix\-x/
     - /^gh-readonly-queue.*/
