@@ -26,6 +26,7 @@ import io.debezium.config.Field;
 import io.debezium.connector.AbstractSourceInfo;
 import io.debezium.connector.SourceInfoStructMaker;
 import io.debezium.document.Document;
+import io.debezium.jdbc.JdbcConfiguration;
 import io.debezium.relational.ColumnFilterMode;
 import io.debezium.relational.HistorizedRelationalDatabaseConnectorConfig;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
@@ -540,5 +541,13 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
         }
 
         return count;
+    }
+
+    @Override
+    public JdbcConfiguration getJdbcConfig() {
+        return JdbcConfiguration.copy(super.getJdbcConfig())
+                .withDefault("encrypt", "false")
+                .withDefault("trustServerCertificate", "true")
+                .build();
     }
 }
