@@ -194,6 +194,10 @@ public class SqlServerConnection extends JdbcConnection {
                 "OR ([__$start_lsn] > ?))");
         where.add("[__$start_lsn] <= ?");
 
+        if (dataQueryMode == SqlServerConnectorConfig.DataQueryMode.DIRECT) {
+            where.add("[__$start_lsn] >= ?");
+        }
+
         if (hasSkippedOperations(skippedOperations)) {
             Set<String> skippedOps = new HashSet<>();
             skippedOperations.forEach((Envelope.Operation operation) -> {
@@ -427,6 +431,10 @@ public class SqlServerConnection extends JdbcConnection {
         statement.setBytes(paramIndex++, seqvalFromLsn.getBinary());
         statement.setBytes(paramIndex++, fromLsn.getBinary());
         statement.setBytes(paramIndex++, intervalToLsn.getBinary());
+
+        if (config.getDataQueryMode() == SqlServerConnectorConfig.DataQueryMode.DIRECT) {
+            statement.setBytes(paramIndex++, fromLsn.getBinary());
+        }
 
         return statement.executeQuery();
     }
