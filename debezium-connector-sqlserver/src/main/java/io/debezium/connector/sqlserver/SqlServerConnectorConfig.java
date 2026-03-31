@@ -26,6 +26,7 @@ import io.debezium.config.Field;
 import io.debezium.connector.AbstractSourceInfo;
 import io.debezium.connector.SourceInfoStructMaker;
 import io.debezium.document.Document;
+import io.debezium.jdbc.JdbcConfiguration;
 import io.debezium.relational.ColumnFilterMode;
 import io.debezium.relational.HistorizedRelationalDatabaseConnectorConfig;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
@@ -233,6 +234,26 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
             .withValidation(Field::isOptional)
             .withDescription("The SQL Server instance name");
 
+    public static final Field ENCRYPT = Field.create(DATABASE_CONFIG_PREFIX + "encrypt")
+            .withDisplayName("Encrypt")
+            .withType(Type.STRING)
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTION, 9))
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.LOW)
+            .withDefault("false")
+            .withDescription("Whether the connection to SQL Server should be encrypted. "
+                    + "Set to 'true' to enable SSL/TLS encryption.");
+
+    public static final Field TRUST_SERVER_CERTIFICATE = Field.create(DATABASE_CONFIG_PREFIX + "trustServerCertificate")
+            .withDisplayName("Trust Server Certificate")
+            .withType(Type.STRING)
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTION, 10))
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.LOW)
+            .withDefault("true")
+            .withDescription("Whether to trust the SQL Server certificate without validation. "
+                    + "Set to 'false' to enable certificate validation.");
+
     public static final Field DATABASE_NAME = RelationalDatabaseConnectorConfig.DATABASE_NAME
             .withNoValidation()
             .withValidation(SqlServerConnectorConfig::validateDatabaseName);
@@ -349,7 +370,9 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
                     USER,
                     PASSWORD,
                     SERVER_TIMEZONE,
-                    INSTANCE)
+                    INSTANCE,
+                    ENCRYPT,
+                    TRUST_SERVER_CERTIFICATE)
             .connector(
                     SNAPSHOT_MODE,
                     SNAPSHOT_ISOLATION_MODE,
@@ -540,5 +563,14 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
         }
 
         return count;
+    }
+
+    @Override
+    public JdbcConfiguration getJdbcConfig() {
+        return JdbcConfiguration.copy(super.getJdbcConfig())
+                .withDefault(ENCRYPT.name().substring(DATABASE_CONFIG_PREFIX.length()), ENCRYPT.defaultValueAsString())
+                .withDefault(TRUST_SERVER_CERTIFICATE.name().substring(DATABASE_CONFIG_PREFIX.length()),
+                        TRUST_SERVER_CERTIFICATE.defaultValueAsString())
+                .build();
     }
 }
