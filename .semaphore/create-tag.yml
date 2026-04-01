@@ -1,0 +1,20 @@
+version: v1.0
+name: create-debezium-tag
+agent:
+  machine:
+    type: s1-prod-ubuntu24-04-amd64-1
+
+execution_time_limit:
+  hours: 1
+
+blocks:
+  - name: Create Tag
+    dependencies: []
+    task:
+      jobs:
+        - name: Create Tag
+          commands:
+            - checkout --use-cache
+            - git checkout $BRANCH_NAME
+            - ci-tools ci-update-version
+            - ci-tools ci-push-tag
