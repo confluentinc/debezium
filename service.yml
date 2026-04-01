@@ -19,6 +19,14 @@ semaphore:
     - /v\d+\.\d+\.\d+\-hotfix\-x/
     - /v\d+\.\d+\.\d+\-orcl\-hotfix\-x/
     - /^gh-readonly-queue.*/
+  tasks:
+    - name: create-debezium-tag
+      branch: master
+      pipeline_file: .semaphore/create-tag.yml
+      parameters:
+        - name: BRANCH_NAME
+          required: true
+          description: 'Branch to create tag on (e.g., 1.9.6.x, 1.9.7.x, 2.1.0.x)'
 code_artifact:
   enable: true
   package_paths:
