@@ -19,6 +19,14 @@ semaphore:
     - /v\d+\.\d+\.\d+\-hotfix\-x/
     - /v\d+\.\d+\.\d+\-orcl\-hotfix\-x/
     - /^gh-readonly-queue.*/
+  tasks:
+    - name: create-debezium-tag
+      branch: master
+      pipeline_file: .semaphore/create-tag.yml
+      parameters:
+        - name: BRANCH_NAME
+          required: true
+          description: 'Branch used to create a tag for CP-patched branches (for example 1.9.6.x,1.9.7.x,2.1.0.x). Not intended for v*-hotfix-x branches.'
 code_artifact:
   enable: true
   package_paths:
