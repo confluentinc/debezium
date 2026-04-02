@@ -1763,7 +1763,7 @@ public class JdbcConnection implements AutoCloseable {
      * Returns an SQL identifier representing the given database object name.
      */
     public String quoteIdentifier(String name) {
-        if (name.contains(closingQuoteCharacter)) {
+        if (name != null && name.contains(closingQuoteCharacter)) {
             name = name.replace(closingQuoteCharacter, closingQuoteCharacter + closingQuoteCharacter);
         }
 
