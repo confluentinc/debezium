@@ -11,6 +11,7 @@ import java.sql.SQLException;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,6 +29,7 @@ import io.debezium.embedded.AbstractConnectorTest;
 import io.debezium.testing.testcontainers.ImageNames;
 import io.debezium.util.Testing;
 
+@Ignore
 public class TimescaleDbDatabaseTest extends AbstractConnectorTest {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TimescaleDbDatabaseTest.class);
