@@ -105,6 +105,11 @@ blocks:
             - mvn -Dcloud -Passembly,postgres-17,pgoutput-decoder -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-postgres -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
             - . cve-scan
             - . cache-maven store
+        - name: Postgres 18 (assembly,postgres-18,pgoutput-decoder)
+          commands:
+            - mvn -Dcloud -Passembly,postgres-18,pgoutput-decoder -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-postgres -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
+            - . cve-scan
+            - . cache-maven store
         - name: SqlServer
           commands:
             - mvn -Dcloud -Passembly -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-sqlserver -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
