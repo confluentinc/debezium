@@ -79,15 +79,8 @@ public class PostgresConnection extends JdbcConnection {
     public static final String CONNECTION_HEARTBEAT = "Debezium Heartbeat";
     public static final String CONNECTION_GENERAL = "Debezium General";
 
-    // The original FUNCTION_DEFAULT_PATTERN used nested greedy quantifiers (?:.+(?:, ?.+)*)? which caused
-    // exponential backtracking (ReDoS) on malicious inputs like "func(a,a,a,...X". The fix uses possessive
-    // quantifiers (*+) with explicit non-paren character classes to eliminate backtracking entirely while
-    // preserving match behavior for all valid function patterns including one level of nested calls.
-    private static final Pattern FUNCTION_DEFAULT_PATTERN = Pattern.compile("^[(]?[A-Za-z0-9_.]+\\((?:[^()]*+(?:\\([^()]*+\\))?)*+\\)");
-    // The original EXPRESSION_DEFAULT_PATTERN used nested greedy quantifiers (?:..)+)+ which caused
-    // exponential backtracking. Removed the redundant outer + quantifier since the inner .+ already
-    // matches arbitrary content, making one iteration of the outer group always sufficient.
-    private static final Pattern EXPRESSION_DEFAULT_PATTERN = Pattern.compile("\\(+(?:.+(?:[+ - * / < > = ~ ! @ # % ^ & | ` ?] ?.+)+)\\)");
+    private static final Pattern FUNCTION_DEFAULT_PATTERN = Pattern.compile("^[(]?[A-Za-z0-9_.]+\\((?:.+(?:, ?.+)*)?\\)");
+    private static final Pattern EXPRESSION_DEFAULT_PATTERN = Pattern.compile("\\(+(?:.+(?:[+ - * / < > = ~ ! @ # % ^ & | ` ?] ?.+)+)+\\)");
     private static Logger LOGGER = LoggerFactory.getLogger(PostgresConnection.class);
 
     private static final String URL_PATTERN = "jdbc:postgresql://${" + JdbcConfiguration.HOSTNAME + "}:${"
