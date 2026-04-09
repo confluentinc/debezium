@@ -11,6 +11,10 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -51,10 +55,36 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
 
     private final Clock clock;
     private final TaskStateMetrics taskStateMetrics;
+    private final boolean smartSnapshot;
+    private final long dndDelayMs;
+    private final ScheduledExecutorService dndScheduler;
+    private ScheduledFuture<?> pendingDnd;
 
     public SnapshotMeter(Clock clock, TaskStateMetrics taskStateMetrics) {
+        this(clock, taskStateMetrics, false, 0L);
+    }
+
+    public SnapshotMeter(Clock clock, TaskStateMetrics taskStateMetrics, boolean smartSnapshot, long dndDelayMs) {
+        this(clock, taskStateMetrics, smartSnapshot, dndDelayMs, null);
+    }
+
+    // Visible for testing — allows injecting a custom scheduler
+    SnapshotMeter(Clock clock, TaskStateMetrics taskStateMetrics, boolean smartSnapshot, long dndDelayMs,
+                  ScheduledExecutorService dndScheduler) {
         this.clock = clock;
         this.taskStateMetrics = taskStateMetrics;
+        this.smartSnapshot = smartSnapshot;
+        this.dndDelayMs = dndDelayMs;
+        if (smartSnapshot) {
+            this.dndScheduler = dndScheduler != null ? dndScheduler : Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "debezium-dnd-scheduler");
+                t.setDaemon(true);
+                return t;
+            });
+        }
+        else {
+            this.dndScheduler = null;
+        }
     }
 
     @Override
@@ -134,7 +164,12 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         this.snapshotCompleted.set(0);
         this.snapshotAborted.set(0);
         this.snapshotSkipped.set(0);
-        this.taskStateMetrics.setConnectTaskDnd(1);
+        if (smartSnapshot) {
+            scheduleDnd();
+        }
+        else {
+            this.taskStateMetrics.setConnectTaskDnd(1);
+        }
         this.startTime.set(clock.currentTimeInMillis());
         this.stopTime.set(0L);
         this.startPauseTime.set(0);
@@ -148,6 +183,7 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         this.snapshotCompleted.set(0);
         this.snapshotAborted.set(0);
         this.snapshotSkipped.set(0);
+        cancelPendingDnd();
         this.taskStateMetrics.setConnectTaskDnd(0);
         this.startPauseTime.set(clock.currentTimeInMillis());
         this.stopPauseTime.set(0L);
@@ -159,7 +195,12 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         this.snapshotCompleted.set(0);
         this.snapshotAborted.set(0);
         this.snapshotSkipped.set(0);
-        this.taskStateMetrics.setConnectTaskDnd(1);
+        if (smartSnapshot) {
+            scheduleDnd();
+        }
+        else {
+            this.taskStateMetrics.setConnectTaskDnd(1);
+        }
         final long currTime = clock.currentTimeInMillis();
         this.stopPauseTime.set(currTime);
 
@@ -181,6 +222,7 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         this.snapshotRunning.set(0);
         this.snapshotPaused.set(0);
         this.snapshotSkipped.set(0);
+        cancelPendingDnd();
         this.taskStateMetrics.setConnectTaskDnd(0);
         this.stopTime.set(clock.currentTimeInMillis());
     }
@@ -191,6 +233,7 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         this.snapshotRunning.set(0);
         this.snapshotPaused.set(0);
         this.snapshotSkipped.set(0);
+        cancelPendingDnd();
         this.stopTime.set(clock.currentTimeInMillis());
     }
 
@@ -202,6 +245,7 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         this.snapshotAborted.set(1);
         this.snapshotRunning.set(0);
         this.snapshotPaused.set(0);
+        cancelPendingDnd();
         this.taskStateMetrics.setConnectTaskDnd(0);
         this.stopTime.set(clock.currentTimeInMillis());
     }
@@ -275,6 +319,27 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         chunkTo.set(null);
         tableFrom.set(null);
         tableTo.set(null);
+        cancelPendingDnd();
         taskStateMetrics.reset();
+    }
+
+    public void close() {
+        cancelPendingDnd();
+        if (dndScheduler != null) {
+            dndScheduler.shutdownNow();
+        }
+    }
+
+    private synchronized void scheduleDnd() {
+        cancelPendingDnd();
+        pendingDnd = dndScheduler.schedule(
+                () -> taskStateMetrics.setConnectTaskDnd(1), dndDelayMs, TimeUnit.MILLISECONDS);
+    }
+
+    private synchronized void cancelPendingDnd() {
+        if (pendingDnd != null && !pendingDnd.isDone()) {
+            pendingDnd.cancel(false);
+            pendingDnd = null;
+        }
     }
 }
