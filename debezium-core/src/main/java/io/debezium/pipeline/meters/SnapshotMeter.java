@@ -65,12 +65,18 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
     }
 
     public SnapshotMeter(Clock clock, TaskStateMetrics taskStateMetrics, boolean smartSnapshot, long dndDelayMs) {
+        this(clock, taskStateMetrics, smartSnapshot, dndDelayMs, null);
+    }
+
+    // Visible for testing — allows injecting a custom scheduler
+    SnapshotMeter(Clock clock, TaskStateMetrics taskStateMetrics, boolean smartSnapshot, long dndDelayMs,
+                  ScheduledExecutorService dndScheduler) {
         this.clock = clock;
         this.taskStateMetrics = taskStateMetrics;
         this.smartSnapshot = smartSnapshot;
         this.dndDelayMs = dndDelayMs;
         if (smartSnapshot) {
-            this.dndScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            this.dndScheduler = dndScheduler != null ? dndScheduler : Executors.newSingleThreadScheduledExecutor(r -> {
                 Thread t = new Thread(r, "debezium-dnd-scheduler");
                 t.setDaemon(true);
                 return t;
