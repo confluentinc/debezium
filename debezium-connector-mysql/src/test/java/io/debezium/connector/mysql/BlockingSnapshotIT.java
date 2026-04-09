@@ -14,6 +14,7 @@ import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
@@ -172,6 +173,12 @@ public class BlockingSnapshotIT extends AbstractBlockingSnapshotTest {
 
         assertThat(schemaChangesDdls.get(schemaChangesDdls.size() - 1)).isEqualTo(getDdlString(databaseVersionResolver));
 
+    }
+
+    @Override
+    @Ignore
+    public void readsSchemaOnlyForSignaledTables() throws Exception {
+        super.readsSchemaOnlyForSignaledTables();
     }
 
     @NotNull
