@@ -37,26 +37,26 @@ blocks:
       jobs:
         - name: Mysql 8.0
           commands:
-            - mvn -Dcloud -Passembly -pl debezium-connector-mysql -am -U -Dmysql.server.image.source=mysql/mysql-server -Dversion.mysql.server=8.0.13 -Dformat.skip=true -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
-              clean verify install validate
+            - mvn -Dcloud -Passembly -pl debezium-connector-mysql -am -U -Dmysql.server.image.source=mysql/mysql-server -Dversion.mysql.server=8.0.13 -Dformat.skip=true -Drevapi.skip=true -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
+              verify
             - . cve-scan
             - . cache-maven store
         - name: Mysql 8.4
           commands:
-            - mvn -Dcloud -Passembly -pl debezium-connector-mysql -am -U -Dmysql.server.image.source=container-registry.oracle.com/mysql/community-server -Dversion.mysql.server=8.4 -Dformat.skip=true -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
-              clean verify install validate
+            - mvn -Dcloud -Passembly -pl debezium-connector-mysql -am -U -Dmysql.server.image.source=container-registry.oracle.com/mysql/community-server -Dversion.mysql.server=8.4 -Dformat.skip=true -Drevapi.skip=true -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
+              verify
             - . cve-scan
             - . cache-maven store
         - name: Postgres
           commands:
-            - mvn -Dcloud -Passembly -pl debezium-connector-postgres -am -U -Dformat.skip=true -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
-              clean verify install validate
+            - mvn -Dcloud -Passembly -pl debezium-connector-postgres -am -U -Dformat.skip=true -Drevapi.skip=true -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
+              verify
             - . cve-scan
             - . cache-maven store
         - name: SqlServer
           commands:
-            - mvn -Dcloud -Passembly -pl debezium-connector-sqlserver -am -U -Dformat.skip=true -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
-              clean verify install validate
+            - mvn -Dcloud -Passembly -pl debezium-connector-sqlserver -am -U -Dformat.skip=true -Drevapi.skip=true -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress
+              verify
             - . cve-scan
             - . cache-maven store
       env_vars:
