@@ -31,6 +31,7 @@ import io.debezium.config.Field;
 import io.debezium.connector.AbstractSourceInfo;
 import io.debezium.connector.SourceInfoStructMaker;
 import io.debezium.document.Document;
+import io.debezium.document.DocumentReader;
 import io.debezium.jdbc.JdbcConfiguration;
 import io.debezium.relational.ColumnFilterMode;
 import io.debezium.relational.HistorizedRelationalDatabaseConnectorConfig;
@@ -780,11 +781,29 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
             return Collections.emptyMap();
         }
 
+        Map<String, String> overridesFromMap = new HashMap<>();
+        String overridesJson = getConfig().getString(SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP);
+        LOGGER.error("Overrides Json : {}", overridesJson);
+        if (overridesJson != null) {
+            try {
+                Document document = DocumentReader.defaultReader().read(overridesJson);
+                for (io.debezium.document.Document.Field field : document) {
+                    overridesFromMap.put(field.getName().toString(), field.getValue().asString());
+                }
+            }
+            catch (Exception e) {
+                LOGGER.warn("Failed to parse snapshot.select.statement.overrides.data.map as JSON", e);
+            }
+        }
+
         Map<TableId, String> snapshotSelectOverridesByTable = new HashMap<>();
 
         for (String table : tableValues) {
+            String statementOverride = overridesFromMap.get(table);
+            if (statementOverride == null) {
+                statementOverride = getConfig().getString(SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + "." + table);
+            }
 
-            String statementOverride = getConfig().getString(SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + "." + table);
             if (statementOverride == null) {
                 LOGGER.warn("Detected snapshot.select.statement.overrides for {} but no statement property {} defined",
                         SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + "." + table, table);
@@ -793,8 +812,7 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
 
             snapshotSelectOverridesByTable.put(
                     TableId.parse(table, new SqlServerTableIdPredicates()),
-                    getConfig().getString(SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + "." + table));
-
+                    statementOverride);
         }
 
         return Collections.unmodifiableMap(snapshotSelectOverridesByTable);
