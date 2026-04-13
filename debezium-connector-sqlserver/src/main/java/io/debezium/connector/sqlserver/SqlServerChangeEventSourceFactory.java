@@ -84,6 +84,7 @@ public class SqlServerChangeEventSourceFactory implements ChangeEventSourceFacto
 
     private void refreshConnectionIfInvalid(SqlServerConnection connection, String name) {
         try {
+            LOGGER.debug("Validating {} connection before streaming starts", name);
             if (!connection.isValid()) {
                 LOGGER.warn("The {} connection is no longer valid, refreshing before streaming starts", name);
                 connection.close();
