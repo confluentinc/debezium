@@ -111,8 +111,8 @@ public class DefaultSnapshotChangeEventSourceMetrics<P extends Partition> extend
     }
 
     @Override
-    public void snapshotStarted(P partition) {
-        snapshotMeter.snapshotStarted();
+    public void snapshotStarted(P partition, boolean delayDnd) {
+        snapshotMeter.snapshotStarted(delayDnd);
     }
 
     @Override

@@ -36,8 +36,8 @@ class SqlServerSnapshotTaskMetrics extends AbstractSqlServerTaskMetrics<SqlServe
     }
 
     @Override
-    public void snapshotStarted(SqlServerPartition partition) {
-        onPartitionEvent(partition, SqlServerSnapshotPartitionMetrics::snapshotStarted);
+    public void snapshotStarted(SqlServerPartition partition, boolean delayDnd) {
+        onPartitionEvent(partition, bean -> bean.snapshotStarted(delayDnd));
     }
 
     @Override

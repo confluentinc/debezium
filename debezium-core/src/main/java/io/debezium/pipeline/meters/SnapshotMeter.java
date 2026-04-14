@@ -130,13 +130,13 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         remainingTables.remove(dataCollectionId.identifier());
     }
 
-    public void snapshotStarted() {
+    public void snapshotStarted(boolean delayDnd) {
         this.snapshotRunning.set(1);
         this.snapshotPaused.set(0);
         this.snapshotCompleted.set(0);
         this.snapshotAborted.set(0);
         this.snapshotSkipped.set(0);
-        this.taskStateMetrics.scheduleDndAfter(dndDelayMs);
+        this.taskStateMetrics.scheduleDndAfter(delayDnd ? dndDelayMs : 0);
         this.startTime.set(clock.currentTimeInMillis());
         this.stopTime.set(0L);
         this.startPauseTime.set(0);
