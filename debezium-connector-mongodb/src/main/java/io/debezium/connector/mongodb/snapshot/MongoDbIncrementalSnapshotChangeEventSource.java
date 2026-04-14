@@ -266,7 +266,7 @@ public class MongoDbIncrementalSnapshotChangeEventSource
         }
         LOGGER.info("Incremental snapshot in progress, need to read new chunk on start");
         try {
-            progressListener.snapshotStarted(partition);
+            progressListener.snapshotStarted(partition, false);
             readChunk(partition, offsetContext);
         }
         catch (InterruptedException e) {
@@ -421,7 +421,7 @@ public class MongoDbIncrementalSnapshotChangeEventSource
 
             LOGGER.trace("Monitored data collections {}", newDataCollectionIds);
 
-            progressListener.snapshotStarted(partition);
+            progressListener.snapshotStarted(partition, false);
 
             notificationService.incrementalSnapshotNotificationService().notifyStarted(context, partition, offsetContext);
 

@@ -11,6 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.entry;
 
 import java.io.File;
+import java.lang.management.ManagementFactory;
 import java.sql.SQLException;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -18,6 +19,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
+import javax.management.InstanceNotFoundException;
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
 
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.source.SourceRecord;
@@ -196,6 +201,40 @@ public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotTest<Postg
     @Override
     protected String server() {
         return TestHelper.TEST_SERVER;
+    }
+
+    @Test
+    public void testIncrementalSnapshotDndSetImmediatelyWithSmartSnapshot() throws Exception {
+        populateTable();
+
+        // Start connector with smart.snapshot enabled and a long DND delay
+        startConnector(cfg -> cfg
+                .with("smart.snapshot", true)
+                .with("dnd.delay.ms", 600000L));
+
+        sendAdHocSnapshotSignal();
+
+        final MBeanServer mBeanServer = ManagementFactory.getPlatformMBeanServer();
+        final ObjectName taskMetricsObjectName = getTaskMetricsObjectName(connector(), server(), "0");
+
+        // During incremental snapshot, DND should be set immediately (no delay)
+        // even though smart.snapshot is enabled
+        Awaitility.await("DND should be 1 immediately during incremental snapshot")
+                .atMost(60, TimeUnit.SECONDS)
+                .pollInterval(100, TimeUnit.MILLISECONDS)
+                .ignoreException(InstanceNotFoundException.class)
+                .until(() -> {
+                    try {
+                        Object dnd = mBeanServer.getAttribute(taskMetricsObjectName, "ConnectTaskDnd");
+                        return Long.valueOf(1).equals(dnd);
+                    }
+                    catch (InstanceNotFoundException e) {
+                        return false;
+                    }
+                });
+
+        // Consume the records to let the snapshot complete
+        consumeMixedWithIncrementalSnapshot(ROW_COUNT);
     }
 
     @Test
@@ -578,7 +617,7 @@ public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotTest<Postg
                 .atMost(10, TimeUnit.SECONDS)
                 .pollInterval(100, TimeUnit.MILLISECONDS)
                 .until(() -> {
-                    final int[] count = {0};
+                    final int[] count = { 0 };
                     consumeAvailableRecords(record -> {
                         if (record.topic().equals("test_server.s1.a")) {
                             count[0]++;

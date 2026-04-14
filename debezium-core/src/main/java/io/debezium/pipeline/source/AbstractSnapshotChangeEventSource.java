@@ -98,7 +98,7 @@ public abstract class AbstractSnapshotChangeEventSource<P extends Partition, O e
         boolean completedSuccessfully = true;
 
         try {
-            snapshotProgressListener.snapshotStarted(partition);
+            snapshotProgressListener.snapshotStarted(partition, true);
             notificationService.initialSnapshotNotificationService().notifyStarted(offsets.getTheOnlyPartition(), offsets.getTheOnlyOffset());
             return doExecute(context, previousOffset, ctx, snapshottingTask);
         }
