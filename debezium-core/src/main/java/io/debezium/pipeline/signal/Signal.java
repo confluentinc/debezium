@@ -123,7 +123,7 @@ public class Signal<P extends Partition> {
     }
 
     public boolean process(P partition, String id, String type, String data, OffsetContext offset, Struct source) throws InterruptedException {
-        LOGGER.debug("Received signal id = '{}', type = '{}', data = '{}'", id, type, data);
+        LOGGER.debug("Received signal id = '{}', type = '{}'", id, type);
         final Action<P> action = signalActions.get(type);
         if (action == null) {
             LOGGER.warn("Signal '{}' has been received but the type '{}' is not recognized", id, type);
@@ -135,7 +135,7 @@ public class Signal<P extends Partition> {
             return action.arrived(new Payload<>(partition, id, type, jsonData, offset, source));
         }
         catch (IOException e) {
-            LOGGER.warn("Signal '{}' has been received but the data '{}' cannot be parsed", id, data, e);
+            LOGGER.warn("Signal '{}' has been received but the data cannot be parsed", id, e);
             return false;
         }
     }
@@ -168,7 +168,7 @@ public class Signal<P extends Partition> {
             data = parseSignal.get()[2];
         }
         catch (Exception e) {
-            LOGGER.warn("Exception while preparing to process the signal '{}'", value, e);
+            LOGGER.warn("Exception while preparing to process the signal", e);
         }
         return process(partition, id, type, data, offset, source);
     }

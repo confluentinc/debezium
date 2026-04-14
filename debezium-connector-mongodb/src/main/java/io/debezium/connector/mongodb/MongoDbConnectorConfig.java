@@ -822,12 +822,12 @@ public class MongoDbConnectorConfig extends CommonConnectorConfig {
     public Optional<String[]> parseSignallingMessage(Struct value) {
         final String after = value.getString(Envelope.FieldName.AFTER);
         if (after == null) {
-            LOGGER.warn("After part of signal '{}' is missing", value);
+            LOGGER.warn("After part of signal is missing");
             return Optional.empty();
         }
         final Document fields = Document.parse(after);
         if (fields.size() != 3) {
-            LOGGER.warn("The signal event '{}' should have 3 fields but has {}", after, fields.size());
+            LOGGER.warn("The signal event should have 3 fields but has {}", fields.size());
             return Optional.empty();
         }
         final String[] result = new String[3];
