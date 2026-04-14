@@ -22,6 +22,7 @@ import io.debezium.DebeziumException;
 import io.debezium.bean.StandardBeanNames;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.ConfigurationDefaults;
+import io.debezium.connector.SnapshotType;
 import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.source.spi.SnapshotChangeEventSource;
 import io.debezium.pipeline.source.spi.SnapshotProgressListener;
@@ -98,7 +99,7 @@ public abstract class AbstractSnapshotChangeEventSource<P extends Partition, O e
         boolean completedSuccessfully = true;
 
         try {
-            snapshotProgressListener.snapshotStarted(partition);
+            snapshotProgressListener.snapshotStarted(partition, SnapshotType.INITIAL);
             notificationService.initialSnapshotNotificationService().notifyStarted(offsets.getTheOnlyPartition(), offsets.getTheOnlyOffset());
             return doExecute(context, previousOffset, ctx, snapshottingTask);
         }

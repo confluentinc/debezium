@@ -7,6 +7,7 @@ package io.debezium.connector.sqlserver.metrics;
 
 import java.util.Collection;
 
+import io.debezium.connector.SnapshotType;
 import io.debezium.connector.base.ChangeEventQueueMetrics;
 import io.debezium.connector.common.CdcSourceTaskContext;
 import io.debezium.connector.sqlserver.SqlServerPartition;
@@ -36,8 +37,8 @@ class SqlServerSnapshotTaskMetrics extends AbstractSqlServerTaskMetrics<SqlServe
     }
 
     @Override
-    public void snapshotStarted(SqlServerPartition partition) {
-        onPartitionEvent(partition, SqlServerSnapshotPartitionMetrics::snapshotStarted);
+    public void snapshotStarted(SqlServerPartition partition, SnapshotType snapshotType) {
+        onPartitionEvent(partition, bean -> bean.snapshotStarted(snapshotType));
     }
 
     @Override
