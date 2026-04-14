@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
 import io.debezium.config.CommonConnectorConfig;
+import io.debezium.connector.SnapshotType;
 import io.debezium.connector.common.CdcSourceTaskContext;
 import io.debezium.pipeline.meters.SnapshotMeter;
 import io.debezium.pipeline.metrics.TaskStateMetrics;
@@ -89,8 +90,8 @@ class SqlServerSnapshotPartitionMetrics extends AbstractSqlServerPartitionMetric
         snapshotMeter.dataCollectionSnapshotCompleted(dataCollectionId, numRows);
     }
 
-    void snapshotStarted(boolean delayDnd) {
-        snapshotMeter.snapshotStarted(delayDnd);
+    void snapshotStarted(SnapshotType snapshotType) {
+        snapshotMeter.snapshotStarted(snapshotType);
     }
 
     void snapshotPaused() {

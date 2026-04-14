@@ -5,6 +5,7 @@
  */
 package io.debezium.pipeline.source.spi;
 
+import io.debezium.connector.SnapshotType;
 import io.debezium.pipeline.spi.Partition;
 import io.debezium.relational.TableId;
 import io.debezium.spi.schema.DataCollectionId;
@@ -16,7 +17,11 @@ import io.debezium.spi.schema.DataCollectionId;
  */
 public interface SnapshotProgressListener<P extends Partition> {
 
-    void snapshotStarted(P partition, boolean delayDnd);
+    void snapshotStarted(P partition, SnapshotType snapshotType);
+
+    default void snapshotStarted(P partition) {
+        snapshotStarted(partition, SnapshotType.INITIAL);
+    }
 
     void snapshotPaused(P partition);
 
@@ -42,7 +47,7 @@ public interface SnapshotProgressListener<P extends Partition> {
         return new SnapshotProgressListener<P>() {
 
             @Override
-            public void snapshotStarted(P partition, boolean delayDnd) {
+            public void snapshotStarted(P partition, SnapshotType snapshotType) {
             }
 
             @Override
