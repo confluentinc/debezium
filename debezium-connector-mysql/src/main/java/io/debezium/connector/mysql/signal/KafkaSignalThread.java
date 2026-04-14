@@ -141,7 +141,7 @@ public class KafkaSignalThread<T extends DataCollectionId> {
             return;
         }
         String value = record.value();
-        LOGGER.trace("Processing signal: {}", value);
+        LOGGER.trace("Processing signal");
         final Document jsonData = (value == null || value.isEmpty()) ? Document.create()
                 : DocumentReader.defaultReader().read(value);
         String type = jsonData.getString("type");
