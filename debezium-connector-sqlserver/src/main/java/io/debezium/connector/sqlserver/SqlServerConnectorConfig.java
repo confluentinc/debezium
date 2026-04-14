@@ -783,7 +783,6 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
 
         Map<String, String> overridesFromMap = new HashMap<>();
         String overridesJson = getConfig().getString(SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP);
-        LOGGER.error("Overrides Json : {}", overridesJson);
         if (overridesJson != null) {
             try {
                 Document document = DocumentReader.defaultReader().read(overridesJson);
