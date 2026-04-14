@@ -39,6 +39,7 @@ import com.mongodb.client.model.Projections;
 import io.debezium.DebeziumException;
 import io.debezium.annotation.NotThreadSafe;
 import io.debezium.config.CommonConnectorConfig;
+import io.debezium.connector.SnapshotType;
 import io.debezium.connector.mongodb.CollectionId;
 import io.debezium.connector.mongodb.MongoDbCollectionSchema;
 import io.debezium.connector.mongodb.MongoDbConnector;
@@ -266,7 +267,7 @@ public class MongoDbIncrementalSnapshotChangeEventSource
         }
         LOGGER.info("Incremental snapshot in progress, need to read new chunk on start");
         try {
-            progressListener.snapshotStarted(partition, false);
+            progressListener.snapshotStarted(partition, SnapshotType.INCREMENTAL);
             readChunk(partition, offsetContext);
         }
         catch (InterruptedException e) {
@@ -421,7 +422,7 @@ public class MongoDbIncrementalSnapshotChangeEventSource
 
             LOGGER.trace("Monitored data collections {}", newDataCollectionIds);
 
-            progressListener.snapshotStarted(partition, false);
+            progressListener.snapshotStarted(partition, SnapshotType.INCREMENTAL);
 
             notificationService.incrementalSnapshotNotificationService().notifyStarted(context, partition, offsetContext);
 
