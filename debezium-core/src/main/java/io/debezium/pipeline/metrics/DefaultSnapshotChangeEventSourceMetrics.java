@@ -191,9 +191,4 @@ public class DefaultSnapshotChangeEventSourceMetrics<P extends Partition> extend
         snapshotMeter.reset();
     }
 
-    @Override
-    public void unregister() {
-        snapshotMeter.close();
-        super.unregister();
-    }
 }

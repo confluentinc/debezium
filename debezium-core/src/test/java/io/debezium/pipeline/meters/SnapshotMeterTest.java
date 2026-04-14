@@ -7,21 +7,10 @@ package io.debezium.pipeline.meters;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.Callable;
-import java.util.concurrent.Delayed;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
 
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -34,13 +23,16 @@ import io.debezium.pipeline.metrics.TaskStateMetrics;
 import io.debezium.util.Clock;
 
 /**
- * Tests for {@link SnapshotMeter} DND delay behavior using a controllable scheduler.
+ * Tests for {@link SnapshotMeter} DND delay behavior using timestamp-based lazy evaluation.
  */
 public class SnapshotMeterTest {
 
-    private SnapshotMeter snapshotMeter;
+    private static final long DND_DELAY_MS = 600_000L;
+
+    private final AtomicLong currentTime = new AtomicLong(1_000_000L);
+    private final Clock testClock = currentTime::get;
+
     private TaskStateMetrics taskStateMetrics;
-    private ManualScheduler manualScheduler;
 
     @Before
     public void setUp() {
@@ -49,7 +41,7 @@ public class SnapshotMeterTest {
                 .build());
         CdcSourceTaskContext taskContext = new CdcSourceTaskContext(config,
                 "0", Collections.emptyMap(), Collections::emptyList);
-        taskStateMetrics = new TaskStateMetrics(taskContext) {
+        taskStateMetrics = new TaskStateMetrics(taskContext, testClock) {
             @Override
             public void register() {
             }
@@ -58,179 +50,168 @@ public class SnapshotMeterTest {
             public void unregister() {
             }
         };
-        manualScheduler = new ManualScheduler();
     }
 
-    @After
-    public void tearDown() {
-        if (snapshotMeter != null) {
-            snapshotMeter.close();
-        }
-    }
-
-    // --- Legacy mode (smartSnapshot=false) ---
+    // --- Legacy mode (smartSnapshot=false): DND activates immediately ---
 
     @Test
     public void testLegacyModeDndSetImmediatelyOnSnapshotStart() {
-        snapshotMeter = new SnapshotMeter(Clock.system(), taskStateMetrics, false, 0L);
+        SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics, false, 0L);
 
-        snapshotMeter.snapshotStarted();
+        meter.snapshotStarted();
 
         assertThat(taskStateMetrics.getConnectTaskDnd()).isEqualTo(1L);
     }
 
     @Test
     public void testLegacyModeDndClearedOnSnapshotCompleted() {
-        snapshotMeter = new SnapshotMeter(Clock.system(), taskStateMetrics, false, 0L);
+        SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics, false, 0L);
 
-        snapshotMeter.snapshotStarted();
-        snapshotMeter.snapshotCompleted();
+        meter.snapshotStarted();
+        assertThat(taskStateMetrics.getConnectTaskDnd()).isEqualTo(1L);
 
+        meter.snapshotCompleted();
         assertThat(taskStateMetrics.getConnectTaskDnd()).isEqualTo(0L);
     }
 
     @Test
-    public void testLegacyModeDndResetOnPauseAndSetOnResume() {
-        snapshotMeter = new SnapshotMeter(Clock.system(), taskStateMetrics, false, 0L);
+    public void testLegacyModePauseAndResume() {
+        SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics, false, 0L);
 
-        snapshotMeter.snapshotStarted();
+        meter.snapshotStarted();
         assertThat(taskStateMetrics.getConnectTaskDnd()).isEqualTo(1L);
 
-        snapshotMeter.snapshotPaused();
+        meter.snapshotPaused();
         assertThat(taskStateMetrics.getConnectTaskDnd()).isEqualTo(0L);
 
-        snapshotMeter.snapshotResumed();
+        meter.snapshotResumed();
         assertThat(taskStateMetrics.getConnectTaskDnd()).isEqualTo(1L);
     }
 
     @Test
     public void testDefaultConstructorUsesLegacyMode() {
-        snapshotMeter = new SnapshotMeter(Clock.system(), taskStateMetrics);
+        SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics);
 
-        snapshotMeter.snapshotStarted();
+        meter.snapshotStarted();
         assertThat(taskStateMetrics.getConnectTaskDnd()).isEqualTo(1L);
     }
 
-    // --- Smart mode: DND is NOT set immediately, only after scheduler fires ---
+    // --- Smart mode: DND activates only after delay elapses ---
 
     @Test
     public void testSmartModeDndNotSetImmediately() {
-        snapshotMeter = createSmartMeter();
+        SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics, true, DND_DELAY_MS);
 
-        snapshotMeter.snapshotStarted();
+        meter.snapshotStarted();
 
         assertThat(taskStateMetrics.getConnectTaskDnd())
-                .as("DND should not be set immediately")
+                .as("DND should be 0 immediately — delay has not elapsed")
                 .isEqualTo(0L);
-        assertThat(manualScheduler.pendingTasks()).hasSize(1);
     }
 
     @Test
-    public void testSmartModeDndSetWhenSchedulerFires() {
-        snapshotMeter = createSmartMeter();
+    public void testSmartModeDndActivatesAfterDelay() {
+        SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics, true, DND_DELAY_MS);
 
-        snapshotMeter.snapshotStarted();
+        meter.snapshotStarted();
         assertThat(taskStateMetrics.getConnectTaskDnd()).isEqualTo(0L);
 
-        // Simulate the delay elapsing
-        manualScheduler.runPending();
+        // Advance clock past the delay
+        currentTime.addAndGet(DND_DELAY_MS + 1);
 
         assertThat(taskStateMetrics.getConnectTaskDnd())
-                .as("DND should be 1 after scheduler fires")
+                .as("DND should be 1 after delay elapses")
                 .isEqualTo(1L);
     }
 
     @Test
-    public void testSmartModeSnapshotCompletesBeforeDelayFires() {
-        snapshotMeter = createSmartMeter();
+    public void testSmartModeSnapshotCompletesBeforeDelay() {
+        SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics, true, DND_DELAY_MS);
 
-        snapshotMeter.snapshotStarted();
-        snapshotMeter.snapshotCompleted();
+        meter.snapshotStarted();
+        meter.snapshotCompleted();
 
-        // The pending task was cancelled, so firing should have no effect
-        manualScheduler.runPending();
+        // Advance clock past the delay
+        currentTime.addAndGet(DND_DELAY_MS + 1);
 
         assertThat(taskStateMetrics.getConnectTaskDnd())
-                .as("DND should remain 0 — cancelled task must not set DND")
+                .as("DND should remain 0 — cleared before delay elapsed")
                 .isEqualTo(0L);
     }
 
     @Test
-    public void testSmartModePauseCancelsPendingDnd() {
-        snapshotMeter = createSmartMeter();
+    public void testSmartModePauseClearsDnd() {
+        SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics, true, DND_DELAY_MS);
 
-        snapshotMeter.snapshotStarted();
-        assertThat(manualScheduler.pendingTasks()).hasSize(1);
+        meter.snapshotStarted();
 
-        snapshotMeter.snapshotPaused();
-        assertThat(taskStateMetrics.getConnectTaskDnd()).isEqualTo(0L);
+        // Advance past delay so DND would be active
+        currentTime.addAndGet(DND_DELAY_MS + 1);
+        assertThat(taskStateMetrics.getConnectTaskDnd()).isEqualTo(1L);
 
-        // The task was cancelled; running it should have no effect
-        manualScheduler.runPending();
-        assertThat(taskStateMetrics.getConnectTaskDnd()).isEqualTo(0L);
+        meter.snapshotPaused();
+        assertThat(taskStateMetrics.getConnectTaskDnd())
+                .as("DND should be 0 after pause")
+                .isEqualTo(0L);
     }
 
     @Test
-    public void testSmartModeResumeSchedulesNewTask() {
-        snapshotMeter = createSmartMeter();
+    public void testSmartModeResumeResetsDelay() {
+        SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics, true, DND_DELAY_MS);
 
-        snapshotMeter.snapshotStarted();
-        snapshotMeter.snapshotPaused();
-        manualScheduler.clear();
+        meter.snapshotStarted();
+        meter.snapshotPaused();
 
-        snapshotMeter.snapshotResumed();
-        assertThat(taskStateMetrics.getConnectTaskDnd()).isEqualTo(0L);
-        assertThat(manualScheduler.pendingTasks()).hasSize(1);
-
-        // Fire the new scheduled task
-        manualScheduler.runPending();
+        meter.snapshotResumed();
         assertThat(taskStateMetrics.getConnectTaskDnd())
-                .as("DND should be 1 after resumed delay fires")
+                .as("DND should be 0 immediately after resume — new delay started")
+                .isEqualTo(0L);
+
+        // Advance past the new delay
+        currentTime.addAndGet(DND_DELAY_MS + 1);
+        assertThat(taskStateMetrics.getConnectTaskDnd())
+                .as("DND should be 1 after resumed delay elapses")
                 .isEqualTo(1L);
     }
 
     @Test
-    public void testSmartModeAbortCancelsPendingDnd() {
-        snapshotMeter = createSmartMeter();
+    public void testSmartModeAbortClearsDnd() {
+        SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics, true, DND_DELAY_MS);
 
-        snapshotMeter.snapshotStarted();
-        snapshotMeter.snapshotAborted();
+        meter.snapshotStarted();
+        meter.snapshotAborted();
 
-        manualScheduler.runPending();
+        currentTime.addAndGet(DND_DELAY_MS + 1);
         assertThat(taskStateMetrics.getConnectTaskDnd())
-                .as("DND should stay 0 — abort cancels pending and doesn't change DND")
+                .as("DND should be 0 after abort")
                 .isEqualTo(0L);
     }
 
     @Test
-    public void testSmartModeSkipCancelsPendingDnd() {
-        snapshotMeter = createSmartMeter();
+    public void testSmartModeSkipClearsDnd() {
+        SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics, true, DND_DELAY_MS);
 
-        snapshotMeter.snapshotStarted();
-        snapshotMeter.snapshotSkipped();
+        meter.snapshotStarted();
+        meter.snapshotSkipped();
 
-        manualScheduler.runPending();
+        currentTime.addAndGet(DND_DELAY_MS + 1);
         assertThat(taskStateMetrics.getConnectTaskDnd())
                 .as("DND should be 0 after skip")
                 .isEqualTo(0L);
     }
 
     @Test
-    public void testSmartModeCompletedAfterDndAlreadyFired() {
-        snapshotMeter = createSmartMeter();
+    public void testSmartModeCompletedAfterDndAlreadyActive() {
+        SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics, true, DND_DELAY_MS);
 
-        snapshotMeter.snapshotStarted();
-        manualScheduler.runPending();
+        meter.snapshotStarted();
+        currentTime.addAndGet(DND_DELAY_MS + 1);
         assertThat(taskStateMetrics.getConnectTaskDnd()).isEqualTo(1L);
 
-        snapshotMeter.snapshotCompleted();
+        meter.snapshotCompleted();
         assertThat(taskStateMetrics.getConnectTaskDnd())
-                .as("DND should be 0 after completion, even if it was already set")
+                .as("DND should be 0 after completion even if it was already active")
                 .isEqualTo(0L);
-    }
-
-    private SnapshotMeter createSmartMeter() {
-        return new SnapshotMeter(Clock.system(), taskStateMetrics, true, 600000L, manualScheduler);
     }
 
     // --- Test infrastructure ---
@@ -263,169 +244,6 @@ public class SnapshotMeterTest {
         @Override
         protected SourceInfoStructMaker<?> getSourceInfoStructMaker(Version version) {
             return null;
-        }
-    }
-
-    /**
-     * A manually-controlled ScheduledExecutorService that captures scheduled tasks
-     * and lets tests fire them on demand — no real timing involved.
-     */
-    private static class ManualScheduler implements ScheduledExecutorService {
-
-        private final List<ManualFuture> tasks = new ArrayList<>();
-
-        List<ManualFuture> pendingTasks() {
-            List<ManualFuture> pending = new ArrayList<>();
-            for (ManualFuture t : tasks) {
-                if (!t.cancelled) {
-                    pending.add(t);
-                }
-            }
-            return pending;
-        }
-
-        void runPending() {
-            for (ManualFuture t : tasks) {
-                if (!t.cancelled) {
-                    t.command.run();
-                }
-            }
-        }
-
-        void clear() {
-            tasks.clear();
-        }
-
-        @Override
-        public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
-            ManualFuture future = new ManualFuture(command);
-            tasks.add(future);
-            return future;
-        }
-
-        // --- Unused methods below ---
-        @Override
-        public <V> ScheduledFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, long initialDelay, long delay, TimeUnit unit) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void shutdown() {
-        }
-
-        @Override
-        public List<Runnable> shutdownNow() {
-            return Collections.emptyList();
-        }
-
-        @Override
-        public boolean isShutdown() {
-            return false;
-        }
-
-        @Override
-        public boolean isTerminated() {
-            return false;
-        }
-
-        @Override
-        public boolean awaitTermination(long timeout, TimeUnit unit) {
-            return true;
-        }
-
-        @Override
-        public <T> Future<T> submit(Callable<T> task) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public <T> Future<T> submit(Runnable task, T result) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Future<?> submit(Runnable task) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public <T> T invokeAny(Collection<? extends Callable<T>> tasks) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public <T> T invokeAny(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void execute(Runnable command) {
-            throw new UnsupportedOperationException();
-        }
-
-        private static class ManualFuture implements ScheduledFuture<Void> {
-            final Runnable command;
-            boolean cancelled = false;
-
-            ManualFuture(Runnable command) {
-                this.command = command;
-            }
-
-            @Override
-            public boolean cancel(boolean mayInterruptIfRunning) {
-                cancelled = true;
-                return true;
-            }
-
-            @Override
-            public boolean isCancelled() {
-                return cancelled;
-            }
-
-            @Override
-            public boolean isDone() {
-                return cancelled;
-            }
-
-            @Override
-            public Void get() throws InterruptedException, ExecutionException {
-                return null;
-            }
-
-            @Override
-            public Void get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
-                return null;
-            }
-
-            @Override
-            public long getDelay(TimeUnit unit) {
-                return 0;
-            }
-
-            @Override
-            public int compareTo(Delayed o) {
-                return 0;
-            }
         }
     }
 }
