@@ -87,8 +87,8 @@ public class SqlServerChangeEventSourceFactory implements ChangeEventSourceFacto
             LOGGER.debug("Validating {} connection before streaming starts", name);
             if (!connection.isValid()) {
                 LOGGER.warn("The {} connection is no longer valid, refreshing before streaming starts", name);
-                connection.close();
                 connection.reconnect();
+                LOGGER.info("Successfully refreshed the {} connection", name);
             }
         }
         catch (SQLException e) {
