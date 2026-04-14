@@ -561,7 +561,7 @@ public class SnapshotReader extends AbstractReader {
                             Map<TableId, String> selectOverrides = context.getConnectorConfig().getSnapshotSelectOverridesByTable();
 
                             String selectStatement = selectOverrides.getOrDefault(tableId, "SELECT * FROM " + quote(tableId));
-                            logger.info("For table '{}' using select statement: '{}'", tableId, selectStatement);
+                            logger.info("For table '{}' using select statement", tableId);
                             sql.set(selectStatement);
 
                             try {

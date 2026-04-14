@@ -388,7 +388,7 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
 
     private Table readSchema() {
         final String selectStatement = buildChunkQuery(currentTable, 0);
-        LOGGER.debug("Reading schema for table '{}' using select statement: '{}'", currentTable.id(), selectStatement);
+        LOGGER.debug("Reading schema for table '{}' using select statement", currentTable.id());
 
         try (PreparedStatement statement = readTableChunkStatement(selectStatement);
                 ResultSet rs = statement.executeQuery()) {
@@ -437,8 +437,8 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
         LOGGER.debug("Exporting data chunk from table '{}' (total {} tables)", currentTable.id(), context.dataCollectionsToBeSnapshottedCount());
 
         final String selectStatement = buildChunkQuery(currentTable);
-        LOGGER.debug("\t For table '{}' using select statement: '{}', key: '{}', maximum key: '{}'", currentTable.id(),
-                selectStatement, context.chunkEndPosititon(), context.maximumKey().get());
+        LOGGER.debug("\t For table '{}' using select statement, key: '{}', maximum key: '{}'", currentTable.id(),
+                context.chunkEndPosititon(), context.maximumKey().get());
 
         final TableSchema tableSchema = databaseSchema.schemaFor(currentTable.id());
 
