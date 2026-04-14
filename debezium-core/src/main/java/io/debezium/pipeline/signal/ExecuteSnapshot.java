@@ -80,8 +80,8 @@ public class ExecuteSnapshot<P extends Partition> implements Signal.Action<P> {
         final Array dataCollectionsArray = data.getArray(FIELD_DATA_COLLECTIONS);
         if (dataCollectionsArray == null || dataCollectionsArray.isEmpty()) {
             LOGGER.warn(
-                    "Execute snapshot signal '{}' has arrived but the requested field '{}' is missing from data or is empty",
-                    data, FIELD_DATA_COLLECTIONS);
+                    "Execute snapshot signal has arrived but the requested field '{}' is missing from data or is empty",
+                    FIELD_DATA_COLLECTIONS);
             return null;
         }
         return dataCollectionsArray.streamValues()

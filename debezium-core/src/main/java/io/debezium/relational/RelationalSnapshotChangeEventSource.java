@@ -365,7 +365,7 @@ public abstract class RelationalSnapshotChangeEventSource<P extends Partition, O
             snapshotProgressListener.dataCollectionSnapshotCompleted(snapshotContext.partition, table.id(), 0);
             return;
         }
-        LOGGER.info("\t For table '{}' using select statement: '{}'", table.id(), selectStatement.get());
+        LOGGER.info("\t For table '{}' using select statement", table.id());
         final OptionalLong rowCount = rowCountForTable(table.id());
         Instant sourceTableSnapshotTimestamp = getSnapshotSourceTimestamp(snapshotContext, table.id());
 
