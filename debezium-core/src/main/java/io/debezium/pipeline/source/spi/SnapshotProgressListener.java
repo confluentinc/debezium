@@ -16,7 +16,7 @@ import io.debezium.spi.schema.DataCollectionId;
  */
 public interface SnapshotProgressListener<P extends Partition> {
 
-    void snapshotStarted(P partition);
+    void snapshotStarted(P partition, boolean delayDnd);
 
     void snapshotPaused(P partition);
 
@@ -42,7 +42,7 @@ public interface SnapshotProgressListener<P extends Partition> {
         return new SnapshotProgressListener<P>() {
 
             @Override
-            public void snapshotStarted(P partition) {
+            public void snapshotStarted(P partition, boolean delayDnd) {
             }
 
             @Override

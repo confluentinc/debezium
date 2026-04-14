@@ -53,14 +53,10 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
     private final TaskStateMetrics taskStateMetrics;
     private final long dndDelayMs;
 
-    public SnapshotMeter(Clock clock, TaskStateMetrics taskStateMetrics) {
-        this(clock, taskStateMetrics, false, 0L);
-    }
-
-    public SnapshotMeter(Clock clock, TaskStateMetrics taskStateMetrics, boolean smartSnapshot, long dndDelayMs) {
+    public SnapshotMeter(Clock clock, TaskStateMetrics taskStateMetrics, boolean isSmartSnapshot, long dndDelayMsConfig) {
         this.clock = clock;
         this.taskStateMetrics = taskStateMetrics;
-        this.dndDelayMs = smartSnapshot ? dndDelayMs : 0L;
+        this.dndDelayMs = isSmartSnapshot ? dndDelayMsConfig : 0L;
     }
 
     @Override
@@ -134,13 +130,13 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         remainingTables.remove(dataCollectionId.identifier());
     }
 
-    public void snapshotStarted() {
+    public void snapshotStarted(boolean delayDnd) {
         this.snapshotRunning.set(1);
         this.snapshotPaused.set(0);
         this.snapshotCompleted.set(0);
         this.snapshotAborted.set(0);
         this.snapshotSkipped.set(0);
-        this.taskStateMetrics.scheduleDndAfter(dndDelayMs);
+        this.taskStateMetrics.scheduleDndAfter(delayDnd ? dndDelayMs : 0);
         this.startTime.set(clock.currentTimeInMillis());
         this.stopTime.set(0L);
         this.startPauseTime.set(0);
@@ -165,7 +161,8 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         this.snapshotCompleted.set(0);
         this.snapshotAborted.set(0);
         this.snapshotSkipped.set(0);
-        this.taskStateMetrics.scheduleDndAfter(dndDelayMs);
+        // The delay is set to 0 since only incremental snapshot are resumed
+        this.taskStateMetrics.scheduleDndAfter(0);
         final long currTime = clock.currentTimeInMillis();
         this.stopPauseTime.set(currTime);
 
@@ -282,6 +279,6 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         chunkTo.set(null);
         tableFrom.set(null);
         tableTo.set(null);
-        taskStateMetrics.reset();
+        taskStateMetrics.clearDnd();
     }
 }

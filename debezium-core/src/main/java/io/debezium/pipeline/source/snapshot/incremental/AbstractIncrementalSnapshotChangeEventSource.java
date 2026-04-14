@@ -233,7 +233,7 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
         LOGGER.info("Incremental snapshot in progress, need to read new chunk on start");
         try {
             preIncrementalSnapshotStart();
-            progressListener.snapshotStarted(partition);
+            progressListener.snapshotStarted(partition, false);
             readChunk(partition, offsetContext);
         }
         catch (InterruptedException e) {
@@ -484,7 +484,7 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
                     .map(DataCollection::getId).collect(Collectors.toList());
             LOGGER.trace("Monitored data collections {}", newDataCollectionIds);
 
-            progressListener.snapshotStarted(partition);
+            progressListener.snapshotStarted(partition, false);
 
             notificationService.incrementalSnapshotNotificationService().notifyStarted(context, partition, offsetContext);
 

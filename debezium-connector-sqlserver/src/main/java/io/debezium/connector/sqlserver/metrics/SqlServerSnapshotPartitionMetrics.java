@@ -26,7 +26,8 @@ class SqlServerSnapshotPartitionMetrics extends AbstractSqlServerPartitionMetric
                                       TaskStateMetrics taskStateMetrics) {
         super(taskContext, tags, metadataProvider);
         CommonConnectorConfig config = taskContext.getConfig();
-        snapshotMeter = new SnapshotMeter(taskContext.getClock(), taskStateMetrics,
+        snapshotMeter = new SnapshotMeter(
+                taskContext.getClock(), taskStateMetrics,
                 config.isSmartSnapshot(), config.getDndDelayMs());
     }
 
@@ -88,8 +89,8 @@ class SqlServerSnapshotPartitionMetrics extends AbstractSqlServerPartitionMetric
         snapshotMeter.dataCollectionSnapshotCompleted(dataCollectionId, numRows);
     }
 
-    void snapshotStarted() {
-        snapshotMeter.snapshotStarted();
+    void snapshotStarted(boolean delayDnd) {
+        snapshotMeter.snapshotStarted(delayDnd);
     }
 
     void snapshotPaused() {
@@ -158,5 +159,4 @@ class SqlServerSnapshotPartitionMetrics extends AbstractSqlServerPartitionMetric
     public void reset() {
         snapshotMeter.reset();
     }
-
 }
