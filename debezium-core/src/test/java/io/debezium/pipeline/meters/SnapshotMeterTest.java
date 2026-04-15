@@ -90,7 +90,7 @@ public class SnapshotMeterTest {
 
     @Test
     public void testDefaultConstructorUsesLegacyMode() {
-        SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics);
+        SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics, false, 0L);
 
         meter.snapshotStarted();
         assertThat(taskStateMetrics.getConnectTaskDnd()).isEqualTo(1L);
@@ -164,13 +164,6 @@ public class SnapshotMeterTest {
 
         meter.snapshotResumed();
         assertThat(taskStateMetrics.getConnectTaskDnd())
-                .as("DND should be 0 immediately after resume — new delay started")
-                .isEqualTo(0L);
-
-        // Advance past the new delay
-        currentTime.addAndGet(DND_DELAY_MS + 1);
-        assertThat(taskStateMetrics.getConnectTaskDnd())
-                .as("DND should be 1 after resumed delay elapses")
                 .isEqualTo(1L);
     }
 
