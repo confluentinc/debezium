@@ -51,10 +51,16 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
 
     private final Clock clock;
     private final TaskStateMetrics taskStateMetrics;
+    private final long dndDelayMs;
 
     public SnapshotMeter(Clock clock, TaskStateMetrics taskStateMetrics) {
+        this(clock, taskStateMetrics, false, 0L);
+    }
+
+    public SnapshotMeter(Clock clock, TaskStateMetrics taskStateMetrics, boolean smartSnapshot, long dndDelayMs) {
         this.clock = clock;
         this.taskStateMetrics = taskStateMetrics;
+        this.dndDelayMs = smartSnapshot ? dndDelayMs : 0L;
     }
 
     @Override
@@ -134,7 +140,7 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         this.snapshotCompleted.set(0);
         this.snapshotAborted.set(0);
         this.snapshotSkipped.set(0);
-        this.taskStateMetrics.setConnectTaskDnd(1);
+        this.taskStateMetrics.scheduleDndAfter(dndDelayMs);
         this.startTime.set(clock.currentTimeInMillis());
         this.stopTime.set(0L);
         this.startPauseTime.set(0);
@@ -148,7 +154,7 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         this.snapshotCompleted.set(0);
         this.snapshotAborted.set(0);
         this.snapshotSkipped.set(0);
-        this.taskStateMetrics.setConnectTaskDnd(0);
+        this.taskStateMetrics.clearDnd();
         this.startPauseTime.set(clock.currentTimeInMillis());
         this.stopPauseTime.set(0L);
     }
@@ -159,7 +165,7 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         this.snapshotCompleted.set(0);
         this.snapshotAborted.set(0);
         this.snapshotSkipped.set(0);
-        this.taskStateMetrics.setConnectTaskDnd(1);
+        this.taskStateMetrics.scheduleDndAfter(dndDelayMs);
         final long currTime = clock.currentTimeInMillis();
         this.stopPauseTime.set(currTime);
 
@@ -181,7 +187,7 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         this.snapshotRunning.set(0);
         this.snapshotPaused.set(0);
         this.snapshotSkipped.set(0);
-        this.taskStateMetrics.setConnectTaskDnd(0);
+        this.taskStateMetrics.clearDnd();
         this.stopTime.set(clock.currentTimeInMillis());
     }
 
@@ -191,6 +197,7 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         this.snapshotRunning.set(0);
         this.snapshotPaused.set(0);
         this.snapshotSkipped.set(0);
+        this.taskStateMetrics.clearDnd();
         this.stopTime.set(clock.currentTimeInMillis());
     }
 
@@ -202,7 +209,7 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         this.snapshotAborted.set(1);
         this.snapshotRunning.set(0);
         this.snapshotPaused.set(0);
-        this.taskStateMetrics.setConnectTaskDnd(0);
+        this.taskStateMetrics.clearDnd();
         this.stopTime.set(clock.currentTimeInMillis());
     }
 
