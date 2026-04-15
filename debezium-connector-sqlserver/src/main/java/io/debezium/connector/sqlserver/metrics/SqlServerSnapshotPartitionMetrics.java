@@ -8,6 +8,7 @@ package io.debezium.connector.sqlserver.metrics;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
+import io.debezium.config.CommonConnectorConfig;
 import io.debezium.connector.common.CdcSourceTaskContext;
 import io.debezium.pipeline.meters.SnapshotMeter;
 import io.debezium.pipeline.metrics.TaskStateMetrics;
@@ -24,7 +25,9 @@ class SqlServerSnapshotPartitionMetrics extends AbstractSqlServerPartitionMetric
                                       EventMetadataProvider metadataProvider,
                                       TaskStateMetrics taskStateMetrics) {
         super(taskContext, tags, metadataProvider);
-        snapshotMeter = new SnapshotMeter(taskContext.getClock(), taskStateMetrics);
+        CommonConnectorConfig config = taskContext.getConfig();
+        snapshotMeter = new SnapshotMeter(taskContext.getClock(), taskStateMetrics,
+                config.isSmartSnapshot(), config.getDndDelayMs());
     }
 
     @Override
@@ -155,4 +158,5 @@ class SqlServerSnapshotPartitionMetrics extends AbstractSqlServerPartitionMetric
     public void reset() {
         snapshotMeter.reset();
     }
+
 }
