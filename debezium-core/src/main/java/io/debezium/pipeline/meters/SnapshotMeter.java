@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import io.debezium.annotation.ThreadSafe;
+import io.debezium.connector.SnapshotType;
 import io.debezium.pipeline.metrics.TaskStateMetrics;
 import io.debezium.pipeline.metrics.traits.SnapshotMetricsMXBean;
 import io.debezium.relational.TableId;
@@ -130,13 +131,13 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         remainingTables.remove(dataCollectionId.identifier());
     }
 
-    public void snapshotStarted() {
+    public void snapshotStarted(SnapshotType snapshotType) {
         this.snapshotRunning.set(1);
         this.snapshotPaused.set(0);
         this.snapshotCompleted.set(0);
         this.snapshotAborted.set(0);
         this.snapshotSkipped.set(0);
-        this.taskStateMetrics.scheduleDndAfter(dndDelayMs);
+        this.taskStateMetrics.scheduleDndAfter(snapshotType == SnapshotType.INITIAL ? dndDelayMs : 0);
         this.startTime.set(clock.currentTimeInMillis());
         this.stopTime.set(0L);
         this.startPauseTime.set(0);
