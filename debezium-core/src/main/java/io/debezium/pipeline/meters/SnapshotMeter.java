@@ -15,7 +15,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import io.debezium.annotation.ThreadSafe;
-import io.debezium.connector.SnapshotType;
 import io.debezium.pipeline.metrics.TaskStateMetrics;
 import io.debezium.pipeline.metrics.traits.SnapshotMetricsMXBean;
 import io.debezium.relational.TableId;
@@ -54,10 +53,14 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
     private final TaskStateMetrics taskStateMetrics;
     private final long dndDelayMs;
 
-    public SnapshotMeter(Clock clock, TaskStateMetrics taskStateMetrics, boolean isSmartSnapshot, long dndDelayMsConfig) {
+    public SnapshotMeter(Clock clock, TaskStateMetrics taskStateMetrics) {
+        this(clock, taskStateMetrics, false, 0L);
+    }
+
+    public SnapshotMeter(Clock clock, TaskStateMetrics taskStateMetrics, boolean smartSnapshot, long dndDelayMs) {
         this.clock = clock;
         this.taskStateMetrics = taskStateMetrics;
-        this.dndDelayMs = isSmartSnapshot ? dndDelayMsConfig : 0L;
+        this.dndDelayMs = smartSnapshot ? dndDelayMs : 0L;
     }
 
     @Override
@@ -131,13 +134,13 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         remainingTables.remove(dataCollectionId.identifier());
     }
 
-    public void snapshotStarted(SnapshotType snapshotType) {
+    public void snapshotStarted() {
         this.snapshotRunning.set(1);
         this.snapshotPaused.set(0);
         this.snapshotCompleted.set(0);
         this.snapshotAborted.set(0);
         this.snapshotSkipped.set(0);
-        this.taskStateMetrics.scheduleDndAfter(snapshotType == SnapshotType.INITIAL ? dndDelayMs : 0);
+        this.taskStateMetrics.scheduleDndAfter(dndDelayMs);
         this.startTime.set(clock.currentTimeInMillis());
         this.stopTime.set(0L);
         this.startPauseTime.set(0);
@@ -162,8 +165,7 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         this.snapshotCompleted.set(0);
         this.snapshotAborted.set(0);
         this.snapshotSkipped.set(0);
-        // The delay is set to 0 since only incremental snapshot are resumed
-        this.taskStateMetrics.scheduleDndAfter(0);
+        this.taskStateMetrics.scheduleDndAfter(dndDelayMs);
         final long currTime = clock.currentTimeInMillis();
         this.stopPauseTime.set(currTime);
 
@@ -280,6 +282,6 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         chunkTo.set(null);
         tableFrom.set(null);
         tableTo.set(null);
-        taskStateMetrics.clearDnd();
+        taskStateMetrics.reset();
     }
 }

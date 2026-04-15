@@ -10,7 +10,6 @@ import java.util.concurrent.ConcurrentMap;
 
 import io.debezium.annotation.ThreadSafe;
 import io.debezium.config.CommonConnectorConfig;
-import io.debezium.connector.SnapshotType;
 import io.debezium.connector.base.ChangeEventQueueMetrics;
 import io.debezium.connector.common.CdcSourceTaskContext;
 import io.debezium.pipeline.meters.SnapshotMeter;
@@ -112,8 +111,8 @@ public class DefaultSnapshotChangeEventSourceMetrics<P extends Partition> extend
     }
 
     @Override
-    public void snapshotStarted(P partition, SnapshotType snapshotType) {
-        snapshotMeter.snapshotStarted(snapshotType);
+    public void snapshotStarted(P partition) {
+        snapshotMeter.snapshotStarted();
     }
 
     @Override

@@ -33,7 +33,6 @@ import com.google.re2j.Pattern;
 
 import io.debezium.DebeziumException;
 import io.debezium.annotation.NotThreadSafe;
-import io.debezium.connector.SnapshotType;
 import io.debezium.data.ValueWrapper;
 import io.debezium.jdbc.JdbcConnection;
 import io.debezium.pipeline.EventDispatcher;
@@ -234,7 +233,7 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
         LOGGER.info("Incremental snapshot in progress, need to read new chunk on start");
         try {
             preIncrementalSnapshotStart();
-            progressListener.snapshotStarted(partition, SnapshotType.INCREMENTAL);
+            progressListener.snapshotStarted(partition);
             readChunk(partition, offsetContext);
         }
         catch (InterruptedException e) {
@@ -485,7 +484,7 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
                     .map(DataCollection::getId).collect(Collectors.toList());
             LOGGER.trace("Monitored data collections {}", newDataCollectionIds);
 
-            progressListener.snapshotStarted(partition, SnapshotType.INCREMENTAL);
+            progressListener.snapshotStarted(partition);
 
             notificationService.incrementalSnapshotNotificationService().notifyStarted(context, partition, offsetContext);
 

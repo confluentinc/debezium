@@ -51,4 +51,8 @@ public class TaskStateMetrics extends Metrics implements TaskStateMetricsMXBean 
     public void clearDnd() {
         this.dndActivateAt = Long.MAX_VALUE;
     }
+
+    public void reset() {
+        dndActivateAt = Long.MAX_VALUE;
+    }
 }

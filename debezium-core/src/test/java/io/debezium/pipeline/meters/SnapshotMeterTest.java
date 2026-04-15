@@ -17,7 +17,6 @@ import org.junit.Test;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.config.EnumeratedValue;
-import io.debezium.connector.SnapshotType;
 import io.debezium.connector.SourceInfoStructMaker;
 import io.debezium.connector.common.CdcSourceTaskContext;
 import io.debezium.pipeline.metrics.TaskStateMetrics;
@@ -59,7 +58,7 @@ public class SnapshotMeterTest {
     public void testLegacyModeDndSetImmediatelyOnSnapshotStart() {
         SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics, false, 0L);
 
-        meter.snapshotStarted(SnapshotType.INITIAL);
+        meter.snapshotStarted();
 
         assertThat(taskStateMetrics.getConnectTaskDnd()).isEqualTo(1L);
     }
@@ -68,7 +67,7 @@ public class SnapshotMeterTest {
     public void testLegacyModeDndClearedOnSnapshotCompleted() {
         SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics, false, 0L);
 
-        meter.snapshotStarted(SnapshotType.INITIAL);
+        meter.snapshotStarted();
         assertThat(taskStateMetrics.getConnectTaskDnd()).isEqualTo(1L);
 
         meter.snapshotCompleted();
@@ -79,7 +78,7 @@ public class SnapshotMeterTest {
     public void testLegacyModePauseAndResume() {
         SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics, false, 0L);
 
-        meter.snapshotStarted(SnapshotType.INITIAL);
+        meter.snapshotStarted();
         assertThat(taskStateMetrics.getConnectTaskDnd()).isEqualTo(1L);
 
         meter.snapshotPaused();
@@ -91,9 +90,9 @@ public class SnapshotMeterTest {
 
     @Test
     public void testDefaultConstructorUsesLegacyMode() {
-        SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics, false, 0L);
+        SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics);
 
-        meter.snapshotStarted(SnapshotType.INITIAL);
+        meter.snapshotStarted();
         assertThat(taskStateMetrics.getConnectTaskDnd()).isEqualTo(1L);
     }
 
@@ -103,7 +102,7 @@ public class SnapshotMeterTest {
     public void testSmartModeDndNotSetImmediately() {
         SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics, true, DND_DELAY_MS);
 
-        meter.snapshotStarted(SnapshotType.INITIAL);
+        meter.snapshotStarted();
 
         assertThat(taskStateMetrics.getConnectTaskDnd())
                 .as("DND should be 0 immediately — delay has not elapsed")
@@ -114,7 +113,7 @@ public class SnapshotMeterTest {
     public void testSmartModeDndActivatesAfterDelay() {
         SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics, true, DND_DELAY_MS);
 
-        meter.snapshotStarted(SnapshotType.INITIAL);
+        meter.snapshotStarted();
         assertThat(taskStateMetrics.getConnectTaskDnd()).isEqualTo(0L);
 
         // Advance clock past the delay
@@ -129,7 +128,7 @@ public class SnapshotMeterTest {
     public void testSmartModeSnapshotCompletesBeforeDelay() {
         SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics, true, DND_DELAY_MS);
 
-        meter.snapshotStarted(SnapshotType.INITIAL);
+        meter.snapshotStarted();
         meter.snapshotCompleted();
 
         // Advance clock past the delay
@@ -144,7 +143,7 @@ public class SnapshotMeterTest {
     public void testSmartModePauseClearsDnd() {
         SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics, true, DND_DELAY_MS);
 
-        meter.snapshotStarted(SnapshotType.INITIAL);
+        meter.snapshotStarted();
 
         // Advance past delay so DND would be active
         currentTime.addAndGet(DND_DELAY_MS + 1);
@@ -157,15 +156,21 @@ public class SnapshotMeterTest {
     }
 
     @Test
-    public void testSmartModeResumeSetsImmediateDnd() {
+    public void testSmartModeResumeResetsDelay() {
         SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics, true, DND_DELAY_MS);
 
-        meter.snapshotStarted(SnapshotType.INITIAL);
+        meter.snapshotStarted();
         meter.snapshotPaused();
 
         meter.snapshotResumed();
         assertThat(taskStateMetrics.getConnectTaskDnd())
-                .as("DND should be 1 immediately after resume — resume always uses no delay")
+                .as("DND should be 0 immediately after resume — new delay started")
+                .isEqualTo(0L);
+
+        // Advance past the new delay
+        currentTime.addAndGet(DND_DELAY_MS + 1);
+        assertThat(taskStateMetrics.getConnectTaskDnd())
+                .as("DND should be 1 after resumed delay elapses")
                 .isEqualTo(1L);
     }
 
@@ -173,7 +178,7 @@ public class SnapshotMeterTest {
     public void testSmartModeAbortClearsDnd() {
         SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics, true, DND_DELAY_MS);
 
-        meter.snapshotStarted(SnapshotType.INITIAL);
+        meter.snapshotStarted();
         meter.snapshotAborted();
 
         currentTime.addAndGet(DND_DELAY_MS + 1);
@@ -186,7 +191,7 @@ public class SnapshotMeterTest {
     public void testSmartModeSkipClearsDnd() {
         SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics, true, DND_DELAY_MS);
 
-        meter.snapshotStarted(SnapshotType.INITIAL);
+        meter.snapshotStarted();
         meter.snapshotSkipped();
 
         currentTime.addAndGet(DND_DELAY_MS + 1);
@@ -199,7 +204,7 @@ public class SnapshotMeterTest {
     public void testSmartModeCompletedAfterDndAlreadyActive() {
         SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics, true, DND_DELAY_MS);
 
-        meter.snapshotStarted(SnapshotType.INITIAL);
+        meter.snapshotStarted();
         currentTime.addAndGet(DND_DELAY_MS + 1);
         assertThat(taskStateMetrics.getConnectTaskDnd()).isEqualTo(1L);
 
@@ -207,19 +212,6 @@ public class SnapshotMeterTest {
         assertThat(taskStateMetrics.getConnectTaskDnd())
                 .as("DND should be 0 after completion even if it was already active")
                 .isEqualTo(0L);
-    }
-
-    // --- Incremental snapshot (delayDnd=false): DND always immediate ---
-
-    @Test
-    public void testSmartModeIncrementalSnapshotDndSetImmediately() {
-        SnapshotMeter meter = new SnapshotMeter(testClock, taskStateMetrics, true, DND_DELAY_MS);
-
-        meter.snapshotStarted(SnapshotType.INCREMENTAL);
-
-        assertThat(taskStateMetrics.getConnectTaskDnd())
-                .as("DND should be 1 immediately for incremental snapshot even in smart mode")
-                .isEqualTo(1L);
     }
 
     // --- Test infrastructure ---
