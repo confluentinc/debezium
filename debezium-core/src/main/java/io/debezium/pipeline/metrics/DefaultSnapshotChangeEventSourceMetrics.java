@@ -190,5 +190,4 @@ public class DefaultSnapshotChangeEventSourceMetrics<P extends Partition> extend
         super.reset();
         snapshotMeter.reset();
     }
-
 }

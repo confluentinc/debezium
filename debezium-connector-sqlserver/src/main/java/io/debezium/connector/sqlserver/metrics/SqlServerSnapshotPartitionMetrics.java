@@ -158,5 +158,4 @@ class SqlServerSnapshotPartitionMetrics extends AbstractSqlServerPartitionMetric
     public void reset() {
         snapshotMeter.reset();
     }
-
 }
