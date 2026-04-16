@@ -771,27 +771,12 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
             return Collections.emptyMap();
         }
 
-        Map<String, String> overridesFromMap = new HashMap<>();
-        String overridesJson = getConfig().getString(SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP);
-        if (overridesJson != null) {
-            try {
-                Document document = DocumentReader.defaultReader().read(overridesJson);
-                for (io.debezium.document.Document.Field field : document) {
-                    overridesFromMap.put(field.getName().toString(), field.getValue().asString());
-                }
-            }
-            catch (Exception e) {
-                LOGGER.warn("Failed to parse snapshot.select.statement.overrides.data.map as JSON", e);
-            }
-        }
+        Map<String, String> overridesFromMap = parseSnapshotSelectOverridesDataMap();
 
         Map<TableId, String> snapshotSelectOverridesByTable = new HashMap<>();
 
         for (String table : tableValues) {
             String statementOverride = overridesFromMap.get(table);
-            if (statementOverride == null) {
-                statementOverride = getConfig().getString(SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + "." + table);
-            }
 
             if (statementOverride == null) {
                 LOGGER.warn("Detected snapshot.select.statement.overrides for {} but no statement property {} defined",
@@ -805,6 +790,26 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
         }
 
         return Collections.unmodifiableMap(snapshotSelectOverridesByTable);
+    }
+
+    /**
+     * Parses the snapshot.select.statement.overrides.data.map JSON config into a map of table names to select statements.
+     */
+    protected Map<String, String> parseSnapshotSelectOverridesDataMap() {
+        Map<String, String> overridesFromMap = new HashMap<>();
+        String overridesJson = getConfig().getString(SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP);
+        if (overridesJson != null) {
+            try {
+                Document document = DocumentReader.defaultReader().read(overridesJson);
+                for (io.debezium.document.Document.Field field : document) {
+                    overridesFromMap.put(field.getName().toString(), field.getValue().asString());
+                }
+            }
+            catch (Exception e) {
+                LOGGER.warn("Failed to parse snapshot.select.statement.overrides.data.map as JSON", e);
+            }
+        }
+        return overridesFromMap;
     }
 
     @Override
