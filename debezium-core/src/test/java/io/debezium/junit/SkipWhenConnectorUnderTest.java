@@ -51,6 +51,13 @@ public @interface SkipWhenConnectorUnderTest {
             boolean isEqualTo(String packageName) {
                 return packageName != null && packageName.startsWith("io.debezium.connector.db2");
             }
+        },
+
+        MARIADB {
+            @Override
+            boolean isEqualTo(String packageName) {
+                return packageName != null && packageName.startsWith("io.debezium.connector.mariadb");
+            }
         };
 
         abstract boolean isEqualTo(String packageName);
