@@ -34,7 +34,7 @@ public abstract class AbstractOracleStreamingChangeEventSourceMetrics
     public AbstractOracleStreamingChangeEventSourceMetrics(CdcSourceTaskContext taskContext,
                                                            ChangeEventQueueMetrics changeEventQueueMetrics,
                                                            EventMetadataProvider metadataProvider) {
-        super(taskContext, changeEventQueueMetrics, metadataProvider);
+        super(taskContext, changeEventQueueMetrics, metadataProvider, null);
     }
 
     @Override

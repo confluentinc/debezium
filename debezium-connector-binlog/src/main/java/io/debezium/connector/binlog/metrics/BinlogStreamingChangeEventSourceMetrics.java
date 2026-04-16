@@ -45,7 +45,7 @@ public class BinlogStreamingChangeEventSourceMetrics<T extends BinlogDatabaseSch
     public BinlogStreamingChangeEventSourceMetrics(BinlogTaskContext<T> taskContext,
                                                    ChangeEventQueueMetrics changeEventQueueMetrics,
                                                    EventMetadataProvider eventMetadataProvider) {
-        super(taskContext, changeEventQueueMetrics, eventMetadataProvider);
+        super(taskContext, changeEventQueueMetrics, eventMetadataProvider, null);
         this.client = taskContext.getBinaryLogClient();
         this.stats = new BinaryLogClientStatistics(client);
         this.schema = taskContext.getSchema();

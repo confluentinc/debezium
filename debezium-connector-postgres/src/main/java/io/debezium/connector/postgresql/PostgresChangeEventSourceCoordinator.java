@@ -13,6 +13,8 @@ import org.slf4j.LoggerFactory;
 
 import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
+import io.debezium.connector.base.ChangeEventQueueMetrics;
+import io.debezium.connector.common.CdcSourceTaskContext;
 import io.debezium.connector.postgresql.spi.SlotState;
 import io.debezium.pipeline.ChangeEventSourceCoordinator;
 import io.debezium.pipeline.ErrorHandler;
@@ -22,6 +24,7 @@ import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.signal.SignalProcessor;
 import io.debezium.pipeline.source.spi.ChangeEventSource;
 import io.debezium.pipeline.source.spi.ChangeEventSource.ChangeEventSourceContext;
+import io.debezium.pipeline.source.spi.EventMetadataProvider;
 import io.debezium.pipeline.source.spi.SnapshotChangeEventSource;
 import io.debezium.pipeline.spi.Offsets;
 import io.debezium.schema.DatabaseSchema;
@@ -37,6 +40,7 @@ public class PostgresChangeEventSourceCoordinator extends ChangeEventSourceCoord
 
     private final SnapshotterService snapshotterService;
     private final SlotState slotInfo;
+    private final PostgresChangeEventSourceFactory postgresChangeEventSourceFactory;
 
     public PostgresChangeEventSourceCoordinator(Offsets<PostgresPartition, PostgresOffsetContext> previousOffsets,
                                                 ErrorHandler errorHandler,
@@ -52,6 +56,15 @@ public class PostgresChangeEventSourceCoordinator extends ChangeEventSourceCoord
                 changeEventSourceMetricsFactory, eventDispatcher, schema, signalProcessor, notificationService, snapshotterService);
         this.snapshotterService = snapshotterService;
         this.slotInfo = slotInfo;
+        this.postgresChangeEventSourceFactory = changeEventSourceFactory;
+    }
+
+    @Override
+    public synchronized void start(CdcSourceTaskContext taskContext, ChangeEventQueueMetrics changeEventQueueMetrics,
+                                   EventMetadataProvider metadataProvider) {
+        super.start(taskContext, changeEventQueueMetrics, metadataProvider);
+        // Inject TaskStateMetrics into the factory so it can pass it to streaming source
+        postgresChangeEventSourceFactory.setTaskStateMetrics(this.taskStateMetrics);
     }
 
     @Override
