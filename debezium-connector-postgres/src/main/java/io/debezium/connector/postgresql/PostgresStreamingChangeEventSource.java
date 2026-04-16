@@ -235,9 +235,27 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
             throws SQLException, InterruptedException {
         LOGGER.info("Processing messages");
         int noMessageIterations = 0;
+
+        // Track start time for timeout checking
+        final long processMessagesTimeoutMs = connectorConfig.processMessagesTimeout().toMillis();
+        final long startTime = (processMessagesTimeoutMs > 0) ? clock.currentTimeInMillis() : 0;
+
         while (context.isRunning()
                 && haveNotReceivedStreamingStoppingLsn(offsetContext, lastCompletelyProcessedLsn)
                 && !commitOffsetFailure) {
+
+            // Check if timeout has been exceeded
+            if (processMessagesTimeoutMs > 0) {
+                long elapsedTime = clock.currentTimeInMillis() - startTime;
+                if (elapsedTime >= processMessagesTimeoutMs) {
+                    String errorMessage = String.format(
+                            "Process messages timeout exceeded: %d ms elapsed, timeout configured as %d ms",
+                            elapsedTime, processMessagesTimeoutMs);
+                    LOGGER.error(errorMessage);
+                    throw new SQLException(errorMessage);
+                }
+            }
+
             boolean receivedMessage = stream.readPending(message -> processReplicationMessages(partition, offsetContext, stream, message));
 
             probeConnectionIfNeeded();

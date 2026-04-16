@@ -1095,6 +1095,18 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
                     "'warn' to log a warning and continue processing; " +
                     "'ignore' to continue processing and ignore the timeout.");
 
+    public static final Field PROCESS_MESSAGES_TIMEOUT_MS = Field.create("process.messages.timeout.ms")
+            .withDisplayName("Process messages timeout (ms)")
+            .withType(Type.LONG)
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTION_ADVANCED_REPLICATION, 14))
+            .withDefault(0L)
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.LOW)
+            .withDescription("Maximum time in milliseconds that the processMessages method can run before throwing a SQLException. "
+                    + "A value of 0 (default) means no timeout is applied and the method can run indefinitely. "
+                    + "This is useful for testing timeout scenarios or enforcing maximum streaming duration.")
+            .withValidation(Field::isNonNegativeLong);
+
     public static final Field TCP_KEEPALIVE = Field.create(DATABASE_CONFIG_PREFIX + "tcpKeepAlive")
             .withDisplayName("TCP keep-alive probe")
             .withType(Type.BOOLEAN)
@@ -1310,6 +1322,10 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
         return lsnFlushTimeoutAction;
     }
 
+    protected Duration processMessagesTimeout() {
+        return Duration.ofMillis(getConfig().getLong(PostgresConnectorConfig.PROCESS_MESSAGES_TIMEOUT_MS));
+    }
+
     public LogicalDecodingMessageFilter getMessageFilter() {
         return logicalDecodingMessageFilter;
     }
@@ -1419,6 +1435,7 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
                     STATUS_UPDATE_INTERVAL_MS,
                     LSN_FLUSH_TIMEOUT_MS,
                     LSN_FLUSH_TIMEOUT_ACTION,
+                    PROCESS_MESSAGES_TIMEOUT_MS,
                     TCP_KEEPALIVE,
                     XMIN_FETCH_INTERVAL,
                     // Use this connector's implementation rather than common connector's flavor
