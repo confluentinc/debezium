@@ -10,12 +10,14 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.debezium.pipeline.spi.Offsets;
 import io.debezium.relational.DefaultValueConverter;
 import io.debezium.relational.HistorizedRelationalDatabaseSchema;
 import io.debezium.relational.RelationalTableFilters;
@@ -57,6 +59,7 @@ public abstract class BinlogDatabaseSchema<P extends BinlogPartition, O extends 
     private final Map<Long, TableId> tableIdsByTableNumber = new ConcurrentHashMap<>();
     private final Map<Long, TableId> excludeTableIdsByTableNumber = new ConcurrentHashMap<>();
     private final BinlogConnectorConfig connectorConfig;
+    private final boolean storeOnlyCapturedTablesInMemory;
 
     /**
      * Creates a binlog-connector based relational schema based on the supplied configuration. The DDL
@@ -93,11 +96,43 @@ public abstract class BinlogDatabaseSchema<P extends BinlogPartition, O extends 
         this.ddlParser = createDdlParser(connectorConfig, valueConverter);
         this.connectorConfig = connectorConfig;
         this.filters = connectorConfig.getTableFilters();
+        this.storeOnlyCapturedTablesInMemory = connectorConfig.storeOnlyCapturedTablesInMemory();
     }
 
     @Override
     protected DdlParser getDdlParser() {
         return ddlParser;
+    }
+
+    /**
+     * Overrides recovery to optionally use table filtering, reducing memory usage by only loading
+     * schemas for tables in the capture list. The schema history topic still contains
+     * all DDL, so tables added to the capture list later will be recovered on restart.
+     * Filtered recovery is only used when storeOnlyCapturedTablesInMemory is enabled.
+     */
+    @Override
+    public void recover(Offsets<?, ?> offsets) throws InterruptedException {
+        final boolean hasNonNullOffsets = offsets.getOffsets()
+                .values()
+                .stream()
+                .anyMatch(Objects::nonNull);
+
+        if (!hasNonNullOffsets) {
+            return;
+        }
+
+        if (storeOnlyCapturedTablesInMemory) {
+            // Use filtered recovery - only load tables matching the table filter into memory
+            schemaHistory.recover(offsets, tables(), getDdlParser(), filters.dataCollectionFilter());
+        }
+        else {
+            // Use standard recovery - load all tables into memory (backward compatible)
+            schemaHistory.recover(offsets, tables(), getDdlParser());
+        }
+
+        for (TableId tableId : tableIds()) {
+            buildAndRegisterSchema(tableFor(tableId));
+        }
     }
 
     @Override
@@ -388,7 +423,29 @@ public abstract class BinlogDatabaseSchema<P extends BinlogPartition, O extends 
         else {
             LOGGER.trace("Changes for DDL '{}' were filtered and not recorded in database schema history", ddlStatements);
         }
+
+        // Memory optimization: Remove non-included tables from memory after SchemaChangeEvents are created.
+        // The schema history topic still contains all DDL, so tables added to capture list will be recovered on restart.
+        // Only enabled when storeOnlyCapturedTablesInMemory is true (opt-in for memory optimization).
+        if (storeOnlyCapturedTablesInMemory) {
+            removeNonIncludedTablesFromMemory();
+        }
+
         return schemaChangeEvents;
+    }
+
+    /**
+     * Removes tables that are not in the capture list from memory to reduce memory usage.
+     * This is called after DDL parsing and SchemaChangeEvent creation, so the events
+     * already have the complete table information they need.
+     */
+    private void removeNonIncludedTablesFromMemory() {
+        for (TableId tableId : tables().tableIds()) {
+            if (!filters.dataCollectionFilter().isIncluded(tableId)) {
+                LOGGER.trace("Removing non-included table '{}' from memory", tableId);
+                tables().removeTable(tableId);
+            }
+        }
     }
 
     private void emitChangeEvent(P partition, O offset, List<SchemaChangeEvent> schemaChangeEvents,

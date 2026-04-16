@@ -22,6 +22,7 @@ import io.debezium.pipeline.spi.Offsets;
 import io.debezium.pipeline.spi.Partition;
 import io.debezium.relational.HistorizedRelationalDatabaseSchema;
 import io.debezium.relational.Tables;
+import io.debezium.relational.Tables.TableFilter;
 import io.debezium.relational.ddl.DdlParser;
 
 /**
@@ -80,6 +81,18 @@ public interface SchemaHistory {
             .withDescription("Controls what DDL will Debezium store in database schema history. "
                     + "By default (false) Debezium will store all incoming DDL statements. "
                     + "If set to true, then only DDL that manipulates a table from captured schema/database will be stored.")
+            .withDefault(false);
+
+    Field STORE_ONLY_CAPTURED_TABLES_DDL_INMEMORY = Field.create(CONFIGURATION_FIELD_PREFIX_STRING + "store.only.captured.tables.ddl.inmemory")
+            .withDisplayName("Store only captured tables schema in memory")
+            .withType(Type.BOOLEAN)
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.LOW)
+            .withDescription("Controls whether non-captured table schemas are kept in memory. "
+                    + "By default (false) Debezium will store all table schemas in memory for backward compatibility. "
+                    + "If set to true, only schemas for tables in the capture list (table.include.list or not in table.exclude.list) "
+                    + "will be kept in memory, reducing memory usage. Note: enabling this may cause issues if tables are renamed "
+                    + "from non-captured to captured state, as the schema for the renamed table may not be available.")
             .withDefault(false);
 
     Field DDL_FILTER = Field.createInternal(CONFIGURATION_FIELD_PREFIX_STRING + "ddl.filter")
@@ -234,6 +247,42 @@ public interface SchemaHistory {
      */
     @Deprecated
     void recover(Map<Map<String, ?>, Map<String, ?>> offsets, Tables schema, DdlParser ddlParser) throws InterruptedException;
+
+    /**
+     * Recover the {@link Tables database schema} to a known point in its history, loading only tables
+     * that pass the provided filter into memory. This reduces memory usage by only keeping schemas
+     * for tables in the capture list.
+     *
+     * <p>The schema history still contains all DDL. If a table is later added to the capture list,
+     * its schema will be loaded from history on the next recovery.
+     *
+     * @param offsets the offsets map
+     * @param schema the table definitions
+     * @param ddlParser the DDL parser
+     * @param tableFilter filter to determine which tables to load into memory; if null, loads all tables
+     */
+    default void recover(Offsets<?, ?> offsets, Tables schema, DdlParser ddlParser, TableFilter tableFilter) throws InterruptedException {
+        Map<Map<String, ?>, Map<String, ?>> offsetMap = new HashMap<>();
+        for (Entry<? extends Partition, ? extends OffsetContext> entry : offsets) {
+            if (entry.getValue() != null) {
+                offsetMap.put(entry.getKey().getSourcePartition(), entry.getValue().getOffset());
+            }
+        }
+        recover(offsetMap, schema, ddlParser, tableFilter);
+    }
+
+    /**
+     * Recover with table filtering support.
+     *
+     * @param offsets the offsets map
+     * @param schema the table definitions
+     * @param ddlParser the DDL parser
+     * @param tableFilter filter to determine which tables to load into memory; if null, loads all tables
+     */
+    default void recover(Map<Map<String, ?>, Map<String, ?>> offsets, Tables schema, DdlParser ddlParser, TableFilter tableFilter) throws InterruptedException {
+        // Default delegates to non-filtered version for backward compatibility
+        recover(offsets, schema, ddlParser);
+    }
 
     /**
      * Stop recording history and release any resources acquired since {@link #configure(Configuration, HistoryRecordComparator, SchemaHistoryListener, boolean)}.

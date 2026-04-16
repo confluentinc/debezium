@@ -43,6 +43,7 @@ public abstract class HistorizedRelationalDatabaseConnectorConfig extends Relati
     protected boolean skipUnparseableDDL;
     protected boolean storeOnlyCapturedTablesDdl;
     protected boolean storeOnlyCapturedDatabasesDdl;
+    protected boolean storeOnlyCapturedTablesDdlInMemory;
 
     /**
      * The database schema history class is hidden in the {@link #configDef()} since that is designed to work with a user interface,
@@ -65,12 +66,15 @@ public abstract class HistorizedRelationalDatabaseConnectorConfig extends Relati
 
     public static final Field STORE_ONLY_CAPTURED_DATABASES_DDL = SchemaHistory.STORE_ONLY_CAPTURED_DATABASES_DDL;
 
+    public static final Field STORE_ONLY_CAPTURED_TABLES_DDL_INMEMORY = SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL_INMEMORY;
+
     protected static final ConfigDefinition CONFIG_DEFINITION = RelationalDatabaseConnectorConfig.CONFIG_DEFINITION.edit()
             .history(
                     SCHEMA_HISTORY,
                     SKIP_UNPARSEABLE_DDL_STATEMENTS,
                     STORE_ONLY_CAPTURED_TABLES_DDL,
-                    STORE_ONLY_CAPTURED_DATABASES_DDL)
+                    STORE_ONLY_CAPTURED_DATABASES_DDL,
+                    STORE_ONLY_CAPTURED_TABLES_DDL_INMEMORY)
             .create();
 
     protected HistorizedRelationalDatabaseConnectorConfig(Class<? extends SourceConnector> connectorClass,
@@ -111,6 +115,7 @@ public abstract class HistorizedRelationalDatabaseConnectorConfig extends Relati
         this.skipUnparseableDDL = config.getBoolean(SKIP_UNPARSEABLE_DDL_STATEMENTS);
         this.storeOnlyCapturedTablesDdl = config.getBoolean(STORE_ONLY_CAPTURED_TABLES_DDL);
         this.storeOnlyCapturedDatabasesDdl = config.getBoolean(STORE_ONLY_CAPTURED_DATABASES_DDL);
+        this.storeOnlyCapturedTablesDdlInMemory = config.getBoolean(STORE_ONLY_CAPTURED_TABLES_DDL_INMEMORY);
     }
 
     /**
@@ -172,6 +177,10 @@ public abstract class HistorizedRelationalDatabaseConnectorConfig extends Relati
 
     public boolean storeOnlyCapturedDatabases() {
         return storeOnlyCapturedDatabasesDdl;
+    }
+
+    public boolean storeOnlyCapturedTablesInMemory() {
+        return storeOnlyCapturedTablesDdlInMemory;
     }
 
     /**
