@@ -318,7 +318,7 @@ public class MongoDbIncrementalSnapshotChangeEventSource
                     }
                     if (LOGGER.isInfoEnabled()) {
                         LOGGER.info("Incremental snapshot for collection '{}' will end at position {}", currentDataCollectionId,
-                                context.maximumKey().orElse(new Object[0]));
+                                maybeRedactSensitiveData(context.maximumKey().orElse(new Object[0])));
                     }
                 }
                 createDataEventsForDataCollection(partition);
@@ -445,7 +445,7 @@ public class MongoDbIncrementalSnapshotChangeEventSource
         if (dataCollectionsToStop.isEmpty()) {
             return;
         }
-        LOGGER.trace("Stopping incremental snapshot with context {}", context);
+        LOGGER.trace("Stopping incremental snapshot with context {}", maybeRedactSensitiveData(context));
         if (!context.snapshotRunning()) {
             context.unsetCorrelationId();
             LOGGER.warn("No active incremental snapshot, stop ignored");
@@ -529,7 +529,8 @@ public class MongoDbIncrementalSnapshotChangeEventSource
             Document predicate = constructQueryPredicate(context.chunkEndPosititon(), context.maximumKey().get(),
                     getAdditionalConditions());
             LOGGER.debug("\t For collection '{}' using query: '{}', key: '{}', maximum key: '{}' to get all _id fields",
-                    currentCollection.id(), predicate.toJson(), context.chunkEndPosititon(), context.maximumKey().get());
+                    currentCollection.id(), maybeRedactSensitiveData(predicate.toJson()),
+                    maybeRedactSensitiveData(context.chunkEndPosititon()), maybeRedactSensitiveData(context.maximumKey().get()));
 
             long rows = 0;
             Object[] lastRow = null;
@@ -575,7 +576,7 @@ public class MongoDbIncrementalSnapshotChangeEventSource
             }
             context.nextChunkPosition(lastKey);
             if (lastRow != null) {
-                LOGGER.debug("\t Next window will resume from {}", (Object) context.chunkEndPosititon());
+                LOGGER.debug("\t Next window will resume from {}", maybeRedactSensitiveData(context.chunkEndPosititon()));
             }
 
             LOGGER.debug("\t Finished exporting {} records for window of collection '{}'; total duration '{}'", rows,
@@ -597,7 +598,7 @@ public class MongoDbIncrementalSnapshotChangeEventSource
     private void queryChunk(MongoCollection<BsonDocument> collection, Object[] startKey, Object[] endKey) {
         Document predicate = constructQueryPredicate(startKey, endKey, getAdditionalConditions());
         LOGGER.debug("\t For collection chunk, '{}' using query: '{}', key: '{}', maximum key: '{}'", currentCollection.id(),
-                predicate.toJson(), startKey, endKey);
+                maybeRedactSensitiveData(predicate.toJson()), maybeRedactSensitiveData(startKey), maybeRedactSensitiveData(endKey));
 
         long rows = 0;
         long exportStart = clock.currentTimeInMillis();
@@ -745,7 +746,8 @@ public class MongoDbIncrementalSnapshotChangeEventSource
             LOGGER.warn("Context is null, skipping message processing");
             return;
         }
-        LOGGER.trace("Checking window for table '{}', key '{}', window contains '{}'", dataCollectionId, key, window);
+        LOGGER.trace("Checking window for table '{}', key '{}', window contains '{}'", dataCollectionId,
+                maybeRedactSensitiveData(key), maybeRedactSensitiveData(window));
         if (!window.isEmpty() && context.deduplicationNeeded()) {
             deduplicateWindow(dataCollectionId, key);
         }
