@@ -25,6 +25,8 @@ import io.debezium.config.ConfigDefinition;
 import io.debezium.config.Configuration;
 import io.debezium.config.EnumeratedValue;
 import io.debezium.config.Field;
+import io.debezium.document.Document;
+import io.debezium.document.DocumentReader;
 import io.debezium.config.Field.ValidationOutput;
 import io.debezium.heartbeat.DatabaseHeartbeatImpl;
 import io.debezium.heartbeat.Heartbeat;
@@ -368,6 +370,17 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
                             "The value of those properties is the select statement to use when retrieving data from the specific table during snapshotting. " +
                             "A possible use case for large append-only tables is setting a specific point where to start (resume) snapshotting, in case a previous snapshotting was interrupted.");
 
+    public static final Field SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP = Field.create("snapshot.select.statement.overrides.data.map")
+            .withDisplayName("Snapshot select statement overrides map")
+            .withType(Type.PASSWORD)
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTOR_SNAPSHOT, 9))
+            .withWidth(Width.LONG)
+            .withImportance(Importance.MEDIUM)
+            .withDescription(
+                    "This property contains a map of fully-qualified tables (DB_NAME.TABLE_NAME) or (SCHEMA_NAME.TABLE_NAME) and their select statements to use during snapshotting. " +
+                            "The format is a JSON object where keys are table names and values are the select queries.");
+
+
     /**
      * A comma-separated list of regular expressions that match schema names to be monitored.
      * Must not be used with {@link #SCHEMA_EXCLUDE_LIST}.
@@ -559,6 +572,7 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
                     SCHEMA_EXCLUDE_LIST,
                     MSG_KEY_COLUMNS,
                     SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE,
+                    SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
                     MASK_COLUMN_WITH_HASH,
                     MASK_COLUMN,
                     TRUNCATE_COLUMN,
