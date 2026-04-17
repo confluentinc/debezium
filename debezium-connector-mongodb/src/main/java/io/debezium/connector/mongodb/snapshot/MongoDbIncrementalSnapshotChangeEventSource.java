@@ -9,6 +9,7 @@ import static io.debezium.config.CommonConnectorConfig.WatermarkStrategy.INSERT_
 import static io.debezium.pipeline.notification.IncrementalSnapshotNotificationService.TableScanCompletionStatus.EMPTY;
 import static io.debezium.pipeline.notification.IncrementalSnapshotNotificationService.TableScanCompletionStatus.SUCCEEDED;
 import static io.debezium.pipeline.notification.IncrementalSnapshotNotificationService.TableScanCompletionStatus.UNKNOWN_SCHEMA;
+import static io.debezium.util.Loggings.maybeRedactSensitiveData;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -202,7 +203,7 @@ public class MongoDbIncrementalSnapshotChangeEventSource
         }
         if (key instanceof Struct) {
             if (window.remove((Struct) key) != null) {
-                LOGGER.info("Removed '{}' from window", key);
+                LOGGER.info("Removed '{}' from window", maybeRedactSensitiveData(key));
             }
         }
     }
