@@ -5,6 +5,8 @@
  */
 package io.debezium.relational;
 
+import static io.debezium.util.Loggings.maybeRedactSensitiveData;
+
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -68,8 +70,6 @@ import io.debezium.util.ColumnUtils;
 import io.debezium.util.Strings;
 import io.debezium.util.Threads;
 import io.debezium.util.Threads.Timer;
-
-import static io.debezium.util.Loggings.maybeRedactSensitiveData;
 
 /**
  * Base class for {@link SnapshotChangeEventSource} for relational databases with or without a schema history.

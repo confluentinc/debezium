@@ -65,8 +65,8 @@ public class OracleMetricsIT extends AbstractMetricsTest<OracleConnector> {
     }
 
     @Override
-    protected boolean snapshotCompleted() {
-        return true;
+    protected long snapshotCompleted() {
+        return 1L;
     }
 
     @BeforeClass
