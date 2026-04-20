@@ -52,7 +52,7 @@ public class DefaultStreamingChangeEventSourceMetrics<P extends Partition> exten
     }
 
     @Override
-    public boolean isConnected() {
+    public long isConnected() {
         return connectionMeter.isConnected();
     }
 
