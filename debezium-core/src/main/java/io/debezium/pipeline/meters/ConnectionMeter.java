@@ -19,7 +19,7 @@ public class ConnectionMeter implements ConnectionMetricsMXBean {
     private final AtomicLong connected = new AtomicLong();
 
     @Override
-    public long isConnected() {
+    public long getConnected() {
         return this.connected.get();
     }
 

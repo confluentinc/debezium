@@ -265,7 +265,7 @@ public abstract class AbstractMetricsTest<T extends SourceConnector> extends Abs
 
         // Check streaming metrics
         Testing.print("****ASSERTIONS****");
-        assertThat(mBeanServer.getAttribute(getStreamingMetricsObjectName(), "Connected")).isEqualTo(true);
+        assertThat(mBeanServer.getAttribute(getStreamingMetricsObjectName(), "Connected")).isEqualTo(1L);
         assertThat(mBeanServer.getAttribute(getMultiplePartitionStreamingMetricsObjectName(), "TotalNumberOfCreateEventsSeen")).isEqualTo(expectedEvents);
         assertThat(mBeanServer.getAttribute(getMultiplePartitionStreamingMetricsObjectName(), "CapturedTables")).isEqualTo(new String[]{ tableName() });
 
@@ -313,7 +313,7 @@ public abstract class AbstractMetricsTest<T extends SourceConnector> extends Abs
 
         // Check streaming metrics
         Testing.print("****ASSERTIONS****");
-        assertThat(mBeanServer.getAttribute(getStreamingMetricsObjectName(connector(), server(), task(), null, customMetricTags), "Connected")).isEqualTo(true);
+        assertThat(mBeanServer.getAttribute(getStreamingMetricsObjectName(connector(), server(), task(), null, customMetricTags), "Connected")).isEqualTo(1L);
         assertThat(mBeanServer.getAttribute(getMultiplePartitionStreamingMetricsObjectNameCustomTags(customMetricTags), "TotalNumberOfCreateEventsSeen"))
                 .isEqualTo(expectedEvents);
     }
