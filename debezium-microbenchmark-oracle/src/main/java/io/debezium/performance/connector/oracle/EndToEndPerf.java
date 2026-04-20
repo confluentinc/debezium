@@ -278,8 +278,7 @@ public class EndToEndPerf {
                     .until(() -> {
                         final MBeanServer server = ManagementFactory.getPlatformMBeanServer();
                         try {
-                            Object attr = server.getAttribute(getName(), "Connected");
-                            return attr instanceof Long ? (Long) attr == 1L : (Boolean) attr;
+                            return (long) server.getAttribute(getName(), "Connected") == 1L;
                         }
                         catch (JMException ignored) {
                         }

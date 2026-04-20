@@ -440,8 +440,7 @@ public class DebeziumContainer extends GenericContainer<DebeziumContainer> {
                 mBeanServerConnection = connectorJmx.getMBeanServerConnection();
                 ObjectName streamingMetricsObjectName = task != null ? getStreamingMetricsObjectName(connectorTypeId, server, contextName, task)
                         : getStreamingMetricsObjectName(connectorTypeId, server, contextName);
-                Object attr = mBeanServerConnection.getAttribute(streamingMetricsObjectName, "Connected");
-                return attr instanceof Long ? (Long) attr == 1L : (Boolean) attr;
+                return (long) mBeanServerConnection.getAttribute(streamingMetricsObjectName, "Connected") == 1L;
             }
         }
         catch (IOException e) {

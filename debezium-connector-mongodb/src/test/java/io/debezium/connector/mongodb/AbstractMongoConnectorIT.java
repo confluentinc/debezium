@@ -354,8 +354,7 @@ public abstract class AbstractMongoConnectorIT extends AbstractAsyncEngineConnec
                 .atMost(waitTimeForRecords() * 30, TimeUnit.SECONDS)
                 .ignoreException(InstanceNotFoundException.class)
                 .until(() -> {
-                    Object attr = mbeanServer.getAttribute(objectName, "SnapshotCompleted");
-                    return attr instanceof Long ? (Long) attr == 1L : (Boolean) attr;
+                    return (long) mbeanServer.getAttribute(objectName, "SnapshotCompleted") == 1L;
                 });
     }
 
@@ -367,8 +366,7 @@ public abstract class AbstractMongoConnectorIT extends AbstractAsyncEngineConnec
                 .atMost(waitTimeForRecords() * 30, TimeUnit.SECONDS)
                 .ignoreException(InstanceNotFoundException.class)
                 .until(() -> {
-                    Object attr = mbeanServer.getAttribute(objectName, "Connected");
-                    return attr instanceof Long ? (Long) attr == 1L : (Boolean) attr;
+                    return (long) mbeanServer.getAttribute(objectName, "Connected") == 1L;
                 });
     }
 

@@ -462,8 +462,7 @@ public class TestHelper {
         try {
             Awaitility.await("Snapshot not completed").atMost(Duration.ofSeconds(60)).until(() -> {
                 try {
-                    Object attr = mbeanServer.getAttribute(objectName, "SnapshotCompleted");
-                    return attr instanceof Long ? (Long) attr == 1L : (Boolean) attr;
+                    return (long) mbeanServer.getAttribute(objectName, "SnapshotCompleted") == 1L;
                 }
                 catch (InstanceNotFoundException e) {
                     // Metrics has not started yet
@@ -492,8 +491,7 @@ public class TestHelper {
         try {
             Awaitility.await("Streaming never started").atMost(Duration.ofSeconds(60)).until(() -> {
                 try {
-                    Object attr = mbeanServer.getAttribute(objectName, "Connected");
-                    return attr instanceof Long ? (Long) attr == 1L : (Boolean) attr;
+                    return (long) mbeanServer.getAttribute(objectName, "Connected") == 1L;
                 }
                 catch (InstanceNotFoundException e) {
                     // Metrics has not started yet
