@@ -19,6 +19,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Queue;
 import java.util.Set;
@@ -565,11 +566,11 @@ public abstract class BinlogSnapshotChangeEventSource<P extends BinlogPartition,
     }
 
     @Override
-    protected Statement readTableStatement(JdbcConnection jdbcConnection, OptionalLong rowCount) throws SQLException {
+    protected Statement readTableStatement(JdbcConnection jdbcConnection, OptionalLong rowCount, OptionalInt snapshotFetchSize) throws SQLException {
         BinlogConnectorConnection connection = (BinlogConnectorConnection) jdbcConnection;
         final long largeTableRowCount = connectorConfig.getRowCountForLargeTable();
         if (rowCount.isEmpty() || largeTableRowCount == 0 || rowCount.getAsLong() <= largeTableRowCount) {
-            return super.readTableStatement(connection, rowCount);
+            return super.readTableStatement(connection, rowCount, snapshotFetchSize);
         }
         return createStatementWithLargeResultSet(connection);
     }
