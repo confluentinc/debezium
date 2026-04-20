@@ -1338,8 +1338,8 @@ public abstract class AbstractConnectorTest implements Testing {
                 .pollInterval(100, TimeUnit.MILLISECONDS)
                 .atMost(waitTimeForRecords() * 30L, TimeUnit.SECONDS)
                 .ignoreException(InstanceNotFoundException.class)
-                .until(() -> (boolean) mbeanServer
-                        .getAttribute(getSnapshotMetricsObjectName(connector, server, props), "SnapshotCompleted"));
+                .until(() -> (long) mbeanServer
+                        .getAttribute(getSnapshotMetricsObjectName(connector, server, props), "SnapshotCompleted") == 1L);
     }
 
     public static void waitForSnapshotWithCustomMetricsToBeCompleted(String connector, String server, String task, String database, Map<String, String> props)
@@ -1351,8 +1351,8 @@ public abstract class AbstractConnectorTest implements Testing {
                 .pollInterval(100, TimeUnit.MILLISECONDS)
                 .atMost(waitTimeForRecords() * 30L, TimeUnit.SECONDS)
                 .ignoreException(InstanceNotFoundException.class)
-                .until(() -> (boolean) mbeanServer
-                        .getAttribute(getSnapshotMetricsObjectName(connector, server, task, database, props), "SnapshotCompleted"));
+                .until(() -> (long) mbeanServer
+                        .getAttribute(getSnapshotMetricsObjectName(connector, server, task, database, props), "SnapshotCompleted") == 1L);
     }
 
     private static void waitForSnapshotEvent(String connector, String server, String event, String task, String database) throws InterruptedException {
@@ -1363,8 +1363,8 @@ public abstract class AbstractConnectorTest implements Testing {
                 .pollInterval(100, TimeUnit.MILLISECONDS)
                 .atMost(waitTimeForRecords() * 30L, TimeUnit.SECONDS)
                 .ignoreException(InstanceNotFoundException.class)
-                .until(() -> (boolean) mbeanServer
-                        .getAttribute(getSnapshotMetricsObjectName(connector, server, task, database), event));
+                .until(() -> (long) mbeanServer
+                        .getAttribute(getSnapshotMetricsObjectName(connector, server, task, database), event) == 1L);
     }
 
     public static void waitForStreamingRunning(String connector, String server) throws InterruptedException {
@@ -1423,7 +1423,8 @@ public abstract class AbstractConnectorTest implements Testing {
         try {
             ObjectName streamingMetricsObjectName = task != null ? getStreamingMetricsObjectName(connector, server, contextName, task)
                     : getStreamingMetricsObjectName(connector, server, contextName);
-            return (boolean) mbeanServer.getAttribute(streamingMetricsObjectName, "Connected");
+            Object attr = mbeanServer.getAttribute(streamingMetricsObjectName, "Connected");
+            return attr instanceof Long ? (Long) attr == 1L : (Boolean) attr;
         }
         catch (JMException ignored) {
         }
@@ -1435,7 +1436,8 @@ public abstract class AbstractConnectorTest implements Testing {
 
         try {
             ObjectName streamingMetricsObjectName = getStreamingMetricsObjectName(connector, server, task, null, props);
-            return (boolean) mbeanServer.getAttribute(streamingMetricsObjectName, "Connected");
+            Object attr = mbeanServer.getAttribute(streamingMetricsObjectName, "Connected");
+            return attr instanceof Long ? (Long) attr == 1L : (Boolean) attr;
         }
         catch (JMException ignored) {
         }

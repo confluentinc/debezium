@@ -5,7 +5,7 @@
  */
 package io.debezium.pipeline.meters;
 
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import io.debezium.annotation.ThreadSafe;
 import io.debezium.pipeline.metrics.traits.ConnectionMetricsMXBean;
@@ -16,18 +16,18 @@ import io.debezium.pipeline.metrics.traits.ConnectionMetricsMXBean;
 @ThreadSafe
 public class ConnectionMeter implements ConnectionMetricsMXBean {
 
-    private final AtomicBoolean connected = new AtomicBoolean();
+    private final AtomicLong connected = new AtomicLong();
 
     @Override
-    public boolean isConnected() {
+    public long isConnected() {
         return this.connected.get();
     }
 
     public void connected(boolean connected) {
-        this.connected.set(connected);
+        this.connected.set(connected ? 1 : 0);
     }
 
     public void reset() {
-        connected.set(false);
+        connected.set(0);
     }
 }
