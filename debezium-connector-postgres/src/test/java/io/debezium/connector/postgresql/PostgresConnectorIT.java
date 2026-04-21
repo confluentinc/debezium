@@ -2084,8 +2084,8 @@ public class PostgresConnectorIT extends AbstractAsyncEngineConnectorTest {
                 .until(() -> {
                     // Required due to DBZ-3158, creates empty transaction
                     TestHelper.create().execute("vacuum full").close();
-                    return (boolean) ManagementFactory.getPlatformMBeanServer()
-                            .getAttribute(getSnapshotMetricsObjectName("postgres", TestHelper.TEST_SERVER), "SnapshotCompleted");
+                    return (long) ManagementFactory.getPlatformMBeanServer()
+                            .getAttribute(getSnapshotMetricsObjectName("postgres", TestHelper.TEST_SERVER), "SnapshotCompleted") == 1L;
                 });
 
         // wait for the second streaming phase
