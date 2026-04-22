@@ -47,7 +47,6 @@ import io.debezium.pipeline.spi.Partition;
 import io.debezium.relational.Attribute;
 import io.debezium.relational.Column;
 import io.debezium.relational.ColumnEditor;
-import io.debezium.relational.SignalDataCollectionChecks;
 import io.debezium.relational.Table;
 import io.debezium.relational.TableId;
 import io.debezium.util.Strings;
@@ -209,39 +208,6 @@ public class OracleConnection extends JdbcConnection {
         return tableIds.stream()
                 .map(t -> new TableId(catalogName, t.schema(), t.table()))
                 .collect(Collectors.toSet());
-    }
-
-    /**
-     * Validates the configured signal data collection (when validation is enabled) against Oracle
-     * semantics. Expected forms are {@code schema.table} or {@code pdb.schema.table}; identifier
-     * case is taken from the user's input (Oracle stores unquoted identifiers uppercase, so the
-     * config value is expected to match).
-     */
-    public List<String> validateSignalDataCollection(CommonConnectorConfig config) {
-        if (!config.isSignalDataCollectionValidationEnabled()) {
-            return Collections.emptyList();
-        }
-        final String raw = config.getSignalingDataCollectionId();
-        if (Strings.isNullOrBlank(raw)) {
-            return Collections.emptyList();
-        }
-
-        try {
-            final TableId parsed = TableId.parse(raw, false);
-            final Set<TableId> matches = readTableNames(
-                    parsed.catalog(), parsed.schema(), parsed.table(), new String[]{ "TABLE" });
-            if (matches.isEmpty()) {
-                return Collections.singletonList(
-                        "Signal data collection '" + raw + "' was not found in the database.");
-            }
-            return SignalDataCollectionChecks.validateShape(raw, readColumns(matches.iterator().next()));
-        }
-        catch (SQLException e) {
-            // Signal table is only exercised when a signal is later inserted; a probe failure here
-            // must not block connector creation. Surface the failure to operators via the log only.
-            LOGGER.warn("Unable to validate signal data collection '{}'; skipping signal-table check", raw, e);
-            return Collections.emptyList();
-        }
     }
 
     /**

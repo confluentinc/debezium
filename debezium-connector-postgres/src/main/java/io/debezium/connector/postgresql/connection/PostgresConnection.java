@@ -16,7 +16,6 @@ import java.sql.Statement;
 import java.sql.Types;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -58,11 +57,9 @@ import io.debezium.pipeline.spi.Partition;
 import io.debezium.relational.Column;
 import io.debezium.relational.ColumnEditor;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
-import io.debezium.relational.SignalDataCollectionChecks;
 import io.debezium.relational.Table;
 import io.debezium.relational.TableId;
 import io.debezium.relational.Tables;
-import io.debezium.util.Strings;
 import io.debezium.spi.schema.DataCollectionId;
 import io.debezium.util.Clock;
 import io.debezium.util.Metronome;
@@ -917,39 +914,6 @@ public class PostgresConnection extends JdbcConnection {
             }
         }
         return columns;
-    }
-
-    /**
-     * Validates the configured signal data collection (when validation is enabled) against
-     * Postgres semantics: the value is parsed as {@code schema.table} (or {@code database.schema.table}),
-     * the connection is already bound to a specific database, and the identifier case is taken from
-     * the user's input.
-     */
-    public List<String> validateSignalDataCollection(CommonConnectorConfig config) {
-        if (!config.isSignalDataCollectionValidationEnabled()) {
-            return Collections.emptyList();
-        }
-        final String raw = config.getSignalingDataCollectionId();
-        if (Strings.isNullOrBlank(raw)) {
-            return Collections.emptyList();
-        }
-
-        try {
-            final TableId parsed = TableId.parse(raw, false);
-            final Set<TableId> matches = readTableNames(
-                    null, parsed.schema(), parsed.table(), new String[]{ "TABLE" });
-            if (matches.isEmpty()) {
-                return Collections.singletonList(
-                        "Signal data collection '" + raw + "' was not found in the database.");
-            }
-            return SignalDataCollectionChecks.validateShape(raw, readColumns(matches.iterator().next()));
-        }
-        catch (SQLException e) {
-            // Signal table is only exercised when a signal is later inserted; a probe failure here
-            // must not block connector creation. Surface the failure to operators via the log only.
-            LOGGER.warn("Unable to validate signal data collection '{}'; skipping signal-table check", raw, e);
-            return Collections.emptyList();
-        }
     }
 
     public List<Column> getTableColumnsForDecoder(TableId tableId, Tables.ColumnNameFilter columnFilter) throws SQLException {

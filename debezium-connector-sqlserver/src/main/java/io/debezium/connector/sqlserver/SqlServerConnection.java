@@ -49,10 +49,8 @@ import io.debezium.jdbc.JdbcConnection;
 import io.debezium.pipeline.spi.OffsetContext;
 import io.debezium.pipeline.spi.Partition;
 import io.debezium.relational.Column;
-import io.debezium.relational.SignalDataCollectionChecks;
 import io.debezium.relational.Table;
 import io.debezium.relational.TableId;
-import io.debezium.util.Strings;
 import io.debezium.util.ThreadNameContext;
 
 /**
@@ -483,40 +481,6 @@ public class SqlServerConnection extends JdbcConnection {
         final String query = replaceDatabaseNamePlaceholder("EXEC #db.sys.sp_cdc_help_change_data_capture", databaseName);
         this.query(query, rs -> userHasAccess.set(rs.next()));
         return userHasAccess.get();
-    }
-
-    /**
-     * Validates the configured signal data collection (when validation is enabled) against
-     * SQL Server semantics: fully-qualified {@code database.schema.table} (three parts) or
-     * {@code schema.table} (two parts) in the session's default database. Collation is
-     * case-insensitive by default on SQL Server so identifier matching is done as-is.
-     */
-    public List<String> validateSignalDataCollection(CommonConnectorConfig config) {
-        if (!config.isSignalDataCollectionValidationEnabled()) {
-            return Collections.emptyList();
-        }
-        final String raw = config.getSignalingDataCollectionId();
-        if (Strings.isNullOrBlank(raw)) {
-            return Collections.emptyList();
-        }
-
-        try {
-            // Two-part input ("dbo.sig") is schema.table; three-part ("mydb.dbo.sig") is catalog.schema.table.
-            final TableId parsed = TableId.parse(raw, false);
-            final Set<TableId> matches = readTableNames(
-                    parsed.catalog(), parsed.schema(), parsed.table(), new String[]{ "TABLE" });
-            if (matches.isEmpty()) {
-                return Collections.singletonList(
-                        "Signal data collection '" + raw + "' was not found in the database.");
-            }
-            return SignalDataCollectionChecks.validateShape(raw, readColumns(matches.iterator().next()));
-        }
-        catch (SQLException e) {
-            // Signal table is only exercised when a signal is later inserted; a probe failure here
-            // must not block connector creation. Surface the failure to operators via the log only.
-            LOGGER.warn("Unable to validate signal data collection '{}'; skipping signal-table check", raw, e);
-            return Collections.emptyList();
-        }
     }
 
     public List<SqlServerChangeTable> getChangeTables(String databaseName) throws SQLException {
