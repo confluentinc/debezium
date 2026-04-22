@@ -31,6 +31,7 @@ import io.debezium.connector.postgresql.PostgresConnectorConfig.LogicalDecoder;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.connector.postgresql.connection.ServerInfo;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
+import io.debezium.relational.SignalDataCollectionChecks;
 import io.debezium.relational.TableId;
 import io.debezium.util.ThreadNameContext;
 import io.debezium.util.Threads;
@@ -122,6 +123,7 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
                                 pluginNameValue.addErrorMessage(errorMessage);
                             }
                         }
+                        SignalDataCollectionChecks.attach(connection.validateSignalDataCollection(postgresConfig), configValues);
                     }
                     catch (Exception e) {
                         LOGGER.error("Failed testing connection for {} with user '{}'", connection.connectionString(),

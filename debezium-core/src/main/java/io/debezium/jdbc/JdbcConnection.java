@@ -1396,6 +1396,22 @@ public class JdbcConnection implements AutoCloseable {
         return getColumnsDetails(catalogName, schemaName, tableName, tableFilter, columnFilter, metadata, viewIds, false);
     }
 
+    /**
+     * Read the columns of a single known table in definition order. Small-scale counterpart to
+     * {@link #readSchema} which intentionally does not pull primary keys, attributes or view info —
+     * useful for lightweight structural checks (e.g. the signal data collection validator).
+     */
+    public List<Column> readColumns(TableId tableId) throws SQLException {
+        final List<Column> columns = new ArrayList<>();
+        final DatabaseMetaData metadata = connection().getMetaData();
+        try (ResultSet rs = metadata.getColumns(tableId.catalog(), tableId.schema(), tableId.table(), null)) {
+            while (rs.next()) {
+                readTableColumn(rs, tableId, null).ifPresent(editor -> columns.add(editor.create()));
+            }
+        }
+        return columns;
+    }
+
     protected Map<TableId, List<Attribute>> getAttributeDetails(TableId tableId, String tableType) {
         // no-op, allows connectors to populate table attributes during relational table creation
         return Collections.emptyMap();

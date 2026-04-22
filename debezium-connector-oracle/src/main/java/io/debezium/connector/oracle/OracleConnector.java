@@ -24,6 +24,7 @@ import io.debezium.DebeziumException;
 import io.debezium.config.Configuration;
 import io.debezium.connector.common.RelationalBaseSourceConnector;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
+import io.debezium.relational.SignalDataCollectionChecks;
 import io.debezium.relational.TableId;
 import io.debezium.util.Strings;
 import io.debezium.util.Threads;
@@ -85,6 +86,7 @@ public class OracleConnector extends RelationalBaseSourceConnector {
                 try (OracleConnection connection = new OracleConnection(connectorConfig.getJdbcConfig())) {
                     LOGGER.debug("Successfully tested connection for {} with user '{}'", OracleConnection.connectionString(connectorConfig.getJdbcConfig()),
                             connection.username());
+                    SignalDataCollectionChecks.attach(connection.validateSignalDataCollection(connectorConfig), configValues);
                 }
                 catch (SQLException | RuntimeException e) {
                     LOGGER.error("Failed testing connection for {} with user '{}'", config.withMaskedPasswords(), userValue, e);
