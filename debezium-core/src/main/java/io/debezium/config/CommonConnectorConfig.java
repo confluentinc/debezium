@@ -917,6 +917,16 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
             .withImportance(Importance.MEDIUM)
             .withDescription("The name of the data collection that is used to send signals/commands to Debezium. Signaling is disabled when not set.");
 
+    public static final Field SIGNAL_DATA_COLLECTION_VALIDATION_ENABLED = Field.create("signal.data.collection.validation.enabled")
+            .withDisplayName("Signal data collection validation enabled")
+            .withGroup(Field.createGroupEntry(Field.Group.ADVANCED, 23))
+            .withType(Type.BOOLEAN)
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.LOW)
+            .withDefault(false)
+            .withDescription("When enabled, the connector validates the signal data collection's existence, column count, column names "
+                    + "(id, type, data) and column types at validate time. Disabled by default to preserve existing behavior.");
+
     public static final Field SIGNAL_POLL_INTERVAL_MS = Field.create("signal.poll.interval.ms")
             .withDisplayName("Signal processor poll interval")
             .withGroup(Field.createGroupEntry(Field.Group.ADVANCED, 21))
@@ -1450,6 +1460,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
                     Heartbeat.HEARTBEAT_INTERVAL,
                     Heartbeat.HEARTBEAT_TOPICS_PREFIX,
                     SIGNAL_DATA_COLLECTION,
+                    SIGNAL_DATA_COLLECTION_VALIDATION_ENABLED,
                     SIGNAL_POLL_INTERVAL_MS,
                     SIGNAL_ENABLED_CHANNELS,
                     TOPIC_NAMING_STRATEGY,
@@ -1489,6 +1500,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
     private final EventConvertingFailureHandlingMode eventConvertingFailureHandlingMode;
     private final String signalingDataCollection;
     private final TableId signalingDataCollectionId;
+    private final boolean signalDataCollectionValidationEnabled;
 
     private final Duration signalPollInterval;
 
@@ -1538,6 +1550,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
         this.customConverterRegistry = new CustomConverterRegistry(getCustomConverters());
         this.binaryHandlingMode = BinaryHandlingMode.parse(config.getString(BINARY_HANDLING_MODE));
         this.signalingDataCollection = config.getString(SIGNAL_DATA_COLLECTION);
+        this.signalDataCollectionValidationEnabled = config.getBoolean(SIGNAL_DATA_COLLECTION_VALIDATION_ENABLED);
         this.signalPollInterval = Duration.ofMillis(config.getLong(SIGNAL_POLL_INTERVAL_MS));
         this.signalEnabledChannels = getSignalEnabledChannels(config);
         this.skippedOperations = determineSkippedOperations(config);
@@ -2060,6 +2073,10 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
 
     public String getSignalingDataCollectionId() {
         return signalingDataCollection;
+    }
+
+    public boolean isSignalDataCollectionValidationEnabled() {
+        return signalDataCollectionValidationEnabled;
     }
 
     public Duration getSignalPollInterval() {
