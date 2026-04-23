@@ -1427,20 +1427,32 @@ public class JdbcConnection implements AutoCloseable {
      */
     public List<String> validateSignalDataCollection(CommonConnectorConfig config) {
         if (!config.isSignalDataCollectionValidationEnabled()) {
+            LOGGER.debug("Signal data collection validation disabled; skipping");
             return Collections.emptyList();
         }
         final String raw = config.getSignalingDataCollectionId();
         if (Strings.isNullOrBlank(raw)) {
+            LOGGER.debug("signal.data.collection is unset; skipping validation");
             return Collections.emptyList();
         }
 
+        LOGGER.debug("Validating signal data collection '{}'", raw);
         try {
             final TableId resolved = resolveSignalDataCollectionTableId(raw);
             if (resolved == null) {
+                LOGGER.debug("Signal data collection '{}' was not found in the database", raw);
                 return Collections.singletonList(
                         "Signal data collection '" + raw + "' was not found in the database.");
             }
-            return SignalDataCollectionChecks.validateShape(raw, readColumns(resolved));
+            LOGGER.debug("Signal data collection '{}' resolved to {}", raw, resolved);
+            final List<Column> columns = readColumns(resolved);
+            LOGGER.debug("Signal data collection '{}' has {} column(s): {}", raw, columns.size(),
+                    columns.stream().map(c -> c.name() + " " + c.typeName()).collect(Collectors.joining(", ")));
+            final List<String> errors = SignalDataCollectionChecks.validateShape(raw, columns);
+            if (!errors.isEmpty()) {
+                LOGGER.debug("Signal data collection '{}' validation produced {} error(s): {}", raw, errors.size(), errors);
+            }
+            return errors;
         }
         catch (SQLException e) {
             LOGGER.warn("Unable to validate signal data collection '{}'; skipping signal-table check", raw, e);
