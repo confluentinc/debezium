@@ -18,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.debezium.connector.common.DebeziumTaskState;
+import io.debezium.openlineage.ConnectorContext;
 import io.debezium.openlineage.DebeziumOpenLineageEmitter;
 import io.debezium.openlineage.dataset.DatasetMetadata;
 import io.debezium.relational.Key.KeyMapper;
@@ -46,6 +47,7 @@ public abstract class RelationalDatabaseSchema implements DatabaseSchema<TableId
 
     private final SchemasByTableId schemasByTableId;
     private final Tables tables;
+    private volatile ConnectorContext cachedConnectorContext;
 
     protected RelationalDatabaseSchema(RelationalDatabaseConnectorConfig config, TopicNamingStrategy<TableId> topicNamingStrategy,
                                        TableFilter tableFilter, ColumnNameFilter columnFilter, TableSchemaBuilder schemaBuilder,
@@ -133,9 +135,25 @@ public abstract class RelationalDatabaseSchema implements DatabaseSchema<TableId
         if (tableFilter.isIncluded(table.id())) {
             TableSchema schema = schemaBuilder.create(topicNamingStrategy, table, columnFilter, columnMappers, customKeysMapper);
             schemasByTableId.put(table.id(), schema);
-            DebeziumOpenLineageEmitter.emit(DebeziumOpenLineageEmitter.connectorContext(config.getConfig().asMap(), config.getConnectorName()), DebeziumTaskState.RUNNING,
+            DebeziumOpenLineageEmitter.emit(getOrBuildConnectorContext(), DebeziumTaskState.RUNNING,
                     List.of(extractDatasetMetadata(table)));
         }
+    }
+
+    /**
+     * Lazily builds and caches the {@link ConnectorContext} used for OpenLineage emission.
+     * Building the context allocates a fresh HashMap and copies all connector config keys, so
+     * doing it per-table during schema refresh (which can iterate 25K+ tables) was a significant
+     * hotspot. Lazy init preserves today's failure semantics for tests that construct the schema
+     * standalone without invoking {@code DebeziumOpenLineageEmitter.init()}.
+     */
+    private ConnectorContext getOrBuildConnectorContext() {
+        ConnectorContext local = cachedConnectorContext;
+        if (local == null) {
+            local = DebeziumOpenLineageEmitter.connectorContext(config.getConfig().asMap(), config.getConnectorName());
+            cachedConnectorContext = local;
+        }
+        return local;
     }
 
     private DatasetMetadata extractDatasetMetadata(Table table) {
