@@ -189,6 +189,7 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                         metadataValid = metadataConnection.isValid();
                     }
                     catch (SQLException probeEx) {
+                        LOGGER.debug("isValid() probe threw for database '{}'; treating both connections as broken", databaseName, probeEx);
                         dataValid = false;
                         metadataValid = false;
                     }
@@ -212,8 +213,8 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                     }
                     commitTransaction();
                     toLsn = getToLsn(dataConnection, databaseName, lastProcessedPosition, maxTransactionsPerIteration);
-                    LOGGER.info("Refreshed connections and re-read toLsn={} after broken-connection recovery for database '{}'",
-                            toLsn, databaseName);
+                    LOGGER.info("Refreshed connections (data refreshed={}, metadata refreshed={}) and re-read toLsn={} after broken-connection recovery for database '{}'",
+                            !dataValid, !metadataValid, toLsn, databaseName);
                 }
 
                 // Shouldn't happen if the agent is running, but it is better to guard against such situation
