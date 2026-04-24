@@ -176,8 +176,45 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
             TxLogPosition lastProcessedPosition = streamingExecutionContext.getLastProcessedPosition();
 
             if (context.isRunning()) {
-                commitTransaction();
-                final Lsn toLsn = getToLsn(dataConnection, databaseName, lastProcessedPosition, maxTransactionsPerIteration);
+                Lsn toLsn;
+                try {
+                    commitTransaction();
+                    toLsn = getToLsn(dataConnection, databaseName, lastProcessedPosition, maxTransactionsPerIteration);
+                }
+                catch (SQLException e) {
+                    boolean dataValid;
+                    boolean metadataValid;
+                    try {
+                        dataValid = dataConnection.isValid();
+                        metadataValid = metadataConnection.isValid();
+                    }
+                    catch (SQLException probeEx) {
+                        dataValid = false;
+                        metadataValid = false;
+                    }
+                    if (dataValid && metadataValid) {
+                        throw e;
+                    }
+                    LOGGER.warn("Connection broken at start of streaming iteration for database '{}' (data valid={}, metadata valid={}); refreshing and retrying once",
+                            databaseName, dataValid, metadataValid, e);
+                    try {
+                        if (!dataValid) {
+                            dataConnection.refresh();
+                        }
+                        if (!metadataValid) {
+                            metadataConnection.refresh();
+                        }
+                    }
+                    catch (SQLException refreshEx) {
+                        refreshEx.addSuppressed(e);
+                        LOGGER.error("Failed to refresh connections after broken-connection detection for database '{}'", databaseName, refreshEx);
+                        throw refreshEx;
+                    }
+                    commitTransaction();
+                    toLsn = getToLsn(dataConnection, databaseName, lastProcessedPosition, maxTransactionsPerIteration);
+                    LOGGER.info("Refreshed connections and re-read toLsn={} after broken-connection recovery for database '{}'",
+                            toLsn, databaseName);
+                }
 
                 // Shouldn't happen if the agent is running, but it is better to guard against such situation
                 if (!toLsn.isAvailable()) {

@@ -766,6 +766,11 @@ public class SqlServerConnection extends JdbcConnection {
     public SqlServerDefaultValueConverter getDefaultValueConverter() {
         return defaultValueConverter;
     }
+    
+    void refresh() throws SQLException {
+        close();
+        connect();
+    }
 
     public boolean isAgentRunning(String databaseName) throws SQLException {
         final String query = replaceDatabaseNamePlaceholder(config().getString(AGENT_STATUS_QUERY), databaseName);
