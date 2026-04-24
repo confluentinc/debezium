@@ -26,6 +26,7 @@ import io.debezium.connector.binlog.jdbc.BinlogConnectorConnection;
 import io.debezium.connector.common.RelationalBaseSourceConnector;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.relational.RelationalTableFilters;
+import io.debezium.relational.SignalDataCollectionChecks;
 import io.debezium.relational.TableId;
 import io.debezium.util.ThreadNameContext;
 import io.debezium.util.Threads;
@@ -74,6 +75,7 @@ public abstract class BinlogConnector<T extends BinlogConnectorConfig> extends R
                         connection.execute("SELECT version()");
                         LOGGER.info("Successfully tested connection for {} with user '{}'",
                                 connection.connectionString(), connection.connectionConfig().username());
+                        SignalDataCollectionChecks.attach(connection.validateSignalDataCollection(connectorConfig), configValues);
                     }
                     catch (SQLException e) {
                         LOGGER.error("Failed testing connection for {} with user '{}'",
