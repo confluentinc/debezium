@@ -122,6 +122,23 @@ public class SignalDataCollectionValidateIT {
     }
 
     @Test
+    public void threePartSignalTableIsAcceptedForCurrentDatabase() throws SQLException {
+        // Customers sometimes configure signal.data.collection as database.schema.table
+        // (e.g. "postgres.public.sig_table") — the full three-part form. Verify this also
+        // works, in addition to the common two-part "schema.table" form covered above.
+        TestHelper.execute("CREATE TABLE " + SIGNAL_TABLE_NAME
+                + " (id VARCHAR(42) PRIMARY KEY, type VARCHAR(32) NOT NULL, data VARCHAR(2048) NULL);");
+        final String threePart = "postgres." + SIGNAL_TABLE_NAME;
+        final PostgresConnectorConfig config = validationEnabledConfig(threePart);
+
+        try (PostgresConnection connection = TestHelper.create()) {
+            assertThat(connection.validateSignalDataCollection(config))
+                    .as("Three-part (database.schema.table) signal.data.collection should resolve")
+                    .isEmpty();
+        }
+    }
+
+    @Test
     public void jsonbDataColumnIsAccepted() throws SQLException {
         TestHelper.execute("CREATE TABLE " + SIGNAL_TABLE_NAME
                 + " (id VARCHAR(42) PRIMARY KEY, type VARCHAR(32) NOT NULL, data JSONB);");

@@ -84,6 +84,28 @@ public class MySqlSignalDataCollectionValidateIT {
     }
 
     @Test
+    public void onePartSignalTableWithoutDatabasePrefix() throws SQLException {
+        // Document the validator's behavior when customer configures just a bare table name
+        // (no database prefix). MySQL has no schemas, so this is the analog of SqlServer's
+        // two-part form. BinlogConnectorConnection uses catalog-first parsing + readTableNames
+        // on `parsed.catalog() == null` → no database filter → driver scans all catalogs.
+        executeDdl("CREATE TABLE " + qualifiedSignalTable
+                + " (id VARCHAR(42) PRIMARY KEY, type VARCHAR(32) NOT NULL, data VARCHAR(2048) NULL)");
+        final Configuration config = validationEnabledConfig(SIGNAL_TABLE_NAME);
+
+        final List<String> errors = signalCollectionErrors(config);
+
+        // MySQL's convention is db.table; without a db prefix we cannot reliably pick the right
+        // table if multiple databases have a same-named table. Behavior with 1-part input is
+        // not contractually guaranteed — this test pins down what we see today so any future
+        // change in behavior is visible in review.
+        assertThat(errors)
+                .as("Signal-table validation with bare 1-part name on MySQL. "
+                        + "If this assertion fails after a change, decide whether to guarantee or reject the 1-part form.")
+                .isEmpty();
+    }
+
+    @Test
     public void tooManyColumnsProducesCountError() throws SQLException {
         executeDdl("CREATE TABLE " + qualifiedSignalTable
                 + " (id VARCHAR(42) PRIMARY KEY, type VARCHAR(32) NOT NULL,"

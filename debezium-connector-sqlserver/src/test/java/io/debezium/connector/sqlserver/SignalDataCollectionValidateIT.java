@@ -107,6 +107,26 @@ public class SignalDataCollectionValidateIT {
     }
 
     @Test
+    public void twoPartSignalTableIsAcceptedForCurrentDatabase() throws SQLException {
+        // Customers often configure signal.data.collection as schema.table (e.g. "dbo.sig_table")
+        // instead of the documented database.schema.table. Validate behavior for that form.
+        try (SqlServerConnection connection = TestHelper.testConnection()) {
+            connection.connect();
+            connection.execute("CREATE TABLE " + SIGNAL_TABLE
+                    + " (id VARCHAR(42) NOT NULL PRIMARY KEY, type VARCHAR(32) NOT NULL, data VARCHAR(2048) NULL)");
+        }
+        final SqlServerConnectorConfig config = validationEnabledConfig(SIGNAL_TABLE);
+
+        try (SqlServerConnection connection = TestHelper.testConnection()) {
+            final List<String> errors = connection.validateSignalDataCollection(config);
+            assertThat(errors)
+                    .as("Two-part signal.data.collection form should resolve against the connected database. "
+                            + "If this assertion changes, update the validator docs and the PR body.")
+                    .isEmpty();
+        }
+    }
+
+    @Test
     public void wrongColumnNameProducesNameError() throws SQLException {
         try (SqlServerConnection connection = TestHelper.testConnection()) {
             connection.connect();
