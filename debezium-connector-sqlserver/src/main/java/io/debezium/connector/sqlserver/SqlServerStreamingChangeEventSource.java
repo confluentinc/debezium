@@ -182,7 +182,7 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
             TxLogPosition lastProcessedPosition = streamingExecutionContext.getLastProcessedPosition();
 
             if (context.isRunning()) {
-               final Lsn toLsn;
+                Lsn toLsn;
                 try {
                     commitTransaction();
                     toLsn = getToLsn(dataConnection, databaseName, lastProcessedPosition, maxTransactionsPerIteration);
