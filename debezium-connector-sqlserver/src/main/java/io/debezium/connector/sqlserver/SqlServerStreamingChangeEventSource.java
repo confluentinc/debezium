@@ -9,11 +9,15 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -74,6 +78,8 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
 
     private static final Duration DEFAULT_INTERVAL_BETWEEN_COMMITS = Duration.ofMinutes(1);
     private static final int INTERVAL_BETWEEN_COMMITS_BASED_ON_POLL_FACTOR = 3;
+    
+    private static final String MSSQL_BROKEN_CONNECTION_MESSAGE = "connection is broken and recovery is not possible";
 
     /**
      * Connection used for reading CDC tables.
@@ -176,8 +182,31 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
             TxLogPosition lastProcessedPosition = streamingExecutionContext.getLastProcessedPosition();
 
             if (context.isRunning()) {
-                commitTransaction();
-                final Lsn toLsn = getToLsn(dataConnection, databaseName, lastProcessedPosition, maxTransactionsPerIteration);
+                Lsn toLsn;
+                try {
+                    commitTransaction();
+                    toLsn = getToLsn(dataConnection, databaseName, lastProcessedPosition, maxTransactionsPerIteration);
+                }
+                catch (SQLException e) {
+                    if (!isConnectionBroken(e)) {
+                        throw e;
+                    }
+                    LOGGER.warn("Broken connection detected at start of streaming iteration for database '{}' (SQLState={}, errorCode={}); refreshing and retrying once",
+                            databaseName, e.getSQLState(), e.getErrorCode(), e);
+                    try {
+                        dataConnection.refresh();
+                        metadataConnection.refresh();
+                    }
+                    catch (SQLException refreshEx) {
+                        refreshEx.addSuppressed(e);
+                        LOGGER.error("Failed to refresh connections after broken-connection detection for database '{}'", databaseName, refreshEx);
+                        throw refreshEx;
+                    }
+                    commitTransaction();
+                    toLsn = getToLsn(dataConnection, databaseName, lastProcessedPosition, maxTransactionsPerIteration);
+                    LOGGER.info("Refreshed connections and re-read toLsn={} after broken-connection recovery for database '{}'",
+                            toLsn, databaseName);
+                }
 
                 // Shouldn't happen if the agent is running, but it is better to guard against such situation
                 if (!toLsn.isAvailable()) {
@@ -389,6 +418,42 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
             dataConnection.commit();
             metadataConnection.commit();
         }
+    }
+    
+    private static boolean isConnectionBroken(Throwable t) {
+        if (t == null) {
+            return false;
+        }
+        if (matchesBrokenConnection(t)) {
+            return true;
+        }
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        Deque<Throwable> stack = new ArrayDeque<>();
+        stack.push(t);
+        while (!stack.isEmpty()) {
+            Throwable current = stack.pop();
+            if (current == null || !seen.add(current)) {
+                continue;
+            }
+            if (matchesBrokenConnection(current)) {
+                return true;
+            }
+            if (current instanceof SQLException) {
+                SQLException next = ((SQLException) current).getNextException();
+                if (next != null) {
+                    stack.push(next);
+                }
+            }
+            if (current.getCause() != null) {
+                stack.push(current.getCause());
+            }
+        }
+        return false;
+    }
+
+    private static boolean matchesBrokenConnection(Throwable t) {
+        String message = t.getMessage();
+        return message != null && message.contains(MSSQL_BROKEN_CONNECTION_MESSAGE);
     }
 
     private void migrateTable(SqlServerPartition partition, final Queue<SqlServerChangeTable> schemaChangeCheckpoints, SqlServerOffsetContext offsetContext)
