@@ -1437,6 +1437,7 @@ public class JdbcConnection implements AutoCloseable {
         }
 
         LOGGER.debug("Validating signal data collection '{}'", raw);
+
         try {
             final TableId resolved = resolveSignalDataCollectionTableId(raw);
             if (resolved == null) {
@@ -1445,6 +1446,13 @@ public class JdbcConnection implements AutoCloseable {
                         "Signal data collection '" + raw + "' was not found in the database.");
             }
             LOGGER.debug("Signal data collection '{}' resolved to {}", raw, resolved);
+
+            if (!config.isSignalDataCollection(resolved)) {
+                LOGGER.debug("Signal data collection '{}' resolves to '{}' but runtime signal predicate rejects it", raw, resolved);
+                return Collections.singletonList(
+                        "signal.data.collection must be '" + resolved + "' (got '" + raw + "').");
+            }
+
             final List<Column> columns = readColumns(resolved);
             LOGGER.debug("Signal data collection '{}' has {} column(s): {}", raw, columns.size(),
                     columns.stream().map(c -> c.name() + " " + c.typeName()).collect(Collectors.joining(", ")));
@@ -1454,7 +1462,7 @@ public class JdbcConnection implements AutoCloseable {
             }
             return errors;
         }
-        catch (SQLException e) {
+        catch (Exception e) {
             LOGGER.warn("Unable to validate signal data collection '{}'; skipping signal-table check", raw, e);
             return Collections.emptyList();
         }

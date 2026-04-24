@@ -15,9 +15,9 @@ import org.apache.kafka.common.config.ConfigValue;
 import io.debezium.config.CommonConnectorConfig;
 
 /**
- * DB-agnostic checks for the signal data collection shape. Each connector's {@code *Connection}
- * class handles the DB-specific identifier resolution and column retrieval, then hands the
- * resolved {@link Column} list here.
+ * DB-agnostic checks for the signal data collection shape. The JDBC-layer validator resolves the
+ * table (via {@code JdbcConnection.resolveSignalDataCollectionTableId}, which connectors may
+ * override) and reads its columns, then hands the list here.
  * <p>
  * Checks performed:
  * <ol>

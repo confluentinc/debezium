@@ -12,6 +12,7 @@ import java.util.List;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import io.debezium.config.CommonConnectorConfig;
@@ -25,9 +26,13 @@ public class SignalDataCollectionValidateIT {
     private static final String SIGNAL_TABLE = "dbo.sig_validation_test";
     private static final String FULLY_QUALIFIED = TestHelper.TEST_DATABASE_1 + "." + SIGNAL_TABLE;
 
+    @BeforeClass
+    public static void beforeClass() throws SQLException {
+        TestHelper.createTestDatabase();
+    }
+
     @Before
     public void beforeEach() throws SQLException {
-        TestHelper.createTestDatabase();
         try (SqlServerConnection connection = TestHelper.testConnection()) {
             connection.connect();
             connection.execute("IF OBJECT_ID('" + SIGNAL_TABLE + "', 'U') IS NOT NULL DROP TABLE " + SIGNAL_TABLE);
@@ -107,9 +112,10 @@ public class SignalDataCollectionValidateIT {
     }
 
     @Test
-    public void twoPartSignalTableIsAcceptedForCurrentDatabase() throws SQLException {
-        // Customers often configure signal.data.collection as schema.table (e.g. "dbo.sig_table")
-        // instead of the documented database.schema.table. Validate behavior for that form.
+    public void twoPartSignalTableRejectedAsWrongForm() throws SQLException {
+        // Runtime compares via TableId.equals on the dotted id string. SqlServer events carry
+        // 3-part ids like "testDB.dbo.sig"; a 2-part config parses to id "dbo.sig" which never
+        // matches. Validator surfaces the mismatch and tells the user the canonical id to use.
         try (SqlServerConnection connection = TestHelper.testConnection()) {
             connection.connect();
             connection.execute("CREATE TABLE " + SIGNAL_TABLE
@@ -119,10 +125,9 @@ public class SignalDataCollectionValidateIT {
 
         try (SqlServerConnection connection = TestHelper.testConnection()) {
             final List<String> errors = connection.validateSignalDataCollection(config);
-            assertThat(errors)
-                    .as("Two-part signal.data.collection form should resolve against the connected database. "
-                            + "If this assertion changes, update the validator docs and the PR body.")
-                    .isEmpty();
+            assertThat(errors).hasSize(1);
+            assertThat(errors.get(0)).isEqualTo(
+                    "signal.data.collection must be '" + FULLY_QUALIFIED + "' (got '" + SIGNAL_TABLE + "').");
         }
     }
 

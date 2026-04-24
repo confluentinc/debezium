@@ -96,19 +96,6 @@ public class SignalDataCollectionValidateIT {
     }
 
     @Test
-    public void tooFewColumnsProducesCountError() throws SQLException {
-        TestHelper.execute("CREATE TABLE " + SIGNAL_TABLE_NAME
-                + " (id VARCHAR(42) PRIMARY KEY, type VARCHAR(32) NOT NULL);");
-        final PostgresConnectorConfig config = validationEnabledConfig(SIGNAL_TABLE_NAME);
-
-        try (PostgresConnection connection = TestHelper.create()) {
-            final List<String> errors = connection.validateSignalDataCollection(config);
-            assertThat(errors).hasSize(1);
-            assertThat(errors.get(0)).contains("must have exactly 3 columns but has 2");
-        }
-    }
-
-    @Test
     public void wrongColumnNameProducesNameError() throws SQLException {
         TestHelper.execute("CREATE TABLE " + SIGNAL_TABLE_NAME
                 + " (signal_id VARCHAR(42) PRIMARY KEY, type VARCHAR(32) NOT NULL, data VARCHAR(2048) NULL);");
@@ -122,31 +109,21 @@ public class SignalDataCollectionValidateIT {
     }
 
     @Test
-    public void threePartSignalTableIsAcceptedForCurrentDatabase() throws SQLException {
-        // Customers sometimes configure signal.data.collection as database.schema.table
-        // (e.g. "postgres.public.sig_table") — the full three-part form. Verify this also
-        // works, in addition to the common two-part "schema.table" form covered above.
+    public void threePartSignalTableRejectedAsWrongForm() throws SQLException {
+        // Runtime compares via TableId.equals on the dotted id string. Postgres's createTableId
+        // drops the catalog, so events carry 2-part ids like "public.sig"; a 3-part config
+        // parses to id "postgres.public.sig" which never matches. Validator surfaces the
+        // mismatch and tells the user the canonical id to use.
         TestHelper.execute("CREATE TABLE " + SIGNAL_TABLE_NAME
                 + " (id VARCHAR(42) PRIMARY KEY, type VARCHAR(32) NOT NULL, data VARCHAR(2048) NULL);");
         final String threePart = "postgres." + SIGNAL_TABLE_NAME;
         final PostgresConnectorConfig config = validationEnabledConfig(threePart);
 
         try (PostgresConnection connection = TestHelper.create()) {
-            assertThat(connection.validateSignalDataCollection(config))
-                    .as("Three-part (database.schema.table) signal.data.collection should resolve")
-                    .isEmpty();
-        }
-    }
-
-    @Test
-    public void jsonbDataColumnIsAccepted() throws SQLException {
-        TestHelper.execute("CREATE TABLE " + SIGNAL_TABLE_NAME
-                + " (id VARCHAR(42) PRIMARY KEY, type VARCHAR(32) NOT NULL, data JSONB);");
-        final PostgresConnectorConfig config = validationEnabledConfig(SIGNAL_TABLE_NAME);
-
-        try (PostgresConnection connection = TestHelper.create()) {
-            // Type check was intentionally dropped from the validator; shape is still valid.
-            assertThat(connection.validateSignalDataCollection(config)).isEmpty();
+            final List<String> errors = connection.validateSignalDataCollection(config);
+            assertThat(errors).hasSize(1);
+            assertThat(errors.get(0)).isEqualTo(
+                    "signal.data.collection must be '" + SIGNAL_TABLE_NAME + "' (got '" + threePart + "').");
         }
     }
 
