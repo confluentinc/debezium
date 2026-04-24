@@ -924,8 +924,8 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
             .withWidth(Width.SHORT)
             .withImportance(Importance.LOW)
             .withDefault(false)
-            .withDescription("When enabled, the connector validates the signal data collection's existence, column count, column names "
-                    + "(id, type, data) and column types at validate time. Disabled by default to preserve existing behavior.");
+            .withDescription("When enabled, the connector validates the signal data collection's existence, column count, and column names "
+                    + "(id, type, data) at validate time. Disabled by default to preserve existing behavior.");
 
     public static final Field SIGNAL_POLL_INTERVAL_MS = Field.create("signal.poll.interval.ms")
             .withDisplayName("Signal processor poll interval")
