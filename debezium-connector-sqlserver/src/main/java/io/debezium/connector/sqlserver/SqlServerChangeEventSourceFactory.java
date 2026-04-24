@@ -5,11 +5,7 @@
  */
 package io.debezium.connector.sqlserver;
 
-import java.sql.SQLException;
 import java.util.Optional;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import io.debezium.jdbc.MainConnectionProvidingConnectionFactory;
 import io.debezium.pipeline.ErrorHandler;
@@ -29,8 +25,6 @@ import io.debezium.util.Clock;
 import io.debezium.util.Strings;
 
 public class SqlServerChangeEventSourceFactory implements ChangeEventSourceFactory<SqlServerPartition, SqlServerOffsetContext> {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(SqlServerChangeEventSourceFactory.class);
 
     private final SqlServerConnectorConfig configuration;
     private final MainConnectionProvidingConnectionFactory<SqlServerConnection> connectionFactory;
@@ -66,13 +60,9 @@ public class SqlServerChangeEventSourceFactory implements ChangeEventSourceFacto
 
     @Override
     public StreamingChangeEventSource<SqlServerPartition, SqlServerOffsetContext> getStreamingChangeEventSource() {
-        SqlServerConnection dataConnection = connectionFactory.mainConnection();
-        refreshConnectionIfInvalid(dataConnection, "data");
-        refreshConnectionIfInvalid(metadataConnection, "metadata");
-
         return new SqlServerStreamingChangeEventSource(
                 configuration,
-                dataConnection,
+                connectionFactory.mainConnection(),
                 metadataConnection,
                 dispatcher,
                 errorHandler,
@@ -80,20 +70,6 @@ public class SqlServerChangeEventSourceFactory implements ChangeEventSourceFacto
                 schema,
                 notificationService,
                 snapshotterService);
-    }
-
-    private void refreshConnectionIfInvalid(SqlServerConnection connection, String name) {
-        try {
-            LOGGER.debug("Validating {} connection before streaming starts", name);
-            if (!connection.isValid()) {
-                LOGGER.warn("The {} connection is no longer valid, refreshing before streaming starts", name);
-                connection.reconnect();
-                LOGGER.info("Successfully refreshed the {} connection", name);
-            }
-        }
-        catch (SQLException e) {
-            LOGGER.warn("Error while refreshing {} connection, streaming will attempt to proceed", name, e);
-        }
     }
 
     @Override
