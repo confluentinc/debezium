@@ -919,7 +919,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
 
     public static final Field SIGNAL_DATA_COLLECTION_VALIDATION_ENABLED = Field.create("signal.data.collection.validation.enabled")
             .withDisplayName("Signal data collection validation enabled")
-            .withGroup(Field.createGroupEntry(Field.Group.ADVANCED, 23))
+            .withGroup(Field.createGroupEntry(Field.Group.ADVANCED, 24))
             .withType(Type.BOOLEAN)
             .withWidth(Width.SHORT)
             .withImportance(Importance.LOW)
