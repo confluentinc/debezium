@@ -893,6 +893,29 @@ public class PostgresConnection extends JdbcConnection {
         }
     }
 
+    /**
+     * Read columns by name only, without routing through the Postgres {@code readTableColumn}
+     * override which requires a {@link TypeRegistry}. Used by the signal-data-collection
+     * validator, which runs on a bare validation-time connection (no registry).
+     */
+    @Override
+    public List<Column> readColumns(TableId tableId) throws SQLException {
+        final List<Column> columns = new ArrayList<>();
+        final DatabaseMetaData metadata = connection().getMetaData();
+        final String schemaPattern = createPatternFromName(tableId.schema(), metadata.getSearchStringEscape());
+        final String tablePattern = createPatternFromName(tableId.table(), metadata.getSearchStringEscape());
+        try (ResultSet rs = metadata.getColumns(null, schemaPattern, tablePattern, null)) {
+            while (rs.next()) {
+                columns.add(Column.editor()
+                        .name(rs.getString("COLUMN_NAME"))
+                        .jdbcType(rs.getInt("DATA_TYPE"))
+                        .type(rs.getString("TYPE_NAME"))
+                        .create());
+            }
+        }
+        return columns;
+    }
+
     public List<Column> getTableColumnsForDecoder(TableId tableId, Tables.ColumnNameFilter columnFilter) throws SQLException {
         try {
             final List<Column> readColumns = new ArrayList<>();

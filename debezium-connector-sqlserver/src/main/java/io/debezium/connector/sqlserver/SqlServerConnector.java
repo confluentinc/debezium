@@ -28,6 +28,7 @@ import io.debezium.DebeziumException;
 import io.debezium.config.Configuration;
 import io.debezium.connector.common.RelationalBaseSourceConnector;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
+import io.debezium.relational.SignalDataCollectionChecks;
 import io.debezium.relational.TableId;
 import io.debezium.util.ThreadNameContext;
 import io.debezium.util.Threads;
@@ -163,6 +164,7 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
                         LOGGER.error(errorMessage);
                         userValue.addErrorMessage(errorMessage);
                     }
+                    SignalDataCollectionChecks.attach(connection.validateSignalDataCollection(sqlServerConfig), configValues);
                 }
                 catch (Exception e) {
                     if (isCredentialProviderConfigured) {
