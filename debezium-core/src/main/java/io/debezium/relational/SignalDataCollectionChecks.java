@@ -11,8 +11,11 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.kafka.common.config.ConfigValue;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.debezium.config.CommonConnectorConfig;
+import io.debezium.config.CommonConnectorConfig.SignalDataCollectionValidationAction;
 
 /**
  * DB-agnostic checks for the signal data collection shape. The JDBC-layer validator resolves the
@@ -27,6 +30,8 @@ import io.debezium.config.CommonConnectorConfig;
  * </ol>
  */
 public final class SignalDataCollectionChecks {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(SignalDataCollectionChecks.class);
 
     private static final String[] EXPECTED_COLUMN_NAMES = { "id", "type", "data" };
 
@@ -58,12 +63,20 @@ public final class SignalDataCollectionChecks {
     }
 
     /**
-     * Attach the given error messages to the {@link CommonConnectorConfig#SIGNAL_DATA_COLLECTION}
-     * {@link ConfigValue}. The per-connection validator short-circuits to an empty list when
+     * Surface the given error messages either as warnings in the log or as errors on the
+     * {@link CommonConnectorConfig#SIGNAL_DATA_COLLECTION} {@link ConfigValue}, depending on the
+     * configured action. The per-connection validator short-circuits to an empty list when
      * validation is disabled or unconfigured, so no guard is needed here.
      */
-    public static void attach(List<String> errors, Map<String, ConfigValue> configValues) {
-        final ConfigValue target = configValues.get(CommonConnectorConfig.SIGNAL_DATA_COLLECTION.name());
-        errors.forEach(target::addErrorMessage);
+    public static void attach(List<String> errors, Map<String, ConfigValue> configValues, SignalDataCollectionValidationAction action) {
+        if (errors.isEmpty()) {
+            return;
+        }
+        LOGGER.warn("[signal.data.collection.validation] The table configured for signaling is not properly set up; {} issue(s) found: {}.",
+                errors.size(), String.join(" | ", errors));
+        if (action == SignalDataCollectionValidationAction.FAIL) {
+            final ConfigValue target = configValues.get(CommonConnectorConfig.SIGNAL_DATA_COLLECTION.name());
+            errors.forEach(target::addErrorMessage);
+        }
     }
 }

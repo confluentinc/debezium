@@ -75,7 +75,8 @@ public abstract class BinlogConnector<T extends BinlogConnectorConfig> extends R
                         connection.execute("SELECT version()");
                         LOGGER.info("Successfully tested connection for {} with user '{}'",
                                 connection.connectionString(), connection.connectionConfig().username());
-                        SignalDataCollectionChecks.attach(connection.validateSignalDataCollection(connectorConfig), configValues);
+                        SignalDataCollectionChecks.attach(connection.validateSignalDataCollection(connectorConfig), configValues,
+                                connectorConfig.getSignalDataCollectionValidationAction());
                     }
                     catch (SQLException e) {
                         LOGGER.error("Failed testing connection for {} with user '{}'",

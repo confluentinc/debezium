@@ -1463,7 +1463,7 @@ public class JdbcConnection implements AutoCloseable {
             return errors;
         }
         catch (Exception e) {
-            LOGGER.warn("Unable to validate signal data collection '{}'; skipping signal-table check", raw, e);
+            LOGGER.warn("[signal.data.collection.validation] Unable to validate signal data collection '{}'; skipping signal-table check ({})", raw, e.getMessage(), e);
             return Collections.emptyList();
         }
     }

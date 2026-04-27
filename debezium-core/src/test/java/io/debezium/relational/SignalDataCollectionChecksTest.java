@@ -18,6 +18,7 @@ import org.apache.kafka.common.config.ConfigValue;
 import org.junit.Test;
 
 import io.debezium.config.CommonConnectorConfig;
+import io.debezium.config.CommonConnectorConfig.SignalDataCollectionValidationAction;
 
 public class SignalDataCollectionChecksTest {
 
@@ -134,14 +135,27 @@ public class SignalDataCollectionChecksTest {
     }
 
     @Test
-    public void attachAppendsToTheSignalDataCollectionConfigValue() {
+    public void attachWithFailActionAppendsToTheSignalDataCollectionConfigValue() {
         final ConfigValue target = new ConfigValue(CommonConnectorConfig.SIGNAL_DATA_COLLECTION.name());
         final Map<String, ConfigValue> configValues = new HashMap<>();
         configValues.put(CommonConnectorConfig.SIGNAL_DATA_COLLECTION.name(), target);
 
-        SignalDataCollectionChecks.attach(Arrays.asList("first error", "second error"), configValues);
+        SignalDataCollectionChecks.attach(Arrays.asList("first error", "second error"), configValues,
+                SignalDataCollectionValidationAction.FAIL);
 
         assertThat(target.errorMessages()).containsExactly("first error", "second error");
+    }
+
+    @Test
+    public void attachWithWarnActionDoesNotAppendToConfigValue() {
+        final ConfigValue target = new ConfigValue(CommonConnectorConfig.SIGNAL_DATA_COLLECTION.name());
+        final Map<String, ConfigValue> configValues = new HashMap<>();
+        configValues.put(CommonConnectorConfig.SIGNAL_DATA_COLLECTION.name(), target);
+
+        SignalDataCollectionChecks.attach(Arrays.asList("first error", "second error"), configValues,
+                SignalDataCollectionValidationAction.WARN);
+
+        assertThat(target.errorMessages()).isEmpty();
     }
 
     @Test
@@ -150,7 +164,7 @@ public class SignalDataCollectionChecksTest {
         final Map<String, ConfigValue> configValues = new HashMap<>();
         configValues.put(CommonConnectorConfig.SIGNAL_DATA_COLLECTION.name(), target);
 
-        SignalDataCollectionChecks.attach(Collections.emptyList(), configValues);
+        SignalDataCollectionChecks.attach(Collections.emptyList(), configValues, SignalDataCollectionValidationAction.FAIL);
 
         assertThat(target.errorMessages()).isEmpty();
     }

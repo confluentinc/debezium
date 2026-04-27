@@ -123,7 +123,8 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
                                 pluginNameValue.addErrorMessage(errorMessage);
                             }
                         }
-                        SignalDataCollectionChecks.attach(connection.validateSignalDataCollection(postgresConfig), configValues);
+                        SignalDataCollectionChecks.attach(connection.validateSignalDataCollection(postgresConfig), configValues,
+                                postgresConfig.getSignalDataCollectionValidationAction());
                     }
                     catch (Exception e) {
                         LOGGER.error("Failed testing connection for {} with user '{}'", connection.connectionString(),
