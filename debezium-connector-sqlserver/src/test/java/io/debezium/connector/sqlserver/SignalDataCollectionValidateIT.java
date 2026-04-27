@@ -131,22 +131,6 @@ public class SignalDataCollectionValidateIT {
         }
     }
 
-    @Test
-    public void wrongColumnNameProducesNameError() throws SQLException {
-        try (SqlServerConnection connection = TestHelper.testConnection()) {
-            connection.connect();
-            connection.execute("CREATE TABLE " + SIGNAL_TABLE
-                    + " (signal_id VARCHAR(42) NOT NULL PRIMARY KEY, type VARCHAR(32) NOT NULL, data VARCHAR(2048) NULL)");
-        }
-        final SqlServerConnectorConfig config = validationEnabledConfig(FULLY_QUALIFIED);
-
-        try (SqlServerConnection connection = TestHelper.testConnection()) {
-            final List<String> errors = connection.validateSignalDataCollection(config);
-            assertThat(errors).hasSize(1);
-            assertThat(errors.get(0)).contains("position 0").contains("'id'").contains("'signal_id'");
-        }
-    }
-
     private static SqlServerConnectorConfig validationEnabledConfig(String signalCollection) {
         return new SqlServerConnectorConfig(TestHelper.defaultConfig()
                 .with(CommonConnectorConfig.SIGNAL_DATA_COLLECTION, signalCollection)

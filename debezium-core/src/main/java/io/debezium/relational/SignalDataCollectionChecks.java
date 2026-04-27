@@ -5,7 +5,6 @@
  */
 package io.debezium.relational;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -24,16 +23,16 @@ import io.debezium.config.CommonConnectorConfig.SignalDataCollectionValidationAc
  * <p>
  * Checks performed:
  * <ol>
- * <li>column count is exactly three;</li>
- * <li>column names at positions 0/1/2 are {@code id} / {@code type} / {@code data}
- *     (compared case-insensitively, per Debezium documentation which mandates these names).</li>
+ * <li>column count is exactly three.</li>
  * </ol>
+ * <p>
+ * Column names are intentionally NOT checked: the runtime reads the captured row by position and
+ * the watermark INSERT writes by position too, so name mismatches don't break runtime today.
+ * Column type validation is also out of scope — see CC-XXXXX (phase 2).
  */
 public final class SignalDataCollectionChecks {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SignalDataCollectionChecks.class);
-
-    private static final String[] EXPECTED_COLUMN_NAMES = { "id", "type", "data" };
 
     private SignalDataCollectionChecks() {
     }
@@ -50,16 +49,7 @@ public final class SignalDataCollectionChecks {
             return Collections.singletonList(
                     "Signal data collection '" + rawId + "' must have exactly 3 columns but has " + columns.size() + ".");
         }
-
-        final List<String> errors = new ArrayList<>();
-        for (int i = 0; i < 3; i++) {
-            final Column col = columns.get(i);
-            if (!EXPECTED_COLUMN_NAMES[i].equalsIgnoreCase(col.name())) {
-                errors.add("Signal data collection '" + rawId + "' column at position " + i
-                        + " must be named '" + EXPECTED_COLUMN_NAMES[i] + "' but found '" + col.name() + "'.");
-            }
-        }
-        return errors;
+        return Collections.emptyList();
     }
 
     /**

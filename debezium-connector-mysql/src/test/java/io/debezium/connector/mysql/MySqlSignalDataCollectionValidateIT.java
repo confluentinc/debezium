@@ -113,26 +113,14 @@ public class MySqlSignalDataCollectionValidateIT {
     }
 
     @Test
-    public void wrongColumnNameProducesNameError() throws SQLException {
-        executeDdl("CREATE TABLE " + qualifiedSignalTable
-                + " (signal_id VARCHAR(42) PRIMARY KEY, type VARCHAR(32) NOT NULL, data VARCHAR(2048) NULL)");
-        final Configuration config = validationEnabledConfig(qualifiedSignalTable);
-
-        final List<String> errors = signalCollectionErrors(config);
-
-        assertThat(errors).hasSize(1);
-        assertThat(errors.get(0)).contains("position 0").contains("'id'").contains("'signal_id'");
-    }
-
-    @Test
     public void warnActionDoesNotSurfaceErrorsToConfigValue() throws SQLException {
-        // Same misconfiguration as wrongColumnNameProducesNameError, but with action=warn.
-        // Validator still detects the issue and logs it via the [signal.data.collection.validation]
-        // audit prefix; the connector's validate() returns a 2xx with no ConfigValue errors so
-        // CREATE/UPDATE proceeds. This is the rollout-audit mode — locks in the contract that
-        // misconfigurations remain observable but non-blocking when action=warn.
+        // Wrong column count (4 instead of 3): validator detects it and logs via
+        // [signal.data.collection.validation], but with action=warn the connector's validate()
+        // returns 2xx with no ConfigValue errors so CREATE/UPDATE proceeds. Locks in the
+        // rollout-audit contract: misconfigurations are observable but non-blocking in WARN mode.
         executeDdl("CREATE TABLE " + qualifiedSignalTable
-                + " (signal_id VARCHAR(42) PRIMARY KEY, type VARCHAR(32) NOT NULL, data VARCHAR(2048) NULL)");
+                + " (id VARCHAR(42) PRIMARY KEY, type VARCHAR(32) NOT NULL,"
+                + " data VARCHAR(2048) NULL, ts TIMESTAMP NULL)");
         final Configuration config = database.defaultConfig()
                 .with(CommonConnectorConfig.SIGNAL_DATA_COLLECTION, qualifiedSignalTable)
                 .with(CommonConnectorConfig.SIGNAL_DATA_COLLECTION_VALIDATION_ENABLED, true)

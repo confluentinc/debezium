@@ -968,8 +968,8 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
             .withWidth(Width.SHORT)
             .withImportance(Importance.LOW)
             .withDefault(false)
-            .withDescription("When enabled, the connector validates the signal data collection's existence, column count, and column names "
-                    + "(id, type, data) at validate time. Disabled by default to preserve existing behavior.");
+            .withDescription("When enabled, the connector validates the signal data collection's existence and column count at validate time. "
+                    + "Disabled by default to preserve existing behavior.");
 
     public static final Field SIGNAL_DATA_COLLECTION_VALIDATION_ACTION = Field.create("signal.data.collection.validation.action")
             .withDisplayName("Signal data collection validation action")

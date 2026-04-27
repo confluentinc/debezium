@@ -96,19 +96,6 @@ public class SignalDataCollectionValidateIT {
     }
 
     @Test
-    public void wrongColumnNameProducesNameError() throws SQLException {
-        TestHelper.execute("CREATE TABLE " + SIGNAL_TABLE_NAME
-                + " (signal_id VARCHAR(42) PRIMARY KEY, type VARCHAR(32) NOT NULL, data VARCHAR(2048) NULL);");
-        final PostgresConnectorConfig config = validationEnabledConfig(SIGNAL_TABLE_NAME);
-
-        try (PostgresConnection connection = TestHelper.create()) {
-            final List<String> errors = connection.validateSignalDataCollection(config);
-            assertThat(errors).hasSize(1);
-            assertThat(errors.get(0)).contains("position 0").contains("'id'").contains("'signal_id'");
-        }
-    }
-
-    @Test
     public void threePartSignalTableRejectedAsWrongForm() throws SQLException {
         // Runtime compares via TableId.equals on the dotted id string. Postgres's createTableId
         // drops the catalog, so events carry 2-part ids like "public.sig"; a 3-part config

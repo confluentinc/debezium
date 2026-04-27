@@ -33,18 +33,21 @@ public class SignalDataCollectionChecksTest {
     }
 
     @Test
-    public void columnNamesAreMatchedCaseInsensitively() {
+    public void anyColumnNamesAreAccepted() {
+        // Names are intentionally not validated; the runtime reads by position and
+        // the watermark INSERT writes by position.
         final List<Column> columns = Arrays.asList(
-                column("ID", Types.VARCHAR),
-                column("Type", Types.VARCHAR),
-                column("DATA", Types.CLOB));
+                column("signal_id", Types.VARCHAR),
+                column("signal_type", Types.VARCHAR),
+                column("payload", Types.VARCHAR));
 
         assertThat(SignalDataCollectionChecks.validateShape("public.sig", columns)).isEmpty();
     }
 
     @Test
-    public void nonStringColumnTypesAreAccepted() {
-        // Type check was intentionally removed; the drivers coerce via setString/getString.
+    public void anyColumnTypesAreAccepted() {
+        // Type validation is deferred to a later phase; today the runtime tolerates / coerces
+        // for STRING-family types and only fails for hard mismatches at row-extract time.
         final List<Column> columns = Arrays.asList(
                 column("id", Types.VARCHAR),
                 column("type", Types.INTEGER),
@@ -80,58 +83,15 @@ public class SignalDataCollectionChecksTest {
     }
 
     @Test
-    public void countFailureShortCircuitsNameChecks() {
-        // With only 2 columns, we report the count issue once and don't also complain about names.
+    public void rawIdIsEchoedInCountErrorMessage() {
         final List<Column> columns = Arrays.asList(
-                column("signal_id", Types.VARCHAR),
-                column("signal_type", Types.VARCHAR));
-
-        final List<String> errors = SignalDataCollectionChecks.validateShape("public.sig", columns);
-
-        assertThat(errors).hasSize(1);
-        assertThat(errors.get(0)).contains("must have exactly 3 columns");
-    }
-
-    @Test
-    public void wrongFirstColumnNameProducesNameError() {
-        final List<Column> columns = Arrays.asList(
-                column("signal_id", Types.VARCHAR),
-                column("type", Types.VARCHAR),
-                column("data", Types.VARCHAR));
-
-        final List<String> errors = SignalDataCollectionChecks.validateShape("public.sig", columns);
-
-        assertThat(errors).hasSize(1);
-        assertThat(errors.get(0)).contains("position 0");
-        assertThat(errors.get(0)).contains("'id'");
-        assertThat(errors.get(0)).contains("'signal_id'");
-    }
-
-    @Test
-    public void wrongMiddleAndLastColumnNamesProduceTwoErrors() {
-        final List<Column> columns = Arrays.asList(
-                column("id", Types.VARCHAR),
-                column("kind", Types.VARCHAR),
-                column("payload", Types.VARCHAR));
-
-        final List<String> errors = SignalDataCollectionChecks.validateShape("public.sig", columns);
-
-        assertThat(errors).hasSize(2);
-        assertThat(errors.get(0)).contains("position 1").contains("'type'").contains("'kind'");
-        assertThat(errors.get(1)).contains("position 2").contains("'data'").contains("'payload'");
-    }
-
-    @Test
-    public void rawIdIsEchoedInErrorMessages() {
-        final List<Column> columns = Arrays.asList(
-                column("x", Types.VARCHAR),
-                column("y", Types.VARCHAR),
-                column("z", Types.VARCHAR));
+                column("a", Types.VARCHAR),
+                column("b", Types.VARCHAR));
 
         final List<String> errors = SignalDataCollectionChecks.validateShape("my_db.my_schema.my_sig", columns);
 
-        assertThat(errors).isNotEmpty();
-        errors.forEach(e -> assertThat(e).contains("my_db.my_schema.my_sig"));
+        assertThat(errors).hasSize(1);
+        assertThat(errors.get(0)).contains("my_db.my_schema.my_sig");
     }
 
     @Test
