@@ -32,7 +32,7 @@ blocks:
   - name: Release
     dependencies: []
     run:
-      when: "branch != 'master' and branch !~ '[0-9]+\\.[0-9]+\\.x' and branch =~ 'v[0-9]+\\.[0-9]+\\.[0-9]+\\-spanner\\-hotfix\\-x' and change_in('debezium-core/')"
+      when: "branch != 'master' and branch !~ '[0-9]+\\.[0-9]+\\.x' and branch =~ 'v[0-9]+\\.[0-9]+\\.[0-9]+\\-spanner\\-hotfix\\-x' and (change_in('debezium-core/') or change_in('pom.xml') or change_in('.semaphore/'))"
     task:
       jobs:
         - name: Release debezium-core
