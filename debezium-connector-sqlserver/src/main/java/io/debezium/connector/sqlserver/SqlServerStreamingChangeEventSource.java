@@ -177,44 +177,16 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
 
             if (context.isRunning()) {
                 Lsn toLsn;
+                // Recover before this iteration mutates streamingExecutionContexts (e.g. lastProcessedPosition).
+                // Letting the exception bubble to the outer catch would fail the task; mid-iteration recovery
+                // would need explicit retry to keep state consistent with committed offsets.
                 try {
                     commitTransaction();
                     toLsn = getToLsn(dataConnection, databaseName, lastProcessedPosition, maxTransactionsPerIteration);
                 }
                 catch (SQLException e) {
-                    boolean dataValid;
-                    boolean metadataValid;
-                    try {
-                        dataValid = dataConnection.isValid();
-                        metadataValid = metadataConnection.isValid();
-                    }
-                    catch (SQLException probeEx) {
-                        LOGGER.debug("isValid() probe threw for database '{}'; treating both connections as broken", databaseName, probeEx);
-                        dataValid = false;
-                        metadataValid = false;
-                    }
-                    if (dataValid && metadataValid) {
-                        throw e;
-                    }
-                    LOGGER.warn("Connection broken at start of streaming iteration for database '{}' (data valid={}, metadata valid={}); refreshing and retrying once",
-                            databaseName, dataValid, metadataValid, e);
-                    try {
-                        if (!dataValid) {
-                            dataConnection.refresh();
-                        }
-                        if (!metadataValid) {
-                            metadataConnection.refresh();
-                        }
-                    }
-                    catch (SQLException refreshEx) {
-                        refreshEx.addSuppressed(e);
-                        LOGGER.error("Failed to refresh connections after broken-connection detection for database '{}'", databaseName, refreshEx);
-                        throw refreshEx;
-                    }
-                    commitTransaction();
+                    recoverFromBrokenConnection(e, databaseName);
                     toLsn = getToLsn(dataConnection, databaseName, lastProcessedPosition, maxTransactionsPerIteration);
-                    LOGGER.info("Refreshed connections (data refreshed={}, metadata refreshed={}) and re-read toLsn={} after broken-connection recovery for database '{}'",
-                            !dataValid, !metadataValid, toLsn, databaseName);
                 }
 
                 // Shouldn't happen if the agent is running, but it is better to guard against such situation
@@ -427,6 +399,32 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
             dataConnection.commit();
             metadataConnection.commit();
         }
+    }
+
+    private void recoverFromBrokenConnection(SQLException e, String databaseName) throws SQLException {
+        boolean dataValid;
+        boolean metadataValid;
+        try {
+            dataValid = dataConnection.isValid();
+            metadataValid = metadataConnection.isValid();
+        }
+        catch (SQLException probeEx) {
+            e.addSuppressed(probeEx);
+            throw e;
+        }
+        if (dataValid && metadataValid) {
+            throw e;
+        }
+        LOGGER.warn("Connection broken at start of streaming iteration for database '{}' (data valid={}, metadata valid={}); refreshing",
+                databaseName, dataValid, metadataValid, e);
+        if (!dataValid) {
+            dataConnection.refresh();
+        }
+        if (!metadataValid) {
+            metadataConnection.refresh();
+        }
+        LOGGER.info("Refreshed connections (data refreshed={}, metadata refreshed={}) for database '{}'",
+                !dataValid, !metadataValid, databaseName);
     }
 
     private void migrateTable(SqlServerPartition partition, final Queue<SqlServerChangeTable> schemaChangeCheckpoints, SqlServerOffsetContext offsetContext)
