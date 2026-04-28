@@ -51,15 +51,12 @@ blocks:
                 ls -la debezium-core/target/
                 exit 1
               fi
-            # Create a modified POM with io.confluent groupId for deployment
-            - cp debezium-core/pom.xml.orig debezium-core/target/debezium-core-${DEBEZIUM_VERSION}.pom
-            # Add explicit groupId and version after modelVersion (since they're inherited from parent)
-            - sed -i '/<\/modelVersion>/a\    <groupId>io.confluent</groupId>\n    <version>'"${DEBEZIUM_VERSION}"'</version>' debezium-core/target/debezium-core-${DEBEZIUM_VERSION}.pom
-            # Deploy main JAR with io.confluent groupId
+            # Deploy main JAR with io.confluent groupId, using original POM for correct transitive deps
             - mvn deploy:deploy-file
               -Durl=https://confluent-519856050701.d.codeartifact.us-west-2.amazonaws.com/maven/maven-snapshots/
               -DrepositoryId=confluent-codeartifact-internal
               -Dfile=debezium-core/target/debezium-core-${DEBEZIUM_VERSION}.jar
+              -DpomFile=debezium-core/pom.xml.orig
               -DgroupId=io.confluent
               -DartifactId=debezium-core
               -Dversion=${DEBEZIUM_VERSION}
