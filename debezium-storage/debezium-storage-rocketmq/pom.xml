@@ -3,7 +3,7 @@
     <parent>
         <groupId>io.debezium</groupId>
         <artifactId>debezium-storage</artifactId>
-        <version>3.3.2.Final</version>
+        <version>3.3.2.Final-1-spanner</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
