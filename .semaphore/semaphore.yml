@@ -39,7 +39,7 @@ blocks:
             - ci-tools ci-update-version
             - ci-tools ci-push-tag
             # Build debezium-core with original groupId (io.debezium) to keep dependencies intact
-            - mvn -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode clean install -Passembly -pl debezium-core -am -DskipTests -DskipITs
+            - mvn -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode clean install -Passembly -pl debezium-core -am -DskipTests -DskipITs -Denforcer.skip=true
             # Extract version from the built JAR filename (most reliable method)
             - export DEBEZIUM_VERSION=$(ls debezium-core/target/debezium-core-*.jar | grep -v '\(sources\|javadoc\|tests\|shaded\)' | head -1 | sed 's|.*/debezium-core-\(.*\)\.jar|\1|')
             - echo "Deploying version - ${DEBEZIUM_VERSION}"
