@@ -25,6 +25,7 @@ global_job_config:
     commands:
       - checkout
       - sem-version java 21
+      - sem-version maven 3.9.8
       - . cache-maven restore
 
 blocks:
