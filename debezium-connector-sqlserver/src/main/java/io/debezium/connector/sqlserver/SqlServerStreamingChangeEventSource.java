@@ -176,8 +176,18 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
             TxLogPosition lastProcessedPosition = streamingExecutionContext.getLastProcessedPosition();
 
             if (context.isRunning()) {
-                commitTransaction();
-                final Lsn toLsn = getToLsn(dataConnection, databaseName, lastProcessedPosition, maxTransactionsPerIteration);
+                Lsn toLsn;
+                // Recover before this iteration mutates streamingExecutionContexts (e.g. lastProcessedPosition).
+                // Letting the exception bubble to the outer catch would fail the task; mid-iteration recovery
+                // would need explicit retry to keep state consistent with committed offsets.
+                try {
+                    commitTransaction();
+                    toLsn = getToLsn(dataConnection, databaseName, lastProcessedPosition, maxTransactionsPerIteration);
+                }
+                catch (SQLException e) {
+                    recoverFromBrokenConnection(e, databaseName);
+                    toLsn = getToLsn(dataConnection, databaseName, lastProcessedPosition, maxTransactionsPerIteration);
+                }
 
                 // Shouldn't happen if the agent is running, but it is better to guard against such situation
                 if (!toLsn.isAvailable()) {
@@ -389,6 +399,32 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
             dataConnection.commit();
             metadataConnection.commit();
         }
+    }
+
+    private void recoverFromBrokenConnection(SQLException e, String databaseName) throws SQLException {
+        boolean dataValid;
+        boolean metadataValid;
+        try {
+            dataValid = dataConnection.isValid();
+            metadataValid = metadataConnection.isValid();
+        }
+        catch (SQLException probeEx) {
+            e.addSuppressed(probeEx);
+            throw e;
+        }
+        if (dataValid && metadataValid) {
+            throw e;
+        }
+        LOGGER.warn("Connection broken at start of streaming iteration for database '{}' (data valid={}, metadata valid={}); refreshing",
+                databaseName, dataValid, metadataValid, e);
+        if (!dataValid) {
+            dataConnection.refresh();
+        }
+        if (!metadataValid) {
+            metadataConnection.refresh();
+        }
+        LOGGER.info("Refreshed connections (data refreshed={}, metadata refreshed={}) for database '{}'",
+                !dataValid, !metadataValid, databaseName);
     }
 
     private void migrateTable(SqlServerPartition partition, final Queue<SqlServerChangeTable> schemaChangeCheckpoints, SqlServerOffsetContext offsetContext)
