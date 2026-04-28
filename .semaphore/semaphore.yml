@@ -36,6 +36,7 @@ blocks:
       jobs:
         - name: Release debezium-core
           commands:
+            - cp debezium-core/pom.xml debezium-core/pom.xml.orig
             - ci-tools ci-update-version
             - ci-tools ci-push-tag
             # Build debezium-core with original groupId (io.debezium) to keep dependencies intact
@@ -51,7 +52,7 @@ blocks:
                 exit 1
               fi
             # Create a modified POM with io.confluent groupId for deployment
-            - cp debezium-core/pom.xml debezium-core/target/debezium-core-${DEBEZIUM_VERSION}.pom
+            - cp debezium-core/pom.xml.orig debezium-core/target/debezium-core-${DEBEZIUM_VERSION}.pom
             # Add explicit groupId and version after modelVersion (since they're inherited from parent)
             - sed -i '/<\/modelVersion>/a\    <groupId>io.confluent</groupId>\n    <version>'"${DEBEZIUM_VERSION}"'</version>' debezium-core/target/debezium-core-${DEBEZIUM_VERSION}.pom
             # Deploy main JAR with io.confluent groupId
