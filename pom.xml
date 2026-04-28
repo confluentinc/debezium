@@ -10,7 +10,7 @@
 
     <groupId>io.debezium</groupId>
     <artifactId>debezium-build-parent</artifactId>
-    <version>3.3.2.Final</version>
+    <version>3.3.2.Final.spanner</version>
     <name>Debezium Build Aggregator</name>
     <description>Debezium is an open source change data capture platform</description>
     <packaging>pom</packaging>
@@ -80,7 +80,7 @@
         <version.dependency.plugin>3.1.1</version.dependency.plugin>
         <version.enforcer.plugin>3.6.1</version.enforcer.plugin>
 
-        <version.maven>3.9.4</version.maven>
+        <version.maven>3.9.8</version.maven>
         <version.jar.plugin>3.0.2</version.jar.plugin>
         <version.source.plugin>3.1.0</version.source.plugin>
         <version.assembly.plugin>3.1.1</version.assembly.plugin>
@@ -202,28 +202,10 @@
         <module>support/ide-configs</module>
         <module>support/revapi</module>
         <module>debezium-api</module>
-        <module>debezium-ddl-parser</module>
         <module>debezium-assembly-descriptors</module>
         <module>debezium-core</module>
-        <module>debezium-embedded</module>
-        <module>debezium-connector-mysql</module>
-        <module>debezium-connector-postgres</module>
-        <module>debezium-connector-sqlserver</module>
-        <module>debezium-connector-binlog</module>
-        <module>debezium-connector-mariadb</module>
-        <module>debezium-microbenchmark-engine</module>
-        <module>debezium-quarkus-outbox-common</module>
-        <module>debezium-quarkus-outbox</module>
-        <module>debezium-quarkus-outbox-reactive</module>
-        <module>debezium-scripting</module>
-        <module>debezium-testing</module>
-        <module>debezium-schema-generator</module>
         <module>debezium-storage</module>
-        <module>debezium-interceptor</module>
-        <module>debezium-ai</module>
-        <module>quarkus-debezium-parent</module>
         <module>debezium-openlineage</module>
-        <module>debezium-common</module>
     </modules>
 
     <distributionManagement>
