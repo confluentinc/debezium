@@ -36,7 +36,6 @@ blocks:
       jobs:
         - name: Release debezium-core
           commands:
-            - cp debezium-core/pom.xml debezium-core/pom.xml.orig
             - ci-tools ci-update-version
             - ci-tools ci-push-tag
             # Build debezium-core with original groupId (io.debezium) to keep dependencies intact
@@ -51,12 +50,11 @@ blocks:
                 ls -la debezium-core/target/
                 exit 1
               fi
-            # Deploy main JAR with io.confluent groupId, using original POM for correct transitive deps
+            # Deploy main JAR with io.confluent groupId
             - mvn deploy:deploy-file
               -Durl=https://confluent-519856050701.d.codeartifact.us-west-2.amazonaws.com/maven/maven-snapshots/
               -DrepositoryId=confluent-codeartifact-internal
               -Dfile=debezium-core/target/debezium-core-${DEBEZIUM_VERSION}.jar
-              -DpomFile=debezium-core/pom.xml.orig
               -DgroupId=io.confluent
               -DartifactId=debezium-core
               -Dversion=${DEBEZIUM_VERSION}
