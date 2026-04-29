@@ -64,6 +64,7 @@ blocks:
               -Durl=https://confluent-519856050701.d.codeartifact.us-west-2.amazonaws.com/maven/maven-snapshots/
               -DrepositoryId=confluent-codeartifact-internal
               -Dfile=debezium-core/target/debezium-core-${DEBEZIUM_VERSION}-sources.jar
+              -DgeneratePom=false
               -DgroupId=io.confluent
               -DartifactId=debezium-core
               -Dversion=${DEBEZIUM_VERSION}
@@ -74,6 +75,7 @@ blocks:
               -Durl=https://confluent-519856050701.d.codeartifact.us-west-2.amazonaws.com/maven/maven-snapshots/
               -DrepositoryId=confluent-codeartifact-internal
               -Dfile=debezium-core/target/debezium-core-${DEBEZIUM_VERSION}-javadoc.jar
+              -DgeneratePom=false
               -DgroupId=io.confluent
               -DartifactId=debezium-core
               -Dversion=${DEBEZIUM_VERSION}
@@ -84,6 +86,7 @@ blocks:
               -Durl=https://confluent-519856050701.d.codeartifact.us-west-2.amazonaws.com/maven/maven-snapshots/
               -DrepositoryId=confluent-codeartifact-internal
               -Dfile=debezium-core/target/debezium-core-${DEBEZIUM_VERSION}-tests.jar
+              -DgeneratePom=false
               -DgroupId=io.confluent
               -DartifactId=debezium-core
               -Dversion=${DEBEZIUM_VERSION}
