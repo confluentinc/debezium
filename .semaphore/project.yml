@@ -27,7 +27,7 @@ spec:
       - main
       - /^\d+\.\d+\.x$/
       - /v\d+\.\d+\.\d+\-hotfix\-x/
-      - /v\d+\.\d+\.\d+\-orcl\-hotfix\-x/
+      - /v\d+\.\d+\.\d+\-spanner\-hotfix\-x/
       - /^gh-readonly-queue.*/
   custom_permissions: true
   debug_permissions:
