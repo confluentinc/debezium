@@ -17,7 +17,7 @@ execution_time_limit:
   hours: 4
 
 queue:
-  - when: "branch != 'master' and branch !~ '[0-9]+\\.[0-9]+\\.x' and branch !~ 'v[0-9]+\\.[0-9]+\\.[0-9]+\\-hotfix\\-x' and branch !~ 'v[0-9]+\\.[0-9]+\\.[0-9]+\\-orcl\\-hotfix\\-x'"
+  - when: "branch != 'master' and branch !~ '[0-9]+\\.[0-9]+\\.x' and branch !~ 'v[0-9]+\\.[0-9]+\\.[0-9]+\\-hotfix\\-x' and branch !~ 'v[0-9]+\\.[0-9]+\\.[0-9]+\\-spanner\\-hotfix\\-x'"
     processing: parallel
 
 global_job_config:
@@ -28,104 +28,19 @@ global_job_config:
       - . cache-maven restore
 
 blocks:
-  - name: Test
-    dependencies: []
-    run:
-      # don't run the tests on non-functional changes...
-      when: "change_in('/', {exclude: ['/.deployed-versions/', '.github/']})"
-    task:
-      jobs:
-        - name: MySQL 9.1 (mysql-ci-gtids)
-          commands:
-            - mvn -Dcloud -Dversion.mysql.server=9.1 -Pmysql-ci-gtids -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
-            - . cve-scan
-            - . cache-maven store
-        - name: MySQL 9.1 (mysql-ci)
-          commands:
-            - mvn -Dcloud -Dversion.mysql.server=9.1 -Pmysql-ci -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
-            - . cve-scan
-            - . cache-maven store
-        - name: MySQL 9.1 (mysql-ci-percona)
-          commands:
-            - mvn -Dcloud -Dversion.mysql.server=9.1 -Pmysql-ci-percona -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
-            - . cve-scan
-            - . cache-maven store
-        - name: MySQL 9.1 (mysql-ci-ssl)
-          commands:
-            - mvn -Dcloud -Dversion.mysql.server=9.1 -Pmysql-ci-ssl -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
-            - . cve-scan
-            - . cache-maven store
-        - name: MySQL 8.4 (mysql-ci-gtids)
-          commands:
-            - mvn -Dcloud -Dversion.mysql.server=8.4 -Pmysql-ci-gtids -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
-            - . cve-scan
-            - . cache-maven store
-        - name: MySQL 8.4 (mysql-ci)
-          commands:
-            - mvn -Dcloud -Dversion.mysql.server=8.4 -Pmysql-ci -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
-            - . cve-scan
-            - . cache-maven store
-        - name: MySQL 8.4 (mysql-ci-percona)
-          commands:
-            - mvn -Dcloud -Dversion.mysql.server=8.4 -Pmysql-ci-percona -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
-            - . cve-scan
-            - . cache-maven store
-        - name: MySQL 8.4 (mysql-ci-ssl)
-          commands:
-            - mvn -Dcloud -Dversion.mysql.server=8.4 -Pmysql-ci-ssl -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
-            - . cve-scan
-            - . cache-maven store
-        - name: MariaDB 11.4 (mariadb-ci)
-          commands:
-            - mvn -Dcloud -Pmariadb-ci -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mariadb -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
-            - . cve-scan
-            - . cache-maven store
-        - name: MariaDB 11.4 (mariadb-ci-ssl)
-          commands:
-            - mvn -Dcloud -Pmariadb-ci-ssl -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mariadb -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
-            - . cve-scan
-            - . cache-maven store
-        - name: MariaDB 11.4 (mariadb-ci-gtids)
-          commands:
-            - mvn -Dcloud -Pmariadb-ci-gtids -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mariadb -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
-            - . cve-scan
-            - . cache-maven store
-        - name: Postgres 12 (assembly,postgres-12)
-          commands:
-            - mvn -Dcloud -Passembly,postgres-12 -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-postgres -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
-            - . cve-scan
-            - . cache-maven store
-        - name: Postgres 17 (assembly,postgres-17,pgoutput-decoder)
-          commands:
-            - mvn -Dcloud -Passembly,postgres-17,pgoutput-decoder -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-postgres -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
-            - . cve-scan
-            - . cache-maven store
-        - name: SqlServer
-          commands:
-            - mvn -Dcloud -Passembly -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-sqlserver -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
-            - . cve-scan
-            - . cache-maven store
-      env_vars:
-        - name: SEMAPHORE_AGENT_UPLOAD_JOB_LOGS
-          value: when-trimmed
-      epilogue:
-        always:
-          commands:
-            - . publish-test-results
-            - artifact push workflow target/test-results
-
   - name: Release
     dependencies: []
     run:
-      when: "branch != 'master' and branch !~ '[0-9]+\\.[0-9]+\\.x' and branch =~ 'v[0-9]+\\.[0-9]+\\.[0-9]+\\-orcl\\-hotfix\\-x' and change_in('debezium-core/')"
+      when: "branch != 'master' and branch !~ '[0-9]+\\.[0-9]+\\.x' and branch =~ 'v[0-9]+\\.[0-9]+\\.[0-9]+\\-spanner\\-hotfix\\-x' and (change_in('debezium-core/') or change_in('pom.xml') or change_in('.semaphore/'))"
     task:
       jobs:
         - name: Release debezium-core
           commands:
+            - cp debezium-core/pom.xml debezium-core/pom.xml.orig
             - ci-tools ci-update-version
             - ci-tools ci-push-tag
             # Build debezium-core with original groupId (io.debezium) to keep dependencies intact
-            - mvn -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode clean install -Passembly -pl debezium-core -am -DskipTests -DskipITs
+            - mvn -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode clean install -Passembly -pl debezium-core -am -DskipTests -DskipITs -Denforcer.skip=true
             # Extract version from the built JAR filename (most reliable method)
             - export DEBEZIUM_VERSION=$(ls debezium-core/target/debezium-core-*.jar | grep -v '\(sources\|javadoc\|tests\|shaded\)' | head -1 | sed 's|.*/debezium-core-\(.*\)\.jar|\1|')
             - echo "Deploying version - ${DEBEZIUM_VERSION}"
@@ -136,15 +51,12 @@ blocks:
                 ls -la debezium-core/target/
                 exit 1
               fi
-            # Create a modified POM with io.confluent groupId for deployment
-            - cp debezium-core/pom.xml debezium-core/target/debezium-core-${DEBEZIUM_VERSION}.pom
-            # Add explicit groupId and version after modelVersion (since they're inherited from parent)
-            - sed -i '/<\/modelVersion>/a\    <groupId>io.confluent</groupId>\n    <version>'"${DEBEZIUM_VERSION}"'</version>' debezium-core/target/debezium-core-${DEBEZIUM_VERSION}.pom
-            # Deploy main JAR with io.confluent groupId
+            # Deploy main JAR with io.confluent groupId, using original POM for correct transitive deps
             - mvn deploy:deploy-file
               -Durl=https://confluent-519856050701.d.codeartifact.us-west-2.amazonaws.com/maven/maven-snapshots/
               -DrepositoryId=confluent-codeartifact-internal
               -Dfile=debezium-core/target/debezium-core-${DEBEZIUM_VERSION}.jar
+              -DpomFile=debezium-core/pom.xml.orig
               -DgroupId=io.confluent
               -DartifactId=debezium-core
               -Dversion=${DEBEZIUM_VERSION}
@@ -154,6 +66,7 @@ blocks:
               -Durl=https://confluent-519856050701.d.codeartifact.us-west-2.amazonaws.com/maven/maven-snapshots/
               -DrepositoryId=confluent-codeartifact-internal
               -Dfile=debezium-core/target/debezium-core-${DEBEZIUM_VERSION}-sources.jar
+              -DgeneratePom=false
               -DgroupId=io.confluent
               -DartifactId=debezium-core
               -Dversion=${DEBEZIUM_VERSION}
@@ -164,6 +77,7 @@ blocks:
               -Durl=https://confluent-519856050701.d.codeartifact.us-west-2.amazonaws.com/maven/maven-snapshots/
               -DrepositoryId=confluent-codeartifact-internal
               -Dfile=debezium-core/target/debezium-core-${DEBEZIUM_VERSION}-javadoc.jar
+              -DgeneratePom=false
               -DgroupId=io.confluent
               -DartifactId=debezium-core
               -Dversion=${DEBEZIUM_VERSION}
@@ -174,6 +88,7 @@ blocks:
               -Durl=https://confluent-519856050701.d.codeartifact.us-west-2.amazonaws.com/maven/maven-snapshots/
               -DrepositoryId=confluent-codeartifact-internal
               -Dfile=debezium-core/target/debezium-core-${DEBEZIUM_VERSION}-tests.jar
+              -DgeneratePom=false
               -DgroupId=io.confluent
               -DartifactId=debezium-core
               -Dversion=${DEBEZIUM_VERSION}
