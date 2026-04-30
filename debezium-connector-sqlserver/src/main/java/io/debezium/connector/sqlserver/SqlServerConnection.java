@@ -308,6 +308,15 @@ public class SqlServerConnection extends JdbcConnection {
         return connection;
     }
 
+    @Override
+    public synchronized void reconnect() throws SQLException {
+        // JdbcConnection#reconnect() bypasses connection(boolean) and would
+        //  skip setAutoCommit(false).
+        LOGGER.info("Reopening SQL Server JDBC connection");
+        close();
+        connection();
+    }
+
     /**
      * @return the current largest log sequence number
      */
