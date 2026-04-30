@@ -59,6 +59,7 @@ import io.debezium.relational.Attribute;
 import io.debezium.relational.Column;
 import io.debezium.relational.ColumnEditor;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
+import io.debezium.relational.SignalDataCollectionChecks;
 import io.debezium.relational.Table;
 import io.debezium.relational.TableId;
 import io.debezium.relational.Tables;
@@ -1394,6 +1395,91 @@ public class JdbcConnection implements AutoCloseable {
                                                            final Set<TableId> viewIds)
             throws SQLException {
         return getColumnsDetails(catalogName, schemaName, tableName, tableFilter, columnFilter, metadata, viewIds, false);
+    }
+
+    /**
+     * Read the columns of a single known table in definition order. Small-scale counterpart to
+     * {@link #readSchema} which intentionally does not pull primary keys, attributes or view info —
+     * useful for lightweight structural checks (e.g. the signal data collection validator).
+     */
+    public List<Column> readColumns(TableId tableId) throws SQLException {
+        final List<Column> columns = new ArrayList<>();
+        final DatabaseMetaData metadata = connection().getMetaData();
+        try (ResultSet rs = metadata.getColumns(tableId.catalog(), tableId.schema(), tableId.table(), null)) {
+            while (rs.next()) {
+                readTableColumn(rs, tableId, null).ifPresent(editor -> columns.add(editor.create()));
+            }
+        }
+        return columns;
+    }
+
+    /**
+     * Validates the configured signal data collection (when validation is enabled) against the
+     * documented shape: the table exists and has exactly three columns named {@code id},
+     * {@code type}, {@code data} at positions 0/1/2. Returns an empty list when validation is
+     * disabled, when {@code signal.data.collection} is unset, or when a probe-time
+     * {@link SQLException} is caught — a validator-side failure must never block connector
+     * CREATE/UPDATE because the signal table is only exercised later when a signal is inserted.
+     * <p>
+     * The DB-specific identifier parse + probe is exposed via
+     * {@link #resolveSignalDataCollectionTableId(String)} so connector-specific
+     * subclasses only override that hook.
+     */
+    public List<String> validateSignalDataCollection(CommonConnectorConfig config) {
+        if (!config.isSignalDataCollectionValidationEnabled()) {
+            LOGGER.debug("Signal data collection validation disabled; skipping");
+            return Collections.emptyList();
+        }
+        final String raw = config.getSignalingDataCollectionId();
+        if (Strings.isNullOrBlank(raw)) {
+            LOGGER.debug("signal.data.collection is unset; skipping validation");
+            return Collections.emptyList();
+        }
+
+        LOGGER.debug("Validating signal data collection '{}'", raw);
+
+        try {
+            final TableId resolved = resolveSignalDataCollectionTableId(raw);
+            if (resolved == null) {
+                LOGGER.debug("Signal data collection '{}' was not found in the database", raw);
+                return Collections.singletonList(
+                        "Signal data collection '" + raw + "' was not found in the database.");
+            }
+            LOGGER.debug("Signal data collection '{}' resolved to {}", raw, resolved);
+
+            if (!config.isSignalDataCollection(resolved)) {
+                LOGGER.debug("Signal data collection '{}' resolves to '{}' but runtime signal predicate rejects it", raw, resolved);
+                return Collections.singletonList(
+                        "signal.data.collection must be '" + resolved + "' (got '" + raw + "').");
+            }
+
+            final List<Column> columns = readColumns(resolved);
+            LOGGER.debug("Signal data collection '{}' has {} column(s): {}", raw, columns.size(),
+                    columns.stream().map(c -> c.name() + " " + c.typeName()).collect(Collectors.joining(", ")));
+            final List<String> errors = SignalDataCollectionChecks.validateShape(raw, columns);
+            if (!errors.isEmpty()) {
+                LOGGER.debug("Signal data collection '{}' validation produced {} error(s): {}", raw, errors.size(), errors);
+            }
+            return errors;
+        }
+        catch (Exception e) {
+            LOGGER.warn("[signal.data.collection.validation] Unable to validate signal data collection '{}'; skipping signal-table check ({})", raw, e.getMessage(), e);
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * Resolve the {@link TableId} for the signal data collection from the raw config string, or
+     * {@code null} if no such table exists. Default implementation parses the value as
+     * {@code schema.table} (or {@code catalog.schema.table}) with schema-first semantics and
+     * probes once via {@link #readTableNames}. Subclasses should override to apply DB-specific
+     * parsing (e.g. catalog-first on MySQL) or identifier folding before probing.
+     */
+    protected TableId resolveSignalDataCollectionTableId(String raw) throws SQLException {
+        final TableId parsed = TableId.parse(raw, false);
+        final Set<TableId> matches = readTableNames(
+                parsed.catalog(), parsed.schema(), parsed.table(), new String[]{ "TABLE" });
+        return matches.isEmpty() ? null : matches.iterator().next();
     }
 
     protected Map<TableId, List<Attribute>> getAttributeDetails(TableId tableId, String tableType) {
