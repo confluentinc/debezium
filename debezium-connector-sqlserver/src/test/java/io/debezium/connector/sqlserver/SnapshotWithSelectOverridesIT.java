@@ -98,11 +98,11 @@ public class SnapshotWithSelectOverridesIT extends AbstractAsyncEngineConnectorT
                         RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE,
                         "dbo.table1,dbo.table3")
                 .with(
-                        RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + ".dbo.table1",
-                        "SELECT * FROM [" + TestHelper.TEST_DATABASE_1 + "].[dbo].[table1] where soft_deleted = 0 order by id desc")
-                .with(
-                        RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + ".dbo.table3",
-                        "SELECT * FROM [" + TestHelper.TEST_DATABASE_1 + "].[dbo].[table3] where soft_deleted = 0")
+                        RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
+                        "{\"dbo.table1\": \"SELECT * FROM [" + TestHelper.TEST_DATABASE_1
+                                + "].[dbo].[table1] where soft_deleted = 0 order by id desc\","
+                                + " \"dbo.table3\": \"SELECT * FROM [" + TestHelper.TEST_DATABASE_1
+                                + "].[dbo].[table3] where soft_deleted = 0\"}")
                 .build();
         takeSnapshotWithOverrides(config, "server1.testDB1.dbo.");
     }
@@ -147,11 +147,11 @@ public class SnapshotWithSelectOverridesIT extends AbstractAsyncEngineConnectorT
                         RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE,
                         "  dbo.table1 , dbo.table3  ")
                 .with(
-                        RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + ".dbo.table1",
-                        "SELECT * FROM [" + TestHelper.TEST_DATABASE_1 + "].[dbo].[table1] where soft_deleted = 0 order by id desc")
-                .with(
-                        RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + ".dbo.table3",
-                        "SELECT * FROM [" + TestHelper.TEST_DATABASE_1 + "].[dbo].[table3] where soft_deleted = 0")
+                        RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
+                        "{\"dbo.table1\": \"SELECT * FROM [" + TestHelper.TEST_DATABASE_1
+                                + "].[dbo].[table1] where soft_deleted = 0 order by id desc\","
+                                + " \"dbo.table3\": \"SELECT * FROM [" + TestHelper.TEST_DATABASE_1
+                                + "].[dbo].[table3] where soft_deleted = 0\"}")
                 .build();
         takeSnapshotWithOverridesWithAdditionalWhitespace(config, "server1.testDB1.dbo.");
     }

@@ -216,7 +216,8 @@ public class OpenLineageIT extends AbstractAsyncEngineConnectorTest {
         Configuration.Builder configBuilder = TestHelper.defaultConfig()
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, PostgresConnectorConfig.SnapshotMode.INITIAL.getValue())
                 .with(PostgresConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE, "s1.a")
-                .with(PostgresConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE.name() + ".s1.a", "this is intentionally a wrong statement")
+                .with(PostgresConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
+                        "{\"s1.a\": \"this is intentionally a wrong statement\"}")
                 .with(CommonConnectorConfig.MAX_RETRIES_ON_ERROR, 1)
                 .with(CommonConnectorConfig.RETRIABLE_RESTART_WAIT, 1000)
                 .with("openlineage.integration.enabled", true)
