@@ -18,7 +18,7 @@
         <!-- Connectors -->
         <version.dropwizard>4.0.1</version.dropwizard>
         <version.jaxb>2.3.1</version.jaxb>
-        <version.jetty>9.4.12.v20180830</version.jetty>
+        <version.jetty>11.0.27</version.jetty>
 
         <!-- Vitess dependencies -->
         <version.vitess.grpc>23.0.0-rc1</version.vitess.grpc>
