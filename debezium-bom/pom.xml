@@ -36,7 +36,7 @@
 
         <!-- Scripting -->
         <version.groovy>4.0.17</version.groovy>
-        <version.graalvm.js>23.0.2</version.graalvm.js>
+        <version.graalvm.js>25.0.3</version.graalvm.js>
         <!-- Wasm -->
         <version.chicory>1.4.0</version.chicory>
 
