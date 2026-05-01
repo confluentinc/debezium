@@ -909,6 +909,26 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
             .withValidation(Field::isPositiveInteger)
             .withDescription("The maximum number of threads used to perform the snapshot. Defaults to 1.");
 
+    public static final Field SMART_SNAPSHOT = Field.create("smart.snapshot")
+            .withDisplayName("Smart snapshot")
+            .withType(Type.BOOLEAN)
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTOR_SNAPSHOT, 22))
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.MEDIUM)
+            .withDefault(false)
+            .withDescription("When enabled, optimizes snapshot behavior by delaying DND metric emission, "
+                    + "increasing producer batch size, and using multiple snapshot threads.");
+
+    public static final Field DND_DELAY_MS = Field.create("dnd.delay.ms")
+            .withDisplayName("DND delay (ms)")
+            .withType(Type.LONG)
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTOR_SNAPSHOT, 23))
+            .withWidth(Width.MEDIUM)
+            .withImportance(Importance.LOW)
+            .withDefault(600000L)
+            .withDescription("Delay in milliseconds before emitting the DND metric after a snapshot starts. "
+                    + "Only applies when smart.snapshot is enabled.");
+
     public static final Field SIGNAL_DATA_COLLECTION = Field.create("signal.data.collection")
             .withDisplayName("Signaling data collection")
             .withGroup(Field.createGroupEntry(Field.Group.ADVANCED, 20))
@@ -1418,6 +1438,8 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
                     SNAPSHOT_MODE_TABLES,
                     SNAPSHOT_FETCH_SIZE,
                     SNAPSHOT_MAX_THREADS,
+                    SMART_SNAPSHOT,
+                    DND_DELAY_MS,
                     SNAPSHOT_MODE_CUSTOM_NAME,
                     SNAPSHOT_MODE_CONFIGURATION_BASED_SNAPSHOT_DATA,
                     SNAPSHOT_MODE_CONFIGURATION_BASED_SNAPSHOT_SCHEMA,
@@ -1475,6 +1497,8 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
     private final int incrementalSnapshotChunkSize;
     private final boolean incrementalSnapshotAllowSchemaChanges;
     private final int snapshotMaxThreads;
+    private final boolean smartSnapshot;
+    private final long dndDelayMs;
 
     private final String snapshotModeCustomName;
     private final Integer queryFetchSize;
@@ -1524,6 +1548,8 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
         this.retriableRestartWait = Duration.ofMillis(config.getLong(RETRIABLE_RESTART_WAIT));
         this.snapshotFetchSize = config.getInteger(SNAPSHOT_FETCH_SIZE, defaultSnapshotFetchSize);
         this.snapshotMaxThreads = config.getInteger(SNAPSHOT_MAX_THREADS);
+        this.smartSnapshot = config.getBoolean(SMART_SNAPSHOT);
+        this.dndDelayMs = config.getLong(DND_DELAY_MS);
         this.snapshotModeCustomName = config.getString(SNAPSHOT_MODE_CUSTOM_NAME);
         this.queryFetchSize = config.getInteger(QUERY_FETCH_SIZE);
         this.incrementalSnapshotChunkSize = config.getInteger(INCREMENTAL_SNAPSHOT_CHUNK_SIZE);
@@ -1677,6 +1703,14 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
 
     public int getSnapshotMaxThreads() {
         return snapshotMaxThreads;
+    }
+
+    public boolean isSmartSnapshot() {
+        return smartSnapshot;
+    }
+
+    public long getDndDelayMs() {
+        return dndDelayMs;
     }
 
     public String getSnapshotModeCustomName() {
