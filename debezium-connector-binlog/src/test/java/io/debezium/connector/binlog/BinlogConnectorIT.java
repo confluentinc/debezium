@@ -716,8 +716,9 @@ public abstract class BinlogConnectorIT<C extends SourceConnector, P extends Bin
                 .with(BinlogConnectorConfig.DATABASE_INCLUDE_LIST, DATABASE.getDatabaseName())
                 .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.getDatabaseName() + ".products")
                 .with(BinlogConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE, DATABASE.getDatabaseName() + ".products")
-                .with(BinlogConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + "." + DATABASE.getDatabaseName() + ".products",
-                        String.format("SELECT * from %s.products where id>=108 order by id", DATABASE.getDatabaseName()))
+                .with(BinlogConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
+                        String.format("{\"%s.products\": \"SELECT * from %s.products where id>=108 order by id\"}",
+                                DATABASE.getDatabaseName(), DATABASE.getDatabaseName()))
                 .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, true)
                 .with(BinlogConnectorConfig.SCHEMA_HISTORY, FileSchemaHistory.class)
                 .with(BinlogConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
@@ -765,10 +766,11 @@ public abstract class BinlogConnectorIT<C extends SourceConnector, P extends Bin
                 .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, tables)
                 .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, true)
                 .with(BinlogConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE, tables)
-                .with(BinlogConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + "." + DATABASE.getDatabaseName() + ".products",
-                        String.format("SELECT * from %s.products where id>=108 order by id", DATABASE.getDatabaseName()))
-                .with(BinlogConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + "." + DATABASE.getDatabaseName() + ".products_on_hand",
-                        String.format("SELECT * from %s.products_on_hand where product_id>=108 order by product_id", DATABASE.getDatabaseName()))
+                .with(BinlogConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
+                        String.format("{\"%s.products\": \"SELECT * from %s.products where id>=108 order by id\","
+                                + " \"%s.products_on_hand\": \"SELECT * from %s.products_on_hand where product_id>=108 order by product_id\"}",
+                                DATABASE.getDatabaseName(), DATABASE.getDatabaseName(),
+                                DATABASE.getDatabaseName(), DATABASE.getDatabaseName()))
                 .with(BinlogConnectorConfig.SCHEMA_HISTORY, FileSchemaHistory.class)
                 .with(BinlogConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
                 .with(FileSchemaHistory.FILE_PATH, SCHEMA_HISTORY_PATH)
