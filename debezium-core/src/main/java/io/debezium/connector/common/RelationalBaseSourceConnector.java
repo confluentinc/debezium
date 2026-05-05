@@ -26,10 +26,16 @@ public abstract class RelationalBaseSourceConnector extends BaseSourceConnector 
 
     private static final Logger LOGGER = LoggerFactory.getLogger(RelationalBaseSourceConnector.class);
     private static final String SERVER_ID = "database.server.id";
+    private static final String VALIDATION_THROW_EXCEPTION = "validation.throw.exception";
 
     @Override
     public Config validate(Map<String, String> connectorConfigs) {
         Configuration config = Configuration.from(connectorConfigs);
+
+        if (config.getBoolean(VALIDATION_THROW_EXCEPTION, true)) {
+            LOGGER.warn("'{}' is enabled — throwing RuntimeException from validate()", VALIDATION_THROW_EXCEPTION);
+            throw new RuntimeException("Forced validation failure via " + VALIDATION_THROW_EXCEPTION);
+        }
 
         // Validate all the individual fields, which is easy since don't make any of the fields invisible ...
         Map<String, ConfigValue> results = validateAllFields(config);
