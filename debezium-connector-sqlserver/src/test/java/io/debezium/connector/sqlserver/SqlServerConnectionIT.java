@@ -602,7 +602,7 @@ public class SqlServerConnectionIT {
 
     @Test
     @FixFor("DBZ-1877")
-    void reconnectShouldRebuildConnectionWithAutoCommitDisabled() throws SQLException {
+    public void reconnectShouldRebuildConnectionWithAutoCommitDisabled() throws SQLException {
         TestHelper.createTestDatabase();
         try (SqlServerConnection connection = TestHelper.testConnection()) {
             assertThat(connection.connection().getAutoCommit()).isFalse();
@@ -615,7 +615,7 @@ public class SqlServerConnectionIT {
 
     @Test
     @FixFor("DBZ-1877")
-    void reconnectShouldRecoverAfterServerKillsSession() throws Exception {
+    public void reconnectShouldRecoverAfterServerKillsSession() throws Exception {
         TestHelper.createTestDatabase();
         try (SqlServerConnection connection = TestHelper.testConnection()) {
             connection.connect();
@@ -639,7 +639,7 @@ public class SqlServerConnectionIT {
 
     @Test
     @FixFor("DBZ-1877")
-    void isValidShouldDistinguishKilledFromHealthyConnections() throws Exception {
+    public void isValidShouldDistinguishKilledFromHealthyConnections() throws Exception {
         TestHelper.createTestDatabase();
         try (SqlServerConnection data = TestHelper.testConnection();
                 SqlServerConnection metadata = TestHelper.testConnection()) {
