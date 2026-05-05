@@ -59,8 +59,23 @@ public abstract class BinlogConnector<T extends BinlogConnectorConfig> extends R
         return Collections.singletonList(properties);
     }
 
+    static final String VALIDATION_FAILURE_MODE = "validation.failure.mode";
+
     @Override
     protected void validateConnection(Map<String, ConfigValue> configValues, Configuration config) {
+        String failureMode = config.getString(VALIDATION_FAILURE_MODE, "FAIL");
+        String debugMessage = "Synthetic validation failure injected for debug (mode=" + failureMode + ")";
+        ConfigValue signalValue = configValues.get("signal.data.collection");
+        if ("WARN".equalsIgnoreCase(failureMode)) {
+            LOGGER.warn(debugMessage);
+        }
+        else {
+            LOGGER.error(debugMessage);
+            if (signalValue != null) {
+                signalValue.addErrorMessage(debugMessage);
+            }
+        }
+
         ConfigValue hostnameValue = configValues.get(RelationalDatabaseConnectorConfig.HOSTNAME.name());
         final T connectorConfig = createConnectorConfig(config);
         Duration timeout = connectorConfig.getConnectionValidationTimeout();
