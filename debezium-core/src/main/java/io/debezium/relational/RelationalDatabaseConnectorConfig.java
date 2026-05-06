@@ -20,6 +20,7 @@ import org.apache.kafka.common.config.ConfigDef.Width;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.ConfigDefinition;
 import io.debezium.config.Configuration;
@@ -376,9 +377,13 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
             .withGroup(Field.createGroupEntry(Field.Group.CONNECTOR_SNAPSHOT, 9))
             .withWidth(Width.LONG)
             .withImportance(Importance.MEDIUM)
+            .withValidation(RelationalDatabaseConnectorConfig::validateSnapshotSelectStatementOverridesDataMap)
             .withDescription(
-                    "This property contains a map of fully-qualified tables (DB_NAME.TABLE_NAME) or (SCHEMA_NAME.TABLE_NAME) and their select statements to use during snapshotting. " +
-                            "The format is a JSON object where keys are table names and values are the select queries.");
+                    "This property contains a JSON map of fully-qualified tables (DB_NAME.TABLE_NAME or SCHEMA_NAME.TABLE_NAME, depending on the specific connector) " +
+                            "to the select statement to use when retrieving data from that table during snapshotting. " +
+                            "Keys are the fully-qualified table names; values are the SELECT statements. " +
+                            "A possible use case for large append-only tables is setting a specific point where to start (resume) snapshotting, in case a previous snapshotting was interrupted. " +
+                            "Cannot be combined with per-table snapshot.select.statement.overrides.* properties for the same table.");
 
 
     /**
@@ -793,6 +798,9 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
 
     /**
      * Parses the snapshot.select.statement.overrides.data.map JSON config into a map of table names to select statements.
+     * Throws {@link DebeziumException} if the configured value is not valid JSON. The same JSON is also checked at
+     * config-validation time by {@link #validateSnapshotSelectStatementOverridesDataMap}, so a malformed value is
+     * normally rejected before the connector starts.
      */
     protected Map<String, String> parseSnapshotSelectOverridesDataMap() {
         Map<String, String> overridesFromMap = new HashMap<>();
@@ -805,10 +813,31 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
                 }
             }
             catch (Exception e) {
-                LOGGER.warn("Failed to parse snapshot.select.statement.overrides.data.map as JSON", e);
+                throw new DebeziumException(
+                        "Failed to parse '" + SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP.name() + "' as JSON");
             }
         }
         return overridesFromMap;
+    }
+
+    /**
+     * Field validator for {@link #SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP}. Surfaces a config-level error when
+     * the supplied value is not valid JSON, so a misconfiguration is rejected at validate() time rather than silently
+     * resulting in an empty override map (which would cause a full-table snapshot).
+     */
+    private static int validateSnapshotSelectStatementOverridesDataMap(Configuration config, Field field, ValidationOutput problems) {
+        String overridesJson = config.getString(field);
+        if (Strings.isNullOrBlank(overridesJson)) {
+            return 0;
+        }
+        try {
+            DocumentReader.defaultReader().read(overridesJson);
+        }
+        catch (Exception e) {
+            problems.accept(field, overridesJson, "is not valid JSON");
+            return 1;
+        }
+        return 0;
     }
 
     @Override
