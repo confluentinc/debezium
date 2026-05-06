@@ -9,7 +9,6 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -383,8 +382,7 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
                     "This property contains a JSON map of fully-qualified tables (DB_NAME.TABLE_NAME or SCHEMA_NAME.TABLE_NAME, depending on the specific connector) " +
                             "to the select statement to use when retrieving data from that table during snapshotting. " +
                             "Keys are the fully-qualified table names; values are the SELECT statements. " +
-                            "A possible use case for large append-only tables is setting a specific point where to start (resume) snapshotting, in case a previous snapshotting was interrupted. " +
-                            "Cannot be combined with per-table snapshot.select.statement.overrides.* properties for the same table.");
+                            "A possible use case for large append-only tables is setting a specific point where to start (resume) snapshotting, in case a previous snapshotting was interrupted.");
 
 
     /**
@@ -769,31 +767,15 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
      * Returns any SELECT overrides, if present.
      */
     public Map<DataCollectionId, String> getSnapshotSelectOverridesByTable() {
-
-        List<String> tableValues = getConfig().getTrimmedStrings(SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE, ",");
-
-        if (tableValues == null) {
+        Map<String, String> overridesFromMap = parseSnapshotSelectOverridesDataMap();
+        if (overridesFromMap.isEmpty()) {
             return Collections.emptyMap();
         }
 
-        Map<String, String> overridesFromMap = parseSnapshotSelectOverridesDataMap();
-
         Map<TableId, String> snapshotSelectOverridesByTable = new HashMap<>();
-
-        for (String table : tableValues) {
-            String statementOverride = overridesFromMap.get(table);
-
-            if (statementOverride == null) {
-                LOGGER.warn("Detected snapshot.select.statement.overrides for {} but no statement property {} defined",
-                        SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + "." + table, table);
-                continue;
-            }
-
-            snapshotSelectOverridesByTable.put(
-                    TableId.parse(table),
-                    statementOverride);
+        for (Map.Entry<String, String> entry : overridesFromMap.entrySet()) {
+            snapshotSelectOverridesByTable.put(TableId.parse(entry.getKey()), entry.getValue());
         }
-
         return Collections.unmodifiableMap(snapshotSelectOverridesByTable);
     }
 
