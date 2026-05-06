@@ -573,7 +573,8 @@ public class SnapshotIT extends AbstractAsyncEngineConnectorTest {
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
                 .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.user detail")
                 .with(SqlServerConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE, "[dbo].[user detail]")
-                .with(SqlServerConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + ".[dbo].[user detail]", "SELECT * FROM [dbo].[user detail] WHERE id = 2")
+                .with(SqlServerConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
+                        "{\"[dbo].[user detail]\": \"SELECT * FROM [dbo].[user detail] WHERE id = 2\"}")
                 .build();
 
         start(SqlServerConnector.class, config);

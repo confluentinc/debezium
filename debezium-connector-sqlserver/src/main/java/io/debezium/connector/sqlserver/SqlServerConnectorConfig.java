@@ -780,11 +780,13 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
             return Collections.emptyMap();
         }
 
+        Map<String, String> overridesFromMap = parseSnapshotSelectOverridesDataMap();
+
         Map<TableId, String> snapshotSelectOverridesByTable = new HashMap<>();
 
         for (String table : tableValues) {
+            String statementOverride = overridesFromMap.get(table);
 
-            String statementOverride = getConfig().getString(SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + "." + table);
             if (statementOverride == null) {
                 LOGGER.warn("Detected snapshot.select.statement.overrides for {} but no statement property {} defined",
                         SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + "." + table, table);
@@ -793,8 +795,7 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
 
             snapshotSelectOverridesByTable.put(
                     TableId.parse(table, new SqlServerTableIdPredicates()),
-                    getConfig().getString(SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + "." + table));
-
+                    statementOverride);
         }
 
         return Collections.unmodifiableMap(snapshotSelectOverridesByTable);
