@@ -715,7 +715,6 @@ public abstract class BinlogConnectorIT<C extends SourceConnector, P extends Bin
                 .with(BinlogConnectorConfig.POLL_INTERVAL_MS, 10)
                 .with(BinlogConnectorConfig.DATABASE_INCLUDE_LIST, DATABASE.getDatabaseName())
                 .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.getDatabaseName() + ".products")
-                .with(BinlogConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE, DATABASE.getDatabaseName() + ".products")
                 .with(BinlogConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
                         String.format("{\"%s.products\": \"SELECT * from %s.products where id>=108 order by id\"}",
                                 DATABASE.getDatabaseName(), DATABASE.getDatabaseName()))
@@ -765,7 +764,6 @@ public abstract class BinlogConnectorIT<C extends SourceConnector, P extends Bin
                 .with(BinlogConnectorConfig.DATABASE_INCLUDE_LIST, DATABASE.getDatabaseName())
                 .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, tables)
                 .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, true)
-                .with(BinlogConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE, tables)
                 .with(BinlogConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
                         String.format("{\"%s.products\": \"SELECT * from %s.products where id>=108 order by id\","
                                 + " \"%s.products_on_hand\": \"SELECT * from %s.products_on_hand where product_id>=108 order by product_id\"}",

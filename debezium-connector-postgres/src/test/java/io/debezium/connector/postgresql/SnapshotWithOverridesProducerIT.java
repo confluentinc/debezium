@@ -21,7 +21,7 @@ import io.debezium.config.Configuration;
 import io.debezium.connector.postgresql.PostgresConnectorConfig.SnapshotMode;
 
 /**
- * Integration test for {@link io.debezium.connector.postgresql.PostgresConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE}
+ * Integration test for {@link io.debezium.connector.postgresql.PostgresConnectorConfig#SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP}
  *
  * @author Jiri Pechanec (jpechane@redhat.com)
  */
@@ -53,7 +53,6 @@ public class SnapshotWithOverridesProducerIT extends AbstractRecordsProducerTest
         TestHelper.execute(STATEMENTS);
 
         buildProducer(TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE, "over.t1")
                 .with(PostgresConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
                         "{\"over.t1\": \"SELECT * FROM over.t1 WHERE pk > 100\"}"));
 
@@ -72,7 +71,6 @@ public class SnapshotWithOverridesProducerIT extends AbstractRecordsProducerTest
         TestHelper.execute(STATEMENTS);
 
         buildProducer(TestHelper.defaultConfig()
-                .with(PostgresConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE, "over.t1,over.t2")
                 .with(PostgresConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
                         "{\"over.t1\": \"SELECT * FROM over.t1 WHERE pk > 101\", \"over.t2\": \"SELECT * FROM over.t2 WHERE pk > 100\"}"));
 
