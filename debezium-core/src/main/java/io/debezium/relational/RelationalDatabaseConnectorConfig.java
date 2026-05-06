@@ -817,7 +817,7 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
             DocumentReader.defaultReader().read(overridesJson);
         }
         catch (Exception e) {
-            problems.accept(field, overridesJson, "is not valid JSON");
+            problems.accept(field, overridesJson, "Its not a valid JSON");
             return 1;
         }
         return 0;
