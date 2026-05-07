@@ -95,9 +95,6 @@ public class SnapshotWithSelectOverridesIT extends AbstractAsyncEngineConnectorT
     public void takeSnapshotWithOverridesInMultiPartitionMode() throws Exception {
         final Configuration config = TestHelper.defaultConfig()
                 .with(
-                        RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE,
-                        "dbo.table1,dbo.table3")
-                .with(
                         RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
                         "{\"dbo.table1\": \"SELECT * FROM [" + TestHelper.TEST_DATABASE_1
                                 + "].[dbo].[table1] where soft_deleted = 0 order by id desc\","
@@ -143,9 +140,6 @@ public class SnapshotWithSelectOverridesIT extends AbstractAsyncEngineConnectorT
     @FixFor({ "DBZ-3429", "DBZ-2975" })
     public void takeSnapshotWithOverridesWithAdditionalWhitespaceInMultiPartitionMode() throws Exception {
         final Configuration config = TestHelper.defaultConfig()
-                .with(
-                        RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE,
-                        "  dbo.table1 , dbo.table3  ")
                 .with(
                         RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
                         "{\"dbo.table1\": \"SELECT * FROM [" + TestHelper.TEST_DATABASE_1

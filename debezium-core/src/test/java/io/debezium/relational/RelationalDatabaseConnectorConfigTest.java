@@ -6,13 +6,17 @@
 package io.debezium.relational;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
 import java.util.Map;
 
+import org.apache.kafka.common.config.ConfigValue;
 import org.junit.Test;
 
+import io.debezium.DebeziumException;
 import io.debezium.config.Configuration;
-import io.debezium.junit.logging.LogInterceptor;
+import io.debezium.config.Field;
 import io.debezium.junit.relational.TestRelationalDatabaseConfig;
 import io.debezium.spi.schema.DataCollectionId;
 
@@ -81,15 +85,52 @@ public class RelationalDatabaseConnectorConfigTest {
     }
 
     @Test
-    public void shouldReturnEmptyMapAndLogWarningWhenJsonIsMalformed() {
-        LogInterceptor logInterceptor = new LogInterceptor(RelationalDatabaseConnectorConfig.class);
+    public void shouldThrowWhenJsonIsMalformed() {
         TestRelationalDatabaseConfig config = configWithDataMap("{not valid json}");
 
-        Map<String, String> result = config.parseSnapshotSelectOverridesDataMap();
+        assertThatThrownBy(() -> config.parseSnapshotSelectOverridesDataMap())
+                .isInstanceOf(DebeziumException.class)
+                .hasMessageContaining("Failed to parse 'snapshot.select.statement.overrides.data.map' as JSON");
+    }
 
-        assertThat(result).isEmpty();
-        assertThat(logInterceptor.containsWarnMessage(
-                "Failed to parse snapshot.select.statement.overrides.data.map as JSON")).isTrue();
+    @Test
+    public void validatorAcceptsValidJson() {
+        Configuration config = Configuration.create()
+                .with(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
+                        "{\"db.table1\": \"SELECT * FROM db.table1\"}")
+                .build();
+
+        Map<String, ConfigValue> validated = config.validate(
+                Field.setOf(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP));
+
+        assertThat(validated.get(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP.name())
+                .errorMessages()).isEmpty();
+    }
+
+    @Test
+    public void validatorRejectsMalformedJson() {
+        Configuration config = Configuration.create()
+                .with(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP, "{not valid json}")
+                .build();
+
+        Map<String, ConfigValue> validated = config.validate(
+                Field.setOf(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP));
+
+        List<String> errors = validated.get(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP.name())
+                .errorMessages();
+        assertThat(errors).hasSize(1);
+        assertThat(errors.get(0)).contains("Its not a valid JSON");
+    }
+
+    @Test
+    public void validatorAcceptsUnsetConfig() {
+        Configuration config = Configuration.create().build();
+
+        Map<String, ConfigValue> validated = config.validate(
+                Field.setOf(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP));
+
+        assertThat(validated.get(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP.name())
+                .errorMessages()).isEmpty();
     }
 
     @Test
@@ -119,11 +160,8 @@ public class RelationalDatabaseConnectorConfigTest {
 
     @Test
     public void shouldBuildOverridesFromDataMap() {
-        TestRelationalDatabaseConfig config = configWith(Configuration.create()
-                .with(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE, "db.table1")
-                .with(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
-                        "{\"db.table1\": \"SELECT * FROM db.table1 WHERE id > 100\"}")
-                .build());
+        TestRelationalDatabaseConfig config = configWithDataMap(
+                "{\"db.table1\": \"SELECT * FROM db.table1 WHERE id > 100\"}");
 
         Map<DataCollectionId, String> result = config.getSnapshotSelectOverridesByTable();
 
@@ -134,35 +172,14 @@ public class RelationalDatabaseConnectorConfigTest {
 
     @Test
     public void shouldBuildOverridesFromDataMapForMultipleTables() {
-        TestRelationalDatabaseConfig config = configWith(Configuration.create()
-                .with(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE, "db.t1,db.t2")
-                .with(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
-                        "{\"db.t1\": \"SELECT * FROM db.t1 WHERE pk > 101\", " +
-                                "\"db.t2\": \"SELECT * FROM db.t2 WHERE pk > 100\"}")
-                .build());
+        TestRelationalDatabaseConfig config = configWithDataMap(
+                "{\"db.t1\": \"SELECT * FROM db.t1 WHERE pk > 101\", " +
+                        "\"db.t2\": \"SELECT * FROM db.t2 WHERE pk > 100\"}");
 
         Map<DataCollectionId, String> result = config.getSnapshotSelectOverridesByTable();
 
         assertThat(result).hasSize(2);
         assertThat(result).containsEntry(TableId.parse("db.t1"), "SELECT * FROM db.t1 WHERE pk > 101");
         assertThat(result).containsEntry(TableId.parse("db.t2"), "SELECT * FROM db.t2 WHERE pk > 100");
-    }
-
-    @Test
-    public void shouldSkipTableWhenNotInDataMap() {
-        LogInterceptor logInterceptor = new LogInterceptor(RelationalDatabaseConnectorConfig.class);
-        TestRelationalDatabaseConfig config = configWith(Configuration.create()
-                .with(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE, "db.table1,db.missing")
-                .with(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
-                        "{\"db.table1\": \"SELECT * FROM db.table1 WHERE id > 100\"}")
-                .build());
-
-        Map<DataCollectionId, String> result = config.getSnapshotSelectOverridesByTable();
-
-        assertThat(result).hasSize(1);
-        assertThat(result).containsEntry(TableId.parse("db.table1"),
-                "SELECT * FROM db.table1 WHERE id > 100");
-        assertThat(logInterceptor.containsWarnMessage(
-                "Detected snapshot.select.statement.overrides for snapshot.select.statement.overrides.db.missing but no statement property db.missing defined")).isTrue();
     }
 }
