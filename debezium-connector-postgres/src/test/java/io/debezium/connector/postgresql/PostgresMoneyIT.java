@@ -153,10 +153,10 @@ public class PostgresMoneyIT extends AbstractAsyncEngineConnectorTest {
 
         var config = TestHelper.defaultConfig()
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, PostgresConnectorConfig.SnapshotMode.ALWAYS)
+                .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.FALSE)
                 .with(PostgresConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.STRING)
-                .with(PostgresConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE, "post_money.debezium_test")
-                .with(PostgresConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + ".post_money.debezium_test",
-                        "SELECT id, null AS m FROM post_money.debezium_test")
+                .with(PostgresConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
+                        "{\"post_money.debezium_test\": \"SELECT id, null AS m FROM post_money.debezium_test\"}")
                 .build();
         start(PostgresConnector.class, config);
 
@@ -171,9 +171,8 @@ public class PostgresMoneyIT extends AbstractAsyncEngineConnectorTest {
         config = TestHelper.defaultConfig()
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, PostgresConnectorConfig.SnapshotMode.ALWAYS)
                 .with(PostgresConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.DOUBLE)
-                .with(PostgresConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE, "post_money.debezium_test")
-                .with(PostgresConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + ".post_money.debezium_test",
-                        "SELECT id, null AS m FROM post_money.debezium_test")
+                .with(PostgresConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
+                        "{\"post_money.debezium_test\": \"SELECT id, null AS m FROM post_money.debezium_test\"}")
                 .build();
         start(PostgresConnector.class, config);
 

@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -32,6 +33,7 @@ import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.header.Header;
 import org.apache.kafka.connect.source.SourceConnector;
 import org.apache.kafka.connect.source.SourceRecord;
+import org.awaitility.Awaitility;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -47,7 +49,7 @@ import io.debezium.connector.binlog.util.UniqueDatabase;
 import io.debezium.converters.CloudEventsConverterTest;
 import io.debezium.data.Envelope;
 import io.debezium.doc.FixFor;
-import io.debezium.embedded.EmbeddedEngine.CompletionResult;
+import io.debezium.embedded.DebeziumEngineTestUtils.CompletionResult;
 import io.debezium.engine.DebeziumEngine;
 import io.debezium.jdbc.JdbcConnection;
 import io.debezium.jdbc.TemporalPrecisionMode;
@@ -58,6 +60,7 @@ import io.debezium.relational.RelationalDatabaseConnectorConfig.DecimalHandlingM
 import io.debezium.relational.RelationalDatabaseSchema;
 import io.debezium.relational.history.SchemaHistory;
 import io.debezium.schema.DatabaseSchema;
+import io.debezium.storage.file.history.DelayingFileBasedSchemaHistory;
 import io.debezium.storage.file.history.FileSchemaHistory;
 import io.debezium.storage.kafka.history.KafkaSchemaHistory;
 import io.debezium.util.Testing;
@@ -715,9 +718,9 @@ public abstract class BinlogConnectorIT<C extends SourceConnector, P extends Bin
                 .with(BinlogConnectorConfig.POLL_INTERVAL_MS, 10)
                 .with(BinlogConnectorConfig.DATABASE_INCLUDE_LIST, DATABASE.getDatabaseName())
                 .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.getDatabaseName() + ".products")
-                .with(BinlogConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE, DATABASE.getDatabaseName() + ".products")
-                .with(BinlogConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + "." + DATABASE.getDatabaseName() + ".products",
-                        String.format("SELECT * from %s.products where id>=108 order by id", DATABASE.getDatabaseName()))
+                .with(BinlogConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
+                        String.format("{\"%s.products\": \"SELECT * from %s.products where id>=108 order by id\"}",
+                                DATABASE.getDatabaseName(), DATABASE.getDatabaseName()))
                 .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, true)
                 .with(BinlogConnectorConfig.SCHEMA_HISTORY, FileSchemaHistory.class)
                 .with(BinlogConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
@@ -764,11 +767,11 @@ public abstract class BinlogConnectorIT<C extends SourceConnector, P extends Bin
                 .with(BinlogConnectorConfig.DATABASE_INCLUDE_LIST, DATABASE.getDatabaseName())
                 .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, tables)
                 .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, true)
-                .with(BinlogConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE, tables)
-                .with(BinlogConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + "." + DATABASE.getDatabaseName() + ".products",
-                        String.format("SELECT * from %s.products where id>=108 order by id", DATABASE.getDatabaseName()))
-                .with(BinlogConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + "." + DATABASE.getDatabaseName() + ".products_on_hand",
-                        String.format("SELECT * from %s.products_on_hand where product_id>=108 order by product_id", DATABASE.getDatabaseName()))
+                .with(BinlogConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
+                        String.format("{\"%s.products\": \"SELECT * from %s.products where id>=108 order by id\","
+                                + " \"%s.products_on_hand\": \"SELECT * from %s.products_on_hand where product_id>=108 order by product_id\"}",
+                                DATABASE.getDatabaseName(), DATABASE.getDatabaseName(),
+                                DATABASE.getDatabaseName(), DATABASE.getDatabaseName()))
                 .with(BinlogConnectorConfig.SCHEMA_HISTORY, FileSchemaHistory.class)
                 .with(BinlogConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
                 .with(FileSchemaHistory.FILE_PATH, SCHEMA_HISTORY_PATH)
@@ -840,6 +843,7 @@ public abstract class BinlogConnectorIT<C extends SourceConnector, P extends Bin
         Files.delete(SCHEMA_HISTORY_PATH);
 
         config = DATABASE.defaultConfig()
+                .with(CommonConnectorConfig.FAIL_ON_NO_TABLES, false)
                 .with(BinlogConnectorConfig.DATABASE_INCLUDE_LIST, "no_" + DATABASE.getDatabaseName())
                 .with(BinlogConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NO_DATA)
                 .with(BinlogConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
@@ -864,6 +868,7 @@ public abstract class BinlogConnectorIT<C extends SourceConnector, P extends Bin
 
         final String tables = String.format("%s.migration_test", DATABASE.getDatabaseName(), DATABASE.getDatabaseName());
         config = DATABASE.defaultConfig()
+                .with(CommonConnectorConfig.FAIL_ON_NO_TABLES, false)
                 .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, tables)
                 .with(BinlogConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NO_DATA)
                 .with(BinlogConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
@@ -2206,6 +2211,7 @@ public abstract class BinlogConnectorIT<C extends SourceConnector, P extends Bin
         final LogInterceptor logInterceptor = new LogInterceptor(RelationalDatabaseSchema.class);
 
         config = DATABASE.defaultConfig()
+                .with(CommonConnectorConfig.FAIL_ON_NO_TABLES, false)
                 .with(BinlogConnectorConfig.SNAPSHOT_MODE, BinlogConnectorConfig.SnapshotMode.INITIAL)
                 .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.qualifiedTableName("my_products"))
                 .build();
@@ -2734,6 +2740,194 @@ public abstract class BinlogConnectorIT<C extends SourceConnector, P extends Bin
         // Here we count all the records obtained from binlog, not only records pushed into the sink.
         // Number of records may vary between MySQL and MariaDB and also between the runs on the same DB.
         stopConnector(value -> assertThat(logInterceptor.messageMatches("^Stopped reading binlog after [5-9] events(.*)")).isTrue());
+    }
+
+    @Test
+    public void taskStartShouldNotWaitOnSchemaHistoryRecovery() throws InterruptedException {
+        // Introduce a delay of 10 seconds in recovering every record in schema history. This is
+        // done to increase the time taken to recovery schema history.
+        Configuration config = DATABASE.defaultConfig()
+                .with(BinlogConnectorConfig.SCHEMA_HISTORY, DelayingFileBasedSchemaHistory.class.getName())
+                .with(DelayingFileBasedSchemaHistory.RECOVERY_DELAY_MS_PROPERTY, 10_000)
+                .build();
+
+        start(getConnectorClass(), config);
+        logger.info("Sleeping for 2 seconds to allow connector to start and commit an offset");
+        Thread.sleep(2_000);
+
+        stopConnector();
+
+        CountDownLatch taskStartLatch = new CountDownLatch(1);
+
+        Thread startConnectorThread = new Thread(() -> {
+            logger.info("Starting connector again");
+            start(getConnectorClass(), config, new DebeziumEngine.ConnectorCallback() {
+                @Override
+                public void taskStarted() {
+                    taskStartLatch.countDown();
+                }
+            });
+        });
+
+        startConnectorThread.start();
+
+        logger.info("Waiting for task to start");
+
+        // Wait for 5 seconds for the task to be started
+        Awaitility.await().atMost(5, TimeUnit.SECONDS).until(() -> taskStartLatch.getCount() == 0);
+
+        logger.info("Task has started, even though the schema history recovery will take long time");
+
+        // fail the test if task did not start in 5 seconds
+        if (taskStartLatch.getCount() != 0) {
+            throw new AssertionError("Task did not start in 5 seconds after " +
+                    "connector was started. Task's start method should be lightweight and " +
+                    "hence this is not expected.");
+        }
+    }
+
+    @Test
+    @FixFor("DBZ-9427")
+    public void shouldValidateGuardrailLimitsExceedsMaximumTables() throws Exception {
+        // This captures all logged messages, allowing us to verify log message was written.
+        final LogInterceptor logInterceptor = new LogInterceptor(CommonConnectorConfig.class);
+
+        final String tables = String.format("%s.products, %s.orders", DATABASE.getDatabaseName(), DATABASE.getDatabaseName());
+        // Configure with guardrail limit of 1 table
+        Configuration config = DATABASE.defaultConfig()
+                .with(BinlogConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NO_DATA)
+                .with(BinlogConnectorConfig.INCLUDE_SCHEMA_CHANGES, false)
+                .with(BinlogConnectorConfig.DATABASE_INCLUDE_LIST, DATABASE.getDatabaseName())
+                .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, tables)
+                .with(CommonConnectorConfig.GUARDRAIL_COLLECTIONS_MAX, 1)
+                .build();
+
+        // The connector should continue to run even after exceeding the guardrail limit
+        logger.info("Attempting to start connector with guardrail limit exceeded, expect a warning");
+        start(getConnectorClass(), config, (success, msg, error) -> {
+            assertThat(success).isTrue();
+            assertThat(error).isNull();
+        });
+        assertConnectorIsRunning();
+        assertThat(logInterceptor.containsWarnMessage("Guardrail limit exceeded")).isTrue();
+    }
+
+    @Test
+    @FixFor("DBZ-9427")
+    public void shouldValidateGuardrailLimitsExceedsMaximumTablesEvenIfFewAreCapturedForDataButNotSchema() throws Exception {
+        // This captures all logged messages, allowing us to verify log message was written.
+        final LogInterceptor logInterceptor = new LogInterceptor(CommonConnectorConfig.class);
+
+        final String tables = String.format("%s.products", DATABASE.getDatabaseName());
+        // The connector is configured with stored.only.captured.databases.ddl=false
+        // There are multiple databases with several tables (more than guardrail limit)
+        // Configuring with guardrail limit of 2 tables, but capturing data for only 1 table
+        Configuration config = DATABASE.defaultConfig()
+                .with(BinlogConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NO_DATA)
+                .with(BinlogConnectorConfig.INCLUDE_SCHEMA_CHANGES, false)
+                .with(BinlogConnectorConfig.STORE_ONLY_CAPTURED_DATABASES_DDL, false)
+                .with(BinlogConnectorConfig.DATABASE_INCLUDE_LIST, DATABASE.getDatabaseName())
+                .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, tables)
+                .with(CommonConnectorConfig.GUARDRAIL_COLLECTIONS_MAX, 2)
+                .build();
+
+        // The connector should continue to run even after exceeding the guardrail limit
+        logger.info("Attempting to start connector with guardrail limit exceeded, expect a warning");
+        start(getConnectorClass(), config, (success, msg, error) -> {
+            assertThat(success).isTrue();
+            assertThat(error).isNull();
+        });
+        assertConnectorIsRunning();
+        waitForSnapshotToBeCompleted(getConnectorName(), DATABASE.getServerName());
+        assertThat(logInterceptor.containsWarnMessage("Guardrail limit exceeded")).isTrue();
+    }
+
+    @Test
+    @FixFor("DBZ-9427")
+    public void shouldValidateGuardrailLimitsExceedsMaximumTablesEvenIfFewAreCapturedForDataAndSchema() throws Exception {
+        // This captures all logged messages, allowing us to verify log message was written.
+        final LogInterceptor logInterceptor = new LogInterceptor(CommonConnectorConfig.class);
+
+        final String tables = String.format("%s.products", DATABASE.getDatabaseName());
+        // The connector is configured with stored.only.captured.databases.ddl=true
+        // There are 4 tables in the captured database (more than guardrail limit)
+        // Configuring with guardrail limit of 2 tables, but capturing data for only 1 table
+        Configuration config = DATABASE.defaultConfig()
+                .with(BinlogConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NO_DATA)
+                .with(BinlogConnectorConfig.INCLUDE_SCHEMA_CHANGES, false)
+                .with(BinlogConnectorConfig.STORE_ONLY_CAPTURED_DATABASES_DDL, true)
+                .with(BinlogConnectorConfig.DATABASE_INCLUDE_LIST, DATABASE.getDatabaseName())
+                .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, tables)
+                .with(CommonConnectorConfig.GUARDRAIL_COLLECTIONS_MAX, 2)
+                .build();
+
+        // The connector should continue to run even after exceeding the guardrail limit
+        logger.info("Attempting to start connector with guardrail limit exceeded, expect a warning");
+        start(getConnectorClass(), config, (success, msg, error) -> {
+            assertThat(success).isTrue();
+            assertThat(error).isNull();
+        });
+        assertConnectorIsRunning();
+        waitForSnapshotToBeCompleted(getConnectorName(), DATABASE.getServerName());
+        assertThat(logInterceptor.containsWarnMessage("Guardrail limit exceeded")).isTrue();
+    }
+
+    @Test
+    @FixFor("DBZ-9427")
+    public void shouldValidateGuardrailLimitsExceedsMaximumTablesAndFailConnector() throws Exception {
+        final String tables = String.format("%s.products, %s.orders", DATABASE.getDatabaseName(), DATABASE.getDatabaseName());
+        // Configure with guardrail limit of 1 table
+        Configuration config = DATABASE.defaultConfig()
+                .with(BinlogConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NO_DATA)
+                .with(BinlogConnectorConfig.INCLUDE_SCHEMA_CHANGES, false)
+                .with(BinlogConnectorConfig.DATABASE_INCLUDE_LIST, DATABASE.getDatabaseName())
+                .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, tables)
+                .with(CommonConnectorConfig.GUARDRAIL_COLLECTIONS_MAX, 1)
+                .with(CommonConnectorConfig.GUARDRAIL_COLLECTIONS_LIMIT_ACTION, "fail")
+                .build();
+
+        // The connector should fail to start due to exceeding the guardrail limit
+        logger.info("Attempting to start connector with guardrail limit exceeded, expect an error");
+        start(getConnectorClass(), config, (success, msg, error) -> {
+            assertThat(success).isFalse();
+            assertThat(error).isNotNull();
+            assertThat(error.getMessage()).contains("Guardrail limit exceeded");
+        });
+        assertConnectorNotRunning();
+    }
+
+    @Test
+    @FixFor("DBZ-9427")
+    public void shouldStartSuccessfullyWithinGuardrailLimits() throws Exception {
+        final String tables = String.format("%s.products, %s.orders", DATABASE.getDatabaseName(), DATABASE.getDatabaseName());
+        // Configure with guardrail limit of 10 tables
+        Configuration config = DATABASE.defaultConfig()
+                .with(BinlogConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NO_DATA)
+                .with(BinlogConnectorConfig.INCLUDE_SCHEMA_CHANGES, false)
+                .with(BinlogConnectorConfig.DATABASE_INCLUDE_LIST, DATABASE.getDatabaseName())
+                .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, tables)
+                .with(CommonConnectorConfig.GUARDRAIL_COLLECTIONS_MAX, 10)
+                .with(CommonConnectorConfig.GUARDRAIL_COLLECTIONS_LIMIT_ACTION, "fail")
+                .build();
+
+        // Start the connector ...
+        start(getConnectorClass(), config);
+        waitForSnapshotToBeCompleted(getConnectorName(), DATABASE.getServerName());
+
+        try (BinlogTestConnection db = getTestDatabaseConnection(DATABASE.getDatabaseName());
+                JdbcConnection connection = db.connect()) {
+            connection.execute("INSERT INTO orders VALUES(1000, '2022-10-09', 1002, 90, 106)");
+            connection.execute("INSERT INTO products VALUES (201,'rubberduck','Rubber Duck',2.12);");
+        }
+
+        SourceRecords records = consumeRecordsByTopic(2);
+
+        List<SourceRecord> changeEvents = records.recordsForTopic(DATABASE.topicForTable("orders"));
+        assertThat(changeEvents.size()).isEqualTo(1);
+        List<SourceRecord> changeEvents2 = records.recordsForTopic(DATABASE.topicForTable("products"));
+        assertThat(changeEvents2.size()).isEqualTo(1);
+
+        stopConnector();
     }
 
     protected String getExpectedQuery(String statement) {
