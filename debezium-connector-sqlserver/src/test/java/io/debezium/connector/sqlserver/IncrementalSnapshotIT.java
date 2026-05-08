@@ -5,15 +5,22 @@
  */
 package io.debezium.connector.sqlserver;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.entry;
+
 import java.sql.SQLException;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
+import org.junit.Test;
 
+import io.debezium.config.Configuration;
 import io.debezium.config.Configuration.Builder;
 import io.debezium.connector.sqlserver.SqlServerConnectorConfig.SnapshotMode;
 import io.debezium.connector.sqlserver.util.TestHelper;
@@ -21,6 +28,8 @@ import io.debezium.jdbc.JdbcConnection;
 import io.debezium.junit.ConditionalFail;
 import io.debezium.junit.Flaky;
 import io.debezium.junit.SkipTestRule;
+import io.debezium.junit.logging.LogInterceptor;
+import io.debezium.pipeline.source.snapshot.incremental.AbstractIncrementalSnapshotChangeEventSource;
 import io.debezium.pipeline.source.snapshot.incremental.AbstractIncrementalSnapshotWithSchemaChangesSupportTest;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.relational.history.SchemaHistory;
@@ -226,5 +235,88 @@ public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotWithSchema
     @Flaky("DBZ-5393")
     public void stopCurrentIncrementalSnapshotWithAllCollectionsAndTakeNewNewIncrementalSnapshotAfterRestart() throws Exception {
         super.stopCurrentIncrementalSnapshotWithAllCollectionsAndTakeNewNewIncrementalSnapshotAfterRestart();
+    }
+
+    @Test
+    public void snapshotRollsBackStateWhenSignalTableInsertPermissionDenied() throws Exception {
+        // Reproduces the production incident where INSERT permission denied on the signal table
+        // caused the incremental snapshot to get stuck as "running" permanently.
+        // The fix in addDataCollectionNamesToSnapshot() should roll back the snapshot state.
+
+        final LogInterceptor interceptor = new LogInterceptor(AbstractIncrementalSnapshotChangeEventSource.class);
+
+        populateTable();
+
+        // Create a restricted user that can read CDC but cannot INSERT into the signal table
+        try (SqlServerConnection adminConn = TestHelper.adminConnection()) {
+            adminConn.connect();
+            adminConn.execute(
+                    String.format("USE [%s]", TestHelper.TEST_DATABASE_1),
+                    "IF NOT EXISTS (SELECT * FROM sys.server_principals WHERE name = 'dbz_restricted') "
+                            + "CREATE LOGIN dbz_restricted WITH PASSWORD = 'Restricted1!'",
+                    "IF NOT EXISTS (SELECT * FROM sys.database_principals WHERE name = 'dbz_restricted') "
+                            + "CREATE USER dbz_restricted FOR LOGIN dbz_restricted",
+                    "GRANT SELECT ON schema::dbo TO dbz_restricted",
+                    "GRANT SELECT ON schema::cdc TO dbz_restricted",
+                    "GRANT VIEW DATABASE STATE TO dbz_restricted",
+                    "EXEC sp_addrolemember 'db_datareader', 'dbz_restricted'");
+            // Explicitly deny INSERT on the signal table
+            adminConn.execute("DENY INSERT ON dbo.debezium_signal TO dbz_restricted");
+        }
+
+        // Start the connector with the restricted user
+        final Configuration config = config()
+                .with("database.user", "dbz_restricted")
+                .with("database.password", "Restricted1!")
+                .build();
+        start(connectorClass(), config);
+        waitForConnectorToStart();
+        waitForAvailableRecords(waitTimeForRecords(), TimeUnit.SECONDS);
+
+        // Send the incremental snapshot signal using the admin connection (simulates customer inserting signal)
+        try (SqlServerConnection adminConn = TestHelper.adminConnection()) {
+            adminConn.connect();
+            adminConn.execute(
+                    String.format("USE [%s]", TestHelper.TEST_DATABASE_1),
+                    "INSERT INTO dbo.debezium_signal (id, type, data) "
+                            + "VALUES ('test-snapshot-1', 'execute-snapshot', "
+                            + "'{\"data-collections\": [\"" + tableDataCollectionId() + "\"], \"type\": \"incremental\"}')");
+        }
+
+        // Wait for the signal to be processed and the error to be logged
+        waitForAvailableRecords(waitTimeForRecords() * 2, TimeUnit.SECONDS);
+
+        // Verify the error was logged and state was rolled back
+        assertThat(interceptor.containsErrorMessage("Failed to read initial chunk for incremental snapshot")).isTrue();
+        assertThat(interceptor.containsMessage("Incremental snapshot state rollback completed for collections")).isTrue();
+
+        // Verify connector is still running (CDC streaming was not affected)
+        assertConnectorIsRunning();
+
+        // Now fix the permission and send a second signal -- this proves the state was actually
+        // cleaned up. If the first signal left behind a stale "running" state, this second signal
+        // would not trigger a new readChunk() (shouldReadChunk would be false).
+        try (SqlServerConnection adminConn = TestHelper.adminConnection()) {
+            adminConn.connect();
+            adminConn.execute(
+                    String.format("USE [%s]", TestHelper.TEST_DATABASE_1),
+                    "REVOKE INSERT ON dbo.debezium_signal FROM dbz_restricted",
+                    "GRANT INSERT ON dbo.debezium_signal TO dbz_restricted",
+                    "GRANT DELETE ON dbo.debezium_signal TO dbz_restricted");
+            adminConn.execute(
+                    String.format("USE [%s]", TestHelper.TEST_DATABASE_1),
+                    "INSERT INTO dbo.debezium_signal (id, type, data) "
+                            + "VALUES ('test-snapshot-2', 'execute-snapshot', "
+                            + "'{\"data-collections\": [\"" + tableDataCollectionId() + "\"], \"type\": \"incremental\"}')");
+        }
+
+        // The snapshot should now complete successfully
+        final int expectedRecordCount = ROW_COUNT;
+        final Map<Integer, Integer> dbChanges = consumeMixedWithIncrementalSnapshot(expectedRecordCount);
+        for (int i = 0; i < expectedRecordCount; i++) {
+            assertThat(dbChanges).contains(entry(i + 1, i));
+        }
+
+        stopConnector();
     }
 }

@@ -489,7 +489,22 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
             notificationService.incrementalSnapshotNotificationService().notifyStarted(context, partition, offsetContext);
 
             progressListener.monitoredDataCollectionsDetermined(partition, monitoredDataCollections);
-            readChunk(partition, offsetContext);
+            try {
+                readChunk(partition, offsetContext);
+            }
+            catch (Exception e) {
+                LOGGER.error("Failed to read initial chunk for incremental snapshot of collections {}, rolling back snapshot state",
+                        expandedDataCollectionIds, e);
+                for (String dataCollectionId : expandedDataCollectionIds) {
+                    context.removeDataCollectionFromSnapshot(dataCollectionId);
+                }
+                progressListener.snapshotAborted(partition);
+                // notifyAborted must be called before unsetCorrelationId so the notification carries the signal's correlation ID
+                notificationService.incrementalSnapshotNotificationService().notifyAborted(context, partition, offsetContext, expandedDataCollectionIds);
+                context.unsetCorrelationId();
+                LOGGER.info("Incremental snapshot state rollback completed for collections {}", expandedDataCollectionIds);
+                throw e;
+            }
         }
     }
 
