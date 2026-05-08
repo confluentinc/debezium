@@ -380,6 +380,69 @@ public abstract class AbstractMetricsTest<T extends SourceConnector> extends Abs
                 .isEqualTo(0L);
     }
 
+    @Test
+    public void testSmartSnapshotDndNotSetImmediately() throws Exception {
+        executeInsertStatements();
+
+        final MBeanServer mBeanServer = ManagementFactory.getPlatformMBeanServer();
+        final ObjectName taskMetricsObjectName = getTaskMetricsObjectName();
+        final ObjectName snapshotMetricsObjectName = getSnapshotMetricsObjectName();
+
+        // Explicitly remove any stale MBeans from previous test runs
+        try {
+            mBeanServer.unregisterMBean(taskMetricsObjectName);
+        }
+        catch (InstanceNotFoundException e) {
+            // MBean doesn't exist, which is fine
+        }
+
+        try {
+            mBeanServer.unregisterMBean(snapshotMetricsObjectName);
+        }
+        catch (InstanceNotFoundException e) {
+            // MBean doesn't exist, which is fine
+        }
+
+        // Start connector with smart.snapshot enabled and a long DND delay
+        // so that DND should NOT be set during the short snapshot
+        start(cfg -> cfg
+                .with("smart.snapshot", true)
+                .with("dnd.delay.ms", 600000L));
+        assertConnectorIsRunning();
+
+        // Wait for snapshot to start and verify DND is NOT set (due to long delay)
+        Awaitility.await("Waiting for snapshot to start with smart snapshot enabled")
+                .atMost(waitTimeForRecords() * 30L, TimeUnit.SECONDS)
+                .pollInterval(5, TimeUnit.MILLISECONDS)
+                .ignoreException(InstanceNotFoundException.class)
+                .until(() -> {
+                    try {
+                        mBeanServer.getMBeanInfo(snapshotMetricsObjectName);
+                        mBeanServer.getMBeanInfo(taskMetricsObjectName);
+
+                        Object snapshotRunning = mBeanServer.getAttribute(snapshotMetricsObjectName,
+                                "SnapshotRunning");
+                        Object dnd = mBeanServer.getAttribute(taskMetricsObjectName,
+                                "ConnectTaskDnd");
+
+                        // During snapshot with smart mode, snapshot should be running but DND should be 0
+                        return Long.valueOf(1).equals(snapshotRunning)
+                                && Long.valueOf(0).equals(dnd);
+                    }
+                    catch (InstanceNotFoundException e) {
+                        return false;
+                    }
+                });
+
+        // Wait for snapshot to complete
+        waitForSnapshotToBeCompleted(connector(), server(), task(), database());
+
+        // After snapshot: ConnectTaskDnd should still be 0 (never set because delay > snapshot duration)
+        assertThat(mBeanServer.getAttribute(taskMetricsObjectName, "ConnectTaskDnd"))
+                .as("ConnectTaskDnd should be 0 after snapshot completes with smart snapshot enabled")
+                .isEqualTo(0L);
+    }
+
     protected ObjectName getSnapshotMetricsObjectName() throws MalformedObjectNameException {
         return getSnapshotMetricsObjectName(connector(), server());
     }
