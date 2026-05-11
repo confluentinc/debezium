@@ -74,8 +74,8 @@ public class EventProcessingFailureHandlingIT extends AbstractConnectorTest {
         connection.execute("INSERT INTO tablea VALUES (1, 'seed')");
 
         SourceRecords records = consumeRecordsByTopic(1);
-        Assertions.assertThat(records.recordsForTopic("server1.testDB1.dbo.tablea")).hasSize(1);
-        Assertions.assertThat(records.recordsForTopic("server1.testDB1.dbo.tableb")).isNull();
+        Assertions.assertThat(records.recordsForTopic("server1.dbo.tablea")).hasSize(1);
+        Assertions.assertThat(records.recordsForTopic("server1.dbo.tableb")).isNull();
 
         // Will allow insertion of strings into what was originally a BIGINT NOT NULL column
         // This will cause NumberFormatExceptions which return nulls and thus an error due to the column being NOT NULL
@@ -116,8 +116,8 @@ public class EventProcessingFailureHandlingIT extends AbstractConnectorTest {
         connection.execute("INSERT INTO tablea VALUES (1, 'seed')");
 
         SourceRecords records = consumeRecordsByTopic(1);
-        Assertions.assertThat(records.recordsForTopic("server1.testDB1.dbo.tablea")).hasSize(1);
-        Assertions.assertThat(records.recordsForTopic("server1.testDB1.dbo.tableb")).isNull();
+        Assertions.assertThat(records.recordsForTopic("server1.dbo.tablea")).hasSize(1);
+        Assertions.assertThat(records.recordsForTopic("server1.dbo.tableb")).isNull();
 
         // Will allow insertion of strings into what was originally a BIGINT NOT NULL column
         // This will cause NumberFormatExceptions which return nulls and thus an error due to the column being NOT NULL
@@ -152,8 +152,8 @@ public class EventProcessingFailureHandlingIT extends AbstractConnectorTest {
         connection.execute("INSERT INTO tablea VALUES (1, 'seed')");
 
         SourceRecords records = consumeRecordsByTopic(1);
-        Assertions.assertThat(records.recordsForTopic("server1.testDB1.dbo.tablea")).hasSize(1);
-        Assertions.assertThat(records.recordsForTopic("server1.testDB1.dbo.tableb")).isNull();
+        Assertions.assertThat(records.recordsForTopic("server1.dbo.tablea")).hasSize(1);
+        Assertions.assertThat(records.recordsForTopic("server1.dbo.tableb")).isNull();
 
         // Will allow insertion of strings into what was originally a BIGINT NOT NULL column
         // This will cause NumberFormatExceptions which return nulls and thus an error due to the column being NOT NULL

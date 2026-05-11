@@ -28,7 +28,6 @@ import io.debezium.connector.mysql.junit.SkipWhenSslModeIsNot;
 import io.debezium.embedded.AbstractConnectorTest;
 import io.debezium.jdbc.JdbcConfiguration;
 import io.debezium.jdbc.JdbcConnection;
-import io.debezium.util.ContainerImageVersions;
 import io.debezium.util.Testing;
 
 /**
@@ -49,7 +48,7 @@ public class MySqlParserIT extends AbstractConnectorTest {
 
     @Before
     public void beforeEach() {
-        String mysqlImage = ContainerImageVersions.getStableImage("debezium/example-mysql");
+        String mysqlImage = "debezium/example-mysql:1.9.7.Final";
         DockerImageName mysqlDockerImageName = DockerImageName.parse(mysqlImage).asCompatibleSubstituteFor("mysql");
         mySQLContainer = new MySQLContainer<>(mysqlDockerImageName)
                 .withDatabaseName("mysql")
