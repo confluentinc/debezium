@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -25,9 +26,9 @@ import io.debezium.config.ConfigDefinition;
 import io.debezium.config.Configuration;
 import io.debezium.config.EnumeratedValue;
 import io.debezium.config.Field;
+import io.debezium.config.Field.ValidationOutput;
 import io.debezium.document.Document;
 import io.debezium.document.DocumentReader;
-import io.debezium.config.Field.ValidationOutput;
 import io.debezium.heartbeat.DatabaseHeartbeatImpl;
 import io.debezium.heartbeat.Heartbeat;
 import io.debezium.heartbeat.HeartbeatConnectionProvider;
@@ -382,7 +383,6 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
                             "to the select statement to use when retrieving data from that table during snapshotting. " +
                             "Keys are the fully-qualified table names; values are the SELECT statements. " +
                             "A possible use case for large append-only tables is setting a specific point where to start (resume) snapshotting, in case a previous snapshotting was interrupted.");
-
 
     /**
      * A comma-separated list of regular expressions that match schema names to be monitored.
@@ -767,13 +767,28 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
      */
     public Map<DataCollectionId, String> getSnapshotSelectOverridesByTable() {
         Map<String, String> overridesFromMap = parseSnapshotSelectOverridesDataMap();
-        if (overridesFromMap.isEmpty()) {
+        if (!overridesFromMap.isEmpty()) {
+            Map<TableId, String> snapshotSelectOverridesByTable = new HashMap<>();
+            for (Map.Entry<String, String> entry : overridesFromMap.entrySet()) {
+                snapshotSelectOverridesByTable.put(TableId.parse(entry.getKey()), entry.getValue());
+            }
+            return Collections.unmodifiableMap(snapshotSelectOverridesByTable);
+        }
+
+        List<String> tableValues = getConfig().getTrimmedStrings(SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE, ",");
+        if (tableValues == null) {
             return Collections.emptyMap();
         }
 
         Map<TableId, String> snapshotSelectOverridesByTable = new HashMap<>();
-        for (Map.Entry<String, String> entry : overridesFromMap.entrySet()) {
-            snapshotSelectOverridesByTable.put(TableId.parse(entry.getKey()), entry.getValue());
+        for (String table : tableValues) {
+            String statementOverride = getConfig().getString(SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + "." + table);
+            if (statementOverride == null) {
+                LOGGER.warn("Detected snapshot.select.statement.overrides for {} but no statement property {} defined",
+                        SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + "." + table, table);
+                continue;
+            }
+            snapshotSelectOverridesByTable.put(TableId.parse(table), statementOverride);
         }
         return Collections.unmodifiableMap(snapshotSelectOverridesByTable);
     }
