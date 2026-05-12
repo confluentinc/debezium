@@ -6,6 +6,7 @@
 package io.debezium.connector.oracle;
 
 import static io.debezium.relational.RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE;
+import static io.debezium.relational.RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP;
 import static io.debezium.relational.RelationalDatabaseConnectorConfig.TABLE_INCLUDE_LIST;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -96,6 +97,23 @@ public class SnapshotSelectOverridesIT extends AbstractAsyncEngineConnectorTest 
                         "SELECT * FROM DEBEZIUM.TABLE3 WHERE SOFT_DELETED = 0")
                 .build();
 
+        assertSnapshotWithOverrides(config);
+    }
+
+    @Test
+    @FixFor("DBZ-3250")
+    public void takeSnapshotWithOverridesDataMap() throws Exception {
+        final Configuration config = TestHelper.defaultConfig()
+                .with(TABLE_INCLUDE_LIST, "DEBEZIUM\\.TABLE[1-3]")
+                .with(SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
+                        "{\"DEBEZIUM.TABLE1\": \"SELECT * FROM DEBEZIUM.TABLE1 WHERE SOFT_DELETED = 0 ORDER BY ID DESC\","
+                                + " \"DEBEZIUM.TABLE3\": \"SELECT * FROM DEBEZIUM.TABLE3 WHERE SOFT_DELETED = 0\"}")
+                .build();
+
+        assertSnapshotWithOverrides(config);
+    }
+
+    private void assertSnapshotWithOverrides(Configuration config) throws InterruptedException {
         start(OracleConnector.class, config);
         assertConnectorIsRunning();
 
