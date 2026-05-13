@@ -9,18 +9,24 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.debezium.annotation.ThreadSafe;
 import io.debezium.pipeline.metrics.traits.ConnectionMetricsMXBean;
+import io.debezium.pipeline.metrics.traits.ConnectionMetricsNumericMXBean;
 
 /**
  * Carries connection metrics.
  */
 @ThreadSafe
-public class ConnectionMeter implements ConnectionMetricsMXBean {
+public class ConnectionMeter implements ConnectionMetricsMXBean, ConnectionMetricsNumericMXBean {
 
     private final AtomicBoolean connected = new AtomicBoolean();
 
     @Override
     public boolean isConnected() {
         return this.connected.get();
+    }
+
+    @Override
+    public long getConnected() {
+        return this.connected.get() ? 1L : 0L;
     }
 
     public void connected(boolean connected) {

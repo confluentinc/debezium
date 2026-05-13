@@ -29,15 +29,18 @@ import io.debezium.util.Collect;
 public abstract class Metrics {
 
     private final ObjectName name;
+    private final boolean numericEncodingEnabled;
     private volatile boolean registered = false;
 
     protected Metrics(CdcSourceTaskContext taskContext, String contextName) {
         this.name = metricName(taskContext.getConnectorType(), taskContext.getConnectorName(), contextName, taskContext.getCustomMetricTags());
+        this.numericEncodingEnabled = taskContext.getConfig().isMetricsNumericEncodingEnabled();
     }
 
     protected Metrics(CdcSourceTaskContext taskContext, Map<String, String> tags) {
         tags.putAll(taskContext.getCustomMetricTags());
         this.name = metricName(taskContext.getConnectorType(), tags);
+        this.numericEncodingEnabled = taskContext.getConfig().isMetricsNumericEncodingEnabled();
     }
 
     protected Metrics(CommonConnectorConfig connectorConfig, String contextName, boolean multiPartitionMode) {
@@ -54,6 +57,7 @@ public abstract class Metrics {
         else {
             this.name = metricName(connectorType, connectorName, contextName, connectorConfig.getCustomMetricTags());
         }
+        this.numericEncodingEnabled = connectorConfig.isMetricsNumericEncodingEnabled();
     }
 
     /**
@@ -61,11 +65,26 @@ public abstract class Metrics {
      * The method is intentionally synchronized to prevent preemption between registration and unregistration.
      */
     public synchronized void register() {
-
-        JmxUtils.registerMXBean(name, this);
+        JmxUtils.registerMXBean(name, this, getMXBeanInterface(numericEncodingEnabled));
         // If the old metrics MBean is present then the connector will try to unregister it
         // upon shutdown.
         registered = true;
+    }
+
+    /**
+     * Returns the MXBean interface to register, picking between the original and numeric
+     * variants. Subclasses that implement both must override this; otherwise JMX
+     * auto-discovery fails with {@code NotCompliantMBeanException}.
+     *
+     * @param numeric value of {@code metrics.numeric.encoding.enable} for this task.
+     * @return the interface to register, or {@code null} for JMX auto-discovery.
+     */
+    protected Class<?> getMXBeanInterface(boolean numeric) {
+        return null;
+    }
+
+    protected boolean isNumericEncodingEnabled() {
+        return numericEncodingEnabled;
     }
 
     /**

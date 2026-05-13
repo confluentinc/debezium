@@ -6,11 +6,11 @@
 package io.debezium.relational.history;
 
 /**
- * Metrics describing {@link SchemaHistory} use.
- * @author Jiri Pechanec
+ * Original variant of schema-history metrics, with String-typed state attributes.
  *
+ * @author Jiri Pechanec
  */
-public interface SchemaHistoryMXBean {
+public interface SchemaHistoryMXBean extends SchemaHistoryCommonMXBean {
 
     /**
      * The schema history starts in {@code STOPPED} state.
@@ -21,40 +21,4 @@ public interface SchemaHistoryMXBean {
      * @return schema history component state
      */
     String getStatus();
-
-    /**
-     * @return time in epoch seconds when recovery has started
-     */
-    long getRecoveryStartTime();
-
-    /**
-     * @return number of changes that were read during recovery phase
-     */
-    long getChangesRecovered();
-
-    /**
-     * @return number of changes that were applied during recovery phase increased by number of changes
-     * applied during runtime
-     */
-    long getChangesApplied();
-
-    /**
-     * @return elapsed time in milliseconds since the last change was applied
-     */
-    long getMilliSecondsSinceLastAppliedChange();
-
-    /**
-     * @return elapsed time in milliseconds since the last record was recovered from history
-     */
-    long getMilliSecondsSinceLastRecoveredChange();
-
-    /**
-     * @return String representation of the last applied change
-     */
-    String getLastAppliedChange();
-
-    /**
-     * @return String representation of the last recovered change
-     */
-    String getLastRecoveredChange();
 }

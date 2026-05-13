@@ -29,7 +29,8 @@ import io.debezium.spi.schema.DataCollectionId;
  */
 @ThreadSafe
 public class DefaultStreamingChangeEventSourceMetrics<P extends Partition> extends PipelineMetrics<P>
-        implements StreamingChangeEventSourceMetrics<P>, StreamingChangeEventSourceMetricsMXBean {
+        implements StreamingChangeEventSourceMetrics<P>, StreamingChangeEventSourceMetricsMXBean,
+        StreamingChangeEventSourceMetricsNumericMXBean {
 
     private final ConnectionMeter connectionMeter;
     private final StreamingMeter streamingMeter;
@@ -54,6 +55,11 @@ public class DefaultStreamingChangeEventSourceMetrics<P extends Partition> exten
     @Override
     public boolean isConnected() {
         return connectionMeter.isConnected();
+    }
+
+    @Override
+    public long getConnected() {
+        return connectionMeter.getConnected();
     }
 
     @Override
@@ -139,5 +145,12 @@ public class DefaultStreamingChangeEventSourceMetrics<P extends Partition> exten
     @Override
     public Map<String, Long> getNumberOfTruncateEventsSeen() {
         return activityMonitoringMeter.getNumberOfTruncateEventsSeen();
+    }
+
+    @Override
+    protected Class<?> getMXBeanInterface(boolean numeric) {
+        return numeric
+                ? StreamingChangeEventSourceMetricsNumericMXBean.class
+                : StreamingChangeEventSourceMetricsMXBean.class;
     }
 }

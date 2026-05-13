@@ -83,6 +83,7 @@ public abstract class CommonConnectorConfig {
     protected final boolean snapshotModeConfigurationBasedSnapshotOnDataError;
     protected final boolean isLogPositionCheckEnabled;
     protected final boolean isAdvancedMetricsEnabled;
+    protected final boolean isMetricsNumericEncodingEnabled;
 
     /**
      * The set of predefined versions e.g. for source struct maker version
@@ -1087,6 +1088,19 @@ public abstract class CommonConnectorConfig {
             .optional()
             .withDescription("When enabled the connector will emit advanced streaming metrics");
 
+    public static final Field METRICS_NUMERIC_ENCODING_ENABLE = Field.create("metrics.numeric.encoding.enable")
+            .withDisplayName("Enable numeric encoding for boolean/enum JMX metrics")
+            .withType(Type.BOOLEAN)
+            .withDefault(false)
+            .withGroup(Field.createGroupEntry(Field.Group.ADVANCED, 32))
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.LOW)
+            .optional()
+            .withDescription("When enabled, JMX MBeans for boolean/enum-typed metrics "
+                    + "(e.g. Connected, SnapshotRunning, Status) are registered using numeric "
+                    + "companion interfaces, so values are exposed as long instead of "
+                    + "boolean/String. Default is false.");
+
     public static final Field CONNECTION_VALIDATION_TIMEOUT_MS = Field.create("connection.validation.timeout.ms")
             .withDisplayName("Connection validation timeout (ms)")
             .withType(Type.LONG)
@@ -1123,6 +1137,7 @@ public abstract class CommonConnectorConfig {
                     INCREMENTAL_SNAPSHOT_WATERMARKING_STRATEGY,
                     LOG_POSITION_CHECK_ENABLED,
                     ADVANCED_METRICS_ENABLE,
+                    METRICS_NUMERIC_ENCODING_ENABLE,
                     CONNECTION_VALIDATION_TIMEOUT_MS)
             .events(
                     CUSTOM_CONVERTERS,
@@ -1238,6 +1253,7 @@ public abstract class CommonConnectorConfig {
         this.snapshotModeConfigurationBasedSnapshotOnDataError = config.getBoolean(SNAPSHOT_MODE_CONFIGURATION_BASED_SNAPSHOT_ON_DATA_ERROR);
         this.isLogPositionCheckEnabled = config.getBoolean(LOG_POSITION_CHECK_ENABLED);
         this.isAdvancedMetricsEnabled = config.getBoolean(ADVANCED_METRICS_ENABLE);
+        this.isMetricsNumericEncodingEnabled = config.getBoolean(METRICS_NUMERIC_ENCODING_ENABLE);
 
         this.signalingDataCollectionId = !Strings.isNullOrBlank(this.signalingDataCollection)
                 ? TableId.parse(this.signalingDataCollection)
@@ -1607,6 +1623,10 @@ public abstract class CommonConnectorConfig {
 
     public boolean isAdvancedMetricsEnabled() {
         return isAdvancedMetricsEnabled;
+    }
+
+    public boolean isMetricsNumericEncodingEnabled() {
+        return isMetricsNumericEncodingEnabled;
     }
 
     public Duration getConnectionValidationTimeout() {

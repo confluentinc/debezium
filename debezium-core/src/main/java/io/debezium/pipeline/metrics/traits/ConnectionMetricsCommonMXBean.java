@@ -6,9 +6,8 @@
 package io.debezium.pipeline.metrics.traits;
 
 /**
- * Original variant of connection metrics, with boolean-typed state attributes.
+ * Connection metrics shared by {@link ConnectionMetricsMXBean} and
+ * {@link ConnectionMetricsNumericMXBean}.
  */
-public interface ConnectionMetricsMXBean extends ConnectionMetricsCommonMXBean {
-
-    boolean isConnected();
+public interface ConnectionMetricsCommonMXBean {
 }
