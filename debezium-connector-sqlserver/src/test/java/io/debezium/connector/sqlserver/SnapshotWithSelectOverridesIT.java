@@ -187,4 +187,18 @@ public class SnapshotWithSelectOverridesIT extends AbstractAsyncEngineConnectorT
         // the ORDER BY clause should be applied, too
         assertThat(actualIdsForTable1.toString()).isEqualTo(expectedIdsForTable1);
     }
+
+    @Test
+    @FixFor({ "DBZ-1224", "DBZ-2975" })
+    public void takeSnapshotWithOverridesDataMapInMultiPartitionMode() throws Exception {
+        final Configuration config = TestHelper.defaultConfig()
+                .with(
+                        RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
+                        "{\"dbo.table1\": \"SELECT * FROM [" + TestHelper.TEST_DATABASE_1
+                                + "].[dbo].[table1] where soft_deleted = 0 order by id desc\","
+                                + " \"dbo.table3\": \"SELECT * FROM [" + TestHelper.TEST_DATABASE_1
+                                + "].[dbo].[table3] where soft_deleted = 0\"}")
+                .build();
+        takeSnapshotWithOverrides(config, "server1.testDB1.dbo.");
+    }
 }
