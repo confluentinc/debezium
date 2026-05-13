@@ -776,20 +776,28 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
         }
 
         List<String> tableValues = getConfig().getTrimmedStrings(SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE, ",");
+
         if (tableValues == null) {
             return Collections.emptyMap();
         }
 
         Map<TableId, String> snapshotSelectOverridesByTable = new HashMap<>();
+
         for (String table : tableValues) {
+
             String statementOverride = getConfig().getString(SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + "." + table);
             if (statementOverride == null) {
                 LOGGER.warn("Detected snapshot.select.statement.overrides for {} but no statement property {} defined",
                         SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + "." + table, table);
                 continue;
             }
-            snapshotSelectOverridesByTable.put(TableId.parse(table), statementOverride);
+
+            snapshotSelectOverridesByTable.put(
+                    TableId.parse(table),
+                    getConfig().getString(SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + "." + table));
+
         }
+
         return Collections.unmodifiableMap(snapshotSelectOverridesByTable);
     }
 
