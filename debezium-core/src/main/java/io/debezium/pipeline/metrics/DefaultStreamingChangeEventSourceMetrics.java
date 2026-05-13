@@ -147,6 +147,10 @@ public class DefaultStreamingChangeEventSourceMetrics<P extends Partition> exten
         return activityMonitoringMeter.getNumberOfTruncateEventsSeen();
     }
 
+    /**
+     * Connector-specific subclasses that add attributes to either the original or numeric
+     * MXBean must override this to point at their own composites.
+     */
     @Override
     protected Class<?> getMXBeanInterface(boolean numeric) {
         return numeric

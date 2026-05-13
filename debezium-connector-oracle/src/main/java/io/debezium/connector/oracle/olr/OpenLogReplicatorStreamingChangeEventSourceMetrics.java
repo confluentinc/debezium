@@ -57,4 +57,9 @@ public class OpenLogReplicatorStreamingChangeEventSourceMetrics
     public void incrementProcessedEventsCount() {
         processedEventsCount.incrementAndGet();
     }
+
+    @Override
+    protected Class<?> getMXBeanInterface(boolean numeric) {
+        return numeric ? super.getMXBeanInterface(true) : OpenLogReplicatorStreamingChangeEventSourceMetricsMXBean.class;
+    }
 }

@@ -184,4 +184,8 @@ public class BinlogStreamingChangeEventSourceMetrics<T extends BinlogDatabaseSch
         milliSecondsBehindMaster.set(value);
     }
 
+    @Override
+    protected Class<?> getMXBeanInterface(boolean numeric) {
+        return numeric ? super.getMXBeanInterface(true) : BinlogStreamingChangeEventSourceMetricsMXBean.class;
+    }
 }
