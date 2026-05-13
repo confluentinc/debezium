@@ -24,7 +24,8 @@ import io.debezium.spi.schema.DataCollectionId;
  */
 @ThreadSafe
 public class DefaultSnapshotChangeEventSourceMetrics<P extends Partition> extends PipelineMetrics<P>
-        implements SnapshotChangeEventSourceMetrics<P>, SnapshotChangeEventSourceMetricsMXBean {
+        implements SnapshotChangeEventSourceMetrics<P>, SnapshotChangeEventSourceMetricsMXBean,
+        SnapshotChangeEventSourceMetricsNumericMXBean {
 
     private final SnapshotMeter snapshotMeter;
 
@@ -51,22 +52,42 @@ public class DefaultSnapshotChangeEventSourceMetrics<P extends Partition> extend
     }
 
     @Override
-    public boolean getSnapshotRunning() {
+    public boolean isSnapshotRunning() {
+        return snapshotMeter.isSnapshotRunning();
+    }
+
+    @Override
+    public boolean isSnapshotPaused() {
+        return snapshotMeter.isSnapshotPaused();
+    }
+
+    @Override
+    public boolean isSnapshotCompleted() {
+        return snapshotMeter.isSnapshotCompleted();
+    }
+
+    @Override
+    public boolean isSnapshotAborted() {
+        return snapshotMeter.isSnapshotAborted();
+    }
+
+    @Override
+    public long getSnapshotRunning() {
         return snapshotMeter.getSnapshotRunning();
     }
 
     @Override
-    public boolean getSnapshotPaused() {
+    public long getSnapshotPaused() {
         return snapshotMeter.getSnapshotPaused();
     }
 
     @Override
-    public boolean getSnapshotCompleted() {
+    public long getSnapshotCompleted() {
         return snapshotMeter.getSnapshotCompleted();
     }
 
     @Override
-    public boolean getSnapshotAborted() {
+    public long getSnapshotAborted() {
         return snapshotMeter.getSnapshotAborted();
     }
 
@@ -169,5 +190,12 @@ public class DefaultSnapshotChangeEventSourceMetrics<P extends Partition> extend
     public void reset() {
         super.reset();
         snapshotMeter.reset();
+    }
+
+    @Override
+    protected Class<?> getMXBeanInterface(boolean numeric) {
+        return numeric
+                ? SnapshotChangeEventSourceMetricsNumericMXBean.class
+                : SnapshotChangeEventSourceMetricsMXBean.class;
     }
 }

@@ -55,4 +55,9 @@ public class BinlogSnapshotChangeEventSourceMetrics<P extends BinlogPartition>
     public void setGlobalLockReleased() {
         holdingGlobalLock.set(false);
     }
+
+    @Override
+    protected Class<?> getMXBeanInterface(boolean numeric) {
+        return numeric ? super.getMXBeanInterface(true) : BinlogSnapshotChangeEventSourceMetricsMXBean.class;
+    }
 }

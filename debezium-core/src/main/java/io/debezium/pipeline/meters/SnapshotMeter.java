@@ -20,6 +20,7 @@ import org.slf4j.LoggerFactory;
 
 import io.debezium.annotation.ThreadSafe;
 import io.debezium.pipeline.metrics.traits.SnapshotMetricsMXBean;
+import io.debezium.pipeline.metrics.traits.SnapshotMetricsNumericMXBean;
 import io.debezium.relational.TableId;
 import io.debezium.spi.schema.DataCollectionId;
 import io.debezium.util.Clock;
@@ -28,7 +29,7 @@ import io.debezium.util.Clock;
  * Carries snapshot metrics.
  */
 @ThreadSafe
-public class SnapshotMeter implements SnapshotMetricsMXBean {
+public class SnapshotMeter implements SnapshotMetricsMXBean, SnapshotMetricsNumericMXBean {
     private static final Logger LOGGER = LoggerFactory.getLogger(SnapshotMeter.class);
 
     private final AtomicBoolean snapshotRunning = new AtomicBoolean();
@@ -69,23 +70,43 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
     }
 
     @Override
-    public boolean getSnapshotRunning() {
+    public boolean isSnapshotRunning() {
         return this.snapshotRunning.get();
     }
 
     @Override
-    public boolean getSnapshotPaused() {
+    public boolean isSnapshotPaused() {
         return this.snapshotPaused.get();
     }
 
     @Override
-    public boolean getSnapshotCompleted() {
+    public boolean isSnapshotCompleted() {
         return this.snapshotCompleted.get();
     }
 
     @Override
-    public boolean getSnapshotAborted() {
+    public boolean isSnapshotAborted() {
         return this.snapshotAborted.get();
+    }
+
+    @Override
+    public long getSnapshotRunning() {
+        return this.snapshotRunning.get() ? 1L : 0L;
+    }
+
+    @Override
+    public long getSnapshotPaused() {
+        return this.snapshotPaused.get() ? 1L : 0L;
+    }
+
+    @Override
+    public long getSnapshotCompleted() {
+        return this.snapshotCompleted.get() ? 1L : 0L;
+    }
+
+    @Override
+    public long getSnapshotAborted() {
+        return this.snapshotAborted.get() ? 1L : 0L;
     }
 
     @Override

@@ -24,7 +24,7 @@ import io.debezium.util.ElapsedTimeStrategy;
  * @author Jiri Pechanec
  *
  */
-public class SchemaHistoryMetrics extends Metrics implements SchemaHistoryListener, SchemaHistoryMXBean {
+public class SchemaHistoryMetrics extends Metrics implements SchemaHistoryListener, SchemaHistoryMXBean, SchemaHistoryNumericMXBean {
 
     private static final String CONTEXT_NAME = "schema-history";
 
@@ -59,6 +59,25 @@ public class SchemaHistoryMetrics extends Metrics implements SchemaHistoryListen
     @Override
     public String getStatus() {
         return status.toString();
+    }
+
+    @Override
+    public long getStatusCode() {
+        switch (status) {
+            case STOPPED:
+                return 0L;
+            case RECOVERING:
+                return 1L;
+            case RUNNING:
+                return 2L;
+            default:
+                throw new IllegalStateException("Unknown SchemaHistoryStatus: " + status);
+        }
+    }
+
+    @Override
+    protected Class<?> getMXBeanInterface(boolean numeric) {
+        return numeric ? SchemaHistoryNumericMXBean.class : SchemaHistoryMXBean.class;
     }
 
     @Override

@@ -902,4 +902,8 @@ public class LogMinerStreamingChangeEventSourceMetrics
         }
     }
 
+    @Override
+    protected Class<?> getMXBeanInterface(boolean numeric) {
+        return numeric ? super.getMXBeanInterface(true) : LogMinerStreamingChangeEventSourceMetricsMXBean.class;
+    }
 }

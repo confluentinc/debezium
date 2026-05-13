@@ -36,23 +36,23 @@ class SqlServerSnapshotPartitionMetrics extends AbstractSqlServerPartitionMetric
     }
 
     @Override
-    public boolean getSnapshotRunning() {
-        return snapshotMeter.getSnapshotRunning();
+    public boolean isSnapshotRunning() {
+        return snapshotMeter.isSnapshotRunning();
     }
 
     @Override
-    public boolean getSnapshotPaused() {
-        return snapshotMeter.getSnapshotPaused();
+    public boolean isSnapshotPaused() {
+        return snapshotMeter.isSnapshotPaused();
     }
 
     @Override
-    public boolean getSnapshotCompleted() {
-        return snapshotMeter.getSnapshotCompleted();
+    public boolean isSnapshotCompleted() {
+        return snapshotMeter.isSnapshotCompleted();
     }
 
     @Override
-    public boolean getSnapshotAborted() {
-        return snapshotMeter.getSnapshotAborted();
+    public boolean isSnapshotAborted() {
+        return snapshotMeter.isSnapshotAborted();
     }
 
     @Override

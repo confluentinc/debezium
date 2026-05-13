@@ -99,4 +99,9 @@ public class MongoDbStreamingChangeEventSourceMetrics extends DefaultStreamingCh
         this.numberOfPrimaryElections.set(0);
         this.numberOfDisconnects.set(0);
     }
+
+    @Override
+    protected Class<?> getMXBeanInterface(boolean numeric) {
+        return numeric ? super.getMXBeanInterface(true) : MongoDbStreamingChangeEventSourceMetricsMXBean.class;
+    }
 }

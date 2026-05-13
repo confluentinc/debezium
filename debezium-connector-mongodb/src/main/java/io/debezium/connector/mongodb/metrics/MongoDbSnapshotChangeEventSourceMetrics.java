@@ -49,4 +49,9 @@ public class MongoDbSnapshotChangeEventSourceMetrics extends DefaultSnapshotChan
         super.reset();
         numberOfDisconnects.set(0);
     }
+
+    @Override
+    protected Class<?> getMXBeanInterface(boolean numeric) {
+        return numeric ? super.getMXBeanInterface(true) : MongoDbSnapshotChangeEventSourceMetricsMXBean.class;
+    }
 }

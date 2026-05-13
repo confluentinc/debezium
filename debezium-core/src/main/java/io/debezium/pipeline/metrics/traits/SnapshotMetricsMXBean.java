@@ -5,38 +5,16 @@
  */
 package io.debezium.pipeline.metrics.traits;
 
-import java.util.Map;
-
 /**
- * Exposes snapshot metrics.
+ * Original variant of snapshot metrics, with boolean-typed state attributes.
  */
-public interface SnapshotMetricsMXBean extends SchemaMetricsMXBean {
+public interface SnapshotMetricsMXBean extends SnapshotMetricsCommonMXBean {
 
-    int getTotalTableCount();
+    boolean isSnapshotRunning();
 
-    int getRemainingTableCount();
+    boolean isSnapshotPaused();
 
-    boolean getSnapshotRunning();
+    boolean isSnapshotCompleted();
 
-    boolean getSnapshotPaused();
-
-    boolean getSnapshotCompleted();
-
-    boolean getSnapshotAborted();
-
-    long getSnapshotDurationInSeconds();
-
-    long getSnapshotPausedDurationInSeconds();
-
-    Map<String, Long> getRowsScanned();
-
-    String getChunkId();
-
-    String getChunkFrom();
-
-    String getChunkTo();
-
-    String getTableFrom();
-
-    String getTableTo();
+    boolean isSnapshotAborted();
 }

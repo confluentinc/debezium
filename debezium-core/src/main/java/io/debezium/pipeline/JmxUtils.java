@@ -15,6 +15,7 @@ import javax.management.JMException;
 import javax.management.MBeanServer;
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
+import javax.management.StandardMBean;
 
 import org.apache.kafka.common.utils.Sanitizer;
 import org.slf4j.Logger;
@@ -34,6 +35,15 @@ public class JmxUtils {
     private static final Duration REGISTRATION_RETRY_DELAY = Duration.ofSeconds(5);
 
     public static void registerMXBean(ObjectName objectName, Object mxBean) {
+        registerMXBean(objectName, mxBean, null);
+    }
+
+    /**
+     * Register an MBean exposing only the methods declared by {@code mxBeanInterface}, or
+     * use JMX auto-discovery when {@code mxBeanInterface} is {@code null}.
+     */
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public static void registerMXBean(ObjectName objectName, Object mxBean, Class<?> mxBeanInterface) {
 
         try {
 
@@ -42,12 +52,15 @@ public class JmxUtils {
                 LOGGER.info("JMX not supported, bean '{}' not registered", objectName);
                 return;
             }
+            final Object beanToRegister = mxBeanInterface == null
+                    ? mxBean
+                    : new StandardMBean(mxBean, (Class) mxBeanInterface, true);
             // During connector restarts it is possible that Kafka Connect does not manage
             // the lifecycle perfectly. In that case it is possible the old metric MBean is still present.
             // There will be multiple attempts executed to register new MBean.
             for (int attempt = 1; attempt <= REGISTRATION_RETRIES; attempt++) {
                 try {
-                    mBeanServer.registerMBean(mxBean, objectName);
+                    mBeanServer.registerMBean(beanToRegister, objectName);
                     break;
                 }
                 catch (InstanceAlreadyExistsException e) {
