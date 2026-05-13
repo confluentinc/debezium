@@ -85,6 +85,42 @@ public class SnapshotWithOverridesProducerIT extends AbstractRecordsProducerTest
         assertThat(recordsByTopic.get("test_server.over.t2")).hasSize(3);
     }
 
+    @Test
+    public void shouldUseOverriddenSelectStatementFromDataMapDuringSnapshotting() throws Exception {
+        TestHelper.execute(STATEMENTS);
+
+        buildProducer(TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
+                        "{\"over.t1\": \"SELECT * FROM over.t1 WHERE pk > 100\"}"));
+
+        final int expectedRecordsCount = 3 + 6;
+
+        TestConsumer consumer = testConsumer(expectedRecordsCount, "over");
+        consumer.await(TestHelper.waitTimeForRecords(), TimeUnit.SECONDS);
+
+        final Map<String, List<SourceRecord>> recordsByTopic = recordsByTopic(expectedRecordsCount, consumer);
+        assertThat(recordsByTopic.get("test_server.over.t1")).hasSize(3);
+        assertThat(recordsByTopic.get("test_server.over.t2")).hasSize(6);
+    }
+
+    @Test
+    public void shouldUseMultipleOverriddenSelectStatementsFromDataMapDuringSnapshotting() throws Exception {
+        TestHelper.execute(STATEMENTS);
+
+        buildProducer(TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
+                        "{\"over.t1\": \"SELECT * FROM over.t1 WHERE pk > 101\", \"over.t2\": \"SELECT * FROM over.t2 WHERE pk > 100\"}"));
+
+        final int expectedRecordsCount = 2 + 3;
+
+        TestConsumer consumer = testConsumer(expectedRecordsCount, "over");
+        consumer.await(TestHelper.waitTimeForRecords(), TimeUnit.SECONDS);
+
+        final Map<String, List<SourceRecord>> recordsByTopic = recordsByTopic(expectedRecordsCount, consumer);
+        assertThat(recordsByTopic.get("test_server.over.t1")).hasSize(2);
+        assertThat(recordsByTopic.get("test_server.over.t2")).hasSize(3);
+    }
+
     private void buildProducer(Configuration.Builder config) {
         start(PostgresConnector.class, config
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL_ONLY)
