@@ -191,6 +191,7 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         this.snapshotRunning.set(0);
         this.snapshotPaused.set(0);
         this.snapshotSkipped.set(0);
+        this.taskStateMetrics.setConnectTaskDnd(0);
         this.stopTime.set(clock.currentTimeInMillis());
     }
 
