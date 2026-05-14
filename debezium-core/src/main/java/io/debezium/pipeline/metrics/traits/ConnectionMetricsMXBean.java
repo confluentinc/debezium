@@ -11,4 +11,7 @@ package io.debezium.pipeline.metrics.traits;
 public interface ConnectionMetricsMXBean {
 
     boolean isConnected();
+
+    /** Numeric companion to {@link #isConnected()}: 1 when connected, 0 otherwise. */
+    long getConnectedCode();
 }
