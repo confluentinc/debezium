@@ -89,6 +89,23 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
     }
 
     @Override
+    public long getSnapshotStatusCode() {
+        if (snapshotAborted.get()) {
+            return 4L;
+        }
+        if (snapshotCompleted.get()) {
+            return 3L;
+        }
+        if (snapshotPaused.get()) {
+            return 2L;
+        }
+        if (snapshotRunning.get()) {
+            return 1L;
+        }
+        return 0L;
+    }
+
+    @Override
     public long getSnapshotDurationInSeconds() {
         final long startMillis = startTime.get();
         if (startMillis <= 0L) {
