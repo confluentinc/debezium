@@ -5,6 +5,8 @@
  */
 package io.debezium.transforms.outbox;
 
+import static io.debezium.util.Loggings.maybeRedactSensitiveData;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -108,7 +110,7 @@ public class JsonSchemaData {
         else {
             schema = toConnectSchema(null, sample);
             if (schema == null) {
-                throw new ConnectException(String.format("Array '%s' has unrecognized member schema.", array.asText()));
+                throw new ConnectException(String.format("Array '%s' has unrecognized member schema.", maybeRedactSensitiveData(array.asText())));
             }
         }
 
