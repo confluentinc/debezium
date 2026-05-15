@@ -3,7 +3,7 @@
     <parent>
         <groupId>io.debezium</groupId>
         <artifactId>debezium-storage</artifactId>
-        <version>3.4.0-SNAPSHOT</version>
+        <version>3.5.0.Final</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -13,7 +13,7 @@
 
     <properties>
 	<!-- S3 -->
-        <version.s3mock>3.10.0</version.s3mock>
+        <version.s3mock>3.12.0</version.s3mock>
 
     <!-- Azurite -->
         <version.azurite>3.33.0</version.azurite>
