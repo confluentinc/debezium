@@ -767,7 +767,7 @@ public class JdbcConnection implements AutoCloseable {
         if (preparer != null) {
             preparer.accept(statement);
         }
-        LOGGER.trace("Executing statement '{}'", stmt);
+        LOGGER.trace("Executing statement");
         statement.execute();
         return this;
     }
@@ -1441,7 +1441,7 @@ public class JdbcConnection implements AutoCloseable {
         try (Statement statement = conn.createStatement()) {
             for (String stmt : statements) {
                 if (LOGGER.isTraceEnabled()) {
-                    LOGGER.trace("Executing statement {}", stmt);
+                    LOGGER.trace("Executing statement");
                 }
                 statement.execute(stmt);
             }
