@@ -124,6 +124,25 @@ public class RelationalDatabaseConnectorConfigTest {
     }
 
     @Test
+    public void validatorRejectsWhenBothByTableAndDataMapAreSet() {
+        Configuration config = Configuration.create()
+                .with(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE, "db.t1")
+                .with(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE.name() + ".db.t1",
+                        "SELECT * FROM db.t1")
+                .with(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
+                        "{\"db.t1\": \"SELECT * FROM db.t1\"}")
+                .build();
+
+        Map<String, ConfigValue> validated = config.validate(
+                Field.setOf(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP));
+
+        List<String> errors = validated.get(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP.name())
+                .errorMessages();
+        assertThat(errors).hasSize(1);
+        assertThat(errors.get(0)).contains("Cannot be set together with 'snapshot.select.statement.overrides'");
+    }
+
+    @Test
     public void validatorAcceptsUnsetConfig() {
         Configuration config = Configuration.create().build();
 

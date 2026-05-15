@@ -835,14 +835,20 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
         if (Strings.isNullOrBlank(overridesJson)) {
             return 0;
         }
+        int errors = 0;
+        if (!Strings.isNullOrBlank(config.getString(SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE))) {
+            problems.accept(field, overridesJson,
+                    "Cannot be set together with '" + SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE.name() + "'; use only one");
+            errors++;
+        }
         try {
             DocumentReader.defaultReader().read(overridesJson);
         }
         catch (Exception e) {
             problems.accept(field, overridesJson, "Its not a valid JSON");
-            return 1;
+            errors++;
         }
-        return 0;
+        return errors;
     }
 
     @Override
