@@ -5,6 +5,7 @@
  */
 package io.debezium.connector.mongodb;
 
+import static io.debezium.util.Loggings.maybeRedactSensitiveData;
 import static java.util.function.Predicate.not;
 
 import java.nio.file.Path;
@@ -1435,7 +1436,7 @@ public class MongoDbConnectorConfig extends CommonConnectorConfig implements Sha
         }
         final Document fields = Document.parse(event);
         if (fields.size() != 3) {
-            LOGGER.warn("The signal event '{}' should have 3 fields but has {}", event, fields.size());
+            LOGGER.warn("The signal event '{}' should have 3 fields but has {}", maybeRedactSensitiveData(event), fields.size());
             return Optional.empty();
         }
         final String[] result = new String[3];
