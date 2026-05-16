@@ -71,6 +71,11 @@ public class DefaultSnapshotChangeEventSourceMetrics<P extends Partition> extend
     }
 
     @Override
+    public long getSnapshotStatusCode() {
+        return snapshotMeter.getSnapshotStatusCode();
+    }
+
+    @Override
     public long getSnapshotDurationInSeconds() {
         return snapshotMeter.getSnapshotDurationInSeconds();
     }
