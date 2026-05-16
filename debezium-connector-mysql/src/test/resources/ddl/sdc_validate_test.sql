@@ -1,0 +1,1 @@
+-- Empty DDL. The signal-data-collection validate IT creates its own test table per case.

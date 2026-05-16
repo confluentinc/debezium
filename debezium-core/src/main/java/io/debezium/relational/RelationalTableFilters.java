@@ -9,6 +9,9 @@ import static io.debezium.relational.RelationalDatabaseConnectorConfig.COLUMN_EX
 
 import java.util.function.Predicate;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.debezium.config.Configuration;
 import io.debezium.relational.Selectors.TableIdToStringMapper;
 import io.debezium.relational.Selectors.TableSelectionPredicateBuilder;
@@ -17,6 +20,8 @@ import io.debezium.relational.history.SchemaHistory;
 import io.debezium.schema.DataCollectionFilters;
 
 public class RelationalTableFilters implements DataCollectionFilters {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(RelationalTableFilters.class);
 
     // Filter that filters tables based only on database/schema/system table filters but not table filters
     // Represents the list of tables whose schema needs to be captured
@@ -64,7 +69,15 @@ public class RelationalTableFilters implements DataCollectionFilters {
                 : tablePredicate;
         String signalDataCollection = config.getString(RelationalDatabaseConnectorConfig.SIGNAL_DATA_COLLECTION);
         if (signalDataCollection != null) {
-            TableId signalDataCollectionTableId = TableId.parse(signalDataCollection, useCatalogBeforeSchema);
+            TableId signalDataCollectionTableId;
+            try {
+                signalDataCollectionTableId = TableId.parse(signalDataCollection, useCatalogBeforeSchema);
+            }
+            catch (RuntimeException e) {
+                LOGGER.warn("[signal.data.collection.validation] signal.data.collection '{}' could not be parsed as a table identifier ({}).",
+                        signalDataCollection, e.getMessage());
+                throw e;
+            }
             if (!finalTablePredicate.test(signalDataCollectionTableId)) {
                 final Predicate<TableId> signalDataCollectionPredicate = Selectors.tableSelector()
                         .includeTables(tableIdMapper.toString(signalDataCollectionTableId), tableIdMapper).build();
