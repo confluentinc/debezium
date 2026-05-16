@@ -5,12 +5,7 @@
  */
 package io.debezium.connector.sqlserver;
 
-import static io.debezium.connector.sqlserver.util.TestHelper.SCHEMA_HISTORY_PATH;
-import static io.debezium.connector.sqlserver.util.TestHelper.TEST_DATABASE_2;
-import static io.debezium.connector.sqlserver.util.TestHelper.TYPE_LENGTH_PARAMETER_KEY;
-import static io.debezium.connector.sqlserver.util.TestHelper.TYPE_NAME_PARAMETER_KEY;
-import static io.debezium.connector.sqlserver.util.TestHelper.TYPE_SCALE_PARAMETER_KEY;
-import static io.debezium.connector.sqlserver.util.TestHelper.waitForStreamingStarted;
+import static io.debezium.connector.sqlserver.util.TestHelper.*;
 import static io.debezium.data.Envelope.FieldName.AFTER;
 import static io.debezium.relational.RelationalDatabaseConnectorConfig.SCHEMA_EXCLUDE_LIST;
 import static io.debezium.relational.RelationalDatabaseConnectorConfig.SCHEMA_INCLUDE_LIST;
@@ -53,6 +48,7 @@ import org.awaitility.Awaitility;
 import org.jetbrains.annotations.NotNull;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
@@ -108,10 +104,15 @@ public class SqlServerConnectorIT extends AbstractAsyncEngineConnectorTest {
 
     private SqlServerConnection connection;
 
+    @BeforeClass
+    public static void beforeClass() {
+        TestHelper.createTestDatabase();
+    }
+
     @Before
     public void before() throws SQLException, InterruptedException {
-        TestHelper.createTestDatabase();
         connection = TestHelper.testConnection();
+
         connection.execute(
                 "CREATE TABLE tablea (id int primary key, cola varchar(30))",
                 "CREATE TABLE tableb (id int primary key, colb varchar(30))",
@@ -130,7 +131,9 @@ public class SqlServerConnectorIT extends AbstractAsyncEngineConnectorTest {
 
     @After
     public void after() throws SQLException {
+        stopConnector();
         if (connection != null) {
+            TestHelper.disableCdcAndDropTables(connection);
             connection.close();
         }
     }
@@ -1047,7 +1050,9 @@ public class SqlServerConnectorIT extends AbstractAsyncEngineConnectorTest {
     @FixFor("DBZ-4346")
     public void shouldReportConfigurationErrorForUserNotHavingAccessToCDCTableInInitialMode() throws Exception {
         // First create a new user with only db_datareader role
-        String testUserCreateSql = "IF EXISTS (select 1 from sys.server_principals where name = 'test_user')\n"
+        String testUserCreateSql = "IF EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'test_user')\n"
+                + "DROP USER test_user\n"
+                + "IF EXISTS (select 1 from sys.server_principals where name = 'test_user')\n"
                 + "DROP LOGIN test_user\n"
                 + "CREATE LOGIN test_user WITH PASSWORD = 'Password!'\n"
                 + "CREATE USER test_user FOR LOGIN test_user\n"
@@ -1071,7 +1076,9 @@ public class SqlServerConnectorIT extends AbstractAsyncEngineConnectorTest {
     @FixFor("DBZ-4346")
     public void shouldNotReportConfigurationErrorForUserNotHavingAccessToCDCTableInInitialOnlyMode() throws Exception {
         // First create a new user with only db_datareader role
-        String testUserCreateSql = "IF EXISTS (select 1 from sys.server_principals where name = 'test_user')\n"
+        String testUserCreateSql = "IF EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'test_user')\n"
+                + "DROP USER test_user\n"
+                + "IF EXISTS (select 1 from sys.server_principals where name = 'test_user')\n"
                 + "DROP LOGIN test_user\n"
                 + "CREATE LOGIN test_user WITH PASSWORD = 'Password!'\n"
                 + "CREATE USER test_user FOR LOGIN test_user\n"
@@ -2800,6 +2807,15 @@ public class SqlServerConnectorIT extends AbstractAsyncEngineConnectorTest {
     @Test
     @FixFor("DBZ-5423")
     public void shouldStreamToOldTableAfterRename() throws Exception {
+        TestHelper.createTestDatabase();
+        connection.close();
+        connection = TestHelper.testConnection();
+        connection.execute(
+                "CREATE TABLE tablea (id int primary key, cola varchar(30))",
+                "CREATE TABLE tableb (id int primary key, colb varchar(30))",
+                "INSERT INTO tablea VALUES(1, 'a')");
+        TestHelper.enableTableCdc(connection, "tablea");
+        TestHelper.enableTableCdc(connection, "tableb");
         connection.execute(
                 "CREATE TABLE account (id int, name varchar(30), amount integer primary key(id))");
         TestHelper.enableTableCdc(connection, "account");
@@ -2861,11 +2877,22 @@ public class SqlServerConnectorIT extends AbstractAsyncEngineConnectorTest {
                                 .put("name", "some_value")
                                 .put("amount", 240))
                 .valueAfterFieldSchemaIsEqualTo(expectedSchema);
+
+        stopConnector();
     }
 
     @Test
     @FixFor("DBZ-5423")
     public void shouldStreamToNewTableAfterRestart() throws Exception {
+        TestHelper.createTestDatabase();
+        connection.close();
+        connection = TestHelper.testConnection();
+        connection.execute(
+                "CREATE TABLE tablea (id int primary key, cola varchar(30))",
+                "CREATE TABLE tableb (id int primary key, colb varchar(30))",
+                "INSERT INTO tablea VALUES(1, 'a')");
+        TestHelper.enableTableCdc(connection, "tablea");
+        TestHelper.enableTableCdc(connection, "tableb");
         connection.execute(
                 "CREATE TABLE account (id int, name varchar(30), amount integer primary key(id))");
         TestHelper.enableTableCdc(connection, "account");
@@ -3048,6 +3075,7 @@ public class SqlServerConnectorIT extends AbstractAsyncEngineConnectorTest {
             e.printStackTrace();
         }
         finally {
+            disableTableCdc(connection, "always_snapshot");
             connection.execute("DROP TABLE testDB1.dbo.always_snapshot");
         }
     }
