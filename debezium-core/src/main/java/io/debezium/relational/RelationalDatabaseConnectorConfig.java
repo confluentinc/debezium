@@ -20,12 +20,15 @@ import org.apache.kafka.common.config.ConfigDef.Width;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.ConfigDefinition;
 import io.debezium.config.Configuration;
 import io.debezium.config.EnumeratedValue;
 import io.debezium.config.Field;
 import io.debezium.config.Field.ValidationOutput;
+import io.debezium.document.Document;
+import io.debezium.document.DocumentReader;
 import io.debezium.heartbeat.DatabaseHeartbeatImpl;
 import io.debezium.heartbeat.Heartbeat;
 import io.debezium.heartbeat.HeartbeatConnectionProvider;
@@ -368,6 +371,19 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
                             "The value of those properties is the select statement to use when retrieving data from the specific table during snapshotting. " +
                             "A possible use case for large append-only tables is setting a specific point where to start (resume) snapshotting, in case a previous snapshotting was interrupted.");
 
+    public static final Field SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP = Field.create("snapshot.select.statement.overrides.data.map")
+            .withDisplayName("Snapshot select statement overrides map")
+            .withType(Type.PASSWORD)
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTOR_SNAPSHOT, 9))
+            .withWidth(Width.LONG)
+            .withImportance(Importance.MEDIUM)
+            .withValidation(RelationalDatabaseConnectorConfig::validateSnapshotSelectStatementOverridesDataMap)
+            .withDescription(
+                    "This property contains a JSON map of fully-qualified tables (DB_NAME.TABLE_NAME or SCHEMA_NAME.TABLE_NAME, depending on the specific connector) " +
+                            "to the select statement to use when retrieving data from that table during snapshotting. " +
+                            "Keys are the fully-qualified table names; values are the SELECT statements. " +
+                            "A possible use case for large append-only tables is setting a specific point where to start (resume) snapshotting, in case a previous snapshotting was interrupted.");
+
     /**
      * A comma-separated list of regular expressions that match schema names to be monitored.
      * Must not be used with {@link #SCHEMA_EXCLUDE_LIST}.
@@ -559,6 +575,7 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
                     SCHEMA_EXCLUDE_LIST,
                     MSG_KEY_COLUMNS,
                     SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE,
+                    SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
                     MASK_COLUMN_WITH_HASH,
                     MASK_COLUMN,
                     TRUNCATE_COLUMN,
@@ -749,6 +766,14 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
      * Returns any SELECT overrides, if present.
      */
     public Map<DataCollectionId, String> getSnapshotSelectOverridesByTable() {
+        Map<String, String> overridesFromMap = parseSnapshotSelectOverridesDataMap();
+        if (!overridesFromMap.isEmpty()) {
+            Map<TableId, String> snapshotSelectOverridesByTable = new HashMap<>();
+            for (Map.Entry<String, String> entry : overridesFromMap.entrySet()) {
+                snapshotSelectOverridesByTable.put(TableId.parse(entry.getKey()), entry.getValue());
+            }
+            return Collections.unmodifiableMap(snapshotSelectOverridesByTable);
+        }
 
         List<String> tableValues = getConfig().getTrimmedStrings(SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE, ",");
 
@@ -774,6 +799,56 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
         }
 
         return Collections.unmodifiableMap(snapshotSelectOverridesByTable);
+    }
+
+    /**
+     * Parses the snapshot.select.statement.overrides.data.map JSON config into a map of table names to select statements.
+     * Throws {@link DebeziumException} if the configured value is not valid JSON. The same JSON is also checked at
+     * config-validation time by {@link #validateSnapshotSelectStatementOverridesDataMap}, so a malformed value is
+     * normally rejected before the connector starts.
+     */
+    protected Map<String, String> parseSnapshotSelectOverridesDataMap() {
+        Map<String, String> overridesFromMap = new HashMap<>();
+        String overridesJson = getConfig().getString(SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP);
+        if (overridesJson != null) {
+            try {
+                Document document = DocumentReader.defaultReader().read(overridesJson);
+                for (io.debezium.document.Document.Field field : document) {
+                    overridesFromMap.put(field.getName().toString(), field.getValue().asString());
+                }
+            }
+            catch (Exception e) {
+                throw new DebeziumException(
+                        "Failed to parse '" + SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP.name() + "' as JSON");
+            }
+        }
+        return overridesFromMap;
+    }
+
+    /**
+     * Field validator for {@link #SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP}. Surfaces a config-level error when
+     * the supplied value is not valid JSON, so a misconfiguration is rejected at validate() time rather than silently
+     * resulting in an empty override map (which would cause a full-table snapshot).
+     */
+    private static int validateSnapshotSelectStatementOverridesDataMap(Configuration config, Field field, ValidationOutput problems) {
+        String overridesJson = config.getString(field);
+        if (Strings.isNullOrBlank(overridesJson)) {
+            return 0;
+        }
+        int errors = 0;
+        if (!Strings.isNullOrBlank(config.getString(SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE))) {
+            problems.accept(field, overridesJson,
+                    "Cannot be set together with '" + SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE.name() + "'; use only one");
+            errors++;
+        }
+        try {
+            DocumentReader.defaultReader().read(overridesJson);
+        }
+        catch (Exception e) {
+            problems.accept(field, overridesJson, "It's not a valid JSON");
+            errors++;
+        }
+        return errors;
     }
 
     @Override

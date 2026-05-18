@@ -798,6 +798,90 @@ public abstract class BinlogConnectorIT<C extends SourceConnector, P extends Bin
     }
 
     @Test
+    public void shouldUseOverriddenSelectStatementFromDataMapDuringSnapshotting() throws SQLException, InterruptedException {
+        String masterPort = System.getProperty("database.port", "3306");
+        String replicaPort = System.getProperty("database.replica.port", "3306");
+        boolean replicaIsMaster = masterPort.equals(replicaPort);
+        if (!replicaIsMaster) {
+            // Give time for the replica to catch up to the master ...
+            Thread.sleep(5000L);
+        }
+
+        config = DATABASE.defaultJdbcConfigBuilder()
+                .with(BinlogConnectorConfig.HOSTNAME, System.getProperty("database.replica.hostname", "localhost"))
+                .with(BinlogConnectorConfig.PORT, System.getProperty("database.replica.port", "3306"))
+                .with(BinlogConnectorConfig.SERVER_ID, 28765)
+                .with(CommonConnectorConfig.TOPIC_PREFIX, DATABASE.getServerName())
+                .with(BinlogConnectorConfig.POLL_INTERVAL_MS, 10)
+                .with(BinlogConnectorConfig.DATABASE_INCLUDE_LIST, DATABASE.getDatabaseName())
+                .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, DATABASE.getDatabaseName() + ".products")
+                .with(BinlogConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
+                        String.format("{\"%s.products\": \"SELECT * from %s.products where id>=108 order by id\"}",
+                                DATABASE.getDatabaseName(), DATABASE.getDatabaseName()))
+                .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, true)
+                .with(BinlogConnectorConfig.SCHEMA_HISTORY, FileSchemaHistory.class)
+                .with(BinlogConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
+                .with(FileSchemaHistory.FILE_PATH, SCHEMA_HISTORY_PATH)
+                .build();
+
+        start(getConnectorClass(), config);
+
+        SourceRecords records = consumeRecordsByTopic(6 + 2);
+        assertThat(records.recordsForTopic(DATABASE.getServerName()).size()).isEqualTo(6);
+        assertThat(records.recordsForTopic(DATABASE.topicForTable("products")).size()).isEqualTo(2);
+
+        assertThat(((Struct) records.recordsForTopic(DATABASE.topicForTable("products")).get(0).key()).getInt32("id")).isEqualTo(108);
+        assertThat(((Struct) records.recordsForTopic(DATABASE.topicForTable("products")).get(1).key()).getInt32("id")).isEqualTo(109);
+
+        records.forEach(this::validate);
+    }
+
+    @Test
+    public void shouldUseMultipleOverriddenSelectStatementsFromDataMapDuringSnapshotting() throws SQLException, InterruptedException {
+        String masterPort = System.getProperty("database.port", "3306");
+        String replicaPort = System.getProperty("database.replica.port", "3306");
+        boolean replicaIsMaster = masterPort.equals(replicaPort);
+        if (!replicaIsMaster) {
+            // Give time for the replica to catch up to the master ...
+            Thread.sleep(5000L);
+        }
+
+        String tables = String.format("%s.products,%s.products_on_hand", DATABASE.getDatabaseName(), DATABASE.getDatabaseName());
+        config = DATABASE.defaultJdbcConfigBuilder()
+                .with(BinlogConnectorConfig.HOSTNAME, System.getProperty("database.replica.hostname", "localhost"))
+                .with(BinlogConnectorConfig.PORT, System.getProperty("database.replica.port", "3306"))
+                .with(BinlogConnectorConfig.SERVER_ID, 28765)
+                .with(CommonConnectorConfig.TOPIC_PREFIX, DATABASE.getServerName())
+                .with(BinlogConnectorConfig.POLL_INTERVAL_MS, 10)
+                .with(BinlogConnectorConfig.DATABASE_INCLUDE_LIST, DATABASE.getDatabaseName())
+                .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, tables)
+                .with(SchemaHistory.STORE_ONLY_CAPTURED_TABLES_DDL, true)
+                .with(BinlogConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
+                        String.format("{\"%s.products\": \"SELECT * from %s.products where id>=108 order by id\","
+                                + " \"%s.products_on_hand\": \"SELECT * from %s.products_on_hand where product_id>=108 order by product_id\"}",
+                                DATABASE.getDatabaseName(), DATABASE.getDatabaseName(),
+                                DATABASE.getDatabaseName(), DATABASE.getDatabaseName()))
+                .with(BinlogConnectorConfig.SCHEMA_HISTORY, FileSchemaHistory.class)
+                .with(BinlogConnectorConfig.INCLUDE_SCHEMA_CHANGES, true)
+                .with(FileSchemaHistory.FILE_PATH, SCHEMA_HISTORY_PATH)
+                .build();
+
+        start(getConnectorClass(), config);
+
+        SourceRecords records = consumeRecordsByTopic(8 + 4);
+        assertThat(records.recordsForTopic(DATABASE.getServerName()).size()).isEqualTo(8);
+        assertThat(records.recordsForTopic(DATABASE.topicForTable("products")).size()).isEqualTo(2);
+        assertThat(records.recordsForTopic(DATABASE.topicForTable("products_on_hand")).size()).isEqualTo(2);
+
+        assertThat(((Struct) records.recordsForTopic(DATABASE.topicForTable("products")).get(0).key()).getInt32("id")).isEqualTo(108);
+        assertThat(((Struct) records.recordsForTopic(DATABASE.topicForTable("products")).get(1).key()).getInt32("id")).isEqualTo(109);
+        assertThat(((Struct) records.recordsForTopic(DATABASE.topicForTable("products_on_hand")).get(0).key()).getInt32("product_id")).isEqualTo(108);
+        assertThat(((Struct) records.recordsForTopic(DATABASE.topicForTable("products_on_hand")).get(1).key()).getInt32("product_id")).isEqualTo(109);
+
+        records.forEach(this::validate);
+    }
+
+    @Test
     @FixFor("DBZ-977")
     public void shouldIgnoreAlterTableForNonCapturedTablesNotStoredInHistory() throws SQLException, InterruptedException {
         Files.delete(SCHEMA_HISTORY_PATH);
