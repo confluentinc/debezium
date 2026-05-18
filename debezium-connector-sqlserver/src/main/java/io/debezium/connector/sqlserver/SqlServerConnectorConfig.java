@@ -720,6 +720,7 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
                     getConfig().getString(SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE + "." + table));
 
         }
+
         return Collections.unmodifiableMap(snapshotSelectOverridesByTable);
     }
 
