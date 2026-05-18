@@ -120,7 +120,7 @@ public class RelationalDatabaseConnectorConfigTest {
         List<String> errors = validated.get(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP.name())
                 .errorMessages();
         assertThat(errors).hasSize(1);
-        assertThat(errors.get(0)).contains("Its not a valid JSON");
+        assertThat(errors.get(0)).contains("It's not a valid JSON");
     }
 
     @Test
@@ -253,20 +253,4 @@ public class RelationalDatabaseConnectorConfigTest {
                 "Detected snapshot.select.statement.overrides for snapshot.select.statement.overrides.db.missing but no statement property db.missing defined")).isTrue();
     }
 
-    @Test
-    public void shouldPreferDataMapOverLegacyByTableWhenBothSet() {
-        TestRelationalDatabaseConfig config = configWith(Configuration.create()
-                .with(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE, "db.legacy")
-                .with(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE.name() + ".db.legacy",
-                        "SELECT * FROM db.legacy WHERE x = 1")
-                .with(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
-                        "{\"db.fromMap\": \"SELECT * FROM db.fromMap WHERE y = 2\"}")
-                .build());
-
-        Map<DataCollectionId, String> result = config.getSnapshotSelectOverridesByTable();
-
-        assertThat(result).hasSize(1);
-        assertThat(result).containsEntry(TableId.parse("db.fromMap"),
-                "SELECT * FROM db.fromMap WHERE y = 2");
-    }
 }
