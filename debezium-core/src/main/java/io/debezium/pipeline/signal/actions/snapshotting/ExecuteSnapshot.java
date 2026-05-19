@@ -5,6 +5,8 @@
  */
 package io.debezium.pipeline.signal.actions.snapshotting;
 
+import static io.debezium.util.Loggings.maybeRedactSensitiveData;
+
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -63,7 +65,7 @@ public class ExecuteSnapshot<P extends Partition> extends AbstractSnapshotSignal
         Optional<String> surrogateKey = getSurrogateKey(signalPayload.data);
 
         LOGGER.info("Requested '{}' snapshot of data collections '{}' with additional conditions '{}' and surrogate key '{}'",
-                type, dataCollections, additionalConditions, surrogateKey.orElse("PK of table will be used"));
+                type, dataCollections, maybeRedactSensitiveData(additionalConditions), surrogateKey.orElse("PK of table will be used"));
 
         SnapshotConfiguration.Builder snapsthoConfigurationBuilder = SnapshotConfiguration.Builder.builder();
         snapsthoConfigurationBuilder.dataCollections(dataCollections);
@@ -107,7 +109,7 @@ public class ExecuteSnapshot<P extends Partition> extends AbstractSnapshotSignal
         if (dataCollectionsArray == null || dataCollectionsArray.isEmpty()) {
             LOGGER.warn(
                     "Execute snapshot signal '{}' has arrived but the requested field '{}' is missing from data or is empty",
-                    data, FIELD_DATA_COLLECTIONS);
+                    maybeRedactSensitiveData(data), FIELD_DATA_COLLECTIONS);
             return null;
         }
         return dataCollectionsArray.streamValues()
