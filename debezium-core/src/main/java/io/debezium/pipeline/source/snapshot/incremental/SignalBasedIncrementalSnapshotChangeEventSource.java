@@ -11,6 +11,7 @@ import static io.debezium.util.Loggings.maybeRedactSensitiveData;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +21,7 @@ import io.debezium.config.CommonConnectorConfig;
 import io.debezium.jdbc.JdbcConnection;
 import io.debezium.pipeline.EventDispatcher;
 import io.debezium.pipeline.notification.NotificationService;
+import io.debezium.pipeline.signal.actions.snapshotting.IncrementalSnapshotProbe;
 import io.debezium.pipeline.signal.actions.snapshotting.OpenIncrementalSnapshotWindow;
 import io.debezium.pipeline.source.spi.DataChangeEventListener;
 import io.debezium.pipeline.source.spi.SnapshotProgressListener;
@@ -62,6 +64,24 @@ public class SignalBasedIncrementalSnapshotChangeEventSource<P extends Partition
         if (!window.isEmpty() && context.deduplicationNeeded()) {
             deduplicateWindow(dataCollectionId, key);
         }
+    }
+
+    @Override
+    protected void emitProbeRow() throws SQLException {
+        // INSERT a real probe row using the same statement shape as emitWindowOpen.
+        // If the INSERT fails, the caller treats this as a rejected signal — no state mutation.
+        // If it succeeds, the row commits and flows through CDC; SignalProcessor dispatches it to
+        // the no-op IncrementalSnapshotProbe handler.
+        // Note: typical signal-table id column is VARCHAR(42), matching existing chunk-id usage
+        // ("<uuid>-open" = 41 chars). Keep the probe id within that budget.
+        final String probeId = "isp-" + UUID.randomUUID();
+        jdbcConnection.prepareUpdate(signalWindowStatement, x -> {
+            LOGGER.trace("Emitting pre-flight probe row with probeId '{}'", probeId);
+            x.setString(1, probeId);
+            x.setString(2, IncrementalSnapshotProbe.NAME);
+            x.setString(3, "");
+        });
+        jdbcConnection.commit();
     }
 
     @Override
