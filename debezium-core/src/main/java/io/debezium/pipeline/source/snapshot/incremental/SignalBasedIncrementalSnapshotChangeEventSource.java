@@ -11,6 +11,7 @@ import static io.debezium.util.Loggings.maybeRedactSensitiveData;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,6 +62,27 @@ public class SignalBasedIncrementalSnapshotChangeEventSource<P extends Partition
         LOGGER.trace("Checking window for table '{}', key '{}', window contains '{}'", dataCollectionId, maybeRedactSensitiveData(key), window);
         if (!window.isEmpty() && context.deduplicationNeeded()) {
             deduplicateWindow(dataCollectionId, key);
+        }
+    }
+
+    @Override
+    protected void probeSignalTableWritable() throws SQLException {
+        // Run the same INSERT shape as emitWindowOpen but always rollback. A unique probe id avoids
+        // colliding with any real chunk id; the rollback ensures CDC consumers see nothing.
+        // We explicitly set autoCommit=false so the rollback is meaningful even if prepareUpdate's
+        // internal reconnect-retry hands us a fresh connection mid-flight.
+        final String probeId = "inc-snapshot-probe-" + UUID.randomUUID();
+        jdbcConnection.setAutoCommit(false);
+        try {
+            jdbcConnection.prepareUpdate(signalWindowStatement, x -> {
+                LOGGER.trace("Probing signal-table write with probeId '{}'", probeId);
+                x.setString(1, probeId);
+                x.setString(2, OpenIncrementalSnapshotWindow.NAME);
+                x.setString(3, new SignalMetadata(Instant.now(), null).metadataString());
+            });
+        }
+        finally {
+            jdbcConnection.rollback();
         }
     }
 
