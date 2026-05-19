@@ -39,6 +39,12 @@ public interface IncrementalSnapshotContext<T> {
 
     void startNewChunk();
 
+    void resetChunkId();
+
+    void markPreFlightOpenedWindow();
+
+    boolean consumePreFlightOpenedWindow();
+
     void nextChunkPosition(Object[] lastKey);
 
     String currentChunkId();
