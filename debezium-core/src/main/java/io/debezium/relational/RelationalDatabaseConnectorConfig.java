@@ -369,7 +369,7 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
                             +
                             "'snapshot.select.statement.overrides.[SCHEMA_NAME].[TABLE_NAME]', respectively. " +
                             "The value of those properties is the select statement to use when retrieving data from the specific table during snapshotting. " +
-                            "A possible use case for large append-only tables is setting a specific point where to start (resume) snapshotting, in case a previous snapshotting was interrupted.");
+                            "A possible use case for large append-only tables is setting a specific point where to start (resume) snapshotting, in case a previous snapshotting was interrupted. ");
 
     public static final Field SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP = Field.create("snapshot.select.statement.overrides.data.map")
             .withDisplayName("Snapshot select statement overrides map")
@@ -382,7 +382,8 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
                     "This property contains a JSON map of fully-qualified tables (DB_NAME.TABLE_NAME or SCHEMA_NAME.TABLE_NAME, depending on the specific connector) " +
                             "to the select statement to use when retrieving data from that table during snapshotting. " +
                             "Keys are the fully-qualified table names; values are the SELECT statements. " +
-                            "A possible use case for large append-only tables is setting a specific point where to start (resume) snapshotting, in case a previous snapshotting was interrupted.");
+                            "A possible use case for large append-only tables is setting a specific point where to start (resume) snapshotting, in case a previous snapshotting was interrupted. " +
+                            "This property is mutually exclusive with 'snapshot.select.statement.overrides', only one of the two can be set.");
 
     /**
      * A comma-separated list of regular expressions that match schema names to be monitored.
