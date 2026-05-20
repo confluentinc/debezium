@@ -687,6 +687,16 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
 
     @Override
     public Map<DataCollectionId, String> getSnapshotSelectOverridesByTable() {
+        Map<String, String> overridesFromMap = parseSnapshotSelectOverridesDataMap();
+        if (!overridesFromMap.isEmpty()) {
+            Map<TableId, String> snapshotSelectOverridesByTable = new HashMap<>();
+            for (Map.Entry<String, String> entry : overridesFromMap.entrySet()) {
+                snapshotSelectOverridesByTable.put(
+                        TableId.parse(entry.getKey(), new SqlServerTableIdPredicates()),
+                        entry.getValue());
+            }
+            return Collections.unmodifiableMap(snapshotSelectOverridesByTable);
+        }
 
         List<String> tableValues = getConfig().getTrimmedStrings(SNAPSHOT_SELECT_STATEMENT_OVERRIDES_BY_TABLE, ",");
 
