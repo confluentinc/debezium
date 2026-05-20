@@ -437,8 +437,7 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
         LOGGER.debug("Exporting data chunk from table '{}' (total {} tables)", currentTable.id(), context.dataCollectionsToBeSnapshottedCount());
 
         final String selectStatement = buildChunkQuery(currentTable);
-        LOGGER.debug("\t For table '{}' using select statement, key: '{}', maximum key: '{}'", currentTable.id(),
-                context.chunkEndPosititon(), context.maximumKey().get());
+        LOGGER.debug("\t For table '{}' using select statement", currentTable.id());
 
         final TableSchema tableSchema = databaseSchema.schemaFor(currentTable.id());
 
@@ -479,7 +478,7 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
             }
             context.nextChunkPosition(lastKey);
             if (lastRow != null) {
-                LOGGER.debug("\t Next window will resume from {}", (Object) context.chunkEndPosititon());
+                LOGGER.debug("\t Next window will resume");
             }
 
             LOGGER.debug("\t Finished exporting {} records for window of table table '{}'; total duration '{}'", rows,
