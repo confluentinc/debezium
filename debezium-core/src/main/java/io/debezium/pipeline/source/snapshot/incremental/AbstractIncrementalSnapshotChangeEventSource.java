@@ -584,7 +584,7 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
 
         final String selectStatement = chunkQueryBuilder.buildChunkQuery(context, currentTable, context.currentDataCollectionId().getAdditionalCondition());
         LOGGER.debug("\t For table '{}' using select statement: '{}', key: '{}', maximum key: '{}'", currentTable.id(),
-                maybeRedactSensitiveData(selectStatement), context.chunkEndPosititon(), maybeRedactSensitiveData(context.maximumKey().get()));
+                maybeRedactSensitiveData(selectStatement), maybeRedactSensitiveData(context.chunkEndPosititon()), maybeRedactSensitiveData(context.maximumKey().get()));
 
         final TableSchema tableSchema = databaseSchema.schemaFor(currentTable.id());
 
@@ -625,7 +625,7 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
             }
             context.nextChunkPosition(lastKey);
             if (lastRow != null) {
-                LOGGER.debug("\t Next window will resume from {}", (Object) context.chunkEndPosititon());
+                LOGGER.debug("\t Next window will resume from {}", maybeRedactSensitiveData(context.chunkEndPosititon()));
             }
 
             LOGGER.debug("\t Finished exporting {} records for window of table table '{}'; total duration '{}'", rows,
