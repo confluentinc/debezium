@@ -535,7 +535,7 @@ public final class TestHelper {
                 });
     }
 
-    private static PostgresValueConverter getPostgresValueConverter(TypeRegistry typeRegistry, PostgresConnectorConfig config) {
+    static PostgresValueConverter getPostgresValueConverter(TypeRegistry typeRegistry, PostgresConnectorConfig config) {
         return getPostgresValueConverterBuilder(config).build(typeRegistry);
     }
 

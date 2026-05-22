@@ -175,12 +175,24 @@ public class PostgresSchema extends RelationalDatabaseSchema {
 
     /**
      * Discard any currently-cached schemas and rebuild them using the filters.
+     *
+     * <p>Per-iteration interrupt check (~10ns each, ~0.2ms total for 21K tables)
+     * keeps coordinator shutdown latency under the 8-second timeout when refresh()
+     * iterates over thousands of tables. Without this check the per-table CPU work
+     * (schema build + OpenLineage emit) ignores {@link Thread#interrupt()},
+     * producing zombie coordinator threads on rebalance.
      */
     protected void refreshSchemas() {
         clearSchemas();
 
         // Create TableSchema instances for any existing table ...
-        tableIds().forEach(this::refreshSchema);
+        for (TableId id : tableIds()) {
+            if (Thread.currentThread().isInterrupted()) {
+                LOGGER.warn("Schema rebuild interrupted — coordinator shutting down");
+                throw new ConnectException("Schema rebuild interrupted");
+            }
+            refreshSchema(id);
+        }
     }
 
     private void refreshToastableColumnsMap(PostgresConnection connection, TableId tableId) {
