@@ -18,6 +18,8 @@ import io.debezium.annotation.NotThreadSafe;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.pipeline.signal.SignalRecord;
 
+import static io.debezium.util.Loggings.maybeRedactSensitiveData;
+
 /**
  * The class responsible for processing of signals delivered to Debezium via a dedicated signaling table.
  * The processor supports a common set of signals that it can process and every connector can register its own
@@ -93,7 +95,8 @@ public class SourceSignalChannel implements SignalChannelReader {
             return true;
         }
         catch (Exception e) {
-            LOGGER.warn("Exception while preparing to process the signal", e);
+
+            LOGGER.warn("Exception while preparing to process the signal {}", maybeRedactSensitiveData(e));
             return false;
         }
     }
