@@ -69,6 +69,8 @@ import io.debezium.util.ThreadNameContext;
 import io.debezium.util.Threads;
 import io.debezium.util.Threads.Timer;
 
+import static io.debezium.util.Loggings.maybeRedactSensitiveData;
+
 /**
  * Base class for {@link SnapshotChangeEventSource} for relational databases with or without a schema history.
  * <p>
@@ -499,7 +501,7 @@ public abstract class RelationalSnapshotChangeEventSource<P extends Partition, O
         for (TableId tableId : snapshotContext.capturedTables) {
             final Optional<String> selectStatement = determineSnapshotSelect(snapshotContext, tableId, snapshotSelectOverridesByTable);
             if (selectStatement.isPresent()) {
-                LOGGER.info("For table '{}' using select statement: '{}'", tableId, selectStatement.get());
+                LOGGER.info("For table '{}' using select statement: '{}'", tableId, maybeRedactSensitiveData(selectStatement.get()));
                 queryTables.put(tableId, selectStatement.get());
 
                 final OptionalLong rowCount = rowCountForTable(tableId);

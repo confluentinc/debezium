@@ -1430,12 +1430,12 @@ public class MongoDbConnectorConfig extends CommonConnectorConfig implements Sha
     public Optional<String[]> parseSignallingMessage(Struct value, String fieldName) {
         final String event = value.getString(fieldName);
         if (event == null) {
-            LOGGER.warn("Field {} part of signal '{}' is missing", fieldName, value);
+            LOGGER.warn("Field {} part of signal is missing", fieldName);
             return Optional.empty();
         }
         final Document fields = Document.parse(event);
         if (fields.size() != 3) {
-            LOGGER.warn("The signal event '{}' should have 3 fields but has {}", event, fields.size());
+            LOGGER.warn("The signal event should have 3 fields but has {}", fields.size());
             return Optional.empty();
         }
         final String[] result = new String[3];

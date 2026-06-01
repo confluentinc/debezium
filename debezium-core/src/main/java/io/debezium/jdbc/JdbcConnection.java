@@ -5,6 +5,8 @@
  */
 package io.debezium.jdbc;
 
+import static io.debezium.util.Loggings.maybeRedactSensitiveData;
+
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -435,7 +437,7 @@ public class JdbcConnection implements AutoCloseable {
             for (String sqlStatement : sqlStatements) {
                 if (sqlStatement != null) {
                     if (LOGGER.isTraceEnabled()) {
-                        LOGGER.trace("executing '{}'", sqlStatement);
+                        LOGGER.trace("executing '{}'", maybeRedactSensitiveData(sqlStatement));
                     }
 
                     statement.execute(sqlStatement);
@@ -709,7 +711,7 @@ public class JdbcConnection implements AutoCloseable {
         preparer.accept(statement);
         statement.setQueryTimeout(queryTimeout);
         if (LOGGER.isTraceEnabled()) {
-            LOGGER.trace("Executing '{}' with {}s timeout", preparedQueryString, queryTimeout);
+            LOGGER.trace("Executing '{}' with {}s timeout", maybeRedactSensitiveData(preparedQueryString), queryTimeout);
         }
         try (ResultSet resultSet = statement.executeQuery()) {
             if (resultConsumer != null) {
@@ -791,7 +793,7 @@ public class JdbcConnection implements AutoCloseable {
         }
         statement.setQueryTimeout(queryTimeout);
         if (LOGGER.isTraceEnabled()) {
-            LOGGER.trace("Executing statement '{}' with {}s timeout", stmt, queryTimeout);
+            LOGGER.trace("Executing statement '{}' with {}s timeout", maybeRedactSensitiveData(stmt), queryTimeout);
         }
 
         try {
@@ -1586,7 +1588,7 @@ public class JdbcConnection implements AutoCloseable {
             statement.setQueryTimeout(queryTimeout);
             for (String stmt : statements) {
                 if (LOGGER.isTraceEnabled()) {
-                    LOGGER.trace("Executing statement '{}' with {}s timeout", stmt, queryTimeout);
+                    LOGGER.trace("Executing statement '{}' with {}s timeout", maybeRedactSensitiveData(stmt), queryTimeout);
                 }
                 statement.execute(stmt);
             }

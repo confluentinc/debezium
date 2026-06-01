@@ -22,7 +22,7 @@ public class Log<P extends Partition> implements SignalAction<P> {
     public boolean arrived(SignalPayload<P> signalPayload) {
         final String message = signalPayload.data.getString(FIELD_MESSAGE);
         if (message == null || message.isEmpty()) {
-            LOGGER.warn("Logging signal '{}' has arrived but the requested field '{}' is missing from data", signalPayload, FIELD_MESSAGE);
+            LOGGER.warn("Logging signal '{}' has arrived but the requested field '{}' is missing from data", signalPayload.id, FIELD_MESSAGE);
             return false;
         }
         LOGGER.info(message, signalPayload.offsetContext != null ? signalPayload.offsetContext.getOffset() : "<none>");

@@ -138,7 +138,14 @@ public class TimescaleDb<R extends ConnectRecord<R>> implements Transformation<R
     @Override
     public ConfigDef config() {
         final ConfigDef config = new ConfigDef();
-        Field.group(config, null, TimescaleDbConfigDefinition.SCHEMA_LIST_NAMES_FIELD, TimescaleDbConfigDefinition.TARGET_TOPIC_PREFIX_FIELD);
+        Field.group(config, null,
+                TimescaleDbConfigDefinition.SCHEMA_LIST_NAMES_FIELD,
+                TimescaleDbConfigDefinition.TARGET_TOPIC_PREFIX_FIELD,
+                TimescaleDbConfigDefinition.DATABASE_HOSTNAME_FIELD,
+                TimescaleDbConfigDefinition.DATABASE_PORT_FIELD,
+                TimescaleDbConfigDefinition.DATABASE_USER_FIELD,
+                TimescaleDbConfigDefinition.DATABASE_PASSWORD_FIELD,
+                TimescaleDbConfigDefinition.DATABASE_DBNAME_FIELD);
         return config;
     }
 

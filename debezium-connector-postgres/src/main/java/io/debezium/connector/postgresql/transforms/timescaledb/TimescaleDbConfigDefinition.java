@@ -5,6 +5,8 @@
  */
 package io.debezium.connector.postgresql.transforms.timescaledb;
 
+import io.debezium.connector.postgresql.PostgresConnectorConfig;
+import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import org.apache.kafka.common.config.ConfigDef;
 
 import io.debezium.config.Field;
@@ -32,4 +34,10 @@ public class TimescaleDbConfigDefinition {
             .withWidth(ConfigDef.Width.MEDIUM)
             .withImportance(ConfigDef.Importance.MEDIUM)
             .withDescription("The namespace (prefix) of topics where TimescaleDB events will be routed, defaults to: '" + SCHEMA_LIST_NAMES_DEFAULT + "'");
+
+    static final Field DATABASE_HOSTNAME_FIELD = RelationalDatabaseConnectorConfig.HOSTNAME;
+    static final Field DATABASE_PORT_FIELD = PostgresConnectorConfig.PORT;
+    static final Field DATABASE_USER_FIELD = RelationalDatabaseConnectorConfig.USER;
+    static final Field DATABASE_PASSWORD_FIELD = RelationalDatabaseConnectorConfig.PASSWORD;
+    static final Field DATABASE_DBNAME_FIELD = RelationalDatabaseConnectorConfig.DATABASE_NAME;
 }

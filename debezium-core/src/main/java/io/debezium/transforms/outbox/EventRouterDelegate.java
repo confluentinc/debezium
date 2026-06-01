@@ -323,7 +323,7 @@ public class EventRouterDelegate<R extends ConnectRecord<R>> {
                 LOGGER.error("Unexpected update message received {} and ignored", maybeRedactSensitiveData(r.key()));
                 break;
             case FATAL:
-                throw new IllegalStateException(String.format("Unexpected update message received %s, fail.", r.key()));
+                throw new IllegalStateException(String.format("Unexpected update message received %s, fail.", maybeRedactSensitiveData(r.key())));
         }
     }
 

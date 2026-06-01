@@ -2112,7 +2112,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
         }
         List<org.apache.kafka.connect.data.Field> fields = event.schema().fields();
         if (fields.size() != 3) {
-            LOGGER.warn("The signal event '{}' should have 3 fields but has {}", event, fields.size());
+            LOGGER.warn("The signal event should have 3 fields but has {}", fields.size());
             return Optional.empty();
         }
         return Optional.of(new String[]{
