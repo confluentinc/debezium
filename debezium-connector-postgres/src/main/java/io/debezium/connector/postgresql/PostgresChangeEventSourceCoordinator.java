@@ -114,8 +114,32 @@ public class PostgresChangeEventSourceCoordinator extends ChangeEventSourceCoord
             }
         }
 
-        previousLogContext.set(taskContext.configureLoggingContext("snapshot", partition));
-        SnapshotResult<PostgresOffsetContext> snapshotResult = doSnapshot(snapshotSource, context, partition, previousOffset);
+        SnapshotResult<PostgresOffsetContext> snapshotResult;
+
+        try {
+            previousLogContext.set(taskContext.configureLoggingContext("snapshot", partition));
+            snapshotResult = doSnapshot(snapshotSource, context, partition, previousOffset);
+        } catch (Exception e) {
+            // Check if this is a stale snapshot error (SET TRANSACTION SNAPSHOT failed)
+            if (isStaleSnapshotError(e) && snapshotCoordination != null) {
+                LOGGER.warn("Smart snapshot: snapshot failed, likely stale snapshot. Incrementing epoch to trigger reconfiguration.", e);
+                try {
+                    Map<String, Object> existingData = snapshotCoordination.readSharedData();
+                    if (existingData != null) {
+                        Map<String, Object> updated = new HashMap<>(existingData);
+                        updated.put("epoch", epoch + 1);
+                        snapshotCoordination.writeSharedData(updated);
+                        LOGGER.info("Smart snapshot: incremented epoch to {} in coordination data",
+                                epoch + 1);
+                    }
+                } catch (Exception coordEx) {
+                    LOGGER.warn("Smart snapshot: failed to increment epoch in coordination data",
+                            coordEx);
+                }
+            }
+            throw e;
+        }
+
 
         // Leader: update coordination data with snapshot_completed=true
         if (isLeader && snapshotCoordination != null) {
@@ -166,4 +190,20 @@ public class PostgresChangeEventSourceCoordinator extends ChangeEventSourceCoord
         snapshotSource.updateOffsetForPreSnapshotCatchUpStreaming(offsetContext);
     }
 
+    private boolean isStaleSnapshotError(Exception e) {
+        if (!smartSnapshotOnly) {
+            return false;
+        }
+        Throwable cause = e;
+        while (cause != null) {
+            if (cause instanceof SQLException) {
+                String msg = cause.getMessage();
+                if (msg != null && msg.contains("snapshot") && msg.contains("does not exist")) {
+                    return true;
+                }
+            }
+            cause = cause.getCause();
+        }
+        return false;
+    }
 }
