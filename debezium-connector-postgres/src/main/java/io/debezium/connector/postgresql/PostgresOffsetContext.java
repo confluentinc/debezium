@@ -45,6 +45,7 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
     private Lsn streamingStoppingLsn = null;
     private final TransactionContext transactionContext;
     private final IncrementalSnapshotContext<TableId> incrementalSnapshotContext;
+    private Integer epoch;
 
     private PostgresOffsetContext(PostgresConnectorConfig connectorConfig, Lsn lsn, Lsn lastCompletelyProcessedLsn, Lsn lastCommitLsn, Long txId, Operation messageType,
                                   Instant time,
@@ -100,7 +101,18 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
         if (sourceInfo.messageType() != null) {
             result.put(SourceInfo.MSG_TYPE_KEY, sourceInfo.messageType().toString());
         }
+        if (epoch != null) {
+            result.put("epoch", epoch);
+        }
         return sourceInfo.isSnapshot() ? result : incrementalSnapshotContext.store(transactionContext.store(result));
+    }
+
+    public void setEpoch(Integer epoch) {
+        this.epoch = epoch;
+    }
+
+    public Integer getEpoch() {
+        return epoch;
     }
 
     @Override
