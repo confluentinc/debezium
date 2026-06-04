@@ -909,8 +909,8 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
             .withValidation(Field::isPositiveInteger)
             .withDescription("The maximum number of threads used to perform the snapshot. Defaults to 1.");
 
-    public static final Field SMART_SNAPSHOT = Field.create("smart.snapshot")
-            .withDisplayName("Smart snapshot")
+    public static final Field SMART_SNAPSHOT_ENABLED = Field.create("smart.snapshot.enabled")
+            .withDisplayName("Smart snapshot.enabled")
             .withType(Type.BOOLEAN)
             .withGroup(Field.createGroupEntry(Field.Group.CONNECTOR_SNAPSHOT, 22))
             .withWidth(Width.SHORT)
@@ -1438,7 +1438,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
                     SNAPSHOT_MODE_TABLES,
                     SNAPSHOT_FETCH_SIZE,
                     SNAPSHOT_MAX_THREADS,
-                    SMART_SNAPSHOT,
+                    SMART_SNAPSHOT_ENABLED,
                     DND_DELAY_MS,
                     SNAPSHOT_MODE_CUSTOM_NAME,
                     SNAPSHOT_MODE_CONFIGURATION_BASED_SNAPSHOT_DATA,
@@ -1497,7 +1497,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
     private final int incrementalSnapshotChunkSize;
     private final boolean incrementalSnapshotAllowSchemaChanges;
     private final int snapshotMaxThreads;
-    private final boolean smartSnapshot;
+    private final boolean smartSnapshotEnabled;
     private final long dndDelayMs;
 
     private final String snapshotModeCustomName;
@@ -1548,7 +1548,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
         this.retriableRestartWait = Duration.ofMillis(config.getLong(RETRIABLE_RESTART_WAIT));
         this.snapshotFetchSize = config.getInteger(SNAPSHOT_FETCH_SIZE, defaultSnapshotFetchSize);
         this.snapshotMaxThreads = config.getInteger(SNAPSHOT_MAX_THREADS);
-        this.smartSnapshot = config.getBoolean(SMART_SNAPSHOT);
+        this.smartSnapshotEnabled = config.getBoolean(SMART_SNAPSHOT_ENABLED);
         this.dndDelayMs = config.getLong(DND_DELAY_MS);
         this.snapshotModeCustomName = config.getString(SNAPSHOT_MODE_CUSTOM_NAME);
         this.queryFetchSize = config.getInteger(QUERY_FETCH_SIZE);
@@ -1705,8 +1705,8 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
         return snapshotMaxThreads;
     }
 
-    public boolean isSmartSnapshot() {
-        return smartSnapshot;
+    public boolean isSmartSnapshotEnabled() {
+        return smartSnapshotEnabled;
     }
 
     public long getDndDelayMs() {

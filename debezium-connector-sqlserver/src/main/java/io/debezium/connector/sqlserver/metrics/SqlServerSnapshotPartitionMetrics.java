@@ -27,7 +27,7 @@ class SqlServerSnapshotPartitionMetrics extends AbstractSqlServerPartitionMetric
         super(taskContext, tags, metadataProvider);
         CommonConnectorConfig config = taskContext.getConfig();
         snapshotMeter = new SnapshotMeter(taskContext.getClock(), taskStateMetrics,
-                config.isSmartSnapshot(), config.getDndDelayMs());
+                config.isSmartSnapshotEnabled(), config.getDndDelayMs());
     }
 
     @Override

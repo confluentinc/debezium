@@ -36,7 +36,7 @@ public class DefaultSnapshotChangeEventSourceMetrics<P extends Partition> extend
         super(taskContext, "snapshot", changeEventQueueMetrics, metadataProvider);
         CommonConnectorConfig config = taskContext.getConfig();
         snapshotMeter = new SnapshotMeter(taskContext.getClock(), taskStateMetrics,
-                config.isSmartSnapshot(), config.getDndDelayMs());
+                config.isSmartSnapshotEnabled(), config.getDndDelayMs());
     }
 
     public <T extends CdcSourceTaskContext> DefaultSnapshotChangeEventSourceMetrics(T taskContext,
@@ -47,7 +47,7 @@ public class DefaultSnapshotChangeEventSourceMetrics<P extends Partition> extend
         super(taskContext, changeEventQueueMetrics, metadataProvider, tags);
         CommonConnectorConfig config = taskContext.getConfig();
         snapshotMeter = new SnapshotMeter(taskContext.getClock(), taskStateMetrics,
-                config.isSmartSnapshot(), config.getDndDelayMs());
+                config.isSmartSnapshotEnabled(), config.getDndDelayMs());
     }
 
     @Override
