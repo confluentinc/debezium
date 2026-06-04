@@ -66,7 +66,6 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
     private Map<String, String> props;
     private Thread monitorThread;
     private volatile int lastNumTasks;
-    private volatile int lastEpoch;
 
     public PostgresConnector() {
     }
@@ -125,10 +124,13 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
             Integer existingEpoch = (Integer) sharedOffset.get(EPOCH_KEY);
             boolean snapshotCompleted =
                     Boolean.TRUE.equals(sharedOffset.get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY));
-            if (!snapshotCompleted) {
+            boolean restartRequired = Boolean.TRUE.equals(sharedOffset.get("restart_required"));
+
+            if (restartRequired || !snapshotCompleted) {
                 epoch = (existingEpoch != null ? existingEpoch : 0) + 1;
                 coordinationState = COORDINATION_STATE_RESTART;
-            } else {
+            }
+            else {
                 epoch = existingEpoch != null ? existingEpoch : 1;
                 coordinationState = COORDINATION_STATE_NEW;
             }
@@ -144,7 +146,6 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
 
         int numTasks = Math.min(maxTasks, tables.size());
         this.lastNumTasks = numTasks;
-        this.lastEpoch = epoch;
 
         List<List<TableId>> tablesByTask = new ArrayList<>();
         for (int i = 0; i < numTasks; i++) {
@@ -397,12 +398,10 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
                         return;
                     }
 
-                    // Check for epoch change (stale task incremented epoch)
-                    Integer sharedEpoch = (Integer) sharedOffset.get(EPOCH_KEY);
-                    if (sharedEpoch != null && sharedEpoch > lastEpoch) {
-                        LOGGER.info("Smart snapshot: detected epoch change in shared key (shared={}, expected={}), requesting reconfiguration",
-                                sharedEpoch, lastEpoch);
-                        context().requestTaskReconfiguration();
+                    // Check for restart_required (stale task signaled restart)
+                    if (Boolean.TRUE.equals(sharedOffset.get("restart_required"))) {
+                        LOGGER.info("Smart snapshot: detected restart_required in shared key, requesting reconfiguration");
+                                context().requestTaskReconfiguration();
                         return;
                     }
                 }

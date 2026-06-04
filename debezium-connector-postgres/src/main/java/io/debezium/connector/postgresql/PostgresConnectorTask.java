@@ -474,15 +474,20 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
             try {
                 Map<String, Object> sharedData = coordination.readSharedData();
                 if (sharedData != null) {
-                    Integer dataEpoch = sharedData.get(PostgresConnector.EPOCH_KEY) != null
-                            ? ((Number) sharedData.get(PostgresConnector.EPOCH_KEY)).intValue() : null;
-                    String name = (String) sharedData.get("snapshot_name");
-
-                    if (name != null && dataEpoch != null && dataEpoch == expectedEpoch) {
-                        return name;
+                    // If restart_required, don't try to join — wait for reconfiguration
+                    if (Boolean.TRUE.equals(sharedData.get("restart_required"))) {
+                        LOGGER.info("Smart snapshot follower: restart_required detected, waiting for reconfiguration");
+                        // Keep polling — monitor will trigger reconfiguration, Connect will stop this task
                     }
-                    LOGGER.debug("Smart snapshot follower: coordination data exists but epoch mismatch or no snapshot_name (dataEpoch={}, expected={})",
-                            dataEpoch, expectedEpoch);
+                    else {
+                        Integer dataEpoch = sharedData.get("epoch") != null
+                                ? ((Number) sharedData.get("epoch")).intValue() : null;
+                        String name = (String) sharedData.get("snapshot_name");
+
+                        if (name != null && dataEpoch != null && dataEpoch == expectedEpoch) {
+                            return name;
+                        }
+                    }
                 }
 
                 if (System.currentTimeMillis() - startTime > timeoutMs) {
