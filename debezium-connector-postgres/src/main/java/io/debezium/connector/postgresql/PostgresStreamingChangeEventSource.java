@@ -7,11 +7,13 @@ package io.debezium.connector.postgresql;
 
 import static io.debezium.connector.postgresql.PostgresConnectorConfig.LsnFlushTimeoutAction;
 
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -62,6 +64,15 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
     // PGOUTPUT decoder sends the messages with larger time gaps than other decoders
     // We thus try to read the message multiple times before we make poll pause
     private static final int THROTTLE_NO_MESSAGE_BEFORE_PAUSE = 5;
+
+    // Bound the SELECT 1 liveness probe (see probeConnectionIfNeeded) with a socket-level network
+    // timeout so a black-holed connection (peer vanished with no FIN/RST) is detected in seconds
+    // instead of waiting for the OS TCP retransmission timeout (tcp_retries2, ~15 min). Keepalive
+    // does not help here because the connection is never idle while a probe/status update is in flight.
+    private static final int CONNECTION_PROBE_NETWORK_TIMEOUT_MS = 5_000;
+    // pgjdbc requires a non-null Executor for setNetworkTimeout but does not submit work to it,
+    // so a caller-runs executor avoids any extra thread/lifecycle management.
+    private static final Executor PROBE_TIMEOUT_EXECUTOR = Runnable::run;
 
     private final PostgresConnection connection;
     private final PostgresEventDispatcher<TableId> dispatcher;
@@ -397,8 +408,26 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
 
     private void probeConnectionIfNeeded() throws SQLException {
         if (connectionProbeTimer.hasElapsed()) {
-            connection.prepareQuery("SELECT 1");
-            connection.commit();
+            // Apply a short socket-level read timeout around the probe only, then restore it. This
+            // bounds detection of a black-holed connection to a few seconds instead of relying on the
+            // kernel TCP retransmission timeout (~15 min). Note: query.timeout.ms does not help here
+            // (it is cancel-based and a black-hole defeats the cancel), and TCP keepalive does not
+            // apply while the probe's bytes are unacknowledged in flight.
+            final Connection jdbcConnection = connection.connection();
+            final int originalNetworkTimeoutMs = jdbcConnection.getNetworkTimeout();
+            jdbcConnection.setNetworkTimeout(PROBE_TIMEOUT_EXECUTOR, CONNECTION_PROBE_NETWORK_TIMEOUT_MS);
+            try {
+                connection.prepareQuery("SELECT 1");
+                connection.commit();
+            }
+            finally {
+                try {
+                    jdbcConnection.setNetworkTimeout(PROBE_TIMEOUT_EXECUTOR, originalNetworkTimeoutMs);
+                }
+                catch (SQLException e) {
+                    LOGGER.debug("Could not restore network timeout after connection probe", e);
+                }
+            }
         }
     }
 
