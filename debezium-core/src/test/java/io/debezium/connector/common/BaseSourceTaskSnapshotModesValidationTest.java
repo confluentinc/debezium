@@ -9,6 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -174,7 +175,7 @@ public class BaseSourceTaskSnapshotModesValidationTest {
     }
 
     @Test
-    public void whenCompletedSnapshotExistsAndStoredOffsetPositionIsPresentOnDbLogThenSchemaWillBeRecovered() {
+    public void whenCompletedSnapshotExistsAndStoredOffsetPositionIsPresentOnDbLogThenSchemaIsValidatedButNotRecovered() {
 
         CommonConnectorConfig commonConnectorConfig = mock(CommonConnectorConfig.class);
         when(commonConnectorConfig.isLogPositionCheckEnabled()).thenReturn(true);
@@ -192,7 +193,7 @@ public class BaseSourceTaskSnapshotModesValidationTest {
 
         baseSourceTask.validateAndLoadSchemaHistory(commonConnectorConfig, logPositionValidator, previousOffsets, databaseSchema, snapshotter);
 
-        verify(databaseSchema).recover(partition, offset);
+        verify(databaseSchema, never()).recover(partition, offset);
 
     }
 

@@ -149,10 +149,6 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
                                 "If not the connector will streaming from the last available position in the log");
                     }
                 }
-
-                if (schema.isHistorized()) {
-                    ((HistorizedDatabaseSchema) schema).recover(partition, offset);
-                }
             }
         }
     }
