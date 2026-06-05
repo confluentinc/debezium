@@ -300,9 +300,10 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
     @Override
     protected void recoverRecords(Consumer<HistoryRecord> records) {
         try (KafkaConsumer<String, String> historyConsumer = new KafkaConsumer<>(consumerConfig.asProperties())) {
-            // Subscribe to the only partition for this topic, and seek to the beginning of that partition ...
-            LOGGER.debug("Subscribing to database schema history topic '{}'", topicName);
-            historyConsumer.subscribe(Collect.arrayListOf(topicName));
+            TopicPartition historyTopicPartition = new TopicPartition(topicName, PARTITION);
+            LOGGER.debug("Assigning database schema history topic partition '{}'", historyTopicPartition);
+            historyConsumer.assign(Collections.singletonList(historyTopicPartition));
+            historyConsumer.seekToBeginning(Collections.singletonList(historyTopicPartition));
 
             // Read all messages in the topic ...
             long lastProcessedOffset = UNLIMITED_VALUE;
