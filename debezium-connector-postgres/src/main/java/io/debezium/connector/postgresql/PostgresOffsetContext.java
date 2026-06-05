@@ -102,7 +102,7 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
             result.put(SourceInfo.MSG_TYPE_KEY, sourceInfo.messageType().toString());
         }
         if (epoch != null) {
-            result.put("epoch", epoch);
+            result.put(PostgresConnector.EPOCH_KEY, epoch);
         }
         return sourceInfo.isSnapshot() ? result : incrementalSnapshotContext.store(transactionContext.store(result));
     }

@@ -7,17 +7,12 @@ package io.debezium.connector.postgresql;
 
 import java.sql.SQLException;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 import org.apache.kafka.connect.source.SourceConnector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
-import io.debezium.connector.common.CdcSourceTaskContext;
-import io.debezium.connector.postgresql.connection.Lsn;
 import io.debezium.connector.postgresql.spi.SlotState;
 import io.debezium.pipeline.ChangeEventSourceCoordinator;
 import io.debezium.pipeline.ErrorHandler;
@@ -30,15 +25,11 @@ import io.debezium.pipeline.source.spi.ChangeEventSource.ChangeEventSourceContex
 import io.debezium.pipeline.source.spi.SnapshotChangeEventSource;
 import io.debezium.pipeline.spi.Offsets;
 import io.debezium.schema.DatabaseSchema;
-import io.debezium.pipeline.source.snapshot.SnapshotCoordination;
-import io.debezium.pipeline.spi.SnapshotResult;
-import io.debezium.util.LoggingContext;
 import io.debezium.snapshot.SnapshotterService;
 
 /**
  * Coordinates one or more {@link ChangeEventSource}s and executes them in order. Extends the base
- * {@link ChangeEventSourceCoordinator} to support a pre-snapshot catch up streaming phase and
- * multi-task smart snapshot mode.
+ * {@link ChangeEventSourceCoordinator} to support a pre-snapshot catch up streaming phase.
  */
 public class PostgresChangeEventSourceCoordinator extends ChangeEventSourceCoordinator<PostgresPartition, PostgresOffsetContext> {
 
@@ -46,12 +37,6 @@ public class PostgresChangeEventSourceCoordinator extends ChangeEventSourceCoord
 
     private final SnapshotterService snapshotterService;
     private final SlotState slotInfo;
-    private final boolean smartSnapshotOnly;
-    private final boolean isLeader;
-    private final SnapshotCoordination snapshotCoordination;
-    private final Lsn slotLsn;
-    private final String snapshotName;
-    private final int epoch;
 
     public PostgresChangeEventSourceCoordinator(Offsets<PostgresPartition, PostgresOffsetContext> previousOffsets,
                                                 ErrorHandler errorHandler,
@@ -62,101 +47,11 @@ public class PostgresChangeEventSourceCoordinator extends ChangeEventSourceCoord
                                                 EventDispatcher<PostgresPartition, ?> eventDispatcher, DatabaseSchema<?> schema,
                                                 SnapshotterService snapshotterService, SlotState slotInfo,
                                                 SignalProcessor<PostgresPartition, PostgresOffsetContext> signalProcessor,
-                                                NotificationService<PostgresPartition, PostgresOffsetContext> notificationService,
-                                                boolean smartSnapshotOnly,
-                                                boolean isLeader,
-                                                SnapshotCoordination snapshotCoordination,
-                                                Lsn slotLsn,
-                                                String snapshotName,
-                                                int epoch) {
+                                                NotificationService<PostgresPartition, PostgresOffsetContext> notificationService) {
         super(previousOffsets, errorHandler, connectorType, connectorConfig, changeEventSourceFactory,
                 changeEventSourceMetricsFactory, eventDispatcher, schema, signalProcessor, notificationService, snapshotterService);
         this.snapshotterService = snapshotterService;
         this.slotInfo = slotInfo;
-        this.smartSnapshotOnly = smartSnapshotOnly;
-        this.isLeader = isLeader;
-        this.snapshotCoordination = snapshotCoordination;
-        this.slotLsn = slotLsn;
-        this.snapshotName = snapshotName;
-        this.epoch = epoch;
-    }
-
-    @Override
-    protected void executeChangeEventSources(
-            CdcSourceTaskContext taskContext,
-            SnapshotChangeEventSource<PostgresPartition, PostgresOffsetContext> snapshotSource,
-            Offsets<PostgresPartition, PostgresOffsetContext> previousOffsets,
-            AtomicReference<LoggingContext.PreviousContext> previousLogContext,
-            ChangeEventSourceContext context
-    ) throws InterruptedException {
-
-        if (!smartSnapshotOnly) {
-            super.executeChangeEventSources(taskContext, snapshotSource, previousOffsets, previousLogContext, context);
-            return;
-        }
-
-        // Multi-task smart snapshot mode: snapshot only, then idle
-        final PostgresPartition partition = previousOffsets.getTheOnlyPartition();
-        final PostgresOffsetContext previousOffset = previousOffsets.getTheOnlyOffset();
-
-        // Leader: write coordination data before snapshot
-        if (isLeader && snapshotCoordination != null) {
-            try {
-                Map<String, Object> coordinationData = new HashMap<>();
-                coordinationData.put(SourceInfo.LSN_KEY, slotLsn.asLong());
-                coordinationData.put("snapshot_name", snapshotName);
-                coordinationData.put("snapshot_completed", false);
-                coordinationData.put(PostgresConnector.EPOCH_KEY, epoch);
-                snapshotCoordination.writeSharedData(coordinationData);
-                LOGGER.info("Smart snapshot leader: wrote coordination data with LSN={}, snapshot_name={}, epoch={}", slotLsn, snapshotName, epoch);
-            } catch (Exception e) {
-                throw new DebeziumException("Smart snapshot leader: failed to write coordination data", e);
-            }
-        }
-
-        SnapshotResult<PostgresOffsetContext> snapshotResult;
-
-        try {
-            previousLogContext.set(taskContext.configureLoggingContext("snapshot", partition));
-            snapshotResult = doSnapshot(snapshotSource, context, partition, previousOffset);
-        }
-        catch (Exception e) {
-            // Check if this is a stale snapshot error (SET TRANSACTION SNAPSHOT failed)
-            if (isStaleSnapshotError(e) && snapshotCoordination != null) {
-                LOGGER.warn("Smart snapshot: snapshot failed due to stale snapshot, writing restart_required=true to trigger reconfiguration.", e);
-
-                try {
-                    Map<String, Object> existingData = snapshotCoordination.readSharedData();
-                    if (existingData != null) {
-                        Map<String, Object> updated = new HashMap<>(existingData);
-                        updated.put("restart_required", true);
-                        snapshotCoordination.writeSharedData(updated);
-                        LOGGER.info("Smart snapshot: wrote restart_required=true to coordination data");
-                    }
-                }
-                catch (Exception coordinatorException) {
-                    LOGGER.warn("Smart snapshot: failed to write restart_required to coordination data", coordinatorException);
-                }
-            }
-            throw e;
-        }
-
-        // Leader: update coordination data with snapshot_completed=true
-        if (isLeader && snapshotCoordination != null) {
-            try {
-                Map<String, Object> coordinationData = new HashMap<>();
-                coordinationData.put(SourceInfo.LSN_KEY, slotLsn.asLong());
-                coordinationData.put("snapshot_name", snapshotName);
-                coordinationData.put("snapshot_completed", true);
-                coordinationData.put(PostgresConnector.EPOCH_KEY, epoch);
-                snapshotCoordination.writeSharedData(coordinationData);
-                LOGGER.info("Smart snapshot leader: updated coordination data with snapshot_completed=true");
-            } catch (Exception e) {
-                throw new DebeziumException("Smart snapshot leader: failed to update coordination data", e);
-            }
-        }
-
-        LOGGER.info("Smart snapshot: task completed with result {}, entering idle mode", snapshotResult);
     }
 
     @Override
@@ -188,22 +83,5 @@ public class PostgresChangeEventSourceCoordinator extends ChangeEventSourceCoord
         snapshotSource.createSnapshotConnection();
         snapshotSource.setSnapshotTransactionIsolationLevel(false);
         snapshotSource.updateOffsetForPreSnapshotCatchUpStreaming(offsetContext);
-    }
-
-    private boolean isStaleSnapshotError(Exception e) {
-        if (!smartSnapshotOnly) {
-            return false;
-        }
-        Throwable cause = e;
-        while (cause != null) {
-            if (cause instanceof SQLException) {
-                String msg = cause.getMessage();
-                if (msg != null && msg.contains("snapshot") && msg.contains("does not exist")) {
-                    return true;
-                }
-            }
-            cause = cause.getCause();
-        }
-        return false;
     }
 }
