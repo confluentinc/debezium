@@ -10,7 +10,6 @@ import io.debezium.config.CommonConnectorConfig;
 import io.debezium.connector.common.CdcSourceTaskContext;
 import io.debezium.connector.postgresql.connection.Lsn;
 import io.debezium.connector.postgresql.spi.SlotState;
-import io.debezium.pipeline.ChangeEventSourceCoordinator;
 import io.debezium.pipeline.CommonOffsetContext;
 import io.debezium.pipeline.ErrorHandler;
 import io.debezium.pipeline.EventDispatcher;
@@ -35,14 +34,25 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Coordinates one or more {@link ChangeEventSource}s and executes them in order. Extends the base
- * {@link ChangeEventSourceCoordinator} to support a pre-snapshot catch up streaming phase.
+ * Coordinator for multi-task smart snapshot mode. Extends {@link PostgresChangeEventSourceCoordinator}
+ * to run snapshot only (no streaming) and coordinate via the offset topic.
+ *
+ * <p>Overrides {@link #executeChangeEventSources} to:
+ * <ul>
+ *   <li>Leader: write coordination data (LSN, snapshot_name, epoch) to {@code {"server":"<prefix>"}}
+ *       before snapshot, and update {@code snapshot_completed=true} after.</li>
+ *   <li>All tasks: run {@code doSnapshot()} then idle, no streaming.</li>
+ *   <li>On stale snapshot error ({@code SET TRANSACTION SNAPSHOT} fails):
+ *       write {@code restart_required=true} to trigger full reconfiguration via the Connector's monitor thread.</li>
+ * </ul>
+ *
+ * <p>Used only when {@code smart.snapshot=true} and {@code tasks.max > 1}. Single-task mode
+ * uses the parent {@link PostgresChangeEventSourceCoordinator} unchanged.
  */
 public class PostgresSmartSnapshotChangeEventSourceCoordinator extends PostgresChangeEventSourceCoordinator {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PostgresSmartSnapshotChangeEventSourceCoordinator.class);
 
-    private final boolean smartSnapshotOnly;
     private final boolean isLeader;
     private final SnapshotCoordination snapshotCoordination;
     private final Lsn slotLsn;
@@ -60,14 +70,12 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator extends PostgresC
             SlotState slotInfo,
             SignalProcessor<PostgresPartition, PostgresOffsetContext> signalProcessor,
             NotificationService<PostgresPartition, PostgresOffsetContext> notificationService,
-            boolean smartSnapshotOnly,
             boolean isLeader,
             SnapshotCoordination snapshotCoordination,
             Lsn slotLsn,
             String snapshotName,
             int epoch) {
         super(previousOffsets, errorHandler, connectorType, connectorConfig, changeEventSourceFactory, changeEventSourceMetricsFactory, eventDispatcher, schema, snapshotterService, slotInfo, signalProcessor, notificationService);
-        this.smartSnapshotOnly = smartSnapshotOnly;
         this.isLeader = isLeader;
         this.snapshotCoordination = snapshotCoordination;
         this.slotLsn = slotLsn;
@@ -83,18 +91,12 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator extends PostgresC
             AtomicReference<LoggingContext.PreviousContext> previousLogContext,
             ChangeEventSource.ChangeEventSourceContext context
     ) throws InterruptedException {
-
-        if (!smartSnapshotOnly) {
-            super.executeChangeEventSources(taskContext, snapshotSource, previousOffsets, previousLogContext, context);
-            return;
-        }
-
         // Multi-task smart snapshot mode: snapshot only, then idle
         final PostgresPartition partition = previousOffsets.getTheOnlyPartition();
         final PostgresOffsetContext previousOffset = previousOffsets.getTheOnlyOffset();
 
         // Leader: write coordination data before snapshot
-        if (isLeader && snapshotCoordination != null) {
+        if (isLeader) {
             try {
                 Map<String, Object> coordinationData = new HashMap<>();
                 coordinationData.put(SourceInfo.LSN_KEY, slotLsn.asLong());
@@ -116,7 +118,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator extends PostgresC
         }
         catch (Exception e) {
             // Check if this is a stale snapshot error (SET TRANSACTION SNAPSHOT failed)
-            if (isStaleSnapshotError(e) && snapshotCoordination != null) {
+            if (isStaleSnapshotError(e)) {
                 LOGGER.warn("Smart snapshot: snapshot failed due to stale snapshot, writing restart_required=true to trigger reconfiguration.", e);
 
                 try {
@@ -136,7 +138,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator extends PostgresC
         }
 
         // Leader: update coordination data with snapshot_completed=true
-        if (isLeader && snapshotCoordination != null) {
+        if (isLeader) {
             try {
                 Map<String, Object> coordinationData = new HashMap<>();
                 coordinationData.put(SourceInfo.LSN_KEY, slotLsn.asLong());
@@ -153,10 +155,13 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator extends PostgresC
         LOGGER.info("Smart snapshot: task completed with result {}, entering idle mode", snapshotResult);
     }
 
+    /**
+     * Checks whether the exception was caused by a stale Postgres snapshot, specifically,
+     * a {@code SET TRANSACTION SNAPSHOT '<name>'} that failed because the exporting
+     * transaction is no longer alive (e.g., leader crashed, replication connection closed).
+     * Postgres reports this as an error containing "snapshot" and "does not exist".
+     */
     private boolean isStaleSnapshotError(Exception e) {
-        if (!smartSnapshotOnly) {
-            return false;
-        }
         Throwable cause = e;
         while (cause != null) {
             if (cause instanceof SQLException) {

@@ -96,6 +96,13 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         }
     }
 
+    /**
+     * Returns task configurations. When {@code smart.snapshot=true} and {@code maxTasks > 1},
+     * distributes tables round-robin across tasks and includes {@code task.id}, {@code epoch},
+     * and {@code snapshot.coordination.state} in each task's config. The epoch is determined
+     * by reading the shared key from the offset topic — incremented on restart, starting at 1
+     * for a fresh start. Returns a single config (for streaming) if snapshot is already complete.
+     */
     @Override
     public List<Map<String, String>> taskConfigs(int maxTasks) {
         if (props == null) {
@@ -340,6 +347,12 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         }
     }
 
+    /**
+     * Checks whether the multi-task snapshot is complete by reading the offset topic.
+     * First checks the shared key {@code {"server":"<prefix>"}} for {@code snapshot_completed=true}
+     * (fast path — covers single-task completion and post-downscale).
+     * <br>Then checks all per-task keys {@code {"server":"<prefix>","task":"N"}} for completion with matching epoch.
+     */
     private boolean isSnapshotComplete(Configuration config, int maxTasks) {
         String serverName = config.getString(CommonConnectorConfig.TOPIC_PREFIX);
 
@@ -378,6 +391,19 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         return true;
     }
 
+    /**
+     * Starts a daemon thread that polls the offset topic every 30 seconds for snapshot completion
+     * or restart signals. Triggers {@link #requestTaskReconfiguration()} when:
+     * <ul>
+     *   <li>{@code restart_required=true} in the shared key — a task detected a stale
+     snapshot</li>
+     *   <li>{@code snapshot_completed=true} in the shared key — leader marked completion</li>
+     *   <li>All per-task keys show {@code snapshot_completed=true} with matching epoch</li>
+     * </ul>
+     * After triggering reconfiguration, the Herder calls {@code taskConfigs()} which returns
+     * either a new set of task configs (with incremented epoch on restart) or a single task
+     * config (for downscale to streaming).
+     */
     private void startMonitorThread(Configuration config) {
         String serverName = config.getString(CommonConnectorConfig.TOPIC_PREFIX);
 

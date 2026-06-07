@@ -89,7 +89,6 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
     private final ReentrantLock commitLock = new ReentrantLock();
     private boolean isSmartSnapshotTask;
     private volatile PostgresConnection snapshotHolderConnection = null;
-    private SnapshotCoordination snapshotCoordination = null;
 
     @Override
     public ChangeEventSourceCoordinator<PostgresPartition, PostgresOffsetContext> start(Configuration config) {
@@ -290,6 +289,49 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
         }
     }
 
+    /**
+     * Starts a smart snapshot task in multi-task mode. Called when smart.snapshot=true and task.id
+     is present.
+     * <p>
+     * Task-0 is the leader, all others are followers. The leader creates the replication slot and
+     * exports a shared PostgreSQL snapshot that all tasks join via SET TRANSACTION SNAPSHOT. After
+     * snapshot completes, all tasks idle — no streaming. The Connector's monitor thread detects
+     * completion and triggers downscale to a single streaming task.
+     * <br>
+     * The method has four phases:
+     * <p>
+     * 1. INFRASTRUCTURE SETUP (queue, coordination, dispatcher, etc.)
+     *    <br>Standard Debezium components are created first. The SnapshotCoordination abstraction
+     *    (backed by the offset topic) is used for cross-task communication — the leader writes
+     *    snapshot_name + LSN + epoch to {"server":"<prefix>"}, followers poll it.
+     * <p>
+     * 2. LEADER: SLOT + SNAPSHOT CREATION
+     *    <br>Two scenarios based on coordinationState (set by Connector in taskConfigs):
+     *    <ul>
+     *    <li>NEW + slot just created: snapshot_name comes from CREATE_REPLICATION_SLOT (by-product
+     *      of slot creation). The replication connection's implicit transaction holds it alive.</li>
+     *    <li>RESTART or slot pre-created: slot already exists, no snapshot from slot creation.
+     *      Opens a dedicated snapshotHolderConnection, calls pg_export_snapshot() to create a
+     *      new exportable snapshot. This connection's transaction must stay open for the entire
+     *      snapshot phase (closed in doStop). LSN is read from the slot's flushed position.</li>
+     *    </ul>
+     *    <br>In both cases, a SlotCreationResult is produced (real or synthetic) so the existing
+     *    snapshot code path (SET TRANSACTION SNAPSHOT in PostgresSnapshotChangeEventSource)
+     *    works unchanged.
+     * <p>
+     * 3. FOLLOWER: POLL FOR SNAPSHOT
+     *    <br>Skips replication connection and slot creation entirely. Polls {"server":"<prefix>"}
+     *    via SnapshotCoordination until snapshot_name appears with a matching epoch. Creates a
+     *    synthetic SlotCreationResult with the leader's snapshot_name + LSN so the existing
+     *    snapshot code path handles SET TRANSACTION SNAPSHOT unchanged.
+     * <p>
+     * 4. COORDINATOR CREATION
+     *    <br>Creates PostgresSmartSnapshotChangeEventSourceCoordinator which overrides
+     *    executeChangeEventSources to: write coordination data before snapshot (leader only),
+     *    run doSnapshot(), write snapshot_completed=true after (leader only), then idle.
+     *    If SET TRANSACTION SNAPSHOT fails (stale snapshot), writes restart_required=true
+     *    to trigger full reconfiguration via the Connector's monitor thread.
+     */
     private ChangeEventSourceCoordinator<PostgresPartition, PostgresOffsetContext> startSmartSnapshotTask(
             Configuration config,
             PostgresConnectorConfig connectorConfig,
@@ -304,105 +346,77 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
         String taskId = connectorConfig.getTaskId();
         boolean isLeader =  "0".equals(taskId);
 
-        // it is assumed that heartbeat is enabled, the validation is present in the connector
+        // current epoch round set by the connector
         int epoch = Integer.parseInt(config.getString(PostgresConnector.EPOCH_KEY, "1"));
+        // NEW or RESTART set by the connector
         String coordinationState = config.getString(PostgresConnector.COORDINATION_STATE_KEY, PostgresConnector.COORDINATION_STATE_NEW);
 
         LOGGER.info("Smart snapshot task: taskId={}, isLeader={}, epoch={}, coordinationState={}", taskId, isLeader, epoch, coordinationState);
 
-        try {
-            SlotState slotInfo = getSlotState(connectorConfig);
-            SlotCreationResult slotCreatedInfo = null;
-            String snapshotName = null;
-            Lsn originalSlotLsn = null;
 
-            if (isLeader) {
-                // Leader or single-task: create replication connection and possibly the slot
-                slotCreatedInfo = tryToCreateSlot(snapshotterService.getSnapshotter(), connectorConfig, slotInfo);
-            } else {
-                // Follower: skip replication connection and slot creation entirely
-                LOGGER.info("Smart snapshot follower: skipping slot creation, waiting for leader coordination");
-            }
+        queue = new ChangeEventQueue.Builder<DataChangeEvent>()
+                .pollInterval(connectorConfig.getPollInterval())
+                .maxBatchSize(connectorConfig.getMaxBatchSize())
+                .maxQueueSize(connectorConfig.getMaxQueueSize())
+                .maxQueueSizeInBytes(connectorConfig.getMaxQueueSizeInBytes())
+                .loggingContextSupplier(() -> taskContext.configureLoggingContext(CONTEXT_NAME))
+                .build();
 
-            String heartbeatTopicName = connectorConfig.getHeartbeatTopicsPrefix() + "." +
-                    connectorConfig.getLogicalName();
-            snapshotCoordination = new OffsetTopicSnapshotCoordination(
-                    queue, context.offsetStorageReader(), connectorConfig.getLogicalName(),
-                    heartbeatTopicName);
+        // it is assumed that heartbeat is enabled, the validation is present in the connector
+        String heartbeatTopicName = connectorConfig.getHeartbeatTopicsPrefix() + "." + connectorConfig.getLogicalName();
+        SnapshotCoordination snapshotCoordination = new OffsetTopicSnapshotCoordination(
+                queue, context.offsetStorageReader(), connectorConfig.getLogicalName(),
+                heartbeatTopicName);
 
-            if (isLeader) {
-                // Determine snapshot name and LSN based on coordination state
-                if ("RESTART".equals(coordinationState) || (slotCreatedInfo == null && slotInfo != null)) {
-                    try {
-                        // Epoch restart or slot pre-created: use pg_export_snapshot()
-                        snapshotHolderConnection = new
-                                PostgresConnection(connectorConfig.getJdbcConfig(),
-                                PostgresConnection.CONNECTION_GENERAL, threadNameContext);
-                        snapshotHolderConnection.connection().setAutoCommit(false);
-                        snapshotName = snapshotHolderConnection.queryAndMap(
-                                "SELECT pg_export_snapshot()",
-                                snapshotHolderConnection.singleResultMapper(rs -> rs.getString(1),
-                                        "Could not export snapshot"));
-                        LOGGER.info("Smart snapshot leader: exported snapshot '{}' via pg_export_snapshot()", snapshotName);
-                    } catch (SQLException e) {
-                        throw new DebeziumException("Failed to export snapshot via pg_export_snapshot()", e);
-                    }
-                    if (slotInfo != null) {
-                        originalSlotLsn = slotInfo.slotLastFlushedLsn();
-                    } else {
-                        try {
-                            String lsnStr = jdbcConnection.queryAndMap(
-                                    "SELECT pg_current_wal_lsn()::text",
-                                    jdbcConnection.singleResultMapper(rs -> rs.getString(1), "Could not get current WAL LSN"));
-                            originalSlotLsn = Lsn.valueOf(lsnStr);
-                        }
-                        catch (SQLException e) {
-                            throw new DebeziumException("Failed to get current WAL LSN", e);
-                        }
-                    }
+        errorHandler = new PostgresErrorHandler(connectorConfig, queue, errorHandler);
 
-                    // Create synthetic SlotCreationResult for existing code path
-                    slotCreatedInfo = new SlotCreationResult(
-                            connectorConfig.slotName(),
-                            originalSlotLsn.asString(),
-                            snapshotName,
-                            connectorConfig.plugin().getPostgresPluginName());
-                } else if (slotCreatedInfo != null) {
-                    // First start: snapshot from slot creation
-                    snapshotName = slotCreatedInfo.snapshotName();
-                    originalSlotLsn = slotCreatedInfo.startLsn();
-                    LOGGER.info("Smart snapshot leader: using slot snapshot '{}', LSN={}",
-                            snapshotName, originalSlotLsn);
+        final PostgresEventMetadataProvider metadataProvider = new PostgresEventMetadataProvider();
 
-                    // Check for single-task restart within same epoch
-                    // (coordinationState=NEW but coordination data already exists for this epoch)
-                    if (snapshotCoordination != null) {
-                        try {
-                            Map<String, Object> existingData = snapshotCoordination.readSharedData();
-                            if (existingData != null) {
-                                Integer existingEpoch = existingData.get(PostgresConnector.EPOCH_KEY) != null
-                                        ? ((Number) existingData.get(PostgresConnector.EPOCH_KEY)).intValue() : null;
-                                if (existingEpoch != null && existingEpoch == epoch) {
-                                    LOGGER.info("Smart snapshot: single-task restart detected within epoch {}, reusing existing coordination data", epoch);
-                                    String existingSnapshotName = (String) existingData.get(PostgresConnector.SNAPSHOT_NAME_KEY);
-                                    if (existingSnapshotName != null) {
-                                        snapshotName = existingSnapshotName;
-                                        Long lsnValue = (Long) existingData.get(SourceInfo.LSN_KEY);
-                                        originalSlotLsn = Lsn.valueOf(lsnValue);
-                                        slotCreatedInfo = new SlotCreationResult(
-                                                connectorConfig.slotName(),
-                                                originalSlotLsn.asString(),
-                                                snapshotName,
-                                                connectorConfig.plugin().getPostgresPluginName());
-                                    }
-                                }
+        SignalProcessor<PostgresPartition, PostgresOffsetContext> signalProcessor = new SignalProcessor<>(
+                PostgresConnector.class, connectorConfig, Map.of(),
+                getAvailableSignalChannels(),
+                DocumentReader.defaultReader(),
+                previousOffsets);
+
+        final PostgresEventDispatcher<TableId> dispatcher = new PostgresEventDispatcher<>(
+                connectorConfig,
+                topicNamingStrategy,
+                schema,
+                queue,
+                connectorConfig.getTableFilters().dataCollectionFilter(),
+                DataChangeEvent::new,
+                PostgresChangeRecordEmitter::updateSchema,
+                metadataProvider,
+                connectorConfig.createHeartbeat(
+                        topicNamingStrategy,
+                        connectorConfig.schemaNameAdjuster(),
+                        () -> new PostgresConnection(connectorConfig.getJdbcConfig(), PostgresConnection.CONNECTION_GENERAL, threadNameContext),
+                        exception -> {
+                            String sqlErrorId = exception.getSQLState();
+                            switch (sqlErrorId) {
+                                case "57P01":
+                                    // Postgres error admin_shutdown, see https://www.postgresql.org/docs/12/errcodes-appendix.html
+                                    throw new DebeziumException("Could not execute heartbeat action query (Error: " + sqlErrorId + ")", exception);
+                                case "57P03":
+                                    // Postgres error cannot_connect_now, see https://www.postgresql.org/docs/12/errcodes-appendix.html
+                                    throw new RetriableException("Could not execute heartbeat action query (Error: " + sqlErrorId + ")", exception);
+                                default:
+                                    break;
                             }
-                        } catch (Exception e) {
-                            LOGGER.warn("Smart snapshot: failed to read existing coordination data, proceeding as new start", e);
-                        }
-                    }
-                }
-            }
+                        }),
+                connectorConfig.schemaNameAdjuster(),
+                signalProcessor,
+                connectorConfig.getServiceRegistry().tryGetService(DebeziumHeaderProducer.class));
+
+        NotificationService<PostgresPartition, PostgresOffsetContext> notificationService = new NotificationService<>(getNotificationChannels(),
+                connectorConfig, SchemaFactory.get(), dispatcher::enqueueNotification);
+
+        try {
+            SlotCreationResult slotCreatedInfo;
+            String snapshotName;
+            Lsn originalSlotLsn;
+
+            SlotState slotInfo = getSlotState(connectorConfig);
 
             try {
                 jdbcConnection.commit();
@@ -410,58 +424,52 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                 throw new DebeziumException(e);
             }
 
-            queue = new ChangeEventQueue.Builder<DataChangeEvent>()
-                    .pollInterval(connectorConfig.getPollInterval())
-                    .maxBatchSize(connectorConfig.getMaxBatchSize())
-                    .maxQueueSize(connectorConfig.getMaxQueueSize())
-                    .maxQueueSizeInBytes(connectorConfig.getMaxQueueSizeInBytes())
-                    .loggingContextSupplier(() -> taskContext.configureLoggingContext(CONTEXT_NAME))
-                    .build();
+            if (isLeader) {
+                // Leader: create replication connection and possibly the slot
+                // Determine snapshot name and LSN based on coordination state
+                slotCreatedInfo = tryToCreateSlot(snapshotterService.getSnapshotter(), connectorConfig, slotInfo);
 
-            errorHandler = new PostgresErrorHandler(connectorConfig, queue, errorHandler);
+                if (PostgresConnector.COORDINATION_STATE_NEW.equals(coordinationState) && slotCreatedInfo != null) {
+                    // First start: slot just created, snapshot from slot creation
+                    snapshotName = slotCreatedInfo.snapshotName();
+                    originalSlotLsn = slotCreatedInfo.startLsn();
+                    LOGGER.info("Smart snapshot leader: using slot snapshot '{}', LSN={}",
+                            snapshotName, originalSlotLsn);
+                } else {
+                    // Epoch restart or slot pre-created: use pg_export_snapshot()
+                    try {
+                        // create a new jdbc connection for creating snapshot
+                        snapshotHolderConnection = new
+                                PostgresConnection(connectorConfig.getJdbcConfig(), PostgresConnection.CONNECTION_GENERAL, threadNameContext);
+                        snapshotHolderConnection.connection().setAutoCommit(false);
+                        snapshotHolderConnection.executeWithoutCommitting("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
+                        snapshotName = snapshotHolderConnection.queryAndMap(
+                                "SELECT pg_export_snapshot()",
+                                snapshotHolderConnection.singleResultMapper(rs -> rs.getString(1),
+                                        "Could not export snapshot"));
+                        LOGGER.info("Smart snapshot leader: exported snapshot '{}' via pg_export_snapshot()", snapshotName);
+                    }
+                    catch (SQLException e) {
+                        throw new DebeziumException("Failed to export snapshot via pg_export_snapshot()", e);
+                    }
 
-            final PostgresEventMetadataProvider metadataProvider = new PostgresEventMetadataProvider();
+                    if (slotInfo == null) {
+                        throw new DebeziumException("Smart snapshot leader: slot does not exist and was not created");
+                    }
+                    originalSlotLsn = slotInfo.slotLastFlushedLsn();
 
-            SignalProcessor<PostgresPartition, PostgresOffsetContext> signalProcessor = new SignalProcessor<>(
-                    PostgresConnector.class, connectorConfig, Map.of(),
-                    getAvailableSignalChannels(),
-                    DocumentReader.defaultReader(),
-                    previousOffsets);
+                    // Create synthetic SlotCreationResult for existing code path
+                    slotCreatedInfo = new SlotCreationResult(
+                            connectorConfig.slotName(),
+                            originalSlotLsn.asString(),
+                            snapshotName,
+                            connectorConfig.plugin().getPostgresPluginName());
+                }
+            } else {
+                // Follower: skip replication connection and slot creation entirely
+                LOGGER.info("Smart snapshot follower: skipping slot creation, waiting for leader coordination");
 
-            final PostgresEventDispatcher<TableId> dispatcher = new PostgresEventDispatcher<>(
-                    connectorConfig,
-                    topicNamingStrategy,
-                    schema,
-                    queue,
-                    connectorConfig.getTableFilters().dataCollectionFilter(),
-                    DataChangeEvent::new,
-                    PostgresChangeRecordEmitter::updateSchema,
-                    metadataProvider,
-                    connectorConfig.createHeartbeat(
-                            topicNamingStrategy,
-                            connectorConfig.schemaNameAdjuster(),
-                            () -> new PostgresConnection(connectorConfig.getJdbcConfig(), PostgresConnection.CONNECTION_GENERAL, threadNameContext),
-                            exception -> {
-                                String sqlErrorId = exception.getSQLState();
-                                switch (sqlErrorId) {
-                                    case "57P01":
-                                        throw new DebeziumException("Could not execute heartbeat action query (Error: " + sqlErrorId + ")", exception);
-                                    case "57P03":
-                                        throw new RetriableException("Could not execute heartbeat action query (Error: " + sqlErrorId + ")", exception);
-                                    default:
-                                        break;
-                                }
-                            }),
-                    connectorConfig.schemaNameAdjuster(),
-                    signalProcessor,
-                    connectorConfig.getServiceRegistry().tryGetService(DebeziumHeaderProducer.class));
-
-            NotificationService<PostgresPartition, PostgresOffsetContext> notificationService = new NotificationService<>(getNotificationChannels(),
-                    connectorConfig, SchemaFactory.get(), dispatcher::enqueueNotification);
-
-            // Create coordination for smart snapshot tasks
-            // Follower: poll coordination for snapshot_name
-            if (!isLeader) {
+                // Follower: poll coordination for snapshot_name
                 try {
                     snapshotName = pollForSnapshotName(snapshotCoordination, epoch);
                     Map<String, Object> sharedData = snapshotCoordination.readSharedData();
@@ -505,7 +513,6 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                             slotInfo,
                             signalProcessor,
                             notificationService,
-                            isSmartSnapshotTask,
                             isLeader,
                             snapshotCoordination,
                             originalSlotLsn,
@@ -569,6 +576,21 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
         return slotInfo;
     }
 
+    /**
+     * Polls the shared coordination key {@code {"server":"<prefix>"}} via {@link SnapshotCoordination}
+     * until a {@code snapshot_name} appears with a matching epoch. Used by follower tasks to wait
+     * for the leader to create the slot and write coordination data.
+     *
+     * <p>If {@code restart_required=true} is detected in the shared key, the follower keeps
+     polling
+     * (the monitor thread will trigger reconfiguration and Connect will stop this task).
+     *
+     * @param coordination the coordination abstraction for reading the shared key
+     * @param expectedEpoch the epoch from this task's config — only data with matching epoch is
+    accepted
+     * @return the snapshot_name from the leader's coordination data
+     * @throws DebeziumException if polling times out (5 minutes) or is interrupted
+     */
     private String pollForSnapshotName(SnapshotCoordination coordination, int expectedEpoch) {
         LOGGER.info("Smart snapshot follower: polling for snapshot_name with epoch={}", expectedEpoch);
         final Metronome metronome = Metronome.parker(Duration.ofSeconds(5), Clock.SYSTEM);
