@@ -60,6 +60,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator extends PostgresC
     private final Lsn slotLsn;
     private final String snapshotName;
     private final int epoch;
+    private final boolean restartRequired;
 
     public PostgresSmartSnapshotChangeEventSourceCoordinator(
                                                              Offsets<PostgresPartition, PostgresOffsetContext> previousOffsets,
@@ -77,7 +78,8 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator extends PostgresC
                                                              SnapshotCoordination snapshotCoordination,
                                                              Lsn slotLsn,
                                                              String snapshotName,
-                                                             int epoch) {
+                                                             int epoch,
+                                                             boolean restartRequired) {
         super(previousOffsets, errorHandler, connectorType, connectorConfig, changeEventSourceFactory, changeEventSourceMetricsFactory, eventDispatcher, schema,
                 snapshotterService, slotInfo, signalProcessor, notificationService);
         this.taskId = taskId;
@@ -86,8 +88,34 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator extends PostgresC
         this.slotLsn = slotLsn;
         this.snapshotName = snapshotName;
         this.epoch = epoch;
+        this.restartRequired = restartRequired;
     }
 
+    /**
+     * Executes snapshot-only mode for multi-task smart snapshot. The flow depends on task state:
+     *
+     * <p><b>If restartRequired:</b> writes {@code restart_required=true} to the shared key
+     * via coordination, then returns immediately. The coordinator thread exits, but the task
+     * stays alive — {@code poll()} continues running and flushes the record to the offset topic.
+     * The Connector's monitor thread detects it and triggers full reconfiguration with a new
+     epoch.
+     *
+     * <p><b>Normal flow:</b>
+     * <ol>
+     *   <li>Leader writes coordination data (LSN, snapshot_name, epoch) to {@code
+    {"server":"<prefix>"}}</li>
+     *   <li>Sets epoch on the offset context so per-task offsets include it</li>
+     *   <li>Runs {@code doSnapshot()} — all tasks snapshot their assigned tables using
+     *     {@code SET TRANSACTION SNAPSHOT} from the synthetic SlotCreationResult</li>
+     *   <li>Returns — task idles (no streaming). Monitor detects per-task completion
+     *     and triggers downscale.</li>
+     * </ol>
+     *
+     * <p><b>On stale snapshot error:</b> if {@code SET TRANSACTION SNAPSHOT} fails (snapshot
+     * no longer valid — e.g., leader crashed and replication connection closed), writes
+     * {@code restart_required=true} to the shared key and rethrows. The task fails, but the
+     * record is flushed before shutdown. Monitor detects it and triggers reconfiguration.
+     */
     @Override
     protected void executeChangeEventSources(
                                              CdcSourceTaskContext taskContext,
@@ -96,6 +124,28 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator extends PostgresC
                                              AtomicReference<LoggingContext.PreviousContext> previousLogContext,
                                              ChangeEventSource.ChangeEventSourceContext context)
             throws InterruptedException {
+        if (restartRequired) {
+            LOGGER.warn("Smart snapshot: task-{} detected that a restart is required, writing restart_required=true and idling", taskId);
+            // Idle until Connect stops this task (monitor will trigger reconfiguration)
+            try {
+                Map<String, Object> existingData = snapshotCoordination.readSharedData();
+                if (existingData != null) {
+                    Map<String, Object> updated = new HashMap<>(existingData);
+                    updated.put(PostgresConnector.RESTART_KEY, true);
+                    snapshotCoordination.writeSharedData(updated);
+                }
+            }
+            catch (Exception e) {
+                LOGGER.warn("Smart snapshot: task-{} failed to write restart_required", taskId, e);
+            }
+            return;
+            // the flow after return
+            // Coordinator thread: exits
+            // Poll thread: still running → drains queue → restart_required record flushed
+            // Monitor: detects restart_required → requestTaskReconfiguration()
+            // Connect: stops all tasks → taskConfigs() → new epoch → clean restart
+        }
+
         // smart snapshot mode: snapshot only, then idle
         final PostgresPartition partition = previousOffsets.getTheOnlyPartition();
         final PostgresOffsetContext previousOffset = previousOffsets.getTheOnlyOffset();
@@ -120,16 +170,9 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator extends PostgresC
 
         SnapshotResult<PostgresOffsetContext> snapshotResult;
 
-        /** if (previousOffset != null) {
-         **   previousOffset.setEpoch(epoch);
-        }**/
         try {
             previousLogContext.set(taskContext.configureLoggingContext("snapshot", partition));
             snapshotResult = doSnapshot(snapshotSource, context, partition, previousOffset);
-
-            if (snapshotResult.getOffset() != null) {
-                // snapshotResult.getOffset().setEpoch(epoch);
-            }
         }
         catch (Exception e) {
             // Check if this is a stale snapshot error (SET TRANSACTION SNAPSHOT failed)

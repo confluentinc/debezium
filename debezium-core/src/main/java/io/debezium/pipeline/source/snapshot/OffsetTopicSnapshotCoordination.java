@@ -78,7 +78,7 @@ public class OffsetTopicSnapshotCoordination implements SnapshotCoordination {
     }
 
     @Override
-    public Map<String, Object> readSharedData() throws Exception {
+    public Map<String, Object> readSharedData() {
         return offsetStorageReader.offset(sharedPartition);
     }
 }

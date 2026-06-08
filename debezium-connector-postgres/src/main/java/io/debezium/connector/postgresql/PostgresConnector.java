@@ -98,11 +98,28 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
     }
 
     /**
-     * Returns task configurations. When {@code smart.snapshot=true} and {@code maxTasks > 1},
-     * distributes tables round-robin across tasks and includes {@code task.id}, {@code epoch},
-     * and {@code snapshot.coordination.state} in each task's config. The epoch is determined
-     * by reading the shared key from the offset topic — incremented on restart, starting at 1
-     * for a fresh start. Returns a single config (for streaming) if snapshot is already complete.
+     * Returns task configurations. In smart snapshot mode ({@code smart.snapshot.enabled=true}
+     * and {@code maxTasks > 1}):
+     * <ul>
+     *   <li>If snapshot already complete (checked via offset topic) → returns single config
+     *     for streaming (downscale).</li>
+     *   <li>Otherwise, distributes tables round-robin across tasks. Each task config includes
+     *     {@code task.id}, {@code epoch}, and {@code snapshot.coordination.state}.</li>
+     * </ul>
+     *
+     * <p>Epoch determination from the shared key {@code {"server":"<prefix>"}}:
+     * <ul>
+     *   <li>No shared key → first start → epoch=1, state=NEW</li>
+     *   <li>Shared key with {@code restart_required=true} or {@code snapshot_completed=false}
+     *     → previous round incomplete → epoch=previous+1, state=RESTART</li>
+     *   <li>Shared key with {@code snapshot_completed=true} → caught by isSnapshotComplete
+     *     above, returns single config</li>
+     * </ul>
+     *
+     * <p>The epoch in the config serves three purposes: (1) tasks write it to per-task offsets
+     * for monitor epoch matching, (2) makes configs differ across epochs so the Herder's
+     * {@code taskConfigsChanged()} returns true and tasks are actually restarted, (3) followers
+     * poll for coordination data with matching epoch.
      */
     @Override
     public List<Map<String, String>> taskConfigs(int maxTasks) {
@@ -394,15 +411,19 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
     }
 
     /**
-     * Starts a daemon thread that polls the offset topic every 30 seconds for snapshot completion
-     * or restart signals. Triggers {@link #requestTaskReconfiguration()} when:
+     * Starts a daemon thread that polls the offset topic every 30 seconds for restart signals
+     * or snapshot completion. Actions taken:
      * <ul>
-     *   <li>{@code restart_required=true} in the shared key — a task detected a stale
-     snapshot</li>
-     *   <li>{@code snapshot_completed=true} in the shared key — leader marked completion</li>
-     *   <li>All per-task keys show {@code snapshot_completed=true} with matching epoch</li>
+     *   <li>{@code restart_required=true} in the shared key → a task detected a stale snapshot.
+     *     Calls {@code requestTaskReconfiguration()} and <b>continues polling</b> (does not exit)
+     *     the monitor must survive across epochs since {@code start()} is not called again
+     *     on reconfiguration.</li>
+     *   <li>All per-task keys show {@code snapshot_completed=true} with matching epoch →
+     *     all tasks finished. Calls {@code requestTaskReconfiguration()} and <b>exits</b>
+     *     — downscale to streaming, no further monitoring needed.</li>
      * </ul>
-     * After triggering reconfiguration, the Herder calls {@code taskConfigs()} which returns
+     *
+     * <p>After triggering reconfiguration, the Herder calls {@code taskConfigs()} which returns
      * either a new set of task configs (with incremented epoch on restart) or a single task
      * config (for downscale to streaming).
      */
@@ -410,14 +431,14 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         String serverName = config.getString(CommonConnectorConfig.TOPIC_PREFIX);
 
         monitorThread = new Thread(() -> {
-            LOGGER.info("Smart snapshot monitor thread started for {}", serverName);
+            LOGGER.info("Smart snapshot: Monitor thread started for {}", serverName);
             while (!Thread.currentThread().isInterrupted()) {
                 try {
                     Thread.sleep(MONITOR_POLL_INTERVAL_MS);
                 }
                 catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    LOGGER.info("Smart snapshot monitor thread interrupted");
+                    LOGGER.info("Smart snapshot: Monitor thread interrupted");
                     return;
                 }
 
@@ -433,9 +454,9 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
                 if (sharedOffset != null) {
                     // Check for restart_required (stale task signaled restart)
                     if (Boolean.TRUE.equals(sharedOffset.get(PostgresConnector.RESTART_KEY))) {
-                        LOGGER.info("Smart snapshot: detected restart_required in shared key, requesting reconfiguration");
+                        LOGGER.info("Smart snapshot: Monitor thread detected restart_required in shared key, requesting reconfiguration");
                         context().requestTaskReconfiguration();
-                        return;
+                        continue;
                     }
                 }
 
@@ -492,7 +513,7 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         }
     }
 
-    private Integer readEpoch(@Nullable Map<String, Object> sharedOffset) {
+    static Integer readEpoch(@Nullable Map<String, Object> sharedOffset) {
         return (sharedOffset != null && sharedOffset.get(EPOCH_KEY) != null) ? ((Number) sharedOffset.get(EPOCH_KEY)).intValue() : null;
     }
 }

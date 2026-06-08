@@ -194,6 +194,10 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
         return sourceInfo.xmin();
     }
 
+    public boolean isSnapshotCompleted() {
+        return snapshotCompleted;
+    }
+
     public static class Loader implements OffsetContext.Loader<PostgresOffsetContext> {
 
         private final PostgresConnectorConfig connectorConfig;

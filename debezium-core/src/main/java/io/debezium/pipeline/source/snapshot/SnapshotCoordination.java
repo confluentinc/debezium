@@ -31,5 +31,5 @@ public interface SnapshotCoordination {
      * Returns null if no data exists yet (leader hasn't written).
      * Subject to flush delay in the offset topic implementation.
      */
-    Map<String, Object> readSharedData() throws Exception;
+    Map<String, Object> readSharedData();
 }
