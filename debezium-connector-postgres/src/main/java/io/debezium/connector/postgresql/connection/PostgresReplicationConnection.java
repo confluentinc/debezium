@@ -22,8 +22,6 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
@@ -68,11 +66,6 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
     private static final String SQL_LOCK_NOT_AVAILABLE = "55P03";
 
     private static final String PUBLICATION_QUERY_FAILURE_MESSAGE = "Creation of publication failed: query to create/update publication timed out, please make sure that there are no maintenance activities going on the database end.";
-
-    // Time-box each keepalive status update (a write). On a black-holed connection the write can
-    // otherwise block until the OS TCP timeout (~15 min); bounding it lets us detect the dead
-    // connection in seconds and abort it so the streaming loop fails fast.
-    private static final long KEEP_ALIVE_STATUS_UPDATE_TIMEOUT_MS = 5_000;
 
     private static Logger LOGGER = LoggerFactory.getLogger(PostgresReplicationConnection.class);
 
@@ -1007,48 +1000,19 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
                 if (keepAliveExecutor == null) {
                     keepAliveExecutor = service;
                     keepAliveRunning = new AtomicBoolean(true);
-                    // Worker used to time-box each status update; forceUpdateStatus() is a write, and a
-                    // black-holed connection would otherwise block it until the OS TCP timeout (~15 min).
-                    final ExecutorService statusUpdateWorker = Executors.newSingleThreadExecutor(runnable -> {
-                        Thread thread = new Thread(runnable, "debezium-postgres-keepalive-status-update");
-                        thread.setDaemon(true);
-                        return thread;
-                    });
                     keepAliveExecutor.submit(() -> {
-                        try {
-                            while (keepAliveRunning.get()) {
-                                try {
-                                    LOGGER.trace("Forcing status update with replication stream");
-                                    Future<?> statusUpdate = statusUpdateWorker.submit(() -> {
-                                        stream.forceUpdateStatus();
-                                        return null;
-                                    });
-                                    statusUpdate.get(KEEP_ALIVE_STATUS_UPDATE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-                                    metronome.pause();
-                                }
-                                catch (Exception exp) {
-                                    if (!keepAliveRunning.get()) {
-                                        // Normal shutdown: stopKeepAlive() clears the flag and interrupts this
-                                        // thread. Do not treat it as a connection failure.
-                                        LOGGER.debug("Keepalive status update stopped during shutdown", exp);
-                                        return;
-                                    }
-                                    // The replication connection is unusable (e.g. black-holed with no FIN/RST).
-                                    // Abort it from this thread so the streaming loop's next read fails fast
-                                    // instead of hanging on the dead socket until the OS TCP timeout (~15 min).
-                                    LOGGER.error("Unexpected exception while performing keepalive status update on the replication stream", exp);
-                                    try {
-                                        PostgresReplicationConnection.this.connection().abort(Runnable::run);
-                                    }
-                                    catch (Exception abortError) {
-                                        LOGGER.debug("Failed to abort replication connection after keepalive failure", abortError);
-                                    }
-                                    return;
-                                }
+                        while (keepAliveRunning.get()) {
+                            try {
+                                LOGGER.trace("Forcing status update with replication stream");
+                                stream.forceUpdateStatus();
+                                metronome.pause();
                             }
-                        }
-                        finally {
-                            statusUpdateWorker.shutdownNow();
+                            catch (Exception exp) {
+                                // Immediately log the error. Don't rethrow the exception, because it will
+                                // never be seen (or be seen in a timely manner).
+                                LOGGER.error("Unexpected exception while performing keepalive status update on the replication stream", exp);
+                                return;
+                            }
                         }
                     });
                 }
