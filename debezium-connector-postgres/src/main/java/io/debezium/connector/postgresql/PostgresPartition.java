@@ -5,6 +5,7 @@
  */
 package io.debezium.connector.postgresql;
 
+import static io.debezium.config.ConfigurationNames.TASK_ID_PROPERTY_NAME;
 import static io.debezium.relational.RelationalDatabaseConnectorConfig.DATABASE_NAME;
 
 import java.util.Collections;
@@ -19,16 +20,35 @@ import io.debezium.util.Collect;
 
 public class PostgresPartition extends AbstractPartition implements Partition {
     private static final String SERVER_PARTITION_KEY = "server";
+    private static final String TASK_PARTITION_KEY = "task";
 
     private final String serverName;
+    private final String taskId;
 
     public PostgresPartition(String serverName, String databaseName) {
+        this(serverName, databaseName, null);
+    }
+
+    public PostgresPartition(String serverName, String databaseName, String taskId) {
         super(databaseName);
         this.serverName = serverName;
+        this.taskId = taskId;
     }
 
     @Override
     public Map<String, String> getSourcePartition() {
+        if (taskId != null) {
+            return Collect.hashMapOf(SERVER_PARTITION_KEY, serverName, TASK_PARTITION_KEY, taskId);
+        }
+        return Collect.hashMapOf(SERVER_PARTITION_KEY, serverName);
+    }
+
+    /**
+     * Returns the shared source partition key (without task ID).
+     * Used by the leader task to write the streaming resume offset
+     * and by all tasks to read coordination data.
+     */
+    public Map<String, String> getSharedSourcePartition() {
         return Collect.hashMapOf(SERVER_PARTITION_KEY, serverName);
     }
 
@@ -41,12 +61,12 @@ public class PostgresPartition extends AbstractPartition implements Partition {
             return false;
         }
         final PostgresPartition other = (PostgresPartition) obj;
-        return Objects.equals(serverName, other.serverName);
+        return Objects.equals(serverName, other.serverName) && Objects.equals(taskId, other.taskId);
     }
 
     @Override
     public int hashCode() {
-        return serverName.hashCode();
+        return Objects.hash(serverName, taskId);
     }
 
     @Override
@@ -65,8 +85,12 @@ public class PostgresPartition extends AbstractPartition implements Partition {
 
         @Override
         public Set<PostgresPartition> getPartitions() {
-            return Collections.singleton(new PostgresPartition(
-                    connectorConfig.getLogicalName(), taskConfig.getString(DATABASE_NAME.name())));
+            String taskId = taskConfig.getString(TASK_ID_PROPERTY_NAME);
+            return Collections.singleton(
+                    new PostgresPartition(
+                            connectorConfig.getLogicalName(),
+                            taskConfig.getString(DATABASE_NAME.name()),
+                            taskId));
         }
     }
 }
