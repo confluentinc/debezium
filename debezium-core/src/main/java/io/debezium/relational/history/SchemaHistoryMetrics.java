@@ -62,6 +62,20 @@ public class SchemaHistoryMetrics extends Metrics implements SchemaHistoryListen
     }
 
     @Override
+    public long getStatusCode() {
+        switch (status) {
+            case STOPPED:
+                return 0L;
+            case RECOVERING:
+                return 1L;
+            case RUNNING:
+                return 2L;
+            default:
+                throw new IllegalStateException("Unknown SchemaHistoryStatus: " + status);
+        }
+    }
+
+    @Override
     public long getRecoveryStartTime() {
         return recoveryStartTime == null ? -1 : recoveryStartTime.getEpochSecond();
     }

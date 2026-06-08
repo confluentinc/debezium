@@ -22,6 +22,9 @@ public interface SchemaHistoryMXBean {
      */
     String getStatus();
 
+    /** Numeric companion to {@link #getStatus()}: 0=STOPPED, 1=RECOVERING, 2=RUNNING. */
+    long getStatusCode();
+
     /**
      * @return time in epoch seconds when recovery has started
      */

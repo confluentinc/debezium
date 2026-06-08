@@ -24,6 +24,13 @@ public interface SnapshotMetricsMXBean extends SchemaMetricsMXBean {
 
     boolean getSnapshotAborted();
 
+    /**
+     * Numeric companion to the four boolean snapshot state attributes. Required because the
+     * OpenTelemetry JMX scraper only forwards numeric MBean attributes.
+     * Encoding: 0=NOT_STARTED, 1=RUNNING, 2=PAUSED, 3=COMPLETED, 4=ABORTED.
+     */
+    long getSnapshotStatusCode();
+
     long getSnapshotDurationInSeconds();
 
     long getSnapshotPausedDurationInSeconds();
