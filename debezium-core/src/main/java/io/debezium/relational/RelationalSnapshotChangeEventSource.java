@@ -71,6 +71,8 @@ import io.debezium.util.ThreadNameContext;
 import io.debezium.util.Threads;
 import io.debezium.util.Threads.Timer;
 
+import static io.debezium.util.Loggings.maybeRedactSensitiveData;
+
 /**
  * Base class for {@link SnapshotChangeEventSource} for relational databases with or without a schema history.
  * <p>
