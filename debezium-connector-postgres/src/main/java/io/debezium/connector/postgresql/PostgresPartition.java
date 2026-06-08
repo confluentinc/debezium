@@ -25,7 +25,6 @@ public class PostgresPartition extends AbstractPartition implements Partition {
     private final String serverName;
     private final String taskId;
 
-
     public PostgresPartition(String serverName, String databaseName) {
         this(serverName, databaseName, null);
     }
@@ -91,9 +90,7 @@ public class PostgresPartition extends AbstractPartition implements Partition {
                     new PostgresPartition(
                             connectorConfig.getLogicalName(),
                             taskConfig.getString(DATABASE_NAME.name()),
-                            taskId
-                    )
-            );
+                            taskId));
         }
     }
 }

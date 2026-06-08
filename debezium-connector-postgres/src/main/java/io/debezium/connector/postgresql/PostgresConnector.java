@@ -20,7 +20,8 @@ import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
-import io.debezium.heartbeat.Heartbeat;
+import javax.annotation.Nullable;
+
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigValue;
 import org.apache.kafka.connect.connector.Task;
@@ -37,6 +38,7 @@ import io.debezium.connector.common.RelationalBaseSourceConnector;
 import io.debezium.connector.postgresql.PostgresConnectorConfig.LogicalDecoder;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.connector.postgresql.connection.ServerInfo;
+import io.debezium.heartbeat.Heartbeat;
 import io.debezium.pipeline.CommonOffsetContext;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.relational.TableId;
@@ -54,7 +56,6 @@ import io.debezium.util.Threads;
  * @author Horia Chiorean
  */
 public class PostgresConnector extends RelationalBaseSourceConnector {
-
 
     public static final String COORDINATION_STATE_KEY = "snapshot.coordination.state";
     public static final String COORDINATION_STATE_NEW = "NEW";
@@ -117,15 +118,14 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         }
 
         if (isSnapshotComplete(config, maxTasks)) {
-            LOGGER.info("Smart snapshot: snapshot is complete, returning single task config for streaming");
+            LOGGER.info("Smart snapshot: Snapshot is complete, returning single task config for streaming");
             return Collections.singletonList(new HashMap<>(props));
         }
 
         // Validate heartbeat is enabled — required for coordination via offset topic
-        Duration heartbeatInterval =
-                config.getDuration(Heartbeat.HEARTBEAT_INTERVAL, ChronoUnit.MILLIS);
+        Duration heartbeatInterval = config.getDuration(Heartbeat.HEARTBEAT_INTERVAL, ChronoUnit.MILLIS);
         if (heartbeatInterval.isZero()) {
-            throw new DebeziumException("Heartbeat must be enabled (heartbeat.interval.ms > 0) when smart.snapshot=true and tasks.max > 1");
+            throw new DebeziumException("Smart snapshot: Heartbeat must be enabled (heartbeat.interval.ms > 0) when smart.snapshot=true and tasks.max > 1");
         }
 
         // Determine epoch and coordination state
@@ -136,13 +136,17 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         int epoch;
         String coordinationState;
         if (sharedOffset == null) {
+            LOGGER.info("Smart snapshot: Processing taskConfigs, no shared key found first start");
             epoch = 1;
             coordinationState = COORDINATION_STATE_NEW;
         }
         else {
-            Integer existingEpoch = (Integer) sharedOffset.get(EPOCH_KEY);
+            Integer existingEpoch = readEpoch(sharedOffset);
             boolean snapshotCompleted = Boolean.TRUE.equals(sharedOffset.get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY));
             boolean restartRequired = Boolean.TRUE.equals(sharedOffset.get(PostgresConnector.RESTART_KEY));
+
+            LOGGER.info("Smart snapshot: Processing taskConfigs, shared key exists. snapshot_completed={}, restart_required={}, epoch={}",
+                    snapshotCompleted, restartRequired, existingEpoch);
 
             if (restartRequired || !snapshotCompleted) {
                 epoch = (existingEpoch != null ? existingEpoch : 0) + 1;
@@ -185,7 +189,7 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
             taskProps.put(EPOCH_KEY, String.valueOf(epoch));
             taskProps.put(COORDINATION_STATE_KEY, coordinationState);
 
-            LOGGER.info("Smart snapshot task {}: tables=[{}], epoch={}, state={}", i, snapshotTables, epoch, coordinationState);
+            LOGGER.info("Smart snapshot: task {} tables=[{}], epoch={}, state={}", i, snapshotTables, epoch, coordinationState);
             taskConfigsList.add(taskProps);
         }
 
@@ -366,21 +370,19 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         }
 
         // Check all per-task keys with epoch matching
-        Integer expectedEpoch = sharedOffset != null ? (Integer) sharedOffset.get(EPOCH_KEY) : null;
+        Integer expectedEpoch = readEpoch(sharedOffset);
         for (int i = 0; i < maxTasks; i++) {
-            Map<String, String> taskPartition =
-                    Collect.hashMapOf(
-                            "server", serverName,
-                            "task",
-                            String.valueOf(i)
-                    );
+            Map<String, String> taskPartition = Collect.hashMapOf(
+                    "server", serverName,
+                    "task",
+                    String.valueOf(i));
             Map<String, Object> taskOffset = context().offsetStorageReader().offset(taskPartition);
             if (taskOffset == null ||
                     !Boolean.TRUE.equals(taskOffset.get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY))) {
                 return false;
             }
             if (expectedEpoch != null) {
-                Integer taskEpoch = (Integer) taskOffset.get(EPOCH_KEY);
+                Integer taskEpoch = readEpoch(taskOffset);
                 if (!expectedEpoch.equals(taskEpoch)) {
                     return false;
                 }
@@ -429,44 +431,45 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
                 Map<String, Object> sharedOffset = context().offsetStorageReader().offset(sharedPartition);
 
                 if (sharedOffset != null) {
-                    // Check if snapshot_completed on shared key
-                    if (Boolean.TRUE.equals(sharedOffset.get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY))) {
-                        LOGGER.info("Smart snapshot: shared key shows snapshot_completed=true, requesting reconfiguration");
-                        context().requestTaskReconfiguration();
-                        return;
-                    }
-
                     // Check for restart_required (stale task signaled restart)
                     if (Boolean.TRUE.equals(sharedOffset.get(PostgresConnector.RESTART_KEY))) {
                         LOGGER.info("Smart snapshot: detected restart_required in shared key, requesting reconfiguration");
-                                context().requestTaskReconfiguration();
+                        context().requestTaskReconfiguration();
                         return;
                     }
                 }
 
                 // Check all per-task keys for completion with epoch matching
                 boolean allComplete = true;
-                Integer expectedEpoch = sharedOffset != null ? (Integer)
-                        sharedOffset.get(EPOCH_KEY) : null;
+                Integer expectedEpoch = readEpoch(sharedOffset);
                 for (int i = 0; i < lastNumTasks; i++) {
                     Map<String, String> taskPartition = Collect.hashMapOf("server", serverName, "task", String.valueOf(i));
                     Map<String, Object> taskOffset = context().offsetStorageReader().offset(taskPartition);
-                    if (taskOffset == null ||
-                            !Boolean.TRUE.equals(taskOffset.get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY))) {
+                    if (taskOffset == null) {
+                        LOGGER.debug("Smart snapshot: Monitor thread detected task-{} has no offset yet", i);
                         allComplete = false;
                         break;
                     }
-                    if (expectedEpoch != null) {
-                        Integer taskEpoch = (Integer) taskOffset.get(EPOCH_KEY);
-                        if (!expectedEpoch.equals(taskEpoch)) {
-                            allComplete = false;
-                            break;
-                        }
+
+                    boolean taskCompleted = Boolean.TRUE.equals(taskOffset.get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY));
+                    Integer taskEpoch = readEpoch(taskOffset);
+                    LOGGER.info("Smart snapshot: Monitor thread detected task-{} snapshot_completed={}, epoch={} (expected={})", i, taskCompleted, taskEpoch,
+                            expectedEpoch);
+
+                    if (!taskCompleted) {
+                        allComplete = false;
+                        break;
+                    }
+
+                    if (expectedEpoch != null && !expectedEpoch.equals(taskEpoch)) {
+                        LOGGER.warn("Smart snapshot: Monitor detected task-{} epoch mismatch (task={}, expected={})", i, taskEpoch, expectedEpoch);
+                        allComplete = false;
+                        break;
                     }
                 }
 
                 if (allComplete) {
-                    LOGGER.info("Smart snapshot: all {} tasks completed snapshot, requesting task reconfiguration", lastNumTasks);
+                    LOGGER.info("Smart snapshot: Monitor thread detected all {} tasks completed snapshot, requesting task reconfiguration", lastNumTasks);
                     context().requestTaskReconfiguration();
                     return;
                 }
@@ -487,5 +490,9 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
             }
             monitorThread = null;
         }
+    }
+
+    private Integer readEpoch(@Nullable Map<String, Object> sharedOffset) {
+        return (sharedOffset != null && sharedOffset.get(EPOCH_KEY) != null) ? ((Number) sharedOffset.get(EPOCH_KEY)).intValue() : null;
     }
 }
