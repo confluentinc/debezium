@@ -31,11 +31,11 @@ import io.debezium.util.Clock;
 public class SnapshotMeter implements SnapshotMetricsMXBean {
     private static final Logger LOGGER = LoggerFactory.getLogger(SnapshotMeter.class);
 
-    public static final long SNAPSHOT_NOT_STARTED = 0L;
-    public static final long SNAPSHOT_RUNNING = 1L;
-    public static final long SNAPSHOT_PAUSED = 2L;
-    public static final long SNAPSHOT_COMPLETED = 3L;
-    public static final long SNAPSHOT_ABORTED = 4L;
+    public static final int SNAPSHOT_NOT_STARTED = 0;
+    public static final int SNAPSHOT_RUNNING = 1;
+    public static final int SNAPSHOT_PAUSED = 2;
+    public static final int SNAPSHOT_COMPLETED = 3;
+    public static final int SNAPSHOT_ABORTED = 4;
 
     private final AtomicBoolean snapshotRunning = new AtomicBoolean();
     private final AtomicBoolean snapshotPaused = new AtomicBoolean();
@@ -95,7 +95,7 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
     }
 
     @Override
-    public long getSnapshotStatusCode() {
+    public int getSnapshotStatusCode() {
         if (snapshotAborted.get()) {
             return SNAPSHOT_ABORTED;
         }

@@ -24,8 +24,8 @@ public class ConnectionMeter implements ConnectionMetricsMXBean {
     }
 
     @Override
-    public long getConnectedCode() {
-        return this.connected.get() ? 1L : 0L;
+    public int getConnectedCode() {
+        return this.connected.get() ? 1 : 0;
     }
 
     public void connected(boolean connected) {

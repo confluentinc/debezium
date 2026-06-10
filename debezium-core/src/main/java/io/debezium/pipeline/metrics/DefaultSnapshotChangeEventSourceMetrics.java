@@ -71,7 +71,7 @@ public class DefaultSnapshotChangeEventSourceMetrics<P extends Partition> extend
     }
 
     @Override
-    public long getSnapshotStatusCode() {
+    public int getSnapshotStatusCode() {
         return snapshotMeter.getSnapshotStatusCode();
     }
 

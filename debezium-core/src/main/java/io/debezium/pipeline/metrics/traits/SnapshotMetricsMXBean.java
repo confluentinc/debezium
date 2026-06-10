@@ -29,7 +29,7 @@ public interface SnapshotMetricsMXBean extends SchemaMetricsMXBean {
      * OpenTelemetry JMX scraper only forwards numeric MBean attributes.
      * Encoding: 0=NOT_STARTED, 1=RUNNING, 2=PAUSED, 3=COMPLETED, 4=ABORTED.
      */
-    long getSnapshotStatusCode();
+    int getSnapshotStatusCode();
 
     long getSnapshotDurationInSeconds();
 

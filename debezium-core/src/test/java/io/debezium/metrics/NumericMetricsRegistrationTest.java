@@ -44,7 +44,7 @@ public class NumericMetricsRegistrationTest {
 
         MBeanInfo info = mbeanInfo();
         assertThat(attributeType(info, "Status")).isEqualTo("java.lang.String");
-        assertThat(attributeType(info, "StatusCode")).isEqualTo("long");
+        assertThat(attributeType(info, "StatusCode")).isEqualTo("int");
     }
 
     @Test
@@ -55,15 +55,15 @@ public class NumericMetricsRegistrationTest {
         MBeanServer mbeanServer = ManagementFactory.getPlatformMBeanServer();
         ObjectName name = objectName();
 
-        assertThat((Long) mbeanServer.getAttribute(name, "StatusCode")).isEqualTo(2L);
+        assertThat((Integer) mbeanServer.getAttribute(name, "StatusCode")).isEqualTo(2);
         assertThat((String) mbeanServer.getAttribute(name, "Status")).isEqualTo("RUNNING");
 
         metrics.recoveryStarted();
-        assertThat((Long) mbeanServer.getAttribute(name, "StatusCode")).isEqualTo(1L);
+        assertThat((Integer) mbeanServer.getAttribute(name, "StatusCode")).isEqualTo(1);
         assertThat((String) mbeanServer.getAttribute(name, "Status")).isEqualTo("RECOVERING");
 
         metrics.recoveryStopped();
-        assertThat((Long) mbeanServer.getAttribute(name, "StatusCode")).isEqualTo(2L);
+        assertThat((Integer) mbeanServer.getAttribute(name, "StatusCode")).isEqualTo(2);
         assertThat((String) mbeanServer.getAttribute(name, "Status")).isEqualTo("RUNNING");
     }
 

@@ -56,7 +56,7 @@ class SqlServerSnapshotPartitionMetrics extends AbstractSqlServerPartitionMetric
     }
 
     @Override
-    public long getSnapshotStatusCode() {
+    public int getSnapshotStatusCode() {
         return snapshotMeter.getSnapshotStatusCode();
     }
 

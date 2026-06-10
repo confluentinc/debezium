@@ -57,7 +57,7 @@ public class DefaultStreamingChangeEventSourceMetrics<P extends Partition> exten
     }
 
     @Override
-    public long getConnectedCode() {
+    public int getConnectedCode() {
         return connectionMeter.getConnectedCode();
     }
 
