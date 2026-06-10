@@ -23,6 +23,11 @@ public class ConnectionMeter implements ConnectionMetricsMXBean {
         return this.connected.get();
     }
 
+    @Override
+    public int getConnectedCode() {
+        return this.connected.get() ? 1 : 0;
+    }
+
     public void connected(boolean connected) {
         this.connected.set(connected);
     }
