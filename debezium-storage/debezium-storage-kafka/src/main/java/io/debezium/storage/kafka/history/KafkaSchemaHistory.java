@@ -335,6 +335,11 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
 
                 for (ConsumerRecord<String, String> record : recoveredRecords) {
                     checkForInterruption();
+                    // TEMP TEST INSTRUMENTATION (CC-41772) - DO NOT MERGE.
+                    // Artificial 5s delay per record to simulate long schema history recovery
+                    // with a low schema-change count. Remove before merging.
+                    LOGGER.info("TEST: sleeping 5s before processing schema history record at offset {}", record.offset());
+                    Thread.sleep(5000);
                     try {
                         if (lastProcessedOffset < record.offset()) {
                             if (record.value() == null) {
