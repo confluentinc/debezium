@@ -32,6 +32,7 @@ import io.debezium.pipeline.spi.Offsets;
 import io.debezium.pipeline.spi.SnapshotResult;
 import io.debezium.schema.DatabaseSchema;
 import io.debezium.snapshot.SnapshotterService;
+import io.debezium.util.Collect;
 import io.debezium.util.LoggingContext;
 
 /**
@@ -128,11 +129,11 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator extends PostgresC
             LOGGER.warn("Smart snapshot: task-{} detected that a restart is required, writing restart_required=true and idling", taskId);
             // Idle until Connect stops this task (monitor will trigger reconfiguration)
             try {
-                Map<String, Object> existingData = snapshotCoordination.readSharedData();
+                Map<String, Object> existingData = snapshotCoordination.read(Collect.hashMapOf("server", connectorConfig.getLogicalName()));
                 if (existingData != null) {
                     Map<String, Object> updated = new HashMap<>(existingData);
                     updated.put(PostgresConnector.RESTART_KEY, true);
-                    snapshotCoordination.writeSharedData(updated);
+                    snapshotCoordination.write(Collect.hashMapOf("server", connectorConfig.getLogicalName()), updated);
                 }
             }
             catch (Exception e) {
@@ -160,7 +161,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator extends PostgresC
                 coordinationData.put(PostgresConnector.SNAPSHOT_NAME_KEY, snapshotName);
                 coordinationData.put(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY, false);
                 coordinationData.put(PostgresConnector.EPOCH_KEY, epoch);
-                snapshotCoordination.writeSharedData(coordinationData);
+                snapshotCoordination.write(Collect.hashMapOf("server", connectorConfig.getLogicalName()), coordinationData);
                 LOGGER.info("Smart snapshot: Leader wrote coordination data with LSN={}, snapshot_name={}, epoch={}", slotLsn, snapshotName, epoch);
             }
             catch (Exception e) {
@@ -180,11 +181,11 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator extends PostgresC
                 LOGGER.warn("Smart snapshot: task-{} snapshot failed due to stale snapshot, writing restart_required=true to trigger reconfiguration.", taskId, e);
 
                 try {
-                    Map<String, Object> existingData = snapshotCoordination.readSharedData();
+                    Map<String, Object> existingData = snapshotCoordination.read(Collect.hashMapOf("server", connectorConfig.getLogicalName()));
                     if (existingData != null) {
                         Map<String, Object> updated = new HashMap<>(existingData);
                         updated.put(PostgresConnector.RESTART_KEY, true);
-                        snapshotCoordination.writeSharedData(updated);
+                        snapshotCoordination.write(Collect.hashMapOf("server", connectorConfig.getLogicalName()), updated);
                         LOGGER.info("Smart snapshot: task-{} wrote restart_required=true to coordination data", taskId);
                     }
                 }

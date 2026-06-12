@@ -10,7 +10,6 @@ import static io.debezium.config.ConfigurationNames.TASK_ID_PROPERTY_NAME;
 
 import java.sql.SQLException;
 import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -38,8 +37,9 @@ import io.debezium.connector.common.RelationalBaseSourceConnector;
 import io.debezium.connector.postgresql.PostgresConnectorConfig.LogicalDecoder;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.connector.postgresql.connection.ServerInfo;
-import io.debezium.heartbeat.Heartbeat;
 import io.debezium.pipeline.CommonOffsetContext;
+import io.debezium.pipeline.source.snapshot.KafkaLogSnapshotCoordination;
+import io.debezium.pipeline.source.snapshot.SnapshotCoordination;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.relational.TableId;
 import io.debezium.util.Collect;
@@ -71,6 +71,7 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
     private Map<String, String> props;
     private Thread monitorThread;
     private volatile int lastNumTasks;
+    private volatile SnapshotCoordination snapshotCoordination = null;
 
     public PostgresConnector() {
     }
@@ -93,6 +94,12 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         boolean smartSnapshotEnabled = config.getBoolean(CommonConnectorConfig.SMART_SNAPSHOT_ENABLED);
 
         if (smartSnapshotEnabled) {
+            PostgresConnectorConfig connectorConfig = new PostgresConnectorConfig(config);
+            String bootstrapServers = connectorConfig.getSmartSnapshotCoordinationBootstrapServers();
+            String coordinationTopic = connectorConfig.getLogicalName() + ".snapshot-coordination";
+            String clientIdSuffix = connectorConfig.getLogicalName() + "-coordination-connector";
+            this.snapshotCoordination = new KafkaLogSnapshotCoordination(bootstrapServers, coordinationTopic, clientIdSuffix);
+            snapshotCoordination.start();
             startMonitorThread(config);
         }
     }
@@ -139,16 +146,10 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
             return Collections.singletonList(new HashMap<>(props));
         }
 
-        // Validate heartbeat is enabled — required for coordination via offset topic
-        Duration heartbeatInterval = config.getDuration(Heartbeat.HEARTBEAT_INTERVAL, ChronoUnit.MILLIS);
-        if (heartbeatInterval.isZero()) {
-            throw new DebeziumException("Smart snapshot: Heartbeat must be enabled (heartbeat.interval.ms > 0) when smart.snapshot=true and tasks.max > 1");
-        }
-
         // Determine epoch and coordination state
         String serverName = config.getString(CommonConnectorConfig.TOPIC_PREFIX);
         Map<String, String> sharedPartition = Collect.hashMapOf("server", serverName);
-        Map<String, Object> sharedOffset = context().offsetStorageReader().offset(sharedPartition);
+        Map<String, Object> sharedOffset = snapshotCoordination.read(sharedPartition);
 
         int epoch;
         String coordinationState;
@@ -177,7 +178,7 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
 
         List<TableId> tables = getMatchingCollections(config);
         if (tables.isEmpty()) {
-            LOGGER.warn("Smart snapshot: no matching tables found, falling back to single task");
+            LOGGER.warn("Smart snapshot: No matching tables found, falling back to single task");
             return Collections.singletonList(new HashMap<>(props));
         }
 
@@ -216,6 +217,9 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
     @Override
     public void stop() {
         this.props = null;
+        if (snapshotCoordination != null) {
+            snapshotCoordination.stop();
+        }
         stopMonitorThread();
     }
 
@@ -379,7 +383,7 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
 
         // Fast path: check shared key
         Map<String, String> sharedPartition = Collect.hashMapOf("server", serverName);
-        Map<String, Object> sharedOffset = context().offsetStorageReader().offset(sharedPartition);
+        Map<String, Object> sharedOffset = snapshotCoordination.read(sharedPartition);
         if (sharedOffset != null &&
                 Boolean.TRUE.equals(sharedOffset.get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY))) {
             LOGGER.info("Smart snapshot: shared key shows snapshot_completed=true");
@@ -449,7 +453,7 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
 
                 // Check shared key for epoch change (stale task signaled restart)
                 Map<String, String> sharedPartition = Collect.hashMapOf("server", serverName);
-                Map<String, Object> sharedOffset = context().offsetStorageReader().offset(sharedPartition);
+                Map<String, Object> sharedOffset = snapshotCoordination.read(sharedPartition);
 
                 if (sharedOffset != null) {
                     // Check for restart_required (stale task signaled restart)

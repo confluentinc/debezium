@@ -49,7 +49,7 @@ import io.debezium.pipeline.GuardrailValidator;
 import io.debezium.pipeline.metrics.DefaultChangeEventSourceMetricsFactory;
 import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.signal.SignalProcessor;
-import io.debezium.pipeline.source.snapshot.OffsetTopicSnapshotCoordination;
+import io.debezium.pipeline.source.snapshot.KafkaLogSnapshotCoordination;
 import io.debezium.pipeline.source.snapshot.SnapshotCoordination;
 import io.debezium.pipeline.spi.OffsetContext;
 import io.debezium.pipeline.spi.Offsets;
@@ -61,6 +61,7 @@ import io.debezium.snapshot.SnapshotterService;
 import io.debezium.spi.snapshot.Snapshotter;
 import io.debezium.spi.topic.TopicNamingStrategy;
 import io.debezium.util.Clock;
+import io.debezium.util.Collect;
 import io.debezium.util.LoggingContext;
 import io.debezium.util.Metronome;
 import io.debezium.util.ThreadNameContext;
@@ -89,6 +90,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
     private final ReentrantLock commitLock = new ReentrantLock();
     private boolean isSmartSnapshotTask;
+    private volatile SnapshotCoordination snapshotCoordination = null;
     private volatile PostgresConnection snapshotHolderConnection = null;
 
     @Override
@@ -298,7 +300,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
      * snapshot completes, all tasks idle — no streaming. The Connector's monitor thread detects
      * completion and triggers downscale to a single streaming task.
      *
-     * <p>The method has five phases:
+    * <p>The method has five phases:
      *
      * <p><b>1. CONFIG + STALE OFFSET CHECK</b>
      * <br>Reads epoch and coordinationState from config (set by Connector in taskConfigs).
@@ -412,11 +414,11 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                 .loggingContextSupplier(() -> taskContext.configureLoggingContext(CONTEXT_NAME))
                 .build();
 
-        // it is assumed that heartbeat is enabled, the validation is present in the connector
-        String heartbeatTopicName = connectorConfig.getHeartbeatTopicsPrefix() + "." + connectorConfig.getLogicalName();
-        SnapshotCoordination snapshotCoordination = new OffsetTopicSnapshotCoordination(
-                queue, context.offsetStorageReader(), connectorConfig.getLogicalName(),
-                heartbeatTopicName);
+        String bootstrapServers = connectorConfig.getSmartSnapshotCoordinationBootstrapServers();
+        String coordinationTopic = connectorConfig.getLogicalName() + ".snapshot-coordination";
+        String clientIdSuffix = connectorConfig.getLogicalName() + "-coordination-task-" + taskId;
+        this.snapshotCoordination = new KafkaLogSnapshotCoordination(bootstrapServers, coordinationTopic, clientIdSuffix);
+        snapshotCoordination.start();
 
         errorHandler = new PostgresErrorHandler(connectorConfig, queue, errorHandler);
 
@@ -523,7 +525,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                     // restart_required to the shared key and idle. The monitor detects it
                     // and triggers full reconfiguration with a new epoch.
                     try {
-                        Map<String, Object> existingData = snapshotCoordination.readSharedData();
+                        Map<String, Object> existingData = snapshotCoordination.read(Collect.hashMapOf("server", connectorConfig.getLogicalName()));
                         if (existingData != null) {
                             Integer existingEpoch = PostgresConnector.readEpoch(existingData);
                             if (existingEpoch != null && existingEpoch == epoch) {
@@ -575,9 +577,9 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
                 // Follower: poll coordination for snapshot_name
                 try {
-                    snapshotName = pollForSnapshotName(snapshotCoordination, epoch);
-                    Map<String, Object> sharedData = snapshotCoordination.readSharedData();
-                    Long lsnValue = (Long) sharedData.get(SourceInfo.LSN_KEY);
+                    snapshotName = pollForSnapshotName(snapshotCoordination, epoch, connectorConfig.getLogicalName());
+                    Map<String, Object> sharedData = snapshotCoordination.read(Collect.hashMapOf("server", connectorConfig.getLogicalName()));
+                    Long lsnValue = ((Number) sharedData.get(SourceInfo.LSN_KEY)).longValue();
                     originalSlotLsn = Lsn.valueOf(lsnValue);
                 }
                 catch (Exception e) {
@@ -705,7 +707,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
      * @return the snapshot_name from the leader's coordination data
      * @throws DebeziumException if polling times out (5 minutes) or is interrupted
      */
-    private String pollForSnapshotName(SnapshotCoordination coordination, int expectedEpoch) {
+    private String pollForSnapshotName(SnapshotCoordination coordination, int expectedEpoch, String logicalName) {
         LOGGER.info("Smart snapshot: Follower polling for snapshot_name with epoch={}", expectedEpoch);
         final Metronome metronome = Metronome.parker(Duration.ofSeconds(5), Clock.SYSTEM);
         final long timeoutMs = Duration.ofMinutes(5).toMillis();
@@ -713,7 +715,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
         while (true) {
             try {
-                Map<String, Object> sharedData = coordination.readSharedData();
+                Map<String, Object> sharedData = coordination.read(Collect.hashMapOf("server", logicalName));
                 if (sharedData != null) {
                     // If restart_required, don't try to join — wait for reconfiguration
                     if (Boolean.TRUE.equals(sharedData.get(PostgresConnector.RESTART_KEY))) {
@@ -806,6 +808,10 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
         }
         catch (Exception e) {
             LOGGER.trace("Error while closing snapshot holder connection", e);
+        }
+
+        if (snapshotCoordination != null) {
+            snapshotCoordination.stop();
         }
         // The replication connection is regularly closed at the end of streaming phase
         // in case of error it can happen that the connector is terminated before the stremaing
