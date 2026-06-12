@@ -24,12 +24,16 @@ public interface SnapshotCoordination {
      * Write coordination data to the shared key {"server":"<prefix>"}.
      * Overwrites the entire value (Connect offsets are full map replacements).
      */
-    void writeSharedData(Map<String, Object> data) throws Exception;
+    void write(Map<String, String> key, Map<String, Object> data) throws Exception;
 
     /**
      * Read coordination data from the shared key {"server":"<prefix>"}.
      * Returns null if no data exists yet (leader hasn't written).
      * Subject to flush delay in the offset topic implementation.
      */
-    Map<String, Object> readSharedData();
+    Map<String, Object> read(Map<String, String> key);
+
+    void start();
+
+    void stop();
 }

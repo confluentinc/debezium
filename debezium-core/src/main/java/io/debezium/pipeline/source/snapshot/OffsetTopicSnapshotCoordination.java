@@ -50,13 +50,13 @@ public class OffsetTopicSnapshotCoordination implements SnapshotCoordination {
     }
 
     @Override
-    public void writeSharedData(Map<String, Object> data) throws Exception {
+    public void write(Map<String, String> key, Map<String, Object> data) throws Exception {
         SchemaNameAdjuster adjuster = SchemaNameAdjuster.NO_OP;
         Schema keySchema = SchemaFactory.get().heartbeatKeySchema(adjuster);
         Schema valueSchema = SchemaFactory.get().heartbeatValueSchema(adjuster);
 
-        Struct key = new Struct(keySchema);
-        key.put(HeartbeatImpl.SERVER_NAME_KEY, serverName);
+        Struct structKey = new Struct(keySchema);
+        structKey.put(HeartbeatImpl.SERVER_NAME_KEY, serverName);
 
         Struct value = new Struct(valueSchema);
         value.put(AbstractSourceInfo.TIMESTAMP_KEY, System.currentTimeMillis());
@@ -78,7 +78,17 @@ public class OffsetTopicSnapshotCoordination implements SnapshotCoordination {
     }
 
     @Override
-    public Map<String, Object> readSharedData() {
+    public Map<String, Object> read(Map<String, String> key) {
         return offsetStorageReader.offset(sharedPartition);
+    }
+
+    @Override
+    public void start() {
+        // no-op
+    }
+
+    @Override
+    public void stop() {
+        // no-op
     }
 }
