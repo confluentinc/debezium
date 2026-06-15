@@ -6,14 +6,20 @@
 
 package io.debezium.connector.postgresql;
 
+import static io.debezium.config.ConfigurationNames.TASK_ID_PROPERTY_NAME;
+
 import java.sql.SQLException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
+
+import javax.annotation.Nullable;
 
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigValue;
@@ -25,13 +31,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.debezium.DebeziumException;
+import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.connector.common.RelationalBaseSourceConnector;
 import io.debezium.connector.postgresql.PostgresConnectorConfig.LogicalDecoder;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.connector.postgresql.connection.ServerInfo;
+import io.debezium.pipeline.CommonOffsetContext;
+import io.debezium.pipeline.source.snapshot.KafkaLogSnapshotCoordination;
+import io.debezium.pipeline.source.snapshot.SnapshotCoordination;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.relational.TableId;
+import io.debezium.util.Collect;
 import io.debezium.util.ThreadNameContext;
 import io.debezium.util.Threads;
 
@@ -46,10 +57,21 @@ import io.debezium.util.Threads;
  */
 public class PostgresConnector extends RelationalBaseSourceConnector {
 
+    public static final String COORDINATION_STATE_KEY = "snapshot.coordination.state";
+    public static final String COORDINATION_STATE_NEW = "NEW";
+    public static final String COORDINATION_STATE_RESTART = "RESTART";
+    public static final String EPOCH_KEY = "epoch";
+    public static final String RESTART_KEY = "restart_required";
+    public static final String SNAPSHOT_NAME_KEY = "snapshot_name";
+
     private static final Logger LOGGER = LoggerFactory.getLogger(PostgresConnector.class);
     public static final int READ_ONLY_SUPPORTED_VERSION = 13;
+    private static final long MONITOR_POLL_INTERVAL_MS = 30_000;
 
     private Map<String, String> props;
+    private Thread monitorThread;
+    private volatile int lastNumTasks;
+    private volatile SnapshotCoordination snapshotCoordination = null;
 
     public PostgresConnector() {
     }
@@ -67,17 +89,138 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
     @Override
     public void start(Map<String, String> props) {
         this.props = props;
+
+        Configuration config = Configuration.from(props);
+        boolean smartSnapshotEnabled = config.getBoolean(CommonConnectorConfig.SMART_SNAPSHOT_ENABLED);
+
+        if (smartSnapshotEnabled) {
+            PostgresConnectorConfig connectorConfig = new PostgresConnectorConfig(config);
+            String bootstrapServers = connectorConfig.getSmartSnapshotCoordinationBootstrapServers();
+            String coordinationTopic = connectorConfig.getLogicalName() + ".snapshot-coordination";
+            String clientIdSuffix = connectorConfig.getLogicalName() + "-coordination-connector";
+            this.snapshotCoordination = new KafkaLogSnapshotCoordination(bootstrapServers, coordinationTopic, clientIdSuffix);
+            snapshotCoordination.start();
+            startMonitorThread(config);
+        }
     }
 
+    /**
+     * Returns task configurations. In smart snapshot mode ({@code smart.snapshot.enabled=true}
+     * and {@code maxTasks > 1}):
+     * <ul>
+     *   <li>If snapshot already complete (checked via offset topic) → returns single config
+     *     for streaming (downscale).</li>
+     *   <li>Otherwise, distributes tables round-robin across tasks. Each task config includes
+     *     {@code task.id}, {@code epoch}, and {@code snapshot.coordination.state}.</li>
+     * </ul>
+     *
+     * <p>Epoch determination from the shared key {@code {"server":"<prefix>"}}:
+     * <ul>
+     *   <li>No shared key → first start → epoch=1, state=NEW</li>
+     *   <li>Shared key with {@code restart_required=true} or {@code snapshot_completed=false}
+     *     → previous round incomplete → epoch=previous+1, state=RESTART</li>
+     *   <li>Shared key with {@code snapshot_completed=true} → caught by isSnapshotComplete
+     *     above, returns single config</li>
+     * </ul>
+     *
+     * <p>The epoch in the config serves three purposes: (1) tasks write it to per-task offsets
+     * for monitor epoch matching, (2) makes configs differ across epochs so the Herder's
+     * {@code taskConfigsChanged()} returns true and tasks are actually restarted, (3) followers
+     * poll for coordination data with matching epoch.
+     */
     @Override
     public List<Map<String, String>> taskConfigs(int maxTasks) {
-        // this will always have just one task with the given list of properties
-        return props == null ? Collections.emptyList() : Collections.singletonList(new HashMap<>(props));
+        if (props == null) {
+            return Collections.emptyList();
+        }
+
+        Configuration config = Configuration.from(props);
+        boolean smartSnapshotEnabled = config.getBoolean(CommonConnectorConfig.SMART_SNAPSHOT_ENABLED);
+
+        if (!smartSnapshotEnabled || maxTasks <= 1) {
+            return Collections.singletonList(new HashMap<>(props));
+        }
+
+        if (isSnapshotComplete(config, maxTasks)) {
+            LOGGER.info("Smart snapshot: Snapshot is complete, returning single task config for streaming");
+            return Collections.singletonList(new HashMap<>(props));
+        }
+
+        // Determine epoch and coordination state
+        String serverName = config.getString(CommonConnectorConfig.TOPIC_PREFIX);
+        Map<String, String> sharedPartition = Collect.hashMapOf("server", serverName);
+        Map<String, Object> sharedOffset = snapshotCoordination.read(sharedPartition);
+
+        int epoch;
+        String coordinationState;
+        if (sharedOffset == null) {
+            LOGGER.info("Smart snapshot: Processing taskConfigs, no shared key found first start");
+            epoch = 1;
+            coordinationState = COORDINATION_STATE_NEW;
+        }
+        else {
+            Integer existingEpoch = readEpoch(sharedOffset);
+            boolean snapshotCompleted = Boolean.TRUE.equals(sharedOffset.get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY));
+            boolean restartRequired = Boolean.TRUE.equals(sharedOffset.get(PostgresConnector.RESTART_KEY));
+
+            LOGGER.info("Smart snapshot: Processing taskConfigs, shared key exists. snapshot_completed={}, restart_required={}, epoch={}",
+                    snapshotCompleted, restartRequired, existingEpoch);
+
+            if (restartRequired || !snapshotCompleted) {
+                epoch = (existingEpoch != null ? existingEpoch : 0) + 1;
+                coordinationState = COORDINATION_STATE_RESTART;
+            }
+            else {
+                epoch = existingEpoch != null ? existingEpoch : 1;
+                coordinationState = COORDINATION_STATE_NEW;
+            }
+        }
+
+        List<TableId> tables = getMatchingCollections(config);
+        if (tables.isEmpty()) {
+            LOGGER.warn("Smart snapshot: No matching tables found, falling back to single task");
+            return Collections.singletonList(new HashMap<>(props));
+        }
+
+        tables.sort(Comparator.comparing(TableId::toString));
+
+        int numTasks = Math.min(maxTasks, tables.size());
+        this.lastNumTasks = numTasks;
+
+        List<List<TableId>> tablesByTask = new ArrayList<>();
+        for (int i = 0; i < numTasks; i++) {
+            tablesByTask.add(new ArrayList<>());
+        }
+        for (int i = 0; i < tables.size(); i++) {
+            tablesByTask.get(i % numTasks).add(tables.get(i));
+        }
+
+        List<Map<String, String>> taskConfigsList = new ArrayList<>();
+        for (int i = 0; i < numTasks; i++) {
+            String snapshotTables = tablesByTask.get(i).stream()
+                    .map(TableId::toString)
+                    .collect(Collectors.joining(","));
+
+            Map<String, String> taskProps = new HashMap<>(props);
+            taskProps.put(CommonConnectorConfig.SNAPSHOT_MODE_TABLES.name(), snapshotTables);
+            taskProps.put(TASK_ID_PROPERTY_NAME, String.valueOf(i));
+            taskProps.put(EPOCH_KEY, String.valueOf(epoch));
+            taskProps.put(COORDINATION_STATE_KEY, coordinationState);
+
+            LOGGER.info("Smart snapshot: task {} tables=[{}], epoch={}, state={}", i, snapshotTables, epoch, coordinationState);
+            taskConfigsList.add(taskProps);
+        }
+
+        return taskConfigsList;
     }
 
     @Override
     public void stop() {
         this.props = null;
+        if (snapshotCoordination != null) {
+            snapshotCoordination.stop();
+        }
+        stopMonitorThread();
     }
 
     @Override
@@ -227,5 +370,154 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         catch (SQLException e) {
             throw new DebeziumException(e);
         }
+    }
+
+    /**
+     * Checks whether the multi-task snapshot is complete by reading the offset topic.
+     * First checks the shared key {@code {"server":"<prefix>"}} for {@code snapshot_completed=true}
+     * (fast path — covers single-task completion and post-downscale).
+     * <br>Then checks all per-task keys {@code {"server":"<prefix>","task":"N"}} for completion with matching epoch.
+     */
+    private boolean isSnapshotComplete(Configuration config, int maxTasks) {
+        String serverName = config.getString(CommonConnectorConfig.TOPIC_PREFIX);
+
+        // Fast path: check shared key
+        Map<String, String> sharedPartition = Collect.hashMapOf("server", serverName);
+        Map<String, Object> sharedOffset = snapshotCoordination.read(sharedPartition);
+        if (sharedOffset != null &&
+                Boolean.TRUE.equals(sharedOffset.get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY))) {
+            LOGGER.info("Smart snapshot: shared key shows snapshot_completed=true");
+            return true;
+        }
+
+        // Check all per-task keys with epoch matching
+        Integer expectedEpoch = readEpoch(sharedOffset);
+        for (int i = 0; i < maxTasks; i++) {
+            Map<String, String> taskPartition = Collect.hashMapOf(
+                    "server", serverName,
+                    "task",
+                    String.valueOf(i));
+            Map<String, Object> taskOffset = context().offsetStorageReader().offset(taskPartition);
+            if (taskOffset == null ||
+                    !Boolean.TRUE.equals(taskOffset.get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY))) {
+                return false;
+            }
+            if (expectedEpoch != null) {
+                Integer taskEpoch = readEpoch(taskOffset);
+                if (!expectedEpoch.equals(taskEpoch)) {
+                    return false;
+                }
+            }
+        }
+
+        LOGGER.info("Smart snapshot: all {} per-task offsets show snapshot_completed=true", maxTasks);
+        return true;
+    }
+
+    /**
+     * Starts a daemon thread that polls the offset topic every 30 seconds for restart signals
+     * or snapshot completion. Actions taken:
+     * <ul>
+     *   <li>{@code restart_required=true} in the shared key → a task detected a stale snapshot.
+     *     Calls {@code requestTaskReconfiguration()} and <b>continues polling</b> (does not exit)
+     *     the monitor must survive across epochs since {@code start()} is not called again
+     *     on reconfiguration.</li>
+     *   <li>All per-task keys show {@code snapshot_completed=true} with matching epoch →
+     *     all tasks finished. Calls {@code requestTaskReconfiguration()} and <b>exits</b>
+     *     — downscale to streaming, no further monitoring needed.</li>
+     * </ul>
+     *
+     * <p>After triggering reconfiguration, the Herder calls {@code taskConfigs()} which returns
+     * either a new set of task configs (with incremented epoch on restart) or a single task
+     * config (for downscale to streaming).
+     */
+    private void startMonitorThread(Configuration config) {
+        String serverName = config.getString(CommonConnectorConfig.TOPIC_PREFIX);
+
+        monitorThread = new Thread(() -> {
+            LOGGER.info("Smart snapshot: Monitor thread started for {}", serverName);
+            while (!Thread.currentThread().isInterrupted()) {
+                try {
+                    Thread.sleep(MONITOR_POLL_INTERVAL_MS);
+                }
+                catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    LOGGER.info("Smart snapshot: Monitor thread interrupted");
+                    return;
+                }
+
+                // It guards against the monitor thread running before taskConfigs() has been called
+                if (lastNumTasks <= 0) {
+                    continue;
+                }
+
+                // Check shared key for epoch change (stale task signaled restart)
+                Map<String, String> sharedPartition = Collect.hashMapOf("server", serverName);
+                Map<String, Object> sharedOffset = snapshotCoordination.read(sharedPartition);
+
+                if (sharedOffset != null) {
+                    // Check for restart_required (stale task signaled restart)
+                    if (Boolean.TRUE.equals(sharedOffset.get(PostgresConnector.RESTART_KEY))) {
+                        LOGGER.info("Smart snapshot: Monitor thread detected restart_required in shared key, requesting reconfiguration");
+                        context().requestTaskReconfiguration();
+                        continue;
+                    }
+                }
+
+                // Check all per-task keys for completion with epoch matching
+                boolean allComplete = true;
+                Integer expectedEpoch = readEpoch(sharedOffset);
+                for (int i = 0; i < lastNumTasks; i++) {
+                    Map<String, String> taskPartition = Collect.hashMapOf("server", serverName, "task", String.valueOf(i));
+                    Map<String, Object> taskOffset = context().offsetStorageReader().offset(taskPartition);
+                    if (taskOffset == null) {
+                        LOGGER.debug("Smart snapshot: Monitor thread detected task-{} has no offset yet", i);
+                        allComplete = false;
+                        break;
+                    }
+
+                    boolean taskCompleted = Boolean.TRUE.equals(taskOffset.get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY));
+                    Integer taskEpoch = readEpoch(taskOffset);
+                    LOGGER.info("Smart snapshot: Monitor thread detected task-{} snapshot_completed={}, epoch={} (expected={})", i, taskCompleted, taskEpoch,
+                            expectedEpoch);
+
+                    if (!taskCompleted) {
+                        allComplete = false;
+                        break;
+                    }
+
+                    if (expectedEpoch != null && !expectedEpoch.equals(taskEpoch)) {
+                        LOGGER.warn("Smart snapshot: Monitor detected task-{} epoch mismatch (task={}, expected={})", i, taskEpoch, expectedEpoch);
+                        allComplete = false;
+                        break;
+                    }
+                }
+
+                if (allComplete) {
+                    LOGGER.info("Smart snapshot: Monitor thread detected all {} tasks completed snapshot, requesting task reconfiguration", lastNumTasks);
+                    context().requestTaskReconfiguration();
+                    return;
+                }
+            }
+        }, "postgres-smart-snapshot-monitor");
+        monitorThread.setDaemon(true);
+        monitorThread.start();
+    }
+
+    private void stopMonitorThread() {
+        if (monitorThread != null) {
+            monitorThread.interrupt();
+            try {
+                monitorThread.join(5000);
+            }
+            catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            monitorThread = null;
+        }
+    }
+
+    static Integer readEpoch(@Nullable Map<String, Object> sharedOffset) {
+        return (sharedOffset != null && sharedOffset.get(EPOCH_KEY) != null) ? ((Number) sharedOffset.get(EPOCH_KEY)).intValue() : null;
     }
 }
