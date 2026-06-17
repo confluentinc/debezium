@@ -273,6 +273,7 @@ public abstract class RelationalSnapshotChangeEventSource<P extends Partition, O
 
         List<String> dataCollectionsToBeSnapshotted = connectorConfig.getDataCollectionsToBeSnapshotted();
         Map<DataCollectionId, String> snapshotSelectOverridesByTable = connectorConfig.getSnapshotSelectOverridesByTable();
+        warnOnUnmatchedSnapshotSelectOverrides(snapshotSelectOverridesByTable);
 
         boolean offsetExists = previousOffset != null;
         boolean snapshotInProgress = false;
@@ -298,6 +299,21 @@ public abstract class RelationalSnapshotChangeEventSource<P extends Partition, O
         return new SnapshottingTask(shouldSnapshotSchema, shouldSnapshotData,
                 dataCollectionsToBeSnapshotted, snapshotSelectOverridesByTable,
                 false);
+    }
+
+    /**
+     * Logs a warning for any snapshot select statement override whose table is not matched by the configured table
+     * filters ({@code table.include.list}/{@code table.exclude.list}). Such an override can never be applied because
+     * the table will not be among the captured tables, so the snapshot would silently fall back to a full-table select.
+     */
+    private void warnOnUnmatchedSnapshotSelectOverrides(Map<DataCollectionId, String> snapshotSelectOverridesByTable) {
+        for (DataCollectionId dataCollectionId : snapshotSelectOverridesByTable.keySet()) {
+            if (dataCollectionId instanceof TableId
+                    && !connectorConfig.getTableFilters().dataCollectionFilter().isIncluded((TableId) dataCollectionId)) {
+                LOGGER.warn("Snapshot select statement override is configured for table '{}', but this table is not matched by "
+                        + "'table.include.list'/'table.exclude.list'; the override will be ignored.", dataCollectionId);
+            }
+        }
     }
 
     /**
@@ -498,6 +514,9 @@ public abstract class RelationalSnapshotChangeEventSource<P extends Partition, O
             if (selectStatement.isPresent()) {
                 LOGGER.info("For table '{}' using select statement: '{}'", tableId, maybeRedactSensitiveData(selectStatement.get()));
                 queryTables.put(tableId, selectStatement.get());
+                if (getSnapshotSelectOverridesByTable(tableId, snapshotSelectOverridesByTable) != null) {
+                    snapshotContext.tablesWithSnapshotSelectOverride.add(tableId);
+                }
 
                 final OptionalLong rowCount = rowCountForTable(tableId);
                 rowCountTables.put(tableId, rowCount);
@@ -668,6 +687,9 @@ public abstract class RelationalSnapshotChangeEventSource<P extends Partition, O
             }
             else {
                 setSnapshotMarker(offset, firstTable, lastTable, false, true);
+                if (snapshotContext.tablesWithSnapshotSelectOverride.contains(table.id())) {
+                    LOGGER.warn("Snapshot select statement override for table '{}' matched 0 rows", table.id());
+                }
             }
 
             LOGGER.info("\t Finished exporting {} records for table '{}' ({} of {} tables); total duration '{}'",
@@ -850,6 +872,7 @@ public abstract class RelationalSnapshotChangeEventSource<P extends Partition, O
 
         public Set<TableId> capturedTables;
         public Set<TableId> capturedSchemaTables;
+        public final Set<TableId> tablesWithSnapshotSelectOverride = new HashSet<>();
 
         public RelationalSnapshotContext(P partition, String catalogName, boolean onDemand) {
             super(partition);
