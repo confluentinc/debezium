@@ -169,7 +169,14 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
         validateSchemaHistory(connectorConfig, jdbcConnection::validateLogPosition, previousOffsets, schema, snapshotter);
 
-        LoggingContext.PreviousContext previousContext = taskContext.configureLoggingContext(CONTEXT_NAME);
+        isSmartSnapshotTask = connectorConfig.isSmartSnapshotEnabled()
+                && connectorConfig.getTaskId() != null;
+
+        String loggingContextName = isSmartSnapshotTask
+                ? CONTEXT_NAME + "|task-" + connectorConfig.getTaskId()
+                : CONTEXT_NAME;
+        LoggingContext.PreviousContext previousContext =
+                taskContext.configureLoggingContext(loggingContextName);
 
         if (previousOffset == null) {
             LOGGER.info("No previous offset found");
@@ -231,9 +238,6 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
             NotificationService<PostgresPartition, PostgresOffsetContext> notificationService = new NotificationService<>(getNotificationChannels(),
                     connectorConfig, SchemaFactory.get(), dispatcher::enqueueNotification);
-
-            isSmartSnapshotTask = connectorConfig.isSmartSnapshotEnabled()
-                    && connectorConfig.getTaskId() != null;
 
             if (isSmartSnapshotTask) {
                 int epoch = Integer.parseInt(config.getString(SmartSnapshotConnectorCoordinator.EPOCH_KEY, "1"));
