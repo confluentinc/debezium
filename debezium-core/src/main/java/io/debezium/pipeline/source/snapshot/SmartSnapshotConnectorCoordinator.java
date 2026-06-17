@@ -182,14 +182,15 @@ public class SmartSnapshotConnectorCoordinator {
         switch (smartSnapshotState) {
             case COMPLETE:
                 LOGGER.info("Smart snapshot: snapshot complete, releasing");
+                String finalPosition = snapshotLifecycleManager.consistentPosition();
                 snapshotLifecycleManager.releaseSnapshot();
                 // Write completion to coordination topic (streaming task reads LSN from here)
                 try {
                     Map<String, String> sp = Collect.hashMapOf("server", serverName);
                     Map<String, Object> coordData = new HashMap<>();
-                    coordData.put(SLOT_LSN_KEY, snapshotLifecycleManager.consistentPosition());
+                    coordData.put(SLOT_LSN_KEY, finalPosition);
                     coordData.put(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY, true);
-                    coordData.put(EPOCH_KEY, currentEpoch);
+                    coordData.put(EPOCH_KEY, currentEpoch.get());
                     snapshotCoordination.write(sp, coordData);
                 }
                 catch (Exception e) {
@@ -237,7 +238,7 @@ public class SmartSnapshotConnectorCoordinator {
             Map<String, String> taskProps = new HashMap<>(baseProps);
             taskProps.put(CommonConnectorConfig.SNAPSHOT_MODE_TABLES.name(), snapshotTables);
             taskProps.put(ConfigurationNames.TASK_ID_PROPERTY_NAME, String.valueOf(i));
-            taskProps.put(EPOCH_KEY, String.valueOf(currentEpoch));
+            taskProps.put(EPOCH_KEY, String.valueOf(currentEpoch.get()));
 
             LOGGER.info("Smart snapshot: task {} tables=[{}], epoch={}", i, snapshotTables, currentEpoch);
             taskConfigsList.add(taskProps);
@@ -287,11 +288,11 @@ public class SmartSnapshotConnectorCoordinator {
                 coordData.put(SLOT_LSN_KEY, setup.consistentPosition());
                 coordData.put(SNAPSHOT_NAME_KEY, setup.snapshotName());
                 coordData.put(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY, false);
-                coordData.put(EPOCH_KEY, currentEpoch);
+                coordData.put(EPOCH_KEY, currentEpoch.get());
                 snapshotCoordination.write(sharedPartition, coordData);
 
                 LOGGER.info("Smart snapshot: preparation complete, snapshot='{}', LSN={}, epoch={}",
-                        setup.snapshotName(), setup.consistentPosition(), currentEpoch);
+                        setup.snapshotName(), setup.consistentPosition(), currentEpoch.get());
             }
             catch (Exception e) {
                 LOGGER.error("Smart snapshot: preparation failed", e);
