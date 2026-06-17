@@ -120,7 +120,7 @@ public class RelationalDatabaseConnectorConfigTest {
         List<String> errors = validated.get(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP.name())
                 .errorMessages();
         assertThat(errors).hasSize(1);
-        assertThat(errors.get(0)).contains("It must be a valid JSON object");
+        assertThat(errors.get(0)).contains("It's not a valid JSON object");
     }
 
     @Test
@@ -136,7 +136,7 @@ public class RelationalDatabaseConnectorConfigTest {
         List<String> errors = validated.get(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP.name())
                 .errorMessages();
         assertThat(errors).hasSize(1);
-        assertThat(errors.get(0)).contains("It must be a valid JSON object");
+        assertThat(errors.get(0)).contains("It's not a valid JSON object");
     }
 
     @Test
