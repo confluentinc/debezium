@@ -88,9 +88,8 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
     @Override
     protected void setSnapshotTransactionIsolationLevel(boolean isOnDemand) throws SQLException {
         if (smartSnapshotName != null && !isOnDemand) {
-            String isolation = getIsolationStatement();
             String snapSet = String.format("SET TRANSACTION SNAPSHOT '%s';", smartSnapshotName);
-            String combined = isolation + "\n" + snapSet;
+            String combined = "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ; \n" + snapSet;
             LOGGER.info("Smart snapshot: opening transaction with: {}", combined);
             jdbcConnection.executeWithoutCommitting(combined);
             return;
