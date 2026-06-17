@@ -273,7 +273,6 @@ public abstract class RelationalSnapshotChangeEventSource<P extends Partition, O
 
         List<String> dataCollectionsToBeSnapshotted = connectorConfig.getDataCollectionsToBeSnapshotted();
         Map<DataCollectionId, String> snapshotSelectOverridesByTable = connectorConfig.getSnapshotSelectOverridesByTable();
-        warnOnUnmatchedSnapshotSelectOverrides(snapshotSelectOverridesByTable);
 
         boolean offsetExists = previousOffset != null;
         boolean snapshotInProgress = false;
@@ -302,16 +301,23 @@ public abstract class RelationalSnapshotChangeEventSource<P extends Partition, O
     }
 
     /**
-     * Logs a warning for any snapshot select statement override whose table is not matched by the configured table
-     * filters ({@code table.include.list}/{@code table.exclude.list}). Such an override can never be applied because
-     * the table will not be among the captured tables, so the snapshot would silently fall back to a full-table select.
+     * Logs a warning for any snapshot select statement override whose table is not among the captured tables. Such an
+     * override can never be applied, so the table would silently fall back to a full-table snapshot. The matching mirrors
+     * {@link #getSnapshotSelectOverridesByTable(TableId, Map)}, including the catalog-stripped lookup, to avoid false
+     * warnings for overrides keyed without a catalog.
      */
-    private void warnOnUnmatchedSnapshotSelectOverrides(Map<DataCollectionId, String> snapshotSelectOverridesByTable) {
-        for (DataCollectionId dataCollectionId : snapshotSelectOverridesByTable.keySet()) {
-            if (dataCollectionId instanceof TableId
-                    && !connectorConfig.getTableFilters().dataCollectionFilter().isIncluded((TableId) dataCollectionId)) {
-                LOGGER.warn("Snapshot select statement override is configured for table '{}', but this table is not matched by "
-                        + "'table.include.list'/'table.exclude.list'; the override will be ignored.", dataCollectionId);
+    private void warnOnUnmatchedSnapshotSelectOverrides(RelationalSnapshotContext<P, O> snapshotContext,
+                                                        Map<DataCollectionId, String> snapshotSelectOverridesByTable) {
+        Set<TableId> capturedTables = snapshotContext.capturedTables;
+        Set<TableId> capturedTablesWithoutCatalog = capturedTables.stream()
+                .map(tableId -> new TableId(null, tableId.schema(), tableId.table()))
+                .collect(Collectors.toSet());
+
+        for (DataCollectionId overrideTable : snapshotSelectOverridesByTable.keySet()) {
+            boolean captured = capturedTables.contains(overrideTable) || capturedTablesWithoutCatalog.contains(overrideTable);
+            if (!captured) {
+                LOGGER.warn("Snapshot select statement override is configured for table '{}', which is not among the captured "
+                        + "tables; the override will be ignored.", overrideTable);
             }
         }
     }
@@ -499,6 +505,8 @@ public abstract class RelationalSnapshotChangeEventSource<P extends Partition, O
                                   Queue<JdbcConnection> connectionPool, Map<DataCollectionId, String> snapshotSelectOverridesByTable)
             throws Exception {
         tryStartingSnapshot(snapshotContext);
+
+        warnOnUnmatchedSnapshotSelectOverrides(snapshotContext, snapshotSelectOverridesByTable);
 
         SnapshotReceiver<P> snapshotReceiver = dispatcher.getSnapshotChangeEventReceiver();
 
