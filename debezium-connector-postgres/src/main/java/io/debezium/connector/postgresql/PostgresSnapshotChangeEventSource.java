@@ -271,6 +271,17 @@ public class PostgresSnapshotChangeEventSource extends RelationalSnapshotChangeE
         jdbcConnection.executeWithoutCommitting(transactionStatement);
     }
 
+    protected String getIsolationStatement() {
+        return switch (connectorConfig.getSnapshotIsolationMode()) {
+            case REPEATABLE_READ -> "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY;";
+            case READ_COMMITTED -> "SET TRANSACTION ISOLATION LEVEL READ COMMITTED, READ ONLY;";
+            case READ_UNCOMMITTED -> "SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED, READ ONLY;";
+            // DEFERRABLE only takes affect for READY ONLY and SERIALIZABLE
+            // https://www.postgresql.org/docs/current/sql-set-transaction.html
+            default -> "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE, READ ONLY, DEFERRABLE;";
+        };
+    }
+
     private String snapshotTransactionIsolationLevelStatement(SlotCreationResult newSlotInfo, boolean isOnDemand) {
 
         if (newSlotInfo != null && !isOnDemand) {
@@ -282,19 +293,7 @@ public class PostgresSnapshotChangeEventSource extends RelationalSnapshotChangeE
             return "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ; \n" + snapSet;
         }
 
-        final PostgresConnectorConfig.SnapshotIsolationMode isolationMode = connectorConfig.getSnapshotIsolationMode();
-        if (isolationMode == PostgresConnectorConfig.SnapshotIsolationMode.REPEATABLE_READ) {
-            return "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY;";
-        }
-        if (isolationMode == PostgresConnectorConfig.SnapshotIsolationMode.READ_COMMITTED) {
-            return "SET TRANSACTION ISOLATION LEVEL READ COMMITTED, READ ONLY;";
-        }
-        if (isolationMode == PostgresConnectorConfig.SnapshotIsolationMode.READ_UNCOMMITTED) {
-            return "SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED, READ ONLY;";
-        }
-        // DEFERRABLE only takes affect for READY ONLY and SERIALIZABLE
-        // https://www.postgresql.org/docs/current/sql-set-transaction.html
-        return "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE, READ ONLY, DEFERRABLE;";
+        return getIsolationStatement();
     }
 
     /**
