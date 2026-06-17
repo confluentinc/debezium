@@ -31,6 +31,7 @@ import io.debezium.config.Field;
 import io.debezium.connector.base.ChangeEventQueue;
 import io.debezium.connector.common.BaseSourceTask;
 import io.debezium.connector.common.DebeziumHeaderProducer;
+import io.debezium.connector.postgresql.connection.Lsn;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.connector.postgresql.connection.PostgresConnection.PostgresValueConverterBuilder;
 import io.debezium.connector.postgresql.connection.PostgresDefaultValueConverter;
@@ -41,6 +42,7 @@ import io.debezium.document.DocumentReader;
 import io.debezium.jdbc.DefaultMainConnectionProvidingConnectionFactory;
 import io.debezium.jdbc.MainConnectionProvidingConnectionFactory;
 import io.debezium.pipeline.ChangeEventSourceCoordinator;
+import io.debezium.pipeline.CommonOffsetContext;
 import io.debezium.pipeline.DataChangeEvent;
 import io.debezium.pipeline.ErrorHandler;
 import io.debezium.pipeline.GuardrailValidator;
@@ -129,10 +131,17 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
         this.taskContext = new PostgresTaskContext(connectorConfig, schema, topicNamingStrategy);
         this.partitionProvider = new PostgresPartition.Provider(connectorConfig, config);
         this.offsetContextLoader = new PostgresOffsetContext.Loader(connectorConfig);
-        final Offsets<PostgresPartition, PostgresOffsetContext> previousOffsets = getPreviousOffsets(
-                this.partitionProvider, this.offsetContextLoader);
         final Clock clock = Clock.system();
-        final PostgresOffsetContext previousOffset = previousOffsets.getTheOnlyOffset();
+        Offsets<PostgresPartition, PostgresOffsetContext> previousOffsets = getPreviousOffsets(
+                this.partitionProvider, this.offsetContextLoader);
+        PostgresOffsetContext previousOffset = previousOffsets.getTheOnlyOffset();
+
+        if (previousOffset == null) {
+            previousOffset = fetchOffsetFromCoordinationTopic(previousOffsets.getTheOnlyPartition(), connectorConfig, clock);
+            if (previousOffset != null) {
+                previousOffsets = Offsets.of(previousOffsets.getTheOnlyPartition(), previousOffset);
+            }
+        }
 
         // Manual Bean Registration
         beanRegistryJdbcConnection = connectionFactory.newConnection();
@@ -172,11 +181,8 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
         isSmartSnapshotTask = connectorConfig.isSmartSnapshotEnabled()
                 && connectorConfig.getTaskId() != null;
 
-        String loggingContextName = isSmartSnapshotTask
-                ? CONTEXT_NAME + "|task-" + connectorConfig.getTaskId()
-                : CONTEXT_NAME;
-        LoggingContext.PreviousContext previousContext =
-                taskContext.configureLoggingContext(loggingContextName);
+        String loggingContextName = isSmartSnapshotTask ? (CONTEXT_NAME + "|task-" + connectorConfig.getTaskId()) : CONTEXT_NAME;
+        LoggingContext.PreviousContext previousContext = taskContext.configureLoggingContext(loggingContextName);
 
         if (previousOffset == null) {
             LOGGER.info("No previous offset found");
@@ -312,6 +318,39 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
         finally {
             previousContext.restore();
         }
+    }
+
+    private PostgresOffsetContext fetchOffsetFromCoordinationTopic(
+                                                                   PostgresPartition partition, PostgresConnectorConfig connectorConfig, Clock clock) {
+        if (connectorConfig.isSmartSnapshotEnabled() && !isSmartSnapshotTask) {
+            // Post-downscale streaming task: read LSN from coordination topic
+            String bootstrapServers = connectorConfig.getSmartSnapshotCoordinationBootstrapServers();
+            String coordinationTopic = connectorConfig.getLogicalName() + ".snapshot-coordination";
+            String clientIdSuffix = connectorConfig.getLogicalName() + "-coordination-streaming";
+            KafkaLogSnapshotCoordination kafkaLog = new KafkaLogSnapshotCoordination(
+                    bootstrapServers, coordinationTopic, clientIdSuffix);
+            kafkaLog.start();
+            Map<String, Object> coordData = kafkaLog.read(partition.getSourcePartition());
+            kafkaLog.stop();
+
+            if (coordData != null
+                    && Boolean.TRUE.equals(coordData.get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY))
+                    && coordData.get(SmartSnapshotConnectorCoordinator.SLOT_LSN_KEY) != null) {
+                String lsnStr = String.valueOf(coordData.get(SmartSnapshotConnectorCoordinator.SLOT_LSN_KEY));
+                Lsn lsn = Lsn.valueOf(lsnStr);
+                LOGGER.info("Smart snapshot: post-downscale streaming task, using LSN={} from coordination topic", lsn);
+                // Create synthetic offset — snapshot completed, start streaming from this LSN
+                PostgresOffsetContext syntheticOffset = PostgresOffsetContext.initialContext(connectorConfig, jdbcConnection, clock);
+                syntheticOffset.updateWalPosition(
+                        lsn, null,
+                        clock.currentTimeAsInstant(),
+                        null, null, null, null);
+                syntheticOffset.postSnapshotCompletion();
+                return syntheticOffset;
+            }
+        }
+
+        return null;
     }
 
     @Override
