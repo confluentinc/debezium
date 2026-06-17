@@ -5,11 +5,10 @@
  */
 package io.debezium.connector.postgresql;
 
+import java.nio.charset.Charset;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
 
 import org.apache.kafka.connect.errors.ConnectException;
 import org.slf4j.Logger;
@@ -22,7 +21,6 @@ import io.debezium.connector.postgresql.spi.SlotCreationResult;
 import io.debezium.connector.postgresql.spi.SlotState;
 import io.debezium.pipeline.source.snapshot.SnapshotLifecycleManager;
 import io.debezium.relational.TableId;
-import io.debezium.snapshot.SnapshotterService;
 import io.debezium.util.Clock;
 import io.debezium.util.Metronome;
 import io.debezium.util.ThreadNameContext;
@@ -33,7 +31,6 @@ public class PostgresSnapshotLifecycleManager implements SnapshotLifecycleManage
 
     private final PostgresConnectorConfig connectorConfig;
     private final ThreadNameContext threadNameContext;
-    private final SnapshotterService snapshotterService;
 
     // creation replication slot and hold snapshot alive (first start)
     private ReplicationConnection replicationConnection;
@@ -49,11 +46,9 @@ public class PostgresSnapshotLifecycleManager implements SnapshotLifecycleManage
     private String currentSlotLsn;
 
     public PostgresSnapshotLifecycleManager(PostgresConnectorConfig connectorConfig,
-                                            ThreadNameContext threadNameContext,
-                                            SnapshotterService snapshotterService) {
+                                            ThreadNameContext threadNameContext) {
         this.connectorConfig = connectorConfig;
         this.threadNameContext = threadNameContext;
-        this.snapshotterService = snapshotterService;
     }
 
     @Override
@@ -205,9 +200,18 @@ public class PostgresSnapshotLifecycleManager implements SnapshotLifecycleManage
 
     // this is similar to PostgresConnectorTask#createReplicationConnection
     private ReplicationConnection createReplicationConnectionWithRetry() {
+        Charset databaseCharset;
+        try (PostgresConnection temp = new PostgresConnection(connectorConfig.getJdbcConfig(),
+                PostgresConnection.CONNECTION_GENERAL, threadNameContext)) {
+            databaseCharset = temp.getDatabaseCharset();
+        }
+
+        PostgresConnection.PostgresValueConverterBuilder valueConverterBuilder = (typeRegistry) -> PostgresValueConverter.of(connectorConfig, databaseCharset,
+                typeRegistry);
+
         PostgresConnection metadataConnection = new PostgresConnection(
-                connectorConfig.getJdbcConfig(), PostgresConnection.CONNECTION_GENERAL,
-                threadNameContext);
+                connectorConfig.getJdbcConfig(), valueConverterBuilder,
+                PostgresConnection.CONNECTION_GENERAL, threadNameContext);
 
         final Metronome metronome = Metronome.parker(connectorConfig.retryDelay(), Clock.SYSTEM);
         short retryCount = 0;
@@ -316,33 +320,23 @@ public class PostgresSnapshotLifecycleManager implements SnapshotLifecycleManage
     private void lockAllTables(List<TableId> tables) {
         // Use the configured snapshot lock strategy (shared/none) and lock timeout
         // Mirrors PostgresSnapshotChangeEventSource.lockTablesForSchemaSnapshot()
-        final Duration lockTimeout = connectorConfig.snapshotLockTimeout();
-        List<String> lockStatements = tables.stream()
-                .map(t -> snapshotterService.getSnapshotLock()
-                        .tableLockingStatement(lockTimeout, t.toDoubleQuotedString()))
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(Collectors.toList());
-
-        if (lockStatements.isEmpty()) {
-            LOGGER.info("Smart snapshot: no table locking configured (snapshot.locking.mode=none)");
-            return;
-        }
-
         try {
             lockHolderConnection = new PostgresConnection(connectorConfig.getJdbcConfig(),
                     PostgresConnection.CONNECTION_GENERAL, threadNameContext);
             lockHolderConnection.connection().setAutoCommit(false);
 
-            // Build single combined statement — same as existing snapshot code
+            Duration lockTimeout = connectorConfig.snapshotLockTimeout();
             String lineSeparator = System.lineSeparator();
             StringBuilder statements = new StringBuilder();
             statements.append("SET lock_timeout = ").append(lockTimeout.toMillis())
                     .append(";").append(lineSeparator);
-            lockStatements.forEach(stmt -> statements.append(stmt).append(lineSeparator));
+            for (TableId table : tables) {
+                statements.append("LOCK TABLE ").append(table.toDoubleQuotedString())
+                        .append(" IN ACCESS SHARE MODE;").append(lineSeparator);
+            }
 
             LOGGER.info("Smart snapshot: locking {} tables (timeout={}s)",
-                    lockStatements.size(), lockTimeout.getSeconds());
+                    tables.size(), lockTimeout.getSeconds());
             lockHolderConnection.executeWithoutCommitting(statements.toString());
         }
         catch (SQLException e) {

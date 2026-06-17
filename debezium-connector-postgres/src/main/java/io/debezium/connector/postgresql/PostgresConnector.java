@@ -37,7 +37,6 @@ import io.debezium.pipeline.source.snapshot.SnapshotCoordination;
 import io.debezium.pipeline.source.snapshot.SnapshotLifecycleManager;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.relational.TableId;
-import io.debezium.snapshot.SnapshotterService;
 import io.debezium.util.ThreadNameContext;
 import io.debezium.util.Threads;
 
@@ -87,15 +86,14 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
 
             SnapshotCoordination coordination = new KafkaLogSnapshotCoordination(
                     bootstrapServers, coordinationTopic, clientIdSuffix);
-            SnapshotterService snapshotterService = connectorConfig.getServiceRegistry()
-                    .tryGetService(SnapshotterService.class);
-            boolean shouldStream = snapshotterService.getSnapshotter().shouldStream();
 
             SnapshotLifecycleManager lifecycle = new PostgresSnapshotLifecycleManager(
-                    connectorConfig, ThreadNameContext.from(connectorConfig), snapshotterService);
+                    connectorConfig, ThreadNameContext.from(connectorConfig));
+
+            boolean shouldStream = !PostgresConnectorConfig.SnapshotMode.INITIAL_ONLY.getValue().equals(connectorConfig.getSnapshotMode().getValue());
 
             smartSnapshotConnectorCoordinator = new SmartSnapshotConnectorCoordinator(
-                    coordination, lifecycle, context(), serverName, snapshotterService.getSnapshotter());
+                    coordination, lifecycle, context(), serverName);
 
             List<TableId> tables = getMatchingCollections(config);
             smartSnapshotConnectorCoordinator.start(tables, shouldStream);
@@ -118,8 +116,7 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
 
         if (smartSnapshotEnabled && maxTasks > 1 && smartSnapshotConnectorCoordinator != null) {
             PostgresConnectorConfig connectorConfig = new PostgresConnectorConfig(config);
-            SnapshotterService snapshotterService = connectorConfig.getServiceRegistry().tryGetService(SnapshotterService.class);
-            boolean shouldStream = snapshotterService.getSnapshotter().shouldStream();
+            boolean shouldStream = !PostgresConnectorConfig.SnapshotMode.INITIAL_ONLY.getValue().equals(connectorConfig.getSnapshotMode().getValue());
             List<Map<String, String>> configs = smartSnapshotConnectorCoordinator.taskConfigs(maxTasks, props, shouldStream);
             if (configs != null) {
                 return configs;

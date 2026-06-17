@@ -24,7 +24,6 @@ import io.debezium.config.ConfigurationNames;
 import io.debezium.connector.AbstractSourceInfo;
 import io.debezium.pipeline.CommonOffsetContext;
 import io.debezium.relational.TableId;
-import io.debezium.spi.snapshot.Snapshotter;
 import io.debezium.util.Collect;
 
 public class SmartSnapshotConnectorCoordinator {
@@ -113,18 +112,14 @@ public class SmartSnapshotConnectorCoordinator {
     // current snapshot state
     private volatile SmartSnapshotState smartSnapshotState = SmartSnapshotState.ACTIVE;
 
-    private final Snapshotter snapshotter;
-
     public SmartSnapshotConnectorCoordinator(SnapshotCoordination snapshotCoordination,
                                              SnapshotLifecycleManager snapshotLifecycleManager,
                                              ConnectorContext connectorContext,
-                                             String serverName,
-                                             Snapshotter snapshotter) {
+                                             String serverName) {
         this.snapshotCoordination = snapshotCoordination;
         this.snapshotLifecycleManager = snapshotLifecycleManager;
         this.connectorContext = connectorContext;
         this.serverName = serverName;
-        this.snapshotter = snapshotter;
     }
 
     /**
@@ -141,7 +136,7 @@ public class SmartSnapshotConnectorCoordinator {
         boolean offsetExists = existingOffset != null;
         boolean snapshotInProgress = offsetExists && isSnapshotInProgress(existingOffset);
 
-        if (!snapshotter.shouldSnapshotData(offsetExists, snapshotInProgress)) {
+        if (offsetExists && !snapshotInProgress) {
             LOGGER.info("Smart snapshot: snapshotter says no snapshot needed, skipping");
             this.smartSnapshotState = SmartSnapshotState.COMPLETE;
             return;
