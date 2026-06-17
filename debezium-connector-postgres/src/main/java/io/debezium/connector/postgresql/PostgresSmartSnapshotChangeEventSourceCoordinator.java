@@ -81,17 +81,19 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
                                              ChangeEventSourceContext context)
             throws InterruptedException {
 
+        PostgresPartition partition = previousOffsets.getTheOnlyPartition();
+        previousLogContext.set(taskContext.configureLoggingContext("snapshot", partition));
+
         snapshotCoordination.start();
 
-        PostgresPartition partition = previousOffsets.getTheOnlyPartition();
         PostgresOffsetContext previousOffset = previousOffsets.getTheOnlyOffset();
 
         // Epoch mismatch with previous offset → stale from previous round, clear it
         if (previousOffset != null) {
             Integer offsetEpoch = previousOffset.getEpoch();
             if (offsetEpoch != null && !offsetEpoch.equals(epoch)) {
-                LOGGER.info("Smart snapshot: epoch mismatch (offset={}, config={}), clearing offset",
-                        offsetEpoch, epoch);
+                LOGGER.info("Smart snapshot [task-{}]: epoch mismatch (offset={}, config={}), clearing offset",
+                        taskId, offsetEpoch, epoch);
                 previousOffsets.resetOffset(partition);
                 previousOffset = null;
             }
@@ -118,15 +120,15 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
                     break;
                 }
             }
-            LOGGER.info("Smart snapshot: waiting for snapshot preparation (attempt {}/30)", attempt + 1);
+            LOGGER.info("Smart snapshot [task-{}]: waiting for snapshot preparation (attempt {}/30)", taskId, attempt + 1);
             Thread.sleep(1000);
         }
         if (snapshotName == null) {
-            throw new DebeziumException("Smart snapshot: Timed out waiting for snapshot preparation");
+            throw new DebeziumException(String.format("Smart snapshot [task-%s]: Timed out waiting for snapshot preparation", taskId));
         }
 
-        LOGGER.info("Smart snapshot: got snapshot='{}', LSN={}, executing snapshot-only, epoch={}",
-                snapshotName, slotLsnStr, epoch);
+        LOGGER.info("Smart snapshot [task-{}]: got snapshot='{}', LSN={}, executing snapshot-only, epoch={}",
+                taskId, snapshotName, slotLsnStr, epoch);
 
         // Set snapshot name, LSN, and coordination on the source
         PostgresSmartSnapshotChangeEventSource smartSource = (PostgresSmartSnapshotChangeEventSource) snapshotSource;
@@ -136,7 +138,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
 
         // Run snapshot
         SnapshotResult<PostgresOffsetContext> snapshotResult = doSnapshot(snapshotSource, context, partition, previousOffset);
-        LOGGER.info("Smart snapshot: snapshot completed with status={}", snapshotResult.getStatus());
+        LOGGER.info("Smart snapshot [task-{}]: snapshot completed with status={}", taskId, snapshotResult.getStatus());
 
         /**
          catch block after doSnapshot required in Mysql implementation (remove later)

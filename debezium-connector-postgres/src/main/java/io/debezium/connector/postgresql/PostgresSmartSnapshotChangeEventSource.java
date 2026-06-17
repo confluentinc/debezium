@@ -33,6 +33,7 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
 
     private final PostgresConnectorConfig connectorConfig;
     private final PostgresConnection jdbcConnection;
+    private final String taskId;
     private String smartSnapshotName;
     private SnapshotCoordination snapshotCoordination;
     private int epoch;
@@ -54,6 +55,7 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
                 slotCreatedInfo, startingSlotInfo, notificationService);
         this.connectorConfig = connectorConfig;
         this.jdbcConnection = connectionFactory.mainConnection();
+        this.taskId = connectorConfig.getTaskId();
     }
 
     public void setSmartSnapshotName(String snapshotName) {
@@ -82,7 +84,7 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
         offset.updateWalPosition(smartSnapshotLsn, null, getClock().currentTime(),
                 txId, null, null, null);
         ctx.offset = offset;
-        LOGGER.info("Smart snapshot: set offset LSN={}, epoch={}", smartSnapshotLsn, epoch);
+        LOGGER.info("Smart snapshot [task-{}]: set offset LSN={}, epoch={}", taskId, smartSnapshotLsn, epoch);
     }
 
     @Override
@@ -90,7 +92,7 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
         if (smartSnapshotName != null && !isOnDemand) {
             String snapSet = String.format("SET TRANSACTION SNAPSHOT '%s';", smartSnapshotName);
             String combined = "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ; \n" + snapSet;
-            LOGGER.info("Smart snapshot: opening transaction with: {}", combined);
+            LOGGER.info("Smart snapshot [task-{}]: opening transaction with: {}", taskId, combined);
             jdbcConnection.executeWithoutCommitting(combined);
             return;
         }
@@ -101,7 +103,7 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
     protected void lockTablesForSchemaSnapshot(
                                                ChangeEventSourceContext sourceContext,
                                                RelationalSnapshotContext<PostgresPartition, PostgresOffsetContext> snapshotContext) {
-        LOGGER.info("Smart snapshot: skipping table locking (Connector holds locks)");
+        LOGGER.info("Smart snapshot [task-{}]: skipping table locking (Connector holds locks)", taskId);
     }
 
     @Override
@@ -120,11 +122,10 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
                 signal.put("transaction_started", true);
                 signal.put(SmartSnapshotConnectorCoordinator.EPOCH_KEY, epoch);
                 snapshotCoordination.write(taskPartition, signal);
-                LOGGER.info("Smart snapshot: task {} signaled transaction_started (schema read done)",
-                        connectorConfig.getTaskId());
+                LOGGER.info("Smart snapshot [task-{}]: task signaled transaction_started (schema read done)", taskId);
             }
             catch (Exception e) {
-                LOGGER.warn("Failed to write transaction_started signal", e);
+                LOGGER.warn("Smart snapshot [task-{}]: Failed to write transaction_started signal", taskId, e);
             }
         }
     }

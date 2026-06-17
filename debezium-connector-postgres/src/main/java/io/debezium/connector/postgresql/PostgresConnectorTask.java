@@ -247,7 +247,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
             if (isSmartSnapshotTask) {
                 int epoch = Integer.parseInt(config.getString(SmartSnapshotConnectorCoordinator.EPOCH_KEY, "1"));
-                LOGGER.info("Smart snapshot task: taskId={}, epoch={}", connectorConfig.getTaskId(), epoch);
+                LOGGER.info("Smart snapshot [task-{}]: epoch={}", connectorConfig.getTaskId(), epoch);
 
                 // Create coordination + coordinator
                 String bootstrapServers = connectorConfig.getSmartSnapshotCoordinationBootstrapServers();
@@ -338,7 +338,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                     && coordData.get(SmartSnapshotConnectorCoordinator.SLOT_LSN_KEY) != null) {
                 String lsnStr = String.valueOf(coordData.get(SmartSnapshotConnectorCoordinator.SLOT_LSN_KEY));
                 Lsn lsn = Lsn.valueOf(lsnStr);
-                LOGGER.info("Smart snapshot: post-downscale streaming task, using LSN={} from coordination topic", lsn);
+                LOGGER.info("Smart snapshot [task-{}]: post-downscale streaming task, using LSN={} from coordination topic", connectorConfig.getTaskId(), lsn);
                 // Create synthetic offset — snapshot completed, start streaming from this LSN
                 PostgresOffsetContext syntheticOffset = PostgresOffsetContext.initialContext(connectorConfig, jdbcConnection, clock);
                 syntheticOffset.updateWalPosition(
