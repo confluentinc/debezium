@@ -43,6 +43,7 @@ import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigDef.Type;
 import org.apache.kafka.common.config.ConfigDef.Width;
 import org.apache.kafka.common.config.ConfigResource;
+import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.common.errors.TopicExistsException;
 import org.apache.kafka.common.errors.UnsupportedVersionException;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -372,6 +373,10 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
                     recoveryAttempts = 0;
                 }
             } while (lastProcessedOffset < endOffset - 1);
+        }
+        catch (InterruptException e) {
+            Thread.currentThread().interrupt();
+            throw new InterruptedException("Interrupted while polling Kafka during schema history recovery");
         }
         catch (InterruptedException e) {
             Thread.currentThread().interrupt();

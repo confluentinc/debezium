@@ -140,7 +140,11 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
                     context = new ChangeEventSourceContextImpl();
                     LOGGER.info("Context created");
 
-                    if (schema.isHistorized() && ((HistorizedDatabaseSchema) schema).historyExists()) {
+                    // Don't recover while an initial snapshot is still in progress; the resumed
+                    // snapshot rebuilds the schema itself.
+                    boolean initialSnapshotRunning = previousOffsets.getOffsets().values().stream()
+                            .anyMatch(offset -> offset != null && offset.isInitialSnapshotRunning());
+                    if (schema.isHistorized() && !initialSnapshotRunning && ((HistorizedDatabaseSchema) schema).historyExists()) {
                         ((HistorizedDatabaseSchema<?>) schema).recover(previousOffsets);
                     }
 
