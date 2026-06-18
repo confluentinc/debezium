@@ -384,6 +384,7 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
 
     @Override
     public boolean storageExists() {
+        
         // Check if the topic exists in the list of all topics
         try (KafkaConsumer<String, String> checkTopicConsumer = new KafkaConsumer<>(consumerConfig.asProperties())) {
             return checkTopicConsumer.listTopics().containsKey(topicName);
