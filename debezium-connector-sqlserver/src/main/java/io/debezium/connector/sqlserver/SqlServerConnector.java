@@ -15,6 +15,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
@@ -25,8 +26,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.debezium.DebeziumException;
+import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.connector.common.RelationalBaseSourceConnector;
+import io.debezium.pipeline.source.snapshot.KafkaLogSnapshotCoordination;
+import io.debezium.pipeline.source.snapshot.SmartSnapshotConnectorCoordinator;
+import io.debezium.pipeline.source.snapshot.SnapshotCoordination;
+import io.debezium.pipeline.source.snapshot.SnapshotLifecycleManager;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.relational.TableId;
 import io.debezium.util.ThreadNameContext;
@@ -44,6 +50,13 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
 
     private Map<String, String> properties;
 
+    /*
+     * Smart-snapshot (multi-task) coordinators, one per database. SQL Server is multi-database, so each
+     * database coordinates its own snapshot independently (own consistent LSN, own write barrier, own epoch).
+     * Empty/null when smart.snapshot is disabled or every database's snapshot is already complete.
+     */
+    private volatile Map<String, SmartSnapshotConnectorCoordinator> smartSnapshotCoordinators;
+
     @Override
     public String version() {
         return Module.version();
@@ -52,6 +65,46 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
     @Override
     public void start(Map<String, String> props) {
         this.properties = Collections.unmodifiableMap(new HashMap<>(props));
+
+        final Configuration config = Configuration.from(properties);
+        if (!config.getBoolean(CommonConnectorConfig.SMART_SNAPSHOT_ENABLED)) {
+            return;
+        }
+
+        final SqlServerConnectorConfig connectorConfig = new SqlServerConnectorConfig(config);
+        final String serverName = connectorConfig.getLogicalName();
+        final String bootstrapServers = connectorConfig.getSmartSnapshotCoordinationBootstrapServers();
+        final boolean shouldStream = connectorConfig.getSnapshotMode() != SqlServerConnectorConfig.SnapshotMode.INITIAL_ONLY;
+
+        // All captured tables across all databases (catalog-qualified), grouped per database below.
+        final List<TableId> allTables = getMatchingCollections(config);
+        final Map<String, SmartSnapshotConnectorCoordinator> coordinators = new ConcurrentHashMap<>();
+
+        for (String databaseName : connectorConfig.getDatabaseNames()) {
+            List<TableId> dbTables = allTables.stream()
+                    .filter(t -> databaseName.equals(t.catalog()))
+                    .collect(Collectors.toList());
+            if (dbTables.isEmpty()) {
+                continue;
+            }
+
+            String coordinationTopic = serverName + "." + databaseName + ".snapshot-coordination";
+            String clientIdSuffix = serverName + "-" + databaseName + "-coordination-connector";
+            SnapshotCoordination coordination = new KafkaLogSnapshotCoordination(bootstrapServers, coordinationTopic, clientIdSuffix);
+            SnapshotLifecycleManager lifecycle = new SqlServerSnapshotLifecycleManager(connectorConfig, databaseName);
+            SmartSnapshotConnectorCoordinator coordinator = new SmartSnapshotConnectorCoordinator(
+                    coordination, lifecycle, context(), serverName, databaseName);
+
+            coordinator.start(dbTables, shouldStream);
+            if (coordinator.isComplete()) {
+                coordinator.stop();
+            }
+            else {
+                coordinators.put(databaseName, coordinator);
+            }
+        }
+
+        this.smartSnapshotCoordinators = coordinators;
     }
 
     @Override
@@ -66,6 +119,29 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
         }
 
         final SqlServerConnectorConfig config = new SqlServerConnectorConfig(Configuration.from(properties));
+
+        // Smart snapshot (multi-task) path: while any database's snapshot is still active, return the
+        // per-database sharded task configs from each coordinator. Each task is DB-exclusive (database.names
+        // is pinned to its single database). Once every coordinator reports complete (all return null), we
+        // fall through to the normal per-database streaming layout below (downscale).
+        if (Configuration.from(properties).getBoolean(CommonConnectorConfig.SMART_SNAPSHOT_ENABLED) && maxTasks > 1
+                && smartSnapshotCoordinators != null && !smartSnapshotCoordinators.isEmpty()) {
+            final boolean shouldStream = config.getSnapshotMode() != SqlServerConnectorConfig.SnapshotMode.INITIAL_ONLY;
+            final List<Map<String, String>> smartConfigs = new ArrayList<>();
+            for (Map.Entry<String, SmartSnapshotConnectorCoordinator> entry : smartSnapshotCoordinators.entrySet()) {
+                Map<String, String> baseProps = new HashMap<>(properties);
+                // DB-exclusive: every task this coordinator emits serves only its single database.
+                baseProps.put(DATABASE_NAMES.name(), entry.getKey());
+                List<Map<String, String>> dbConfigs = entry.getValue().taskConfigs(maxTasks, baseProps, shouldStream);
+                if (dbConfigs != null) {
+                    smartConfigs.addAll(dbConfigs);
+                }
+            }
+            if (!smartConfigs.isEmpty()) {
+                return smartConfigs;
+            }
+            // all coordinators complete → downscale to the normal streaming layout
+        }
 
         try (SqlServerConnection connection = connect(config)) {
             return buildTaskConfigs(connection, config, maxTasks);
@@ -108,6 +184,11 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
 
     @Override
     public void stop() {
+        Map<String, SmartSnapshotConnectorCoordinator> coordinators = this.smartSnapshotCoordinators;
+        this.smartSnapshotCoordinators = null;
+        if (coordinators != null) {
+            coordinators.values().forEach(SmartSnapshotConnectorCoordinator::stop);
+        }
     }
 
     @Override
@@ -140,7 +221,7 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
                         LOGGER.debug("Successfully tested connection for {} with user '{}'", connection.connectionString(), username);
                     }
                     LOGGER.info("Checking database existence and connected principal's access to CDC table based on "
-                        + "configured snapshot mode");
+                            + "configured snapshot mode");
                     final List<String> noAccessDatabaseNames = new ArrayList<>();
                     for (String databaseName : sqlServerConfig.getDatabaseNames()) {
                         if (sqlServerConfig.getSnapshotMode() == SqlServerConnectorConfig.SnapshotMode.INITIAL_ONLY) {
