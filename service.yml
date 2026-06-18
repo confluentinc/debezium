@@ -15,3 +15,4 @@ semaphore:
     enable: true
     package_paths:
       - maven-snapshots/maven/io.confluent/debezium-core
+      - maven-snapshots/maven/io.confluent/debezium-storage-kafka
