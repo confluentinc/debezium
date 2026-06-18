@@ -128,7 +128,12 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
         final PostgresValueConverter valueConverter = valueConverterBuilder.build(typeRegistry);
 
         schema = new PostgresSchema(connectorConfig, defaultValueConverter, topicNamingStrategy, valueConverter);
-        this.taskContext = new PostgresTaskContext(connectorConfig, schema, topicNamingStrategy);
+
+        isSmartSnapshotTask = connectorConfig.isSmartSnapshotEnabled() && connectorConfig.getTaskId() != null;
+
+        this.taskContext = isSmartSnapshotTask
+                ? new PostgresTaskContext(connectorConfig, connectorConfig.getTaskId(), schema, topicNamingStrategy)
+                : new PostgresTaskContext(connectorConfig, schema, topicNamingStrategy);
         this.partitionProvider = new PostgresPartition.Provider(connectorConfig, config);
         this.offsetContextLoader = new PostgresOffsetContext.Loader(connectorConfig);
         final Clock clock = Clock.system();
@@ -178,11 +183,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
         validateSchemaHistory(connectorConfig, jdbcConnection::validateLogPosition, previousOffsets, schema, snapshotter);
 
-        isSmartSnapshotTask = connectorConfig.isSmartSnapshotEnabled()
-                && connectorConfig.getTaskId() != null;
-
-        String loggingContextName = isSmartSnapshotTask ? (CONTEXT_NAME + "|task-" + connectorConfig.getTaskId()) : CONTEXT_NAME;
-        LoggingContext.PreviousContext previousContext = taskContext.configureLoggingContext(loggingContextName);
+        LoggingContext.PreviousContext previousContext = taskContext.configureLoggingContext(CONTEXT_NAME);
 
         if (previousOffset == null) {
             LOGGER.info("No previous offset found");

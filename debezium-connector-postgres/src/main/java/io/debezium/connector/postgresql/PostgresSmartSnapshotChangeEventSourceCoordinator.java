@@ -81,10 +81,10 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
                                              ChangeEventSourceContext context)
             throws InterruptedException {
 
+        snapshotCoordination.start();
+
         PostgresPartition partition = previousOffsets.getTheOnlyPartition();
         previousLogContext.set(taskContext.configureLoggingContext("snapshot", partition));
-
-        snapshotCoordination.start();
 
         PostgresOffsetContext previousOffset = previousOffsets.getTheOnlyOffset();
 
@@ -121,7 +121,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
                 }
             }
             LOGGER.info("Smart snapshot [task-{}]: waiting for snapshot preparation (attempt {}/30)", taskId, attempt + 1);
-            Thread.sleep(1000);
+            Thread.sleep(2000);
         }
         if (snapshotName == null) {
             throw new DebeziumException(String.format("Smart snapshot [task-%s]: Timed out waiting for snapshot preparation", taskId));
