@@ -43,6 +43,7 @@ import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigDef.Type;
 import org.apache.kafka.common.config.ConfigDef.Width;
 import org.apache.kafka.common.config.ConfigResource;
+import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.common.errors.TopicExistsException;
 import org.apache.kafka.common.errors.UnsupportedVersionException;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -297,8 +298,14 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
         }
     }
 
+    private void checkForInterruption() throws InterruptedException {
+        if (Thread.currentThread().isInterrupted()) {
+            throw new InterruptedException("Thread was interrupted during schema history recovery");
+        }
+    }
+
     @Override
-    protected void recoverRecords(Consumer<HistoryRecord> records) {
+    protected void recoverRecords(Consumer<HistoryRecord> records) throws InterruptedException {
         try (KafkaConsumer<String, String> historyConsumer = new KafkaConsumer<>(consumerConfig.asProperties())) {
             // Subscribe to the only partition for this topic, and seek to the beginning of that partition ...
             LOGGER.debug("Subscribing to database schema history topic '{}'", topicName);
@@ -319,11 +326,13 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
                 endOffset = getEndOffsetOfDbHistoryTopic(endOffset, historyConsumer);
                 LOGGER.debug("End offset of database schema history topic is {}", endOffset);
 
+                checkForInterruption();
                 // DBZ-1361 not using poll(Duration) to keep compatibility with AK 1.x
                 ConsumerRecords<String, String> recoveredRecords = historyConsumer.poll(this.pollInterval);
                 int numRecordsProcessed = 0;
 
                 for (ConsumerRecord<String, String> record : recoveredRecords) {
+                    checkForInterruption();
                     try {
                         if (lastProcessedOffset < record.offset()) {
                             if (record.value() == null) {
@@ -364,6 +373,10 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
                     recoveryAttempts = 0;
                 }
             } while (lastProcessedOffset < endOffset - 1);
+        }
+        catch (InterruptException | InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new InterruptedException("Interrupted during schema history recovery");
         }
     }
 
