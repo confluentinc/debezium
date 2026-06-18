@@ -182,16 +182,11 @@ blocks:
             # Build debezium-storage-kafka with original groupId (io.debezium) to keep dependencies intact
             - mvn -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode install -Passembly -pl debezium-storage/debezium-storage-kafka -am -DskipTests -DskipITs
             - export STORAGE_KAFKA_DIR=debezium-storage/debezium-storage-kafka
-            # Create a modified POM with io.confluent groupId for deployment
-            - cp ${STORAGE_KAFKA_DIR}/pom.xml ${STORAGE_KAFKA_DIR}/target/debezium-storage-kafka-${DEBEZIUM_VERSION}.pom
-            # Add explicit groupId and version after modelVersion (since they're inherited from parent)
-            - sed -i '/<\/modelVersion>/a\    <groupId>io.confluent</groupId>\n    <version>'"${DEBEZIUM_VERSION}"'</version>' ${STORAGE_KAFKA_DIR}/target/debezium-storage-kafka-${DEBEZIUM_VERSION}.pom
             # Deploy main JAR with io.confluent groupId
             - mvn deploy:deploy-file
               -Durl=https://confluent-519856050701.d.codeartifact.us-west-2.amazonaws.com/maven/maven-snapshots/
               -DrepositoryId=confluent-codeartifact-internal
               -Dfile=${STORAGE_KAFKA_DIR}/target/debezium-storage-kafka-${DEBEZIUM_VERSION}.jar
-              -DpomFile=${STORAGE_KAFKA_DIR}/target/debezium-storage-kafka-${DEBEZIUM_VERSION}.pom
               -DgroupId=io.confluent
               -DartifactId=debezium-storage-kafka
               -Dversion=${DEBEZIUM_VERSION}
