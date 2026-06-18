@@ -54,6 +54,10 @@ public class SqlServerChangeEventSourceFactory implements ChangeEventSourceFacto
     @Override
     public SnapshotChangeEventSource<SqlServerPartition, SqlServerOffsetContext> getSnapshotChangeEventSource(SnapshotProgressListener<SqlServerPartition> snapshotProgressListener,
                                                                                                               NotificationService<SqlServerPartition, SqlServerOffsetContext> notificationService) {
+        if (configuration.isSmartSnapshotEnabled() && configuration.getSmartSnapshotEpoch() != null) {
+            return new SqlServerSmartSnapshotChangeEventSource(configuration, connectionFactory, schema, dispatcher, clock, snapshotProgressListener,
+                    notificationService, snapshotterService);
+        }
         return new SqlServerSnapshotChangeEventSource(configuration, connectionFactory, schema, dispatcher, clock, snapshotProgressListener, notificationService,
                 snapshotterService);
     }

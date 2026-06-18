@@ -24,7 +24,6 @@ import io.debezium.config.ConfigurationNames;
 import io.debezium.connector.AbstractSourceInfo;
 import io.debezium.pipeline.CommonOffsetContext;
 import io.debezium.relational.TableId;
-import io.debezium.util.Collect;
 
 public class SmartSnapshotConnectorCoordinator {
 
@@ -39,6 +38,13 @@ public class SmartSnapshotConnectorCoordinator {
     private final SnapshotLifecycleManager snapshotLifecycleManager;
     private final ConnectorContext connectorContext;
     private final String serverName;
+    /*
+     * Optional database scope. Single-database connectors (Postgres) leave this null, keeping the
+     * coordination/offset keys as {server[,task]}. Multi-database connectors (SQL Server) instantiate one
+     * coordinator per database and pass the database here so all keys become {server,database[,task]},
+     * matching the per-(server,database,task) offset partitions the tasks actually write.
+     */
+    private final String database;
 
     /*
      * Performs 4 monitoring operations:
@@ -116,10 +122,40 @@ public class SmartSnapshotConnectorCoordinator {
                                              SnapshotLifecycleManager snapshotLifecycleManager,
                                              ConnectorContext connectorContext,
                                              String serverName) {
+        this(snapshotCoordination, snapshotLifecycleManager, connectorContext, serverName, null);
+    }
+
+    public SmartSnapshotConnectorCoordinator(SnapshotCoordination snapshotCoordination,
+                                             SnapshotLifecycleManager snapshotLifecycleManager,
+                                             ConnectorContext connectorContext,
+                                             String serverName,
+                                             String database) {
         this.snapshotCoordination = snapshotCoordination;
         this.snapshotLifecycleManager = snapshotLifecycleManager;
         this.connectorContext = connectorContext;
         this.serverName = serverName;
+        this.database = database;
+    }
+
+    /**
+     * Coordination/offset key for the shared (per-database) record: {server[,database]}.
+     */
+    private Map<String, String> sharedKey() {
+        Map<String, String> key = new HashMap<>();
+        key.put("server", serverName);
+        if (database != null) {
+            key.put("database", database);
+        }
+        return key;
+    }
+
+    /**
+     * Coordination/offset key for a per-task record: {server[,database],task}.
+     */
+    private Map<String, String> taskKey(int taskIndex) {
+        Map<String, String> key = sharedKey();
+        key.put("task", String.valueOf(taskIndex));
+        return key;
     }
 
     /**
@@ -132,7 +168,7 @@ public class SmartSnapshotConnectorCoordinator {
         // This handles streaming offsets where snapshot_completed field is absent
         SourceConnectorContext srcContext = (SourceConnectorContext) connectorContext;
         Map<String, Object> existingOffset = srcContext.offsetStorageReader().offset(
-                Collect.hashMapOf("server", serverName));
+                sharedKey());
         boolean offsetExists = existingOffset != null;
         boolean snapshotInProgress = offsetExists && isSnapshotInProgress(existingOffset);
 
@@ -145,7 +181,7 @@ public class SmartSnapshotConnectorCoordinator {
         snapshotCoordination.start();
 
         // Check coordination topic: if previous multi-task snapshot completed
-        Map<String, String> sharedPartition = Collect.hashMapOf("server", serverName);
+        Map<String, String> sharedPartition = sharedKey();
         Map<String, Object> sharedOffset = snapshotCoordination.read(sharedPartition);
 
         if (sharedOffset != null
@@ -176,8 +212,9 @@ public class SmartSnapshotConnectorCoordinator {
                                                  Map<String, String> baseProps,
                                                  boolean shouldStream) {
         List<TableId> tables = snapshotTables;
-        if (tables == null || tables.isEmpty())
+        if (tables == null || tables.isEmpty()) {
             return null;
+        }
 
         switch (smartSnapshotState) {
             case COMPLETE:
@@ -186,7 +223,7 @@ public class SmartSnapshotConnectorCoordinator {
                 snapshotLifecycleManager.releaseSnapshot();
                 // Write completion to coordination topic (streaming task reads LSN from here)
                 try {
-                    Map<String, String> sp = Collect.hashMapOf("server", serverName);
+                    Map<String, String> sp = sharedKey();
                     Map<String, Object> coordData = new HashMap<>();
                     coordData.put(SLOT_LSN_KEY, finalPosition);
                     coordData.put(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY, true);
@@ -283,7 +320,7 @@ public class SmartSnapshotConnectorCoordinator {
                 SnapshotLifecycleManager.SnapshotSetup setup = snapshotLifecycleManager.prepareSnapshot(tables, shouldStream);
 
                 // Write snapshot info to coordination topic
-                Map<String, String> sharedPartition = Collect.hashMapOf("server", serverName);
+                Map<String, String> sharedPartition = sharedKey();
                 Map<String, Object> coordData = new HashMap<>();
                 coordData.put(SLOT_LSN_KEY, setup.consistentPosition());
                 coordData.put(SNAPSHOT_NAME_KEY, setup.snapshotName());
@@ -317,8 +354,9 @@ public class SmartSnapshotConnectorCoordinator {
                 }
 
                 // skip until taskConfigs() sets it
-                if (lastNumTasks <= 0)
+                if (lastNumTasks <= 0) {
                     continue;
+                }
 
                 // 1. Check if background preparation failed, raise error
                 if (snapshotPreparationError != null) {
@@ -352,8 +390,7 @@ public class SmartSnapshotConnectorCoordinator {
                 if (!allTasksJoined && snapshotLifecycleManager != null) {
                     boolean allJoined = true;
                     for (int i = 0; i < lastNumTasks; i++) {
-                        Map<String, String> taskPartition = Collect.hashMapOf(
-                                "server", serverName, "task", String.valueOf(i));
+                        Map<String, String> taskPartition = taskKey(i);
                         Map<String, Object> taskCoord = snapshotCoordination.read(taskPartition);
                         if (taskCoord == null
                                 || !Boolean.TRUE.equals(taskCoord.get("transaction_started"))) {
@@ -371,8 +408,7 @@ public class SmartSnapshotConnectorCoordinator {
                 // 4. Check per-task restart_needed (MySQL: task can't rejoin snapshot)
                 if (snapshotLifecycleManager.requiresFullRestartOnTaskFailure()) {
                     for (int i = 0; i < lastNumTasks; i++) {
-                        Map<String, String> taskPartition = Collect.hashMapOf(
-                                "server", serverName, "task", String.valueOf(i));
+                        Map<String, String> taskPartition = taskKey(i);
                         Map<String, Object> taskCoord = snapshotCoordination.read(taskPartition);
                         if (taskCoord != null
                                 && Boolean.TRUE.equals(taskCoord.get("restart_needed"))) {
@@ -382,20 +418,20 @@ public class SmartSnapshotConnectorCoordinator {
                             break;
                         }
                     }
-                    if (smartSnapshotState == SmartSnapshotState.RESTART)
+                    if (smartSnapshotState == SmartSnapshotState.RESTART) {
                         continue;
+                    }
                 }
 
                 // 5. Check all tasks completed
                 SourceConnectorContext srcContext = (SourceConnectorContext) connectorContext;
                 boolean allComplete = true;
-                Map<String, String> sharedPartition = Collect.hashMapOf("server", serverName);
+                Map<String, String> sharedPartition = sharedKey();
                 Map<String, Object> sharedOffset = snapshotCoordination.read(sharedPartition);
                 Integer expectedEpoch = readEpoch(sharedOffset);
 
                 for (int i = 0; i < lastNumTasks; i++) {
-                    Map<String, String> taskPartition = Collect.hashMapOf(
-                            "server", serverName, "task", String.valueOf(i));
+                    Map<String, String> taskPartition = taskKey(i);
                     Map<String, Object> taskOffset = srcContext.offsetStorageReader().offset(taskPartition);
                     if (taskOffset == null) {
                         allComplete = false;
