@@ -19,6 +19,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import org.apache.kafka.connect.source.SourceConnectorContext;
 import org.apache.kafka.connect.storage.OffsetStorageReader;
@@ -99,6 +100,24 @@ public class SmartSnapshotConnectorCoordinatorTest {
         assertThat(coordinator.isComplete()).isTrue();
     }
 
+    @Test
+    public void databaseScopedCoordinatorWritesSharedRecordUnderDatabaseKey() throws Exception {
+        // A multi-database connector (SQL Server) scopes one coordinator per database, so the shared
+        // coordination record is keyed {server, database} rather than the single-database {server} shape.
+        InMemorySnapshotCoordination coordination = new InMemorySnapshotCoordination();
+        coordinator = new SmartSnapshotConnectorCoordinator(
+                coordination, lifecycleReturning("snap", "0x00000000000000D4"), contextWithNoOffsets(), "srv", "db1");
+        coordinator.start(tables(3), true);
+
+        // The background preparation thread publishes the consistent position under {server, database}.
+        Map<String, Object> shared = awaitNonNull(() -> coordination.read(key("server", "srv", "database", "db1")));
+        assertThat(shared.get(SmartSnapshotConnectorCoordinator.SLOT_LSN_KEY)).isEqualTo("0x00000000000000D4");
+        assertThat(shared.get(SmartSnapshotConnectorCoordinator.EPOCH_KEY)).isEqualTo(1);
+
+        // ...and not under the bare {server} key (the Postgres/single-database shape).
+        assertThat(coordination.read(key("server", "srv"))).isNull();
+    }
+
     // ---- helpers ----
 
     private static SourceConnectorContext contextWithNoOffsets() {
@@ -131,5 +150,16 @@ public class SmartSnapshotConnectorCoordinatorTest {
             map.put(kv[i], kv[i + 1]);
         }
         return map;
+    }
+
+    private static Map<String, Object> awaitNonNull(Supplier<Map<String, Object>> supplier) throws InterruptedException {
+        for (int i = 0; i < 50; i++) {
+            Map<String, Object> value = supplier.get();
+            if (value != null) {
+                return value;
+            }
+            Thread.sleep(100);
+        }
+        throw new AssertionError("coordination value was not written within the timeout");
     }
 }
