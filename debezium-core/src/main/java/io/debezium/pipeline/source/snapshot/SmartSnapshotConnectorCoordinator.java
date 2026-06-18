@@ -176,8 +176,9 @@ public class SmartSnapshotConnectorCoordinator {
                                                  Map<String, String> baseProps,
                                                  boolean shouldStream) {
         List<TableId> tables = snapshotTables;
-        if (tables == null || tables.isEmpty())
+        if (tables == null || tables.isEmpty()) {
             return null;
+        }
 
         switch (smartSnapshotState) {
             case COMPLETE:
@@ -317,8 +318,9 @@ public class SmartSnapshotConnectorCoordinator {
                 }
 
                 // skip until taskConfigs() sets it
-                if (lastNumTasks <= 0)
+                if (lastNumTasks <= 0) {
                     continue;
+                }
 
                 // 1. Check if background preparation failed, raise error
                 if (snapshotPreparationError != null) {
@@ -382,8 +384,9 @@ public class SmartSnapshotConnectorCoordinator {
                             break;
                         }
                     }
-                    if (smartSnapshotState == SmartSnapshotState.RESTART)
+                    if (smartSnapshotState == SmartSnapshotState.RESTART) {
                         continue;
+                    }
                 }
 
                 // 5. Check all tasks completed
