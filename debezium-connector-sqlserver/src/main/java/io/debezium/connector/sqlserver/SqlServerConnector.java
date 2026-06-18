@@ -57,6 +57,12 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
      */
     private volatile Map<String, SmartSnapshotConnectorCoordinator> smartSnapshotCoordinators;
 
+    /*
+     * Captured-table count per database, recorded at start(). Used in taskConfigs() to derive the snapshot
+     * task count (ceil(count / smart.snapshot.tables.per.task)) independently of the user's tasks.max.
+     */
+    private volatile Map<String, Integer> smartSnapshotDbTableCounts;
+
     @Override
     public String version() {
         return Module.version();
@@ -79,6 +85,7 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
         // All captured tables across all databases (catalog-qualified), grouped per database below.
         final List<TableId> allTables = getMatchingCollections(config);
         final Map<String, SmartSnapshotConnectorCoordinator> coordinators = new ConcurrentHashMap<>();
+        final Map<String, Integer> tableCounts = new ConcurrentHashMap<>();
 
         for (String databaseName : connectorConfig.getDatabaseNames()) {
             List<TableId> dbTables = allTables.stream()
@@ -87,6 +94,7 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
             if (dbTables.isEmpty()) {
                 continue;
             }
+            tableCounts.put(databaseName, dbTables.size());
 
             String coordinationTopic = serverName + "." + databaseName + ".snapshot-coordination";
             String clientIdSuffix = serverName + "-" + databaseName + "-coordination-connector";
@@ -105,6 +113,7 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
         }
 
         this.smartSnapshotCoordinators = coordinators;
+        this.smartSnapshotDbTableCounts = tableCounts;
     }
 
     @Override
@@ -127,12 +136,19 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
         if (Configuration.from(properties).getBoolean(CommonConnectorConfig.SMART_SNAPSHOT_ENABLED) && maxTasks > 1
                 && smartSnapshotCoordinators != null && !smartSnapshotCoordinators.isEmpty()) {
             final boolean shouldStream = config.getSnapshotMode() != SqlServerConnectorConfig.SnapshotMode.INITIAL_ONLY;
+            final int tablesPerTask = config.getSmartSnapshotTablesPerTask();
             final List<Map<String, String>> smartConfigs = new ArrayList<>();
             for (Map.Entry<String, SmartSnapshotConnectorCoordinator> entry : smartSnapshotCoordinators.entrySet()) {
                 Map<String, String> baseProps = new HashMap<>(properties);
                 // DB-exclusive: every task this coordinator emits serves only its single database.
                 baseProps.put(DATABASE_NAMES.name(), entry.getKey());
-                List<Map<String, String>> dbConfigs = entry.getValue().taskConfigs(maxTasks, baseProps, shouldStream);
+                // Table-driven count: ceil(#tables / tablesPerTask), independent of the user's tasks.max
+                // (the snapshot is temporarily wider than tasks.max — requires tasks.max.enforce=false, and
+                // streaming downscales back to the user's tasks.max). Passed as the coordinator's maxTasks so
+                // its min(maxTasks, #tables) yields exactly the derived count.
+                int tableCount = smartSnapshotDbTableCounts.getOrDefault(entry.getKey(), 0);
+                int effectiveMaxTasks = Math.max(1, (int) Math.ceil((double) tableCount / tablesPerTask));
+                List<Map<String, String>> dbConfigs = entry.getValue().taskConfigs(effectiveMaxTasks, baseProps, shouldStream);
                 if (dbConfigs != null) {
                     smartConfigs.addAll(dbConfigs);
                 }
