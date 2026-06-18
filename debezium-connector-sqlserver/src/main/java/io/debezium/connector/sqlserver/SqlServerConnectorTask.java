@@ -6,6 +6,7 @@
 package io.debezium.connector.sqlserver;
 
 import java.sql.SQLException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -29,12 +30,16 @@ import io.debezium.document.DocumentReader;
 import io.debezium.jdbc.DefaultMainConnectionProvidingConnectionFactory;
 import io.debezium.jdbc.MainConnectionProvidingConnectionFactory;
 import io.debezium.pipeline.ChangeEventSourceCoordinator;
+import io.debezium.pipeline.CommonOffsetContext;
 import io.debezium.pipeline.DataChangeEvent;
 import io.debezium.pipeline.ErrorHandler;
 import io.debezium.pipeline.EventDispatcher;
 import io.debezium.pipeline.GuardrailValidator;
 import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.signal.SignalProcessor;
+import io.debezium.pipeline.source.snapshot.KafkaLogSnapshotCoordination;
+import io.debezium.pipeline.source.snapshot.SmartSnapshotConnectorCoordinator;
+import io.debezium.pipeline.source.snapshot.SnapshotCoordination;
 import io.debezium.pipeline.spi.Offsets;
 import io.debezium.relational.TableId;
 import io.debezium.schema.SchemaFactory;
@@ -98,6 +103,15 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
         Offsets<SqlServerPartition, SqlServerOffsetContext> offsets = getPreviousOffsets(
                 new SqlServerPartition.Provider(connectorConfig),
                 new SqlServerOffsetContext.Loader(connectorConfig));
+
+        // Post-downscale streaming task: smart snapshot completed and we are now the normal streaming task.
+        // The sharded snapshot tasks wrote their completion under per-(server,database,task) offsets, so there
+        // is no {server,database} resume offset in connect-offsets. Seed each owned database's resume position
+        // from its coordination topic (L_db) so streaming continues from incrementLsn(L_db) instead of
+        // re-snapshotting. (A smart-snapshot sharded task carries an epoch; the streaming task does not.)
+        if (connectorConfig.isSmartSnapshotEnabled() && connectorConfig.getSmartSnapshotEpoch() == null) {
+            seedStreamingOffsetsFromCoordination(connectorConfig, offsets);
+        }
 
         // Manual Bean Registration
         connectorConfig.getBeanRegistry().add(StandardBeanNames.CONFIGURATION, config);
@@ -166,24 +180,74 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
         NotificationService<SqlServerPartition, SqlServerOffsetContext> notificationService = new NotificationService<>(getNotificationChannels(),
                 connectorConfig, SchemaFactory.get(), dispatcher::enqueueNotification);
 
-        ChangeEventSourceCoordinator<SqlServerPartition, SqlServerOffsetContext> coordinator = new SqlServerChangeEventSourceCoordinator(
-                offsets,
-                errorHandler,
-                SqlServerConnector.class,
-                connectorConfig,
-                new SqlServerChangeEventSourceFactory(connectorConfig, connectionFactory, metadataConnection, errorHandler, dispatcher, clock, schema,
-                        notificationService, snapshotterService),
-                new SqlServerMetricsFactory(offsets.getPartitions()),
-                dispatcher,
-                schema,
-                clock,
-                signalProcessor,
-                notificationService,
-                snapshotterService);
+        SqlServerChangeEventSourceFactory changeEventSourceFactory = new SqlServerChangeEventSourceFactory(connectorConfig, connectionFactory, metadataConnection,
+                errorHandler, dispatcher, clock, schema, notificationService, snapshotterService);
+        SqlServerMetricsFactory metricsFactory = new SqlServerMetricsFactory(offsets.getPartitions());
+
+        ChangeEventSourceCoordinator<SqlServerPartition, SqlServerOffsetContext> coordinator;
+        if (connectorConfig.isSmartSnapshotEnabled() && connectorConfig.getSmartSnapshotEpoch() != null) {
+            // Smart-snapshot sharded task: snapshot-only, reading the Connector-prepared L_db per database
+            // from the coordination topic.
+            int epoch = connectorConfig.getSmartSnapshotEpoch();
+            String serverName = connectorConfig.getLogicalName();
+            String databaseName = connectorConfig.getDatabaseNames().get(0);
+            String coordinationTopic = serverName + "." + databaseName + ".snapshot-coordination";
+            String clientIdSuffix = serverName + "-" + databaseName + "-coordination-task-" + connectorConfig.getTaskId();
+            SnapshotCoordination snapshotCoordination = new KafkaLogSnapshotCoordination(
+                    connectorConfig.getSmartSnapshotCoordinationBootstrapServers(), coordinationTopic, clientIdSuffix);
+            LOGGER.info("Smart snapshot [task-{}]: starting snapshot-only coordinator (db={}, epoch={})",
+                    connectorConfig.getTaskId(), databaseName, epoch);
+            coordinator = new SqlServerSmartSnapshotChangeEventSourceCoordinator(
+                    offsets, errorHandler, SqlServerConnector.class, connectorConfig, changeEventSourceFactory, metricsFactory,
+                    dispatcher, schema, clock, signalProcessor, notificationService, snapshotterService,
+                    epoch, snapshotCoordination, connectorConfig.getTaskId());
+        }
+        else {
+            coordinator = new SqlServerChangeEventSourceCoordinator(
+                    offsets, errorHandler, SqlServerConnector.class, connectorConfig, changeEventSourceFactory, metricsFactory,
+                    dispatcher, schema, clock, signalProcessor, notificationService, snapshotterService);
+        }
 
         coordinator.start(taskContext, this.queue, metadataProvider);
 
         return coordinator;
+    }
+
+    /**
+     * Seeds streaming resume offsets for a post-downscale streaming task from the per-database coordination
+     * topic. For each owned database that has no resume offset in connect-offsets, reads the completed
+     * smart-snapshot's consistent position (L_db) and installs an offset with {@code snapshot_completed=true}
+     * so streaming continues from {@code incrementLsn(L_db)} rather than re-snapshotting.
+     */
+    private void seedStreamingOffsetsFromCoordination(SqlServerConnectorConfig connectorConfig,
+                                                      Offsets<SqlServerPartition, SqlServerOffsetContext> offsets) {
+        String serverName = connectorConfig.getLogicalName();
+        String bootstrapServers = connectorConfig.getSmartSnapshotCoordinationBootstrapServers();
+        Map<SqlServerPartition, SqlServerOffsetContext> seeded = new HashMap<>();
+        for (Map.Entry<SqlServerPartition, SqlServerOffsetContext> entry : offsets) {
+            if (entry.getValue() != null) {
+                continue;
+            }
+            SqlServerPartition partition = entry.getKey();
+            String databaseName = partition.getDatabaseName();
+            String coordinationTopic = serverName + "." + databaseName + ".snapshot-coordination";
+            String clientIdSuffix = serverName + "-" + databaseName + "-coordination-streaming";
+            SnapshotCoordination coordination = new KafkaLogSnapshotCoordination(bootstrapServers, coordinationTopic, clientIdSuffix);
+            try {
+                coordination.start();
+                Map<String, Object> data = coordination.readSync(partition.getSharedSourcePartition());
+                if (data != null && Boolean.TRUE.equals(data.get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY))
+                        && data.get(SmartSnapshotConnectorCoordinator.SLOT_LSN_KEY) != null) {
+                    Lsn lsn = Lsn.valueOf(String.valueOf(data.get(SmartSnapshotConnectorCoordinator.SLOT_LSN_KEY)));
+                    LOGGER.info("Smart snapshot: seeding streaming resume offset for db={} from coordination topic, L_db={}", databaseName, lsn);
+                    seeded.put(partition, new SqlServerOffsetContext(connectorConfig, TxLogPosition.valueOf(lsn), null, true));
+                }
+            }
+            finally {
+                coordination.stop();
+            }
+        }
+        offsets.getOffsets().putAll(seeded);
     }
 
     @Override
