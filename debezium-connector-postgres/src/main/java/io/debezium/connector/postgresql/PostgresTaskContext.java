@@ -40,8 +40,8 @@ public class PostgresTaskContext extends CdcSourceTaskContext {
     private ElapsedTimeStrategy refreshXmin;
     private Long lastXmin;
 
-    protected PostgresTaskContext(PostgresConnectorConfig config, PostgresSchema schema, TopicNamingStrategy<TableId> topicNamingStrategy) {
-        super(config, config.getCustomMetricTags(), schema::tableIds);
+    protected PostgresTaskContext(PostgresConnectorConfig config, String taskId, PostgresSchema schema, TopicNamingStrategy<TableId> topicNamingStrategy) {
+        super(config, taskId, config.getCustomMetricTags(), schema::tableIds);
 
         this.config = config;
         if (config.xminFetchInterval().toMillis() > 0) {
@@ -50,6 +50,10 @@ public class PostgresTaskContext extends CdcSourceTaskContext {
         this.topicNamingStrategy = topicNamingStrategy;
         assert schema != null;
         this.schema = schema;
+    }
+
+    protected PostgresTaskContext(PostgresConnectorConfig config, PostgresSchema schema, TopicNamingStrategy<TableId> topicNamingStrategy) {
+        this(config, "0", schema, topicNamingStrategy);
     }
 
     protected TopicNamingStrategy<TableId> topicNamingStrategy() {
