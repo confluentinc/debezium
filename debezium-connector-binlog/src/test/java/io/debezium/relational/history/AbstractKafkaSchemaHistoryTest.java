@@ -11,14 +11,18 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
+import java.time.Duration;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.config.ConfigValue;
+import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -112,13 +116,82 @@ public abstract class AbstractKafkaSchemaHistoryTest<P extends BinlogPartition, 
         testHistoryTopicContent(topicName, false);
     }
 
+    @Test
+    @FixFor("debezium/dbz#2032")
+    void shouldRecoverWhenAnotherConsumerHoldsTheGroupPartition() throws Exception {
+        String topicName = "concurrent-recovery-schema-changes";
+        String historyName = "my-db-history";
+
+        KafkaClusterUtils.createTopic(topicName, 1, (short) 1, kafkaCluster.getBootstrapServers());
+
+        Configuration config = recoveryConfig(topicName, historyName);
+
+        history.configure(config, null, SchemaHistoryMetrics.NOOP, true);
+        history.start();
+        history.initializeStorage();
+        setLogPosition(0);
+        String ddl = "CREATE TABLE foo ( name VARCHAR(255) NOT NULL PRIMARY KEY);";
+        history.record(offsets.getTheOnlyPartition().getSourcePartition(), offsets.getTheOnlyOffset().getOffset(), "db1", ddl);
+        history.stop();
+
+        DdlParser ddlParser = getDdlParser();
+        ddlParser.setCurrentSchema("db1");
+        Tables expected = new Tables();
+        ddlParser.parse(ddl, expected);
+        assertThat(expected.size()).isEqualTo(1);
+
+        // Another consumer joins the recovery group (group.id == history name) and claims the
+        // partition, as a second task would during a Connect rebalance.
+        Configuration squatterConfig = Configuration.create()
+                .with(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaCluster.getBootstrapServers())
+                .with(ConsumerConfig.GROUP_ID_CONFIG, historyName)
+                .with(ConsumerConfig.CLIENT_ID_CONFIG, "squatter")
+                .with(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false)
+                .with(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
+                .with(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class)
+                .with(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class)
+                .build();
+
+        try (KafkaConsumer<String, String> squatter = new KafkaConsumer<>(squatterConfig.asProperties())) {
+            squatter.subscribe(Collections.singletonList(topicName));
+            long deadline = System.currentTimeMillis() + 30000;
+            while (squatter.assignment().isEmpty() && System.currentTimeMillis() < deadline) {
+                squatter.poll(Duration.ofMillis(100));
+            }
+            assertThat(squatter.assignment()).isNotEmpty();
+
+            history = new KafkaSchemaHistory();
+            history.configure(config, null, SchemaHistoryListener.NOOP, true);
+            Tables recovered = new Tables();
+            setLogPosition(100);
+            history.recover(offsets, recovered, getDdlParser());
+
+            assertThat(recovered).isEqualTo(expected);
+        }
+    }
+
+    private Configuration recoveryConfig(String topicName, String historyName) {
+        return Configuration.create()
+                .with(KafkaSchemaHistory.BOOTSTRAP_SERVERS, kafkaCluster.getBootstrapServers())
+                .with(KafkaSchemaHistory.TOPIC, topicName)
+                .with(SchemaHistory.NAME, historyName)
+                .with(KafkaSchemaHistory.RECOVERY_POLL_INTERVAL_MS, 500)
+                .with(KafkaSchemaHistory.consumerConfigPropertyName(
+                        ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG), 100)
+                .with(KafkaSchemaHistory.consumerConfigPropertyName(
+                        ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG), 50000)
+                .with(KafkaSchemaHistory.INTERNAL_CONNECTOR_CLASS, "org.apache.kafka.connect.source.SourceConnector")
+                .with(KafkaSchemaHistory.INTERNAL_CONNECTOR_ID, "dbz-test")
+                .build();
+    }
+
     protected abstract P createPartition(String serverName, String databaseName);
 
     protected abstract O createOffsetContext(Configuration config);
 
     protected abstract DdlParser getDdlParser();
 
-    private void testHistoryTopicContent(String topicName, boolean skipUnparseableDDL) {
+    private void testHistoryTopicContent(String topicName, boolean skipUnparseableDDL) throws InterruptedException {
         interceptor = new LogInterceptor(KafkaSchemaHistory.class);
         // Start up the history ...
         Configuration config = Configuration.create()
@@ -327,7 +400,7 @@ public abstract class AbstractKafkaSchemaHistoryTest<P extends BinlogPartition, 
     }
 
     @Test
-    public void testExists() {
+    public void testExists() throws InterruptedException {
         String topicName = "exists-schema-changes";
 
         // happy path
