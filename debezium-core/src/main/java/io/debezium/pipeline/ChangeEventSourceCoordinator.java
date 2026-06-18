@@ -19,6 +19,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.connect.source.SourceConnector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -151,7 +152,7 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
                     snapshotSource = changeEventSourceFactory.getSnapshotChangeEventSource(snapshotMetrics, notificationService);
                     executeChangeEventSources(taskContext, snapshotSource, previousOffsets, previousLogContext, context);
                 }
-                catch (InterruptedException e) {
+                catch (InterruptedException | InterruptException e) {
                     Thread.currentThread().interrupt();
                     LOGGER.warn("Change event source executor was interrupted", e);
                 }
