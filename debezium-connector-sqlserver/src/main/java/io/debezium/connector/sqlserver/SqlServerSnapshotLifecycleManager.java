@@ -141,8 +141,10 @@ public class SqlServerSnapshotLifecycleManager implements SnapshotLifecycleManag
             return false;
         }
         try {
-            conn.execute("SELECT 1");
-            return true;
+            // MUST be a non-committing check: the lock holder runs autoCommit(false) and the TABLOCKX write
+            // barrier is held by its open transaction. JdbcConnection.execute(...) commits, which would
+            // silently drop the barrier; Connection.isValid() does not touch the transaction.
+            return conn.connection().isValid(5);
         }
         catch (SQLException e) {
             return false;

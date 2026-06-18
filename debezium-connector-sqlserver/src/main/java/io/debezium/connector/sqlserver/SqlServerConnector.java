@@ -78,6 +78,23 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
         }
 
         final SqlServerConnectorConfig connectorConfig = new SqlServerConnectorConfig(config);
+
+        // Smart snapshot relies on SQL Server SNAPSHOT isolation: sharded tasks open their own
+        // snapshot-isolation transaction (and skip table locking) to pin the Connector-captured L_db. Under
+        // any other mode a task would read current committed state and silently ignore L_db, producing an
+        // inconsistent snapshot. Fail fast rather than corrupt data.
+        if (connectorConfig.getSnapshotIsolationMode() != SqlServerConnectorConfig.SnapshotIsolationMode.SNAPSHOT) {
+            throw new DebeziumException("smart.snapshot.enabled=true requires snapshot.isolation.mode=snapshot (and the "
+                    + "database option ALLOW_SNAPSHOT_ISOLATION ON), but snapshot.isolation.mode="
+                    + connectorConfig.getSnapshotIsolationMode().getValue());
+        }
+        // Fan-out returns ceil(#tables / tables.per.task) configs per database, which routinely exceeds
+        // tasks.max; AK >= 3.7 fails the connector for that unless tasks.max.enforce=false.
+        if (!"false".equalsIgnoreCase(properties.getOrDefault("tasks.max.enforce", "true"))) {
+            LOGGER.warn("smart.snapshot fan-out can return more tasks than tasks.max; set tasks.max.enforce=false "
+                    + "or the Kafka Connect runtime (>= 3.7) will reject the connector.");
+        }
+
         final String serverName = connectorConfig.getLogicalName();
         final String bootstrapServers = connectorConfig.getSmartSnapshotCoordinationBootstrapServers();
         final boolean shouldStream = connectorConfig.getSnapshotMode() != SqlServerConnectorConfig.SnapshotMode.INITIAL_ONLY;

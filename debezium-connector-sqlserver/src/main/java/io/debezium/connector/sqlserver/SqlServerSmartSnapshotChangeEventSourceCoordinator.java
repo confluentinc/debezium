@@ -5,6 +5,8 @@
  */
 package io.debezium.connector.sqlserver;
 
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -15,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.connector.common.CdcSourceTaskContext;
+import io.debezium.pipeline.CommonOffsetContext;
 import io.debezium.pipeline.ErrorHandler;
 import io.debezium.pipeline.EventDispatcher;
 import io.debezium.pipeline.metrics.spi.ChangeEventSourceMetricsFactory;
@@ -98,6 +101,23 @@ public class SqlServerSmartSnapshotChangeEventSourceCoordinator extends SqlServe
                 previousOffset.setEpoch(epoch);
             }
 
+            // Detect a restart of this task within the current epoch via its own coordination record.
+            Map<String, Object> ownRecord = snapshotCoordination.read(partition.getSourcePartition());
+            Integer recordEpoch = SmartSnapshotConnectorCoordinator.readEpoch(ownRecord);
+            boolean sameEpoch = recordEpoch != null && recordEpoch == epoch;
+            if (sameEpoch && Boolean.TRUE.equals(ownRecord.get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY))) {
+                // Already finished this shard for this epoch (restart after completion): idle, don't re-snapshot.
+                LOGGER.info("Smart snapshot [task-{}]: shard already completed for epoch {}, idling", taskId, epoch);
+                continue;
+            }
+            if (sameEpoch && Boolean.TRUE.equals(ownRecord.get("transaction_started"))) {
+                // Restart after joining but before completing: the write barrier may already be released, so we
+                // cannot re-pin the same L_db. Signal a full-DB restart (requiresFullRestartOnTaskFailure=true).
+                LOGGER.warn("Smart snapshot [task-{}]: restart after join detected, signaling restart_needed", taskId);
+                writeCoordination(partition, "restart_needed");
+                continue;
+            }
+
             String lsn = awaitConsistentPosition(partition);
             smartSource.setSmartSnapshotLsn(lsn);
             smartSource.setSnapshotCoordination(snapshotCoordination, epoch);
@@ -106,10 +126,33 @@ public class SqlServerSmartSnapshotChangeEventSourceCoordinator extends SqlServe
                     taskId, partition.getDatabaseName(), lsn, epoch);
             SnapshotResult<SqlServerOffsetContext> result = doSnapshot(snapshotSource, context, partition, previousOffset);
             LOGGER.info("Smart snapshot [task-{}]: snapshot completed status={}", taskId, result.getStatus());
+
+            // Publish completion on the coordination topic (immediate, and covers empty/zero-row shards that
+            // never flush a data offset). Keep transaction_started set so the monitor's join check still sees it.
+            if (result.isCompletedOrSkipped()) {
+                writeCoordination(partition, "transaction_started", CommonOffsetContext.SNAPSHOT_COMPLETED_KEY);
+            }
         }
 
         // No streaming. The task idles; the Connector monitor detects completion and triggers downscale.
         LOGGER.info("Smart snapshot [task-{}]: snapshot phase finished, idling until downscale", taskId);
+    }
+
+    /**
+     * Writes a per-task coordination record setting each named flag to {@code true} plus the current epoch.
+     */
+    private void writeCoordination(SqlServerPartition partition, String... trueFlags) {
+        try {
+            Map<String, Object> record = new HashMap<>();
+            for (String flag : trueFlags) {
+                record.put(flag, true);
+            }
+            record.put(SmartSnapshotConnectorCoordinator.EPOCH_KEY, epoch);
+            snapshotCoordination.write(partition.getSourcePartition(), record);
+        }
+        catch (Exception e) {
+            LOGGER.warn("Smart snapshot [task-{}]: failed to write coordination record {}", taskId, Arrays.toString(trueFlags), e);
+        }
     }
 
     /**

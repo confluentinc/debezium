@@ -29,6 +29,10 @@ public class SmartSnapshotConnectorCoordinator {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SmartSnapshotConnectorCoordinator.class);
     private static final long MONITOR_POLL_INTERVAL_MS = 30_000;
+    // Bound how long the leader waits for all tasks to signal transaction_started. If a task crashes before
+    // joining, the join never completes and (for lock-based connectors) the write barrier would be held
+    // indefinitely; on timeout we force a restart at a higher epoch.
+    private static final long JOIN_TIMEOUT_MS = 5 * 60_000;
 
     public static final String EPOCH_KEY = "epoch";
     public static final String SNAPSHOT_NAME_KEY = "snapshot_name";
@@ -101,6 +105,10 @@ public class SmartSnapshotConnectorCoordinator {
      * transaction_started to the coordination topic
      */
     private volatile boolean allTasksJoined;
+
+    // Deadline (epoch millis) by which all tasks must signal transaction_started; set when taskConfigs() lays
+    // out a round. See JOIN_TIMEOUT_MS.
+    private volatile long joinDeadlineMs;
 
     // tables to be snapshot, set during connector start
     private volatile List<TableId> snapshotTables;
@@ -257,6 +265,7 @@ public class SmartSnapshotConnectorCoordinator {
         int numTasks = Math.min(maxTasks, tables.size());
         this.lastNumTasks = numTasks;
         this.allTasksJoined = false;
+        this.joinDeadlineMs = System.currentTimeMillis() + JOIN_TIMEOUT_MS;
 
         List<List<TableId>> tablesByTask = new ArrayList<>();
         for (int i = 0; i < numTasks; i++) {
@@ -403,6 +412,14 @@ public class SmartSnapshotConnectorCoordinator {
                         snapshotLifecycleManager.onAllTasksJoined();
                         allTasksJoined = true;
                     }
+                    else if (System.currentTimeMillis() > joinDeadlineMs) {
+                        // A task likely crashed before joining; the join (and any held write barrier) would
+                        // otherwise wait forever. Force a restart at a higher epoch.
+                        LOGGER.warn("Smart snapshot: not all tasks joined within {} ms, forcing restart", JOIN_TIMEOUT_MS);
+                        smartSnapshotState = SmartSnapshotState.RESTART;
+                        connectorContext.requestTaskReconfiguration();
+                        continue;
+                    }
                 }
 
                 // 4. Check per-task restart_needed (MySQL: task can't rejoin snapshot)
@@ -432,15 +449,13 @@ public class SmartSnapshotConnectorCoordinator {
 
                 for (int i = 0; i < lastNumTasks; i++) {
                     Map<String, String> taskPartition = taskKey(i);
-                    Map<String, Object> taskOffset = srcContext.offsetStorageReader().offset(taskPartition);
-                    if (taskOffset == null) {
-                        allComplete = false;
-                        break;
-                    }
-                    boolean done = Boolean.TRUE.equals(
-                            taskOffset.get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY));
-                    Integer taskEpoch = readEpoch(taskOffset);
-                    if (!done || (expectedEpoch != null && !expectedEpoch.equals(taskEpoch))) {
+                    // A task's completion may be visible either as a committed connect-offsets entry or as a
+                    // per-task record on the coordination topic (the latter is written explicitly, so it also
+                    // covers empty/zero-row shards that never flush a data offset, and avoids the
+                    // offset.flush.interval.ms delay).
+                    boolean done = isTaskComplete(srcContext.offsetStorageReader().offset(taskPartition), expectedEpoch)
+                            || isTaskComplete(snapshotCoordination.read(taskPartition), expectedEpoch);
+                    if (!done) {
                         allComplete = false;
                         break;
                     }
@@ -495,5 +510,16 @@ public class SmartSnapshotConnectorCoordinator {
         return (offset != null && offset.get(EPOCH_KEY) != null)
                 ? ((Number) offset.get(EPOCH_KEY)).intValue()
                 : null;
+    }
+
+    /**
+     * A per-task record (from connect-offsets or the coordination topic) marks completion when it has
+     * {@code snapshot_completed=true} and, if an expected epoch is known, a matching epoch.
+     */
+    private static boolean isTaskComplete(Map<String, Object> record, Integer expectedEpoch) {
+        if (record == null || !Boolean.TRUE.equals(record.get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY))) {
+            return false;
+        }
+        return expectedEpoch == null || expectedEpoch.equals(readEpoch(record));
     }
 }
