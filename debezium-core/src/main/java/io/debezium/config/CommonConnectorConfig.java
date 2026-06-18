@@ -928,6 +928,19 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
             .withDescription("A list of host/port pairs for the Kafka cluster hosting the snapshot "
                     + "coordination topic. Required when smart.snapshot.enabled=true and tasks.max > 1.");
 
+    public static final Field SMART_SNAPSHOT_TABLES_PER_TASK = Field.create("smart.snapshot.tables.per.task")
+            .withDisplayName("Smart snapshot tables per task")
+            .withType(Type.INT)
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTOR_SNAPSHOT, 25))
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.MEDIUM)
+            .withDefault(2)
+            .withValidation(Field::isPositiveInteger)
+            .withDescription("Target number of tables each task snapshots during a smart (multi-task) snapshot. "
+                    + "The snapshot task count is derived from the table count (ceil(tables / this)), not from "
+                    + "tasks.max. Raise it to bound the number of snapshot tasks on wide schemas. "
+                    + "Only applies when smart.snapshot.enabled=true and tasks.max > 1.");
+
     public static final Field DND_DELAY_MS = Field.create("dnd.delay.ms")
             .withDisplayName("DND delay (ms)")
             .withType(Type.LONG)
@@ -1450,6 +1463,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
                     SMART_SNAPSHOT_ENABLED,
                     DND_DELAY_MS,
                     SMART_SNAPSHOT_COORDINATION_BOOTSTRAP_SERVERS,
+                    SMART_SNAPSHOT_TABLES_PER_TASK,
                     SNAPSHOT_MODE_CUSTOM_NAME,
                     SNAPSHOT_MODE_CONFIGURATION_BASED_SNAPSHOT_DATA,
                     SNAPSHOT_MODE_CONFIGURATION_BASED_SNAPSHOT_SCHEMA,
@@ -1727,6 +1741,10 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
 
     public String getSmartSnapshotCoordinationBootstrapServers() {
         return smartSnapshotCoordinationBootstrapServers;
+    }
+
+    public int getSmartSnapshotTablesPerTask() {
+        return getConfig().getInteger(SMART_SNAPSHOT_TABLES_PER_TASK);
     }
 
     public String getSnapshotModeCustomName() {
