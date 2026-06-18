@@ -15,6 +15,7 @@ import io.debezium.connector.AbstractSourceInfo;
 import io.debezium.connector.SnapshotRecord;
 import io.debezium.connector.SnapshotType;
 import io.debezium.pipeline.CommonOffsetContext;
+import io.debezium.pipeline.source.snapshot.SmartSnapshotConnectorCoordinator;
 import io.debezium.pipeline.source.snapshot.incremental.IncrementalSnapshotContext;
 import io.debezium.pipeline.spi.OffsetContext;
 import io.debezium.pipeline.txmetadata.TransactionContext;
@@ -31,6 +32,13 @@ public class SqlServerOffsetContext extends CommonOffsetContext<SourceInfo> {
      * The index of the current event within the current transaction.
      */
     private long eventSerialNo;
+
+    /**
+     * Smart-snapshot coordination round. Non-null only for multi-task smart-snapshot tasks; lets the
+     * Connector monitor distinguish completions of the current round from stale per-task offsets of a
+     * previous round.
+     */
+    private Integer epoch;
 
     public SqlServerOffsetContext(SqlServerConnectorConfig connectorConfig, TxLogPosition position, SnapshotType snapshot,
                                   boolean snapshotCompleted, long eventSerialNo, TransactionContext transactionContext,
@@ -69,7 +77,19 @@ public class SqlServerOffsetContext extends CommonOffsetContext<SourceInfo> {
         offset.put(SourceInfo.CHANGE_LSN_KEY,
                 sourceInfo.getChangeLsn() == null ? null : sourceInfo.getChangeLsn().toString());
         offset.put(SourceInfo.EVENT_SERIAL_NO_KEY, eventSerialNo);
+        if (epoch != null) {
+            offset.put(SmartSnapshotConnectorCoordinator.EPOCH_KEY, epoch);
+            offset.put(SNAPSHOT_COMPLETED_KEY, snapshotCompleted);
+        }
         return sourceInfo.isSnapshot() ? offset : incrementalSnapshotContext.store(transactionContext.store(offset));
+    }
+
+    public void setEpoch(Integer epoch) {
+        this.epoch = epoch;
+    }
+
+    public Integer getEpoch() {
+        return epoch;
     }
 
     @Override
