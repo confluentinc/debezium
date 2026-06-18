@@ -32,6 +32,7 @@ import io.debezium.connector.AbstractSourceInfo;
 import io.debezium.connector.SourceInfoStructMaker;
 import io.debezium.document.Document;
 import io.debezium.jdbc.JdbcConfiguration;
+import io.debezium.pipeline.source.snapshot.SmartSnapshotConnectorCoordinator;
 import io.debezium.relational.ColumnFilterMode;
 import io.debezium.relational.HistorizedRelationalDatabaseConnectorConfig;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
@@ -811,6 +812,29 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
      */
     public boolean isCredentialProviderConfigured() {
         return credsProvider != null;
+    }
+
+    /**
+     * Smart-snapshot coordination round for this task, or null when not a smart-snapshot sharded task.
+     * Distinguishes sharded snapshot tasks (which carry an epoch) from normal tasks that also carry a task id.
+     */
+    public Integer getSmartSnapshotEpoch() {
+        String epochStr = getConfig().getString(SmartSnapshotConnectorCoordinator.EPOCH_KEY);
+        return epochStr != null ? Integer.parseInt(epochStr) : null;
+    }
+
+    /**
+     * The task id assigned by the Connector, or null if absent.
+     */
+    public String getTaskId() {
+        return getConfig().getString(ConfigurationNames.TASK_ID_PROPERTY_NAME);
+    }
+
+    /**
+     * Whether smart (multi-task) snapshot is enabled for this connector.
+     */
+    public boolean isSmartSnapshotEnabled() {
+        return getConfig().getBoolean(CommonConnectorConfig.SMART_SNAPSHOT_ENABLED);
     }
 
     /**
