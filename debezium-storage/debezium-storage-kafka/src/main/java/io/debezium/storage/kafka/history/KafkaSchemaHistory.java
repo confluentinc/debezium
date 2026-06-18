@@ -376,7 +376,9 @@ public class KafkaSchemaHistory extends AbstractSchemaHistory {
         }
         catch (InterruptException | InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new InterruptedException("Interrupted during schema history recovery");
+            InterruptedException interrupted = new InterruptedException("Interrupted during schema history recovery: " + e.getMessage());
+            interrupted.initCause(e);
+            throw interrupted;
         }
     }
 
