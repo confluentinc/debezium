@@ -302,9 +302,9 @@ public abstract class RelationalSnapshotChangeEventSource<P extends Partition, O
 
     /**
      * Logs a warning for any snapshot select statement override whose table is not among the captured tables. Such an
-     * override can never be applied, so the table would silently fall back to a full-table snapshot. The matching mirrors
-     * {@link #getSnapshotSelectOverridesByTable(TableId, Map)}, including the catalog-stripped lookup, to avoid false
-     * warnings for overrides keyed without a catalog.
+     * override can never be applied, since the table is not snapshotted at all, so the override is silently ignored. The
+     * matching mirrors {@link #getSnapshotSelectOverridesByTable(TableId, Map)}, including the catalog-stripped lookup, to
+     * avoid false warnings for overrides keyed without a catalog.
      */
     private void warnOnUnmatchedSnapshotSelectOverrides(RelationalSnapshotContext<P, O> snapshotContext,
                                                         Map<DataCollectionId, String> snapshotSelectOverridesByTable) {
@@ -522,9 +522,6 @@ public abstract class RelationalSnapshotChangeEventSource<P extends Partition, O
             if (selectStatement.isPresent()) {
                 LOGGER.info("For table '{}' using select statement: '{}'", tableId, maybeRedactSensitiveData(selectStatement.get()));
                 queryTables.put(tableId, selectStatement.get());
-                if (getSnapshotSelectOverridesByTable(tableId, snapshotSelectOverridesByTable) != null) {
-                    snapshotContext.tablesWithSnapshotSelectOverride.add(tableId);
-                }
 
                 final OptionalLong rowCount = rowCountForTable(tableId);
                 rowCountTables.put(tableId, rowCount);
@@ -773,6 +770,7 @@ public abstract class RelationalSnapshotChangeEventSource<P extends Partition, O
 
         String overriddenSelect = getSnapshotSelectOverridesByTable(tableId, snapshotSelectOverridesByTable);
         if (overriddenSelect != null) {
+            snapshotContext.tablesWithSnapshotSelectOverride.add(tableId);
             return Optional.of(enhanceOverriddenSelect(snapshotContext, overriddenSelect, tableId));
         }
 
