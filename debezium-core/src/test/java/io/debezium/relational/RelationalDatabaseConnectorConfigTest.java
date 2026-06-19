@@ -120,7 +120,23 @@ public class RelationalDatabaseConnectorConfigTest {
         List<String> errors = validated.get(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP.name())
                 .errorMessages();
         assertThat(errors).hasSize(1);
-        assertThat(errors.get(0)).contains("It's not a valid JSON");
+        assertThat(errors.get(0)).contains("It's not a valid JSON object");
+    }
+
+    @Test
+    public void validatorRejectsJsonThatIsNotAnObject() {
+        Configuration config = Configuration.create()
+                .with(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP,
+                        "[\"db.table1\"]")
+                .build();
+
+        Map<String, ConfigValue> validated = config.validate(
+                Field.setOf(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP));
+
+        List<String> errors = validated.get(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP.name())
+                .errorMessages();
+        assertThat(errors).hasSize(1);
+        assertThat(errors.get(0)).contains("It's not a valid JSON object");
     }
 
     @Test
@@ -139,7 +155,7 @@ public class RelationalDatabaseConnectorConfigTest {
         List<String> errors = validated.get(RelationalDatabaseConnectorConfig.SNAPSHOT_SELECT_STATEMENT_OVERRIDES_DATA_MAP.name())
                 .errorMessages();
         assertThat(errors).hasSize(1);
-        assertThat(errors.get(0)).contains("Cannot be set together with 'snapshot.select.statement.overrides'");
+        assertThat(errors.get(0)).contains("Only 'snapshot.select.statement.overrides' can be set");
     }
 
     @Test
