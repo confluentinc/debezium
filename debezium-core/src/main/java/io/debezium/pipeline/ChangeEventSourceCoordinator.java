@@ -19,6 +19,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.connect.source.SourceConnector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,6 +51,7 @@ import io.debezium.pipeline.spi.Partition;
 import io.debezium.pipeline.spi.SnapshotResult;
 import io.debezium.pipeline.spi.SnapshotResult.SnapshotResultStatus;
 import io.debezium.schema.DatabaseSchema;
+import io.debezium.schema.HistorizedDatabaseSchema;
 import io.debezium.snapshot.SnapshotterService;
 import io.debezium.spi.schema.DataCollectionId;
 import io.debezium.util.Clock;
@@ -139,10 +141,18 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
                     context = new ChangeEventSourceContextImpl();
                     LOGGER.info("Context created");
 
+                    // Don't recover while an initial snapshot is still in progress; the resumed
+                    // snapshot rebuilds the schema itself.
+                    boolean initialSnapshotRunning = previousOffsets.getOffsets().values().stream()
+                            .anyMatch(offset -> offset != null && offset.isInitialSnapshotRunning());
+                    if (schema.isHistorized() && !initialSnapshotRunning && ((HistorizedDatabaseSchema) schema).historyExists()) {
+                        ((HistorizedDatabaseSchema<?>) schema).recover(previousOffsets);
+                    }
+
                     snapshotSource = changeEventSourceFactory.getSnapshotChangeEventSource(snapshotMetrics, notificationService);
                     executeChangeEventSources(taskContext, snapshotSource, previousOffsets, previousLogContext, context);
                 }
-                catch (InterruptedException e) {
+                catch (InterruptedException | InterruptException e) {
                     Thread.currentThread().interrupt();
                     LOGGER.warn("Change event source executor was interrupted", e);
                 }

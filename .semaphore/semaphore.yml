@@ -117,10 +117,10 @@ blocks:
   - name: Release
     dependencies: []
     run:
-      when: "branch != 'master' and branch !~ '[0-9]+\\.[0-9]+\\.x' and branch =~ 'v[0-9]+\\.[0-9]+\\.[0-9]+\\-orcl\\-hotfix\\-x' and change_in('debezium-core/')"
+      when: "branch != 'master' and branch !~ '[0-9]+\\.[0-9]+\\.x' and branch =~ 'v[0-9]+\\.[0-9]+\\.[0-9]+\\-orcl\\-hotfix\\-x' and (change_in('debezium-core/') or change_in('debezium-storage/'))"
     task:
       jobs:
-        - name: Release debezium-core
+        - name: Release debezium-core and debezium-storage-kafka
           commands:
             - ci-tools ci-update-version
             - ci-tools ci-push-tag
@@ -176,6 +176,38 @@ blocks:
               -Dfile=debezium-core/target/debezium-core-${DEBEZIUM_VERSION}-tests.jar
               -DgroupId=io.confluent
               -DartifactId=debezium-core
+              -Dversion=${DEBEZIUM_VERSION}
+              -Dpackaging=jar
+              -Dclassifier=tests
+            # Build debezium-storage-kafka with original groupId (io.debezium) to keep dependencies intact
+            - mvn -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode install -Passembly -pl debezium-storage/debezium-storage-kafka -am -DskipTests -DskipITs
+            - export STORAGE_KAFKA_DIR=debezium-storage/debezium-storage-kafka
+            # Deploy main JAR with io.confluent groupId
+            - mvn deploy:deploy-file
+              -Durl=https://confluent-519856050701.d.codeartifact.us-west-2.amazonaws.com/maven/maven-snapshots/
+              -DrepositoryId=confluent-codeartifact-internal
+              -Dfile=${STORAGE_KAFKA_DIR}/target/debezium-storage-kafka-${DEBEZIUM_VERSION}.jar
+              -DgroupId=io.confluent
+              -DartifactId=debezium-storage-kafka
+              -Dversion=${DEBEZIUM_VERSION}
+              -Dpackaging=jar
+            # Deploy sources JAR
+            - mvn deploy:deploy-file
+              -Durl=https://confluent-519856050701.d.codeartifact.us-west-2.amazonaws.com/maven/maven-snapshots/
+              -DrepositoryId=confluent-codeartifact-internal
+              -Dfile=${STORAGE_KAFKA_DIR}/target/debezium-storage-kafka-${DEBEZIUM_VERSION}-sources.jar
+              -DgroupId=io.confluent
+              -DartifactId=debezium-storage-kafka
+              -Dversion=${DEBEZIUM_VERSION}
+              -Dpackaging=jar
+              -Dclassifier=sources
+            # Deploy tests JAR
+            - mvn deploy:deploy-file
+              -Durl=https://confluent-519856050701.d.codeartifact.us-west-2.amazonaws.com/maven/maven-snapshots/
+              -DrepositoryId=confluent-codeartifact-internal
+              -Dfile=${STORAGE_KAFKA_DIR}/target/debezium-storage-kafka-${DEBEZIUM_VERSION}-tests.jar
+              -DgroupId=io.confluent
+              -DartifactId=debezium-storage-kafka
               -Dversion=${DEBEZIUM_VERSION}
               -Dpackaging=jar
               -Dclassifier=tests
