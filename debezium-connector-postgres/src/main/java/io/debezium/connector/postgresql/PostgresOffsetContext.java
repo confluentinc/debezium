@@ -23,6 +23,7 @@ import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.connector.postgresql.connection.ReplicationMessage.Operation;
 import io.debezium.connector.postgresql.spi.OffsetState;
 import io.debezium.pipeline.CommonOffsetContext;
+import io.debezium.pipeline.source.snapshot.SmartSnapshotConnectorCoordinator;
 import io.debezium.pipeline.source.snapshot.incremental.IncrementalSnapshotContext;
 import io.debezium.pipeline.source.snapshot.incremental.SignalBasedIncrementalSnapshotContext;
 import io.debezium.pipeline.spi.OffsetContext;
@@ -45,6 +46,7 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
     private Lsn streamingStoppingLsn = null;
     private final TransactionContext transactionContext;
     private final IncrementalSnapshotContext<TableId> incrementalSnapshotContext;
+    private Integer epoch;
 
     private PostgresOffsetContext(PostgresConnectorConfig connectorConfig, Lsn lsn, Lsn lastCompletelyProcessedLsn, Lsn lastCommitLsn, Long txId, Operation messageType,
                                   Instant time,
@@ -100,7 +102,19 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
         if (sourceInfo.messageType() != null) {
             result.put(SourceInfo.MSG_TYPE_KEY, sourceInfo.messageType().toString());
         }
+        if (epoch != null) {
+            result.put(SmartSnapshotConnectorCoordinator.EPOCH_KEY, epoch);
+            result.put(SNAPSHOT_COMPLETED_KEY, snapshotCompleted);
+        }
         return sourceInfo.isSnapshot() ? result : incrementalSnapshotContext.store(transactionContext.store(result));
+    }
+
+    public void setEpoch(Integer epoch) {
+        this.epoch = epoch;
+    }
+
+    public Integer getEpoch() {
+        return epoch;
     }
 
     @Override
@@ -181,6 +195,10 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
         return sourceInfo.xmin();
     }
 
+    public boolean isSnapshotCompleted() {
+        return snapshotCompleted;
+    }
+
     public static class Loader implements OffsetContext.Loader<PostgresOffsetContext> {
 
         private final PostgresConnectorConfig connectorConfig;
@@ -226,7 +244,9 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
         return "PostgresOffsetContext [sourceInfoSchema=" + sourceInfoSchema + ", sourceInfo=" + sourceInfo
                 + ", lastSnapshotRecord=" + lastSnapshotRecord
                 + ", lastCompletelyProcessedLsn=" + lastCompletelyProcessedLsn + ", lastCommitLsn=" + lastCommitLsn
-                + ", streamingStoppingLsn=" + streamingStoppingLsn + ", transactionContext=" + transactionContext
+                + ", streamingStoppingLsn=" + streamingStoppingLsn
+                + (epoch != null ? ", epoch=" + epoch : "")
+                + ", transactionContext=" + transactionContext
                 + ", incrementalSnapshotContext=" + incrementalSnapshotContext + "]";
     }
 
@@ -241,7 +261,7 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
             final Lsn lsn = Lsn.valueOf(jdbcConnection.currentXLogLocation());
             final Long txId = jdbcConnection.currentTransactionId();
             LOGGER.info("Read xlogStart at '{}' from transaction '{}'", lsn, txId);
-            return new PostgresOffsetContext(
+            PostgresOffsetContext context = new PostgresOffsetContext(
                     connectorConfig,
                     lsn,
                     lastCompletelyProcessedLsn,
@@ -256,6 +276,11 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
                     connectorConfig.isReadOnlyConnection()
                             ? new PostgresReadOnlyIncrementalSnapshotContext<>()
                             : new SignalBasedIncrementalSnapshotContext<>(false));
+            Integer epoch = connectorConfig.getSmartSnapshotEpoch();
+            if (epoch != null) {
+                context.setEpoch(epoch);
+            }
+            return context;
         }
         catch (SQLException e) {
             throw new ConnectException("Database processing error", e);
