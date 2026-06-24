@@ -45,11 +45,6 @@ public interface SnapshotLifecycleManager extends AutoCloseable {
     void releaseSnapshot();
 
     /**
-     * Check if held connections are still alive.
-     */
-    boolean isValid();
-
-    /**
      * Current snapshot name, or null if not prepared.
      */
     String snapshotName();
@@ -60,9 +55,11 @@ public interface SnapshotLifecycleManager extends AutoCloseable {
     String consistentPosition();
 
     /**
-     * True if a single task failure requires restarting all tasks (MySQL: no rejoin).
+     * Ping held snapshot/lock connections to keep them alive during a long snapshot.
+     * Throws if a held connection is dead (the exported snapshot/slot/lock is gone) so the
+     * leader task fails fast. No-op if nothing is held.
      */
-    boolean requiresFullRestartOnTaskFailure();
+    void keepAlive();
 
     @Override
     default void close() {

@@ -5,6 +5,7 @@
  */
 package io.debezium.connector.postgresql;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -103,6 +104,41 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
             previousOffset.setEpoch(epoch);
         }
 
+        // --- Generic restart detection (DB-agnostic): (epoch, taskId) membership marker ---
+        Map<String, String> markerKey = SmartSnapshotConnectorCoordinator.joinMarkerKey(serverName, taskId);
+        Integer markerEpoch = SmartSnapshotConnectorCoordinator.readEpoch(snapshotCoordination.read(markerKey));
+        if (markerEpoch != null && markerEpoch == epoch) {
+            // rejoining epoch which implies that snapshot transaction can't be rejoined signal full restart.
+            LOGGER.warn("Smart snapshot [task-{}]: rejoin detected for the epoch {}, signaling restart_needed", taskId, epoch);
+            writeRestartNeeded();
+            idleUntilRestart(context);
+            return;
+        }
+
+        // Stale-epoch check: the Connector already moved to a newer epoch, wait for restart.
+        Integer savedEpoch = SmartSnapshotConnectorCoordinator.readEpoch(
+                snapshotCoordination.read(SmartSnapshotConnectorCoordinator.epochKey(serverName)));
+        if (savedEpoch != null && savedEpoch > epoch) {
+            LOGGER.warn("Smart snapshot: task-{}, saved epoch {} is greater than current epoch {}, waiting for restart",
+                    taskId, savedEpoch, epoch);
+            idleUntilRestart(context);
+            return;
+        }
+
+        // Fresh join — write marker FIRST (before attaching), so any later restart is caught.
+        // If this write fails we just fail the task. We do NOT write restart_needed here: that is also a
+        // topic write, so it would fail too. And it isn't needed — we haven't attached yet, so the task did
+        // nothing. On restart there is no marker, so it starts fresh at the same epoch. Nothing to clean up.
+        Map<String, Object> marker = new HashMap<>();
+        marker.put(SmartSnapshotConnectorCoordinator.EPOCH_KEY, epoch);
+        try {
+            snapshotCoordination.write(markerKey, marker);
+        }
+        catch (Exception e) {
+            throw new DebeziumException(
+                    String.format("Smart snapshot [task-%s]: failed to write join marker for the epoch %d", taskId, epoch), e);
+        }
+
         // Read snapshot_name + LSN from coordination topic
         Map<String, String> sharedPartition = Collect.hashMapOf("server", serverName);
         String snapshotName = null;
@@ -136,33 +172,50 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         smartSource.setSmartSnapshotLsn(Lsn.valueOf(slotLsnStr));
         smartSource.setSnapshotCoordination(snapshotCoordination, epoch);
 
-        // Run snapshot
-        SnapshotResult<PostgresOffsetContext> snapshotResult = doSnapshot(snapshotSource, context, partition, previousOffset);
-        LOGGER.info("Smart snapshot [task-{}]: snapshot completed with status={}", taskId, snapshotResult.getStatus());
-
-        /**
-         catch block after doSnapshot required in Mysql implementation (remove later)
+        try {
+            SnapshotResult<PostgresOffsetContext> snapshotResult = doSnapshot(snapshotSource, context, partition, previousOffset);
+            LOGGER.info("Smart snapshot [task-{}]: snapshot completed status={}", taskId, snapshotResult.getStatus());
+        }
+        catch (InterruptedException e) {
+            throw e; // shutdown — not a snapshot failure, do not signal restart
+        }
         catch (Exception e) {
-            // Stale snapshot (e.g. SET TRANSACTION SNAPSHOT failed)
-
-            if (requiresFullRestartOnTaskFailure()) {
-                // MySQL: task can't rejoin, signal restart to Connector via coordination topic
-                LOGGER.warn("Smart snapshot: task {} failed, signaling restart_needed", taskId, e);
-                try {
-                    Map<String, String> taskPartition = partition.getSourcePartition();
-                    Map<String, Object> restartSignal = new HashMap<>();
-                    restartSignal.put("restart_needed", true);
-                    restartSignal.put(SmartSnapshotConnectorCoordinator.EPOCH_KEY, epoch);
-                    snapshotCoordination.write(taskPartition, restartSignal);
-                }
-                catch (Exception writeEx) {
-                    LOGGER.error("Failed to write restart_needed signal", writeEx);
-                }
-            }
-            throw e; // Re-throw — task fails, Connect restarts it
-        } **/
+            // A real snapshot failure (snapshot gone / SET TRANSACTION SNAPSHOT failed / read error).
+            // Here we DO write restart_needed: the task already attached and may have emitted partial data,
+            // so the epoch must bump to throw that work away. The topic is likely still up (the failure was
+            // in the snapshot, not the write), so the signal should go through and the monitor acts on its
+            // next poll. If the write also fails, writeRestartNeeded throws and the marker handles it on restart.
+            LOGGER.warn("Smart snapshot [task-{}]: snapshot failed for the epoch {}, signaling restart_needed", taskId, epoch, e);
+            writeRestartNeeded();
+            throw e instanceof RuntimeException ? (RuntimeException) e
+                    : new DebeziumException(String.format("Smart snapshot [task-%s]: snapshot failed", taskId), e);
+        }
 
         // transaction_started signal already sent from lockTablesForSchemaSnapshot()
         // No streaming. Task idles until monitor detects completion.
+    }
+
+    private void writeRestartNeeded() {
+        try {
+            Map<String, Object> data = new HashMap<>();
+            data.put(SmartSnapshotConnectorCoordinator.RESTART_NEEDED_KEY, true);
+            data.put(SmartSnapshotConnectorCoordinator.EPOCH_KEY, epoch);
+            snapshotCoordination.write(SmartSnapshotConnectorCoordinator.taskSignalKey(serverName, taskId), data);
+        }
+        catch (Exception e) {
+            // The topic write failed, so we cannot signal a restart. Just fail the task.
+            // On restart the marker is still there, so it tries to signal again. If the topic is still
+            // down it keeps failing and restarting until the topic is back, then the signal goes through.
+            // Nothing is committed in the meantime, so this is safe.
+            throw new DebeziumException(
+                    String.format("Smart snapshot [task-%s]: failed to write restart_needed for the epoch %d", taskId, epoch), e);
+        }
+    }
+
+    private void idleUntilRestart(ChangeEventSourceContext context) throws InterruptedException {
+        // Task did not snapshot this epoch; idle until the Connector restarts us at a new epoch.
+        while (context.isRunning()) {
+            Thread.sleep(5_000);
+        }
     }
 }
