@@ -915,7 +915,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
             .withGroup(Field.createGroupEntry(Field.Group.CONNECTOR_SNAPSHOT, 22))
             .withWidth(Width.SHORT)
             .withImportance(Importance.MEDIUM)
-            .withDefault(false)
+            .withDefault(true)
             .withDescription("When enabled, optimizes snapshot behavior by delaying DND metric emission, "
                     + "increasing producer batch size, and using multiple snapshot threads.");
 

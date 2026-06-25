@@ -93,7 +93,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         if (previousOffset != null) {
             Integer offsetEpoch = previousOffset.getEpoch();
             if (offsetEpoch != null && !offsetEpoch.equals(epoch)) {
-                LOGGER.info("Smart snapshot [task-{}]: epoch mismatch (offset={}, config={}), clearing offset",
+                LOGGER.info("Smart snapshot: [task-{}] epoch mismatch (offset={}, config={}), clearing offset",
                         taskId, offsetEpoch, epoch);
                 previousOffsets.resetOffset(partition);
                 previousOffset = null;
@@ -109,7 +109,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         Integer markerEpoch = SmartSnapshotConnectorCoordinator.readEpoch(snapshotCoordination.read(markerKey));
         if (markerEpoch != null && markerEpoch == epoch) {
             // rejoining epoch which implies that snapshot transaction can't be rejoined signal full restart.
-            LOGGER.warn("Smart snapshot [task-{}]: rejoin detected for the epoch {}, signaling restart_needed", taskId, epoch);
+            LOGGER.warn("Smart snapshot: [task-{}] rejoin detected for the epoch {}, signaling restart_needed", taskId, epoch);
             writeRestartNeeded();
             idleUntilRestart(context);
             return;
@@ -119,7 +119,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         Integer savedEpoch = SmartSnapshotConnectorCoordinator.readEpoch(
                 snapshotCoordination.read(SmartSnapshotConnectorCoordinator.epochKey(serverName)));
         if (savedEpoch != null && savedEpoch > epoch) {
-            LOGGER.warn("Smart snapshot: task-{}, saved epoch {} is greater than current epoch {}, waiting for restart",
+            LOGGER.warn("Smart snapshot: [task-{}] saved epoch {} is greater than current epoch {}, waiting for restart",
                     taskId, savedEpoch, epoch);
             idleUntilRestart(context);
             return;
@@ -136,7 +136,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         }
         catch (Exception e) {
             throw new DebeziumException(
-                    String.format("Smart snapshot [task-%s]: failed to write join marker for the epoch %d", taskId, epoch), e);
+                    String.format("Smart snapshot: [task-%s] failed to write join marker for the epoch %d", taskId, epoch), e);
         }
 
         // Read snapshot_name + LSN from coordination topic
@@ -156,14 +156,14 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
                     break;
                 }
             }
-            LOGGER.info("Smart snapshot [task-{}]: waiting for snapshot preparation (attempt {}/30)", taskId, attempt + 1);
+            LOGGER.info("Smart snapshot: [task-{}] waiting for snapshot preparation (attempt {}/30)", taskId, attempt + 1);
             Thread.sleep(2000);
         }
         if (snapshotName == null) {
             throw new DebeziumException(String.format("Smart snapshot [task-%s]: Timed out waiting for snapshot preparation", taskId));
         }
 
-        LOGGER.info("Smart snapshot [task-{}]: got snapshot='{}', LSN={}, executing snapshot-only, epoch={}",
+        LOGGER.info("Smart snapshot: [task-{}] got snapshot='{}', LSN={}, executing snapshot-only, epoch={}",
                 taskId, snapshotName, slotLsnStr, epoch);
 
         // Set snapshot name, LSN, and coordination on the source
@@ -174,7 +174,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
 
         try {
             SnapshotResult<PostgresOffsetContext> snapshotResult = doSnapshot(snapshotSource, context, partition, previousOffset);
-            LOGGER.info("Smart snapshot [task-{}]: snapshot completed status={}", taskId, snapshotResult.getStatus());
+            LOGGER.info("Smart snapshot: [task-{}] snapshot completed status={}", taskId, snapshotResult.getStatus());
         }
         catch (InterruptedException e) {
             throw e; // shutdown — not a snapshot failure, do not signal restart
@@ -185,10 +185,10 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
             // so the epoch must bump to throw that work away. The topic is likely still up (the failure was
             // in the snapshot, not the write), so the signal should go through and the monitor acts on its
             // next poll. If the write also fails, writeRestartNeeded throws and the marker handles it on restart.
-            LOGGER.warn("Smart snapshot [task-{}]: snapshot failed for the epoch {}, signaling restart_needed", taskId, epoch, e);
+            LOGGER.warn("Smart snapshot: [task-{}] snapshot failed for the epoch {}, signaling restart_needed", taskId, epoch, e);
             writeRestartNeeded();
             throw e instanceof RuntimeException ? (RuntimeException) e
-                    : new DebeziumException(String.format("Smart snapshot [task-%s]: snapshot failed", taskId), e);
+                    : new DebeziumException(String.format("Smart snapshot: [task-%s] snapshot failed", taskId), e);
         }
 
         // transaction_started signal already sent from lockTablesForSchemaSnapshot()
@@ -208,7 +208,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
             // down it keeps failing and restarting until the topic is back, then the signal goes through.
             // Nothing is committed in the meantime, so this is safe.
             throw new DebeziumException(
-                    String.format("Smart snapshot [task-%s]: failed to write restart_needed for the epoch %d", taskId, epoch), e);
+                    String.format("Smart snapshot: [task-%s] failed to write restart_needed for the epoch %d", taskId, epoch), e);
         }
     }
 
