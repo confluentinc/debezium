@@ -406,7 +406,7 @@ public abstract class AbstractMetricsTest<T extends SourceConnector> extends Abs
         // Start connector with smart.snapshot enabled and a long DND delay
         // so that DND should NOT be set during the short snapshot
         start(cfg -> cfg
-                .with("smart.snapshot", true)
+                .with("smart.snapshot.enabled", true)
                 .with("dnd.delay.ms", 600000L));
         assertConnectorIsRunning();
 
