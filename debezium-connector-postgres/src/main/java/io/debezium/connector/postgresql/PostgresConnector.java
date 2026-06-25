@@ -106,7 +106,6 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         Configuration config = Configuration.from(props);
         boolean smartSnapshotEnabled = config.getBoolean(CommonConnectorConfig.SMART_SNAPSHOT_ENABLED);
 
-        // AFTER:
         if (smartSnapshotEnabled && maxTasks > 1 && smartSnapshotConnectorCoordinator != null) {
             List<Map<String, String>> configs = smartSnapshotConnectorCoordinator.taskConfigs(maxTasks, props);
             if (configs != null) {
