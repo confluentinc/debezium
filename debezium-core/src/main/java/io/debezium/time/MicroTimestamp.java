@@ -71,7 +71,6 @@ public class MicroTimestamp {
             dateTime = dateTime.with(adjuster);
         }
 
-        // Fix rare JDK issue (JDK 23+) where ChronoLocalDateTime.toLocalDate() is null; see debezium/dbz#1732 (same root cause as DBZ-9558)
         try {
             return Conversions.toEpochMicros(dateTime.toInstant(ZoneOffset.UTC));
         }
