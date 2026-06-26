@@ -160,7 +160,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
         PostgresOffsetContext previousOffset = previousOffsets.getTheOnlyOffset();
 
         if (previousOffset == null) {
-            previousOffset = fetchOffsetFromCoordinationTopic(previousOffsets.getTheOnlyPartition(), connectorConfig, clock);
+            previousOffset = fetchOffsetFromCoordinationTopic(config, previousOffsets.getTheOnlyPartition(), connectorConfig, clock);
             if (previousOffset != null) {
                 previousOffsets = Offsets.of(previousOffsets.getTheOnlyPartition(), previousOffset);
             }
@@ -559,10 +559,11 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
         LOGGER.info("Smart snapshot: task-{} epoch={}", connectorConfig.getTaskId(), epoch);
 
         // Create coordination + coordinator
-        String bootstrapServers = connectorConfig.getSmartSnapshotCoordinationBootstrapServers();
         String coordinationTopic = connectorConfig.getLogicalName() + ".snapshot-coordination";
         String clientIdSuffix = connectorConfig.getLogicalName() + "-coordination-task-" + connectorConfig.getTaskId();
-        this.snapshotCoordination = new KafkaLogSnapshotCoordination(bootstrapServers, coordinationTopic, clientIdSuffix);
+        Map<String, Object> clientConfig = KafkaLogSnapshotCoordination.clientConfigFromOverrides(
+                config, connectorConfig.getSmartSnapshotCoordinationBootstrapServers());
+        this.snapshotCoordination = new KafkaLogSnapshotCoordination(clientConfig, coordinationTopic, clientIdSuffix);
 
         // task-0 is the leader: prepare the snapshot (slot/export + lock-all) on a background thread.
         if ("0".equals(connectorConfig.getTaskId())) {
@@ -637,14 +638,15 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
     }
 
     private PostgresOffsetContext fetchOffsetFromCoordinationTopic(
-                                                                   PostgresPartition partition, PostgresConnectorConfig connectorConfig, Clock clock) {
+                                                                   Configuration config, PostgresPartition partition, PostgresConnectorConfig connectorConfig,
+                                                                   Clock clock) {
         if (connectorConfig.isSmartSnapshotEnabled() && !isSmartSnapshotTask) {
             // Post-downscale streaming task: read LSN from coordination topic
-            String bootstrapServers = connectorConfig.getSmartSnapshotCoordinationBootstrapServers();
             String coordinationTopic = connectorConfig.getLogicalName() + ".snapshot-coordination";
             String clientIdSuffix = connectorConfig.getLogicalName() + "-coordination-streaming";
-            KafkaLogSnapshotCoordination kafkaLog = new KafkaLogSnapshotCoordination(
-                    bootstrapServers, coordinationTopic, clientIdSuffix);
+            Map<String, Object> clientConfig = KafkaLogSnapshotCoordination.clientConfigFromOverrides(
+                    config, connectorConfig.getSmartSnapshotCoordinationBootstrapServers());
+            KafkaLogSnapshotCoordination kafkaLog = new KafkaLogSnapshotCoordination(clientConfig, coordinationTopic, clientIdSuffix);
             kafkaLog.start();
             Map<String, Object> coordData = kafkaLog.read(partition.getSourcePartition());
             kafkaLog.stop();

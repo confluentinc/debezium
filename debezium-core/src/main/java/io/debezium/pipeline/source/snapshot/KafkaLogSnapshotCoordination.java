@@ -38,6 +38,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
+import io.debezium.config.Configuration;
+
 public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(KafkaLogSnapshotCoordination.class);
@@ -48,29 +50,28 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
     private final ObjectMapper mapper = new ObjectMapper();
     private final ObjectMapper keyMapper = new ObjectMapper()
             .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
+    private final Map<String, Object> clientConfig; // bootstrap + security (SASL/SSL), shared by all clients
 
     private final Map<Map<String, String>, Map<String, Object>> cache = new ConcurrentHashMap<>();
 
-    public KafkaLogSnapshotCoordination(String bootstrapServers, String topicName, String clientIdSuffix) {
-        Map<String, Object> producerProps = new HashMap<>();
-        producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+    public KafkaLogSnapshotCoordination(Map<String, Object> clientConfig, String topicName, String clientIdSuffix) {
+        this.clientConfig = new HashMap<>(clientConfig);
+        Map<String, Object> producerProps = new HashMap<>(clientConfig);
         producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
         producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
         producerProps.put(ProducerConfig.ACKS_CONFIG, "all");
         producerProps.put(ProducerConfig.CLIENT_ID_CONFIG, "snapshot-coordination-producer-" + clientIdSuffix);
 
-        Map<String, Object> consumerProps = new HashMap<>();
-        consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        Map<String, Object> consumerProps = new HashMap<>(clientConfig);
         consumerProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         consumerProps.put(ConsumerConfig.CLIENT_ID_CONFIG, "snapshot-coordination-consumer-" + clientIdSuffix);
 
-        Map<String, Object> adminProps = new HashMap<>();
-        adminProps.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        Map<String, Object> adminProps = new HashMap<>(clientConfig);
         adminProps.put(AdminClientConfig.CLIENT_ID_CONFIG, "snapshot-coordination-admin-" + clientIdSuffix);
         this.topicAdmin = new TopicAdmin(adminProps);
 
-        createTopicIfMissing(bootstrapServers, topicName, clientIdSuffix);
+        createTopicIfMissing(topicName, clientIdSuffix);
 
         this.log = new KafkaBasedLog<>(
                 topicName, producerProps, consumerProps,
@@ -152,9 +153,8 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
         }
     }
 
-    private void createTopicIfMissing(String bootstrapServers, String topicName, String clientIdSuffix) {
-        Map<String, Object> adminConfig = new HashMap<>();
-        adminConfig.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+    private void createTopicIfMissing(String topicName, String clientIdSuffix) {
+        Map<String, Object> adminConfig = new HashMap<>(clientConfig);
         adminConfig.put(AdminClientConfig.CLIENT_ID_CONFIG, clientIdSuffix + "-admin");
 
         try (AdminClient admin = AdminClient.create(adminConfig)) {
@@ -186,5 +186,21 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
         catch (Exception e) {
             throw new ConnectException("Failed to create snapshot coordination topic '" + topicName + "'", e);
         }
+    }
+
+    public static Map<String, Object> clientConfigFromOverrides(Configuration config, String explicitBootstrapServers) {
+        Map<String, Object> clientConfig = new HashMap<>();
+        Configuration producerOverrides = config.subset("producer.override.", true);
+        String bootstrap = (explicitBootstrapServers != null && !explicitBootstrapServers.isEmpty())
+                ? explicitBootstrapServers
+                : producerOverrides.getString(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG);
+        clientConfig.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrap);
+        // carry over security/SASL/SSL props (same key names across producer/consumer/admin)
+        for (String key : producerOverrides.keys()) {
+            if (key.startsWith("security.") || key.startsWith("sasl.") || key.startsWith("ssl.")) {
+                clientConfig.put(key, producerOverrides.getString(key));
+            }
+        }
+        return clientConfig;
     }
 }

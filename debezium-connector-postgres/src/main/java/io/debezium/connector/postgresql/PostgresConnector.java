@@ -78,13 +78,13 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
 
         if (smartSnapshotEnabled) {
             PostgresConnectorConfig connectorConfig = new PostgresConnectorConfig(config);
-            String bootstrapServers = connectorConfig.getSmartSnapshotCoordinationBootstrapServers();
             String serverName = config.getString(CommonConnectorConfig.TOPIC_PREFIX);
             String coordinationTopic = connectorConfig.getLogicalName() + ".snapshot-coordination";
             String clientIdSuffix = connectorConfig.getLogicalName() + "-coordination-connector";
 
-            SnapshotCoordination coordination = new KafkaLogSnapshotCoordination(
-                    bootstrapServers, coordinationTopic, clientIdSuffix);
+            Map<String, Object> clientConfig = KafkaLogSnapshotCoordination.clientConfigFromOverrides(
+                    config, connectorConfig.getSmartSnapshotCoordinationBootstrapServers());
+            SnapshotCoordination coordination = new KafkaLogSnapshotCoordination(clientConfig, coordinationTopic, clientIdSuffix);
 
             smartSnapshotConnectorCoordinator = new SmartSnapshotConnectorCoordinator(coordination, context(), serverName);
             List<TableId> tables = getMatchingCollections(config);
