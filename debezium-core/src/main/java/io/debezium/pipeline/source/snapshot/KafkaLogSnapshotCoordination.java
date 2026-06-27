@@ -168,7 +168,6 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
             }
             topic.configs(Map.of(
                     TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_COMPACT, // compaction = latest value per key
-                    TopicConfig.SEGMENT_MS_CONFIG, "100", // optional: aggressive compaction for a short-lived coord topic
                     TopicConfig.MIN_CLEANABLE_DIRTY_RATIO_CONFIG, "0.01"));
 
             CreateTopicsResult result = admin.createTopics(Collections.singleton(topic));
