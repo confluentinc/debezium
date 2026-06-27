@@ -617,6 +617,14 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
             this.smartSnapshotPreparationThread.start();
         }
 
+        try {
+            // end the setup txn (guardrail query, etc.) so the snapshot's SET is the first
+            jdbcConnection.commit();
+        }
+        catch (SQLException e) {
+            throw new DebeziumException(e);
+        }
+
         // The leader task background thread handles slot creation & replication connection creation, skip those
         coordinator = new PostgresSmartSnapshotChangeEventSourceCoordinator(
                 previousOffsets, errorHandler, PostgresConnector.class, connectorConfig,
