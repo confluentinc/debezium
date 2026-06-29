@@ -79,7 +79,6 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
         // Create fresh offset with the Connector's slot LSN — not current WAL position
         PostgresOffsetContext offset = PostgresOffsetContext.initialContext(
                 connectorConfig, jdbcConnection, getClock());
-        offset.setEpoch(epoch);
         Long txId = jdbcConnection.currentTransactionId();
         offset.updateWalPosition(smartSnapshotLsn, null, getClock().currentTime(),
                 txId, null, null, null);

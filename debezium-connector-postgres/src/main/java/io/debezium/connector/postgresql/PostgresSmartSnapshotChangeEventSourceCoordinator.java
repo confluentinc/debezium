@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import io.debezium.pipeline.CommonOffsetContext;
 import org.apache.kafka.connect.source.SourceConnector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -100,8 +101,14 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
             }
         }
 
-        if (previousOffset != null) {
-            previousOffset.setEpoch(epoch);
+        // previousOffset here is non-null only if its epoch == this epoch (the epoch-mismatch block above
+        // reset it otherwise). If it shows the snapshot already completed, this restart is just the task
+        // being bounced AFTER finishing (a reconfiguration or the managed runtime stopping a "done" task)
+        // NOT a crash. Do not treat it as a rejoin; idle and let the connector downscale.
+        if (previousOffset != null && isSnapshotComplete(previousOffset)) {
+            LOGGER.info("Smart snapshot: [task-{}], snapshot already completed for epoch {}, idling until downscale", taskId, epoch);
+            idleUntilRestart(context);
+            return;
         }
 
         // --- Generic restart detection (DB-agnostic): (epoch, taskId) membership marker ---
@@ -188,7 +195,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
             LOGGER.warn("Smart snapshot: [task-{}] snapshot failed for the epoch {}, signaling restart_needed", taskId, epoch, e);
             writeRestartNeeded();
             throw e instanceof RuntimeException ? (RuntimeException) e
-                    : new DebeziumException(String.format("Smart snapshot: [task-%s] snapshot failed", taskId), e);
+                    : new DebeziumException(String.format("Smart snapshot: [task-%s], epoch-%s snapshot failed", taskId, epoch), e);
         }
 
         // transaction_started signal already sent from lockTablesForSchemaSnapshot()
@@ -217,5 +224,11 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         while (context.isRunning()) {
             Thread.sleep(5_000);
         }
+    }
+
+    // True if this offset shows the snapshot already completed (for the current epoch — previousOffset
+    // is only non-null here when its epoch matches, per the epoch-mismatch reset above).
+    private boolean isSnapshotComplete(PostgresOffsetContext offset) {
+        return Boolean.TRUE.equals(offset.getOffset().get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY));
     }
 }

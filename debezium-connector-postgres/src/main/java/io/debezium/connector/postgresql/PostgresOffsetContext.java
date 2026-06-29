@@ -46,13 +46,14 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
     private Lsn streamingStoppingLsn = null;
     private final TransactionContext transactionContext;
     private final IncrementalSnapshotContext<TableId> incrementalSnapshotContext;
-    private Integer epoch;
+    // null when smart snapshot is disabled
+    private final Integer epoch;
 
     private PostgresOffsetContext(PostgresConnectorConfig connectorConfig, Lsn lsn, Lsn lastCompletelyProcessedLsn, Lsn lastCommitLsn, Long txId, Operation messageType,
                                   Instant time,
                                   SnapshotType snapshot,
                                   boolean lastSnapshotRecord, boolean snapshotCompleted, TransactionContext transactionContext,
-                                  IncrementalSnapshotContext<TableId> incrementalSnapshotContext) {
+                                  IncrementalSnapshotContext<TableId> incrementalSnapshotContext, Integer epoch) {
         super(new SourceInfo(connectorConfig), snapshotCompleted);
 
         this.lastCompletelyProcessedLsn = lastCompletelyProcessedLsn;
@@ -71,6 +72,7 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
         }
         this.transactionContext = transactionContext;
         this.incrementalSnapshotContext = incrementalSnapshotContext;
+        this.epoch = epoch;
     }
 
     @Override
@@ -104,13 +106,13 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
         }
         if (epoch != null) {
             result.put(SmartSnapshotConnectorCoordinator.EPOCH_KEY, epoch);
-            result.put(SNAPSHOT_COMPLETED_KEY, snapshotCompleted);
+            // this is not needed as it is already populated in the previous `if (getSnapshot().isPresent())` block
+            // note that in the constructor snapshot is cleared in postSnapshotCompletion() method call
+            // but that only happens when the snapshot is completed,
+            // in that case we wouldn't need to pass down the snapshot_complete marker again
+            // result.put(SNAPSHOT_COMPLETED_KEY, snapshotCompleted);
         }
         return sourceInfo.isSnapshot() ? result : incrementalSnapshotContext.store(transactionContext.store(result));
-    }
-
-    public void setEpoch(Integer epoch) {
-        this.epoch = epoch;
     }
 
     public Integer getEpoch() {
@@ -195,10 +197,6 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
         return sourceInfo.xmin();
     }
 
-    public boolean isSnapshotCompleted() {
-        return snapshotCompleted;
-    }
-
     public static class Loader implements OffsetContext.Loader<PostgresOffsetContext> {
 
         private final PostgresConnectorConfig connectorConfig;
@@ -228,15 +226,15 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
             final SnapshotType snapshot = loadSnapshot(offset).orElse(null);
             boolean snapshotCompleted = loadSnapshotCompleted(offset);
             final boolean lastSnapshotRecord = (boolean) ((Map<String, Object>) offset).getOrDefault(SourceInfo.LAST_SNAPSHOT_RECORD_KEY, Boolean.FALSE);
+            final Integer epoch = SmartSnapshotConnectorCoordinator.readEpoch((Map<String, Object>) offset);
             return new PostgresOffsetContext(connectorConfig, lsn,
                     lastCompletelyProcessedLsn, lastCommitLsn, txId, messageType, useconds, snapshot, lastSnapshotRecord,
                     snapshotCompleted,
                     TransactionContext.load(offset),
                     connectorConfig.isReadOnlyConnection()
                             ? PostgresReadOnlyIncrementalSnapshotContext.load(offset)
-                            : SignalBasedIncrementalSnapshotContext.load(offset, false));
+                            : SignalBasedIncrementalSnapshotContext.load(offset, false), epoch);
         }
-
     }
 
     @Override
@@ -275,11 +273,8 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
                     new TransactionContext(),
                     connectorConfig.isReadOnlyConnection()
                             ? new PostgresReadOnlyIncrementalSnapshotContext<>()
-                            : new SignalBasedIncrementalSnapshotContext<>(false));
-            Integer epoch = connectorConfig.getSmartSnapshotEpoch();
-            if (epoch != null) {
-                context.setEpoch(epoch);
-            }
+                            : new SignalBasedIncrementalSnapshotContext<>(false),
+                    connectorConfig.getSmartSnapshotEpoch());
             return context;
         }
         catch (SQLException e) {
