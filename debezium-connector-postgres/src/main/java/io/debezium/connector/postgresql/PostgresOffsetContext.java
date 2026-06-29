@@ -233,7 +233,8 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
                     TransactionContext.load(offset),
                     connectorConfig.isReadOnlyConnection()
                             ? PostgresReadOnlyIncrementalSnapshotContext.load(offset)
-                            : SignalBasedIncrementalSnapshotContext.load(offset, false), epoch);
+                            : SignalBasedIncrementalSnapshotContext.load(offset, false),
+                    epoch);
         }
     }
 
