@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import io.debezium.connector.postgresql.connection.Lsn;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -151,6 +152,11 @@ public class PostgresSnapshotLifecycleManager implements SnapshotLifecycleManage
             snapshotHolderConnection.executeWithoutCommitting(
                     "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
 
+            String walBefore = snapshotHolderConnection.queryAndMap(
+                    "SELECT pg_current_wal_lsn()::text",
+                    snapshotHolderConnection.singleResultMapper(
+                            rs -> rs.getString(1), "Failed to get WAL LSN"));
+
             currentSnapshotName = snapshotHolderConnection.queryAndMap(
                     "SELECT pg_export_snapshot()",
                     snapshotHolderConnection.singleResultMapper(
@@ -160,10 +166,7 @@ public class PostgresSnapshotLifecycleManager implements SnapshotLifecycleManage
                 currentSlotLsn = slotInfo.slotLastFlushedLsn().asString();
             }
             else {
-                currentSlotLsn = snapshotHolderConnection.queryAndMap(
-                        "SELECT pg_current_wal_lsn()::text",
-                        snapshotHolderConnection.singleResultMapper(
-                                rs -> rs.getString(1), "Failed to get WAL LSN"));
+                currentSlotLsn = walBefore;
             }
             LOGGER.info("Smart snapshot: exported snapshot '{}', LSN={}",
                     currentSnapshotName, currentSlotLsn);
@@ -181,16 +184,16 @@ public class PostgresSnapshotLifecycleManager implements SnapshotLifecycleManage
             snapshotHolderConnection.executeWithoutCommitting(
                     "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
 
-            currentSnapshotName = snapshotHolderConnection.queryAndMap(
-                    "SELECT pg_export_snapshot()",
-                    snapshotHolderConnection.singleResultMapper(
-                            rs -> rs.getString(1), "Failed to export snapshot"));
-
             // No slot → no slot LSN. Use current WAL position as reference.
             currentSlotLsn = snapshotHolderConnection.queryAndMap(
                     "SELECT pg_current_wal_lsn()::text",
                     snapshotHolderConnection.singleResultMapper(
                             rs -> rs.getString(1), "Failed to get WAL LSN"));
+
+            currentSnapshotName = snapshotHolderConnection.queryAndMap(
+                    "SELECT pg_export_snapshot()",
+                    snapshotHolderConnection.singleResultMapper(
+                            rs -> rs.getString(1), "Failed to export snapshot"));
 
             LOGGER.info("Smart snapshot: (no-stream) exported snapshot '{}', LSN={}",
                     currentSnapshotName, currentSlotLsn);

@@ -176,6 +176,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         // Set snapshot name, LSN, and coordination on the source
         PostgresSmartSnapshotChangeEventSource smartSource = (PostgresSmartSnapshotChangeEventSource) snapshotSource;
         smartSource.setSmartSnapshotName(snapshotName);
+        // this was captured by the background thread on leader task
         smartSource.setSmartSnapshotLsn(Lsn.valueOf(slotLsnStr));
         smartSource.setSnapshotCoordination(snapshotCoordination, epoch);
 
