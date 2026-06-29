@@ -41,6 +41,8 @@ public class SmartSnapshotConnectorCoordinator {
     private static final String TYPE = "type";
     private static final String TYPE_EPOCH = "epoch";
     private static final String TYPE_JOIN = "join";
+    public static final String COMPLETED_KEY = "completed";
+    private static final String TYPE_DONE = "done";
 
     private final SnapshotCoordination snapshotCoordination;
     private final ConnectorContext connectorContext;
@@ -236,15 +238,9 @@ public class SmartSnapshotConnectorCoordinator {
                 SourceConnectorContext src = (SourceConnectorContext) connectorContext;
                 boolean allComplete = true;
                 for (int i = 0; i < lastNumTasks; i++) {
-                    Map<String, Object> offset = src.offsetStorageReader().offset(
-                            Collect.hashMapOf("server", serverName, "task", String.valueOf(i)));
-                    if (offset == null) {
-                        allComplete = false;
-                        break;
-                    }
-                    boolean done = Boolean.TRUE.equals(offset.get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY));
-                    Integer te = readEpoch(offset);
-                    if (!done || te == null || te != epoch) {
+                    Map<String, Object> done = snapshotCoordination.read(completedKey(serverName, String.valueOf(i)));
+                    Integer doneEpoch = readEpoch(done);
+                    if (done == null || !Boolean.TRUE.equals(done.get(COMPLETED_KEY)) || doneEpoch == null || doneEpoch != epoch) {
                         allComplete = false;
                         break;
                     }
@@ -354,5 +350,9 @@ public class SmartSnapshotConnectorCoordinator {
     // where a task writes its join marker (proof it started this epoch)
     public static Map<String, String> joinMarkerKey(String serverName, String taskId) {
         return Collect.hashMapOf("server", serverName, "task", taskId, TYPE, TYPE_JOIN);
+    }
+
+    public static Map<String, String> completedKey(String serverName, String taskId) {
+        return Collect.hashMapOf("server", serverName, "task", taskId, TYPE, TYPE_DONE);
     }
 }

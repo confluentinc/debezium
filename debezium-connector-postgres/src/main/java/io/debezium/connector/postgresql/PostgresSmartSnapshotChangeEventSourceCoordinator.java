@@ -105,8 +105,13 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         // reset it otherwise). If it shows the snapshot already completed, this restart is just the task
         // being bounced AFTER finishing (a reconfiguration or the managed runtime stopping a "done" task)
         // NOT a crash. Do not treat it as a rejoin; idle and let the connector downscale.
-        if (previousOffset != null && isSnapshotComplete(previousOffset)) {
-            LOGGER.info("Smart snapshot: [task-{}], snapshot already completed for epoch {}, idling until downscale", taskId, epoch);
+        Map<String, Object> done = snapshotCoordination.read(
+                SmartSnapshotConnectorCoordinator.completedKey(serverName, taskId));
+        Integer doneEpoch = SmartSnapshotConnectorCoordinator.readEpoch(done);
+        if (done != null
+                && Boolean.TRUE.equals(done.get(SmartSnapshotConnectorCoordinator.COMPLETED_KEY))
+                && doneEpoch != null && doneEpoch == epoch) {
+            LOGGER.info("Smart snapshot [task-{}]: already completed @epoch {}, idling", taskId, epoch);
             idleUntilRestart(context);
             return;
         }
@@ -199,8 +204,10 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
                     : new DebeziumException(String.format("Smart snapshot: [task-%s], epoch-%s snapshot failed", taskId, epoch), e);
         }
 
-        // transaction_started signal already sent from lockTablesForSchemaSnapshot()
-        // No streaming. Task idles until monitor detects completion.
+        writeCompleted();
+
+        // todo check if this is really required?
+        idleUntilRestart(context);
     }
 
     private void writeRestartNeeded() {
@@ -227,9 +234,17 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         }
     }
 
-    // True if this offset shows the snapshot already completed (for the current epoch — previousOffset
-    // is only non-null here when its epoch matches, per the epoch-mismatch reset above).
-    private boolean isSnapshotComplete(PostgresOffsetContext offset) {
-        return Boolean.TRUE.equals(offset.getOffset().get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY));
+    private void writeCompleted() {
+        try {
+            Map<String, Object> data = new HashMap<>();
+            data.put(SmartSnapshotConnectorCoordinator.COMPLETED_KEY, true);
+            data.put(SmartSnapshotConnectorCoordinator.EPOCH_KEY, epoch);
+            snapshotCoordination.write(SmartSnapshotConnectorCoordinator.completedKey(serverName, taskId), data);
+        }
+        catch (Exception e) {
+            // can't record completion → the monitor would never downscale; fail so the task retries
+            throw new DebeziumException(
+                    String.format("Smart snapshot [task-%s]: failed to write completed @epoch %d", taskId, epoch), e);
+        }
     }
 }
