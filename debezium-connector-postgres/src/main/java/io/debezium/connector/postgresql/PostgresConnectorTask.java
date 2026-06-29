@@ -565,6 +565,14 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                 config, connectorConfig.getSmartSnapshotCoordinationBootstrapServers());
         this.snapshotCoordination = new KafkaLogSnapshotCoordination(clientConfig, coordinationTopic, clientIdSuffix);
 
+        try {
+            // end the setup txn (guardrail query, etc.) so the snapshot's SET is the first
+            jdbcConnection.commit();
+        }
+        catch (SQLException e) {
+            throw new DebeziumException(e);
+        }
+
         // task-0 is the leader: prepare the snapshot (slot/export + lock-all) on a background thread.
         if ("0".equals(connectorConfig.getTaskId())) {
             final int leaderEpoch = epoch;
@@ -615,14 +623,6 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
             }, "smart-snapshot-leader-prep");
             this.smartSnapshotPreparationThread.setDaemon(true);
             this.smartSnapshotPreparationThread.start();
-        }
-
-        try {
-            // end the setup txn (guardrail query, etc.) so the snapshot's SET is the first
-            jdbcConnection.commit();
-        }
-        catch (SQLException e) {
-            throw new DebeziumException(e);
         }
 
         // The leader task background thread handles slot creation & replication connection creation, skip those
