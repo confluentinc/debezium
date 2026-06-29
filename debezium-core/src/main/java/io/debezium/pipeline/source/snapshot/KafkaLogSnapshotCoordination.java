@@ -12,9 +12,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
@@ -45,6 +47,10 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
     private static final Logger LOGGER = LoggerFactory.getLogger(KafkaLogSnapshotCoordination.class);
 
     private final int PARTITION_COUNT = 1;
+
+    private final AtomicBoolean startInitiated = new AtomicBoolean(false);
+    private final CountDownLatch startedLatch = new CountDownLatch(1);
+
     private final KafkaBasedLog<String, String> log;
     private final TopicAdmin topicAdmin;
     private final ObjectMapper mapper = new ObjectMapper();
@@ -86,10 +92,28 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
         return keyMapper.writeValueAsString(new TreeMap<>(key));
     }
 
+    // multiple threads can invoke the start method
     @Override
     public void start() {
         // reads beginning to end, then starts background tailing thread
-        log.start();
+        if (startInitiated.compareAndSet(false, true)) {
+            try {
+                log.start();
+            }
+            finally {
+                startedLatch.countDown(); // release any caller waiting below
+            }
+        }
+        else {
+            // another caller is starting (or already started) the log — wait for it to finish
+            try {
+                startedLatch.await();
+            }
+            catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new ConnectException("Smart snapshot: Interrupted waiting for snapshot coordination to start", e);
+            }
+        }
     }
 
     @Override

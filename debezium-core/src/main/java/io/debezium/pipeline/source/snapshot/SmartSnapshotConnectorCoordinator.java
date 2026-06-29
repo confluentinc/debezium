@@ -235,7 +235,6 @@ public class SmartSnapshotConnectorCoordinator {
                 }
 
                 // 2. all complete for the epoch → downscale
-                SourceConnectorContext src = (SourceConnectorContext) connectorContext;
                 boolean allComplete = true;
                 for (int i = 0; i < lastNumTasks; i++) {
                     Map<String, Object> done = snapshotCoordination.read(completedKey(serverName, String.valueOf(i)));
