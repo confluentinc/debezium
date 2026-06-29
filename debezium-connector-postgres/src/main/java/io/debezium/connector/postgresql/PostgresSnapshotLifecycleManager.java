@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import io.debezium.connector.postgresql.connection.Lsn;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

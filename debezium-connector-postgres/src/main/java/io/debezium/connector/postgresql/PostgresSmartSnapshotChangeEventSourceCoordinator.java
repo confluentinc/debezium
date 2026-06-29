@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import io.debezium.pipeline.CommonOffsetContext;
 import org.apache.kafka.connect.source.SourceConnector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -168,7 +169,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
                 }
             }
             LOGGER.info("Smart snapshot: [task-{}] waiting for snapshot preparation (attempt {}/30)", taskId, attempt + 1);
-            Thread.sleep(10_000);
+            Thread.sleep(2000);
         }
         if (snapshotName == null) {
             throw new DebeziumException(String.format("Smart snapshot [task-%s]: Timed out waiting for snapshot preparation", taskId));
@@ -227,13 +228,9 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
     }
 
     private void idleUntilRestart(ChangeEventSourceContext context) throws InterruptedException {
-        int counter = 0;
+        // Task did not snapshot this epoch; idle until the Connector restarts us at a new epoch.
         while (context.isRunning()) {
-            Thread.sleep(10_000);
-            if (counter % 3 == 0) { // log every 30 second
-                LOGGER.info("Smart snapshot: task {} is idling", taskId);
-            }
-            counter++;
+            Thread.sleep(5_000);
         }
     }
 

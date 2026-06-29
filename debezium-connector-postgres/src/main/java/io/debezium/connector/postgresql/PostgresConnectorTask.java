@@ -579,8 +579,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
             final List<TableId> allTables = parseTableList(config.getString(SmartSnapshotConnectorCoordinator.ALL_TABLES_KEY));
             final boolean shouldStream = !PostgresConnectorConfig.SnapshotMode.INITIAL_ONLY.getValue()
                     .equals(connectorConfig.getSnapshotMode().getValue());
-            final PostgresSnapshotLifecycleManager lifecycle = new PostgresSnapshotLifecycleManager(connectorConfig, connectionFactory, taskContext,
-                    snapshotterService);
+            final PostgresSnapshotLifecycleManager lifecycle = new PostgresSnapshotLifecycleManager(connectorConfig, connectionFactory, taskContext, snapshotterService);
             // connectionFactory (local, ~line 113) and taskContext (field, ~line 134) are both in scope here
             final SnapshotCoordination prepCoordination = this.snapshotCoordination;
             final ErrorHandler leaderErrorHandler = this.errorHandler;
@@ -590,19 +589,6 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                 try {
                     // for debugging
                     taskContext.configureLoggingContext("snapshot-prep", new PostgresPartition(connectorConfig.getConnectorName(), "", "0"));
-
-                    // a completed task-0 that got restarted must NOT re-prepare
-                    // background thread — safe to block on the topic read here
-                    prepCoordination.start();
-                    Map<String, Object> done = prepCoordination.read(
-                            SmartSnapshotConnectorCoordinator.completedKey(connectorConfig.getLogicalName(), "0"));
-                    Integer doneEpoch = SmartSnapshotConnectorCoordinator.readEpoch(done);
-                    if (done != null
-                            && Boolean.TRUE.equals(done.get(SmartSnapshotConnectorCoordinator.COMPLETED_KEY))
-                            && doneEpoch != null && doneEpoch == leaderEpoch) {
-                        LOGGER.info("Smart snapshot: [task-0] snapshot already completed @epoch {}, skipping leader prep", leaderEpoch);
-                        return; // thread ends; no re-export, no re-lock, {server} key untouched. Foreground idles until downscale.
-                    }
 
                     SnapshotLifecycleManager.SnapshotSetup setup = lifecycle.prepareSnapshot(allTables, shouldStream);
 
@@ -637,7 +623,6 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
             }, "smart-snapshot-leader-prep");
             this.smartSnapshotPreparationThread.setDaemon(true);
             this.smartSnapshotPreparationThread.start();
-
         }
 
         // The leader task background thread handles slot creation & replication connection creation, skip those
