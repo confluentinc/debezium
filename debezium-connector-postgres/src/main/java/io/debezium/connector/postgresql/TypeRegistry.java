@@ -372,27 +372,26 @@ public class TypeRegistry {
      * Prime the {@link TypeRegistry} with all existing database types
      */
     private void prime() throws SQLException {
-        try (Statement statement = connection.connection().createStatement()) {
-            statement.setQueryTimeout(connection.getQueryTimeout());
-            try (ResultSet rs = statement.executeQuery(SQL_TYPES)) {
-                final List<PostgresType.Builder> delayResolvedBuilders = new ArrayList<>();
-                while (rs.next()) {
-                    PostgresType.Builder builder = createTypeBuilderFromResultSet(rs);
+        Statement statement = connection.connection().createStatement();
+        statement.setQueryTimeout(connection.getQueryTimeout());
+        try (statement; ResultSet rs = statement.executeQuery(SQL_TYPES)) {
+            final List<PostgresType.Builder> delayResolvedBuilders = new ArrayList<>();
+            while (rs.next()) {
+                PostgresType.Builder builder = createTypeBuilderFromResultSet(rs);
 
-                    // If the type does have a base type, we can build/add immediately.
-                    if (!builder.hasParentType()) {
-                        addType(builder.build());
-                        continue;
-                    }
-
-                    // For types with base type mappings, they need to be delayed.
-                    delayResolvedBuilders.add(builder);
-                }
-
-                // Resolve delayed builders
-                for (PostgresType.Builder builder : delayResolvedBuilders) {
+                // If the type does have a base type, we can build/add immediately.
+                if (!builder.hasParentType()) {
                     addType(builder.build());
+                    continue;
                 }
+
+                // For types with base type mappings, they need to be delayed.
+                delayResolvedBuilders.add(builder);
+            }
+
+            // Resolve delayed builders
+            for (PostgresType.Builder builder : delayResolvedBuilders) {
+                addType(builder.build());
             }
         }
     }
