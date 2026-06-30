@@ -372,6 +372,14 @@ public class JdbcConnection implements AutoCloseable {
     }
 
     /**
+     * Returns the query timeout in seconds (from {@code query.timeout.ms}, {@code 0} = no limit), so raw
+     * {@link Statement}/{@link PreparedStatement} paths can apply the same bound the query helpers use.
+     */
+    public int getQueryTimeout() {
+        return queryTimeout;
+    }
+
+    /**
      * Obtain the configuration for this connection.
      *
      * @return the JDBC configuration; never null
