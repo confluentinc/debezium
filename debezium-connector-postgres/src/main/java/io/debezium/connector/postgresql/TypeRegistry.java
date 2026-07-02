@@ -372,9 +372,8 @@ public class TypeRegistry {
      * Prime the {@link TypeRegistry} with all existing database types
      */
     private void prime() throws SQLException {
-        Statement statement = connection.connection().createStatement();
-        statement.setQueryTimeout(connection.getQueryTimeout());
-        try (statement; ResultSet rs = statement.executeQuery(SQL_TYPES)) {
+        try (Statement statement = createStatementWithQueryTimeout();
+                ResultSet rs = statement.executeQuery(SQL_TYPES)) {
             final List<PostgresType.Builder> delayResolvedBuilders = new ArrayList<>();
             while (rs.next()) {
                 PostgresType.Builder builder = createTypeBuilderFromResultSet(rs);
@@ -394,6 +393,12 @@ public class TypeRegistry {
                 addType(builder.build());
             }
         }
+    }
+
+    private Statement createStatementWithQueryTimeout() throws SQLException {
+        Statement statement = connection.connection().createStatement();
+        statement.setQueryTimeout(connection.getQueryTimeout());
+        return statement;
     }
 
     private PostgresType.Builder createTypeBuilderFromResultSet(ResultSet rs) throws SQLException {
