@@ -209,33 +209,45 @@ public class ApicurioRegistryTestIT {
 
     @FixFor("DBZ-5282")
     @Test
-    public void shouldNotErrorWithBadHeader() {
+    public void shouldNotErrorWithBadHeader() throws Exception {
 
         logMatchers.add(Pattern.compile(".*" + INVALID_HEADER_NAME_LOG + ".*", Pattern.DOTALL));
         logMatchers.add(Pattern.compile(".*" + TROUBLE_MAKER_LOG + ".*", Pattern.DOTALL));
 
-        final String apicurioUrl = getApicurioUrl();
-        String id = "4";
+        try (Connection connection = getConnection(postgresContainer);
+                Statement statement = connection.createStatement()) {
 
-        // host, database, user etc. are obtained from the container
-        final ConnectorConfiguration config = ConnectorConfiguration.forJdbcContainer(postgresContainer)
-                .with("topic.prefix", "dbserver" + id)
-                .with("slot.name", "debezium_" + id)
-                .with("key.converter", "org.apache.kafka.connect.json.JsonConverter")
-                .with("value.converter", "io.debezium.converters.CloudEventsConverter")
-                .with("value.converter.data.serializer.type", "avro")
-                .with("value.converter.avro.apicurio.registry.url", apicurioUrl)
-                .with("value.converter.avro.apicurio.registry.auto-register", "true")
-                .with("value.converter.avro.apicurio.registry.artifact.group-id", "dummy")
-                .with("value.converter.avro.apicurio.registry.request.ssl.truststore.location", "TroubleMaker");
+            // Seed data so the connector produces a change record. The bad Apicurio truststore
+            // ('TroubleMaker') fails during record serialization, which drives the task to FAILED.
+            statement.execute("drop schema if exists todo cascade");
+            statement.execute("create schema todo");
+            statement.execute("create table todo.Todo (id int8 not null, title varchar(255), primary key (id))");
+            statement.execute("alter table todo.Todo replica identity full");
+            statement.execute("insert into todo.Todo values (4, 'Be Awesome')");
 
-        debeziumContainer.registerConnector("my-connector-test-apicurio-header", config);
-        debeziumContainer.ensureConnectorTaskState("my-connector-test-apicurio-header", 0, Connector.State.FAILED);
+            final String apicurioUrl = getApicurioUrl();
+            String id = "4";
 
-        // in debezium 1.9, the invalid header log would be found due the use of the older apicurio jar
-        assertThat(capturedLogs).hasSize(1);
-        assertThat(capturedLogs).allMatch(log -> log.contains(TROUBLE_MAKER_LOG));
-        assertThat(capturedLogs).noneMatch(log -> log.contains(INVALID_HEADER_NAME_LOG));
+            // host, database, user etc. are obtained from the container
+            final ConnectorConfiguration config = ConnectorConfiguration.forJdbcContainer(postgresContainer)
+                    .with("topic.prefix", "dbserver" + id)
+                    .with("slot.name", "debezium_" + id)
+                    .with("key.converter", "org.apache.kafka.connect.json.JsonConverter")
+                    .with("value.converter", "io.debezium.converters.CloudEventsConverter")
+                    .with("value.converter.data.serializer.type", "avro")
+                    .with("value.converter.avro.apicurio.registry.url", apicurioUrl)
+                    .with("value.converter.avro.apicurio.registry.auto-register", "true")
+                    .with("value.converter.avro.apicurio.registry.artifact.group-id", "dummy")
+                    .with("value.converter.avro.apicurio.registry.request.ssl.truststore.location", "TroubleMaker");
+
+            debeziumContainer.registerConnector("my-connector-test-apicurio-header", config);
+            debeziumContainer.ensureConnectorTaskState("my-connector-test-apicurio-header", 0, Connector.State.FAILED);
+
+            // in debezium 1.9, the invalid header log would be found due the use of the older apicurio jar
+            assertThat(capturedLogs).hasSize(1);
+            assertThat(capturedLogs).allMatch(log -> log.contains(TROUBLE_MAKER_LOG));
+            assertThat(capturedLogs).noneMatch(log -> log.contains(INVALID_HEADER_NAME_LOG));
+        }
     }
 
     private Connection getConnection(PostgreSQLContainer<?> postgresContainer) throws SQLException {

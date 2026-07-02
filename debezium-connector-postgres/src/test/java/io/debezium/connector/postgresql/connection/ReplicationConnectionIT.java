@@ -208,6 +208,33 @@ public class ReplicationConnectionIT {
         }
     }
 
+    @Test(timeout = 60000)
+    @SkipWhenDecoderPluginNameIsNot(value = SkipWhenDecoderPluginNameIsNot.DecoderPluginName.PGOUTPUT, reason = "initPublication() and its catalog reads only run for the pgoutput decoder")
+    public void shouldTimeOutPublicationCatalogReadWhenCatalogIsLocked() throws Exception {
+        // Lock pg_publication so initPublication()'s "SELECT ... FROM pg_publication" blocks; with
+        // query.timeout.ms set it must be cancelled (SQLSTATE 57014) rather than hang (@Test timeout guards this).
+        PostgresConnection blocker = TestHelper.executeWithoutCommit("LOCK TABLE pg_catalog.pg_publication IN ACCESS EXCLUSIVE MODE;");
+        try (ReplicationConnection conn = TestHelper.createForReplication("test_query_timeout_slot", true,
+                new PostgresConnectorConfig(TestHelper.defaultConfig()
+                        .with("database.query.timeout.ms", 2000)
+                        .build()))) {
+            conn.startStreaming(new WalPositionLocator());
+            fail("Publication catalog read should have been cancelled by the query timeout");
+        }
+        catch (Exception e) {
+            Throwable rootCause = e;
+            while (rootCause.getCause() != null) {
+                rootCause = rootCause.getCause();
+            }
+            assertTrue("Expected a SQLException root cause but was: " + rootCause, rootCause instanceof SQLException);
+            Assert.assertEquals("57014", ((SQLException) rootCause).getSQLState());
+        }
+        finally {
+            blocker.commit();
+            blocker.close();
+        }
+    }
+
     @Test
     public void shouldCloseConnectionOnInvalidSlotName() throws Exception {
         final int closeRetries = 60;
