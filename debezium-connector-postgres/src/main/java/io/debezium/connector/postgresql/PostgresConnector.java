@@ -25,11 +25,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.debezium.DebeziumException;
+import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.connector.common.RelationalBaseSourceConnector;
 import io.debezium.connector.postgresql.PostgresConnectorConfig.LogicalDecoder;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.connector.postgresql.connection.ServerInfo;
+import io.debezium.pipeline.source.snapshot.KafkaLogSnapshotCoordination;
+import io.debezium.pipeline.source.snapshot.SmartSnapshotConnectorCoordinator;
+import io.debezium.pipeline.source.snapshot.SnapshotCoordination;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.relational.TableId;
 import io.debezium.util.ThreadNameContext;
@@ -50,6 +54,7 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
     public static final int READ_ONLY_SUPPORTED_VERSION = 13;
 
     private Map<String, String> props;
+    private volatile SmartSnapshotConnectorCoordinator smartSnapshotConnectorCoordinator;
 
     public PostgresConnector() {
     }
@@ -67,17 +72,54 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
     @Override
     public void start(Map<String, String> props) {
         this.props = props;
+
+        Configuration config = Configuration.from(props);
+
+        if (smartSnapshotApplies(config)) {
+            PostgresConnectorConfig connectorConfig = new PostgresConnectorConfig(config);
+            String serverName = config.getString(CommonConnectorConfig.TOPIC_PREFIX);
+            String coordinationTopic = connectorConfig.getLogicalName() + ".snapshot-coordination";
+            String clientIdSuffix = connectorConfig.getLogicalName() + "-coordination-connector";
+
+            Map<String, Object> clientConfig = KafkaLogSnapshotCoordination.clientConfigFromOverrides(
+                    config, connectorConfig.getSmartSnapshotCoordinationBootstrapServers());
+            SnapshotCoordination coordination = new KafkaLogSnapshotCoordination(clientConfig, coordinationTopic, clientIdSuffix);
+
+            smartSnapshotConnectorCoordinator = new SmartSnapshotConnectorCoordinator(coordination, context(), serverName);
+            List<TableId> tables = getMatchingCollections(config);
+            smartSnapshotConnectorCoordinator.start(tables);
+
+            // If previous snapshot was already complete, skip smart snapshot
+            if (smartSnapshotConnectorCoordinator.isComplete()) {
+                smartSnapshotConnectorCoordinator.stop();
+                smartSnapshotConnectorCoordinator = null;
+            }
+        }
     }
 
     @Override
     public List<Map<String, String>> taskConfigs(int maxTasks) {
-        // this will always have just one task with the given list of properties
-        return props == null ? Collections.emptyList() : Collections.singletonList(new HashMap<>(props));
+        if (props == null)
+            return Collections.emptyList();
+
+        Configuration config = Configuration.from(props);
+        if (smartSnapshotApplies(config) && maxTasks > 1 && smartSnapshotConnectorCoordinator != null) {
+            List<Map<String, String>> configs = smartSnapshotConnectorCoordinator.taskConfigs(maxTasks, props);
+            if (configs != null) {
+                return configs;
+            }
+            // if the config is null it implies that the smart snapshot was complete, just fall through to single config
+        }
+
+        return Collections.singletonList(new HashMap<>(props));
     }
 
     @Override
     public void stop() {
         this.props = null;
+        if (smartSnapshotConnectorCoordinator != null) {
+            smartSnapshotConnectorCoordinator.stop();
+        }
     }
 
     @Override
@@ -226,6 +268,25 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         }
         catch (SQLException e) {
             throw new DebeziumException(e);
+        }
+    }
+
+    private static boolean smartSnapshotApplies(Configuration configuration) {
+        PostgresConnectorConfig connectorConfig = new PostgresConnectorConfig(configuration);
+        if (!connectorConfig.isSmartSnapshotEnabled()) {
+            return false;
+        }
+        switch (connectorConfig.getSnapshotMode()) {
+            case INITIAL:
+            case INITIAL_ONLY:
+            case WHEN_NEEDED:
+                return true;                       // parallelizable data snapshot
+            case CONFIGURATION_BASED:              // not supported on ccloud
+            case ALWAYS:                           // avoid the post-downscale double snapshot -> single-task
+            case NEVER:
+            case NO_DATA:                          // no data copy -> nothing to parallelize
+            default:
+                return false;
         }
     }
 }
