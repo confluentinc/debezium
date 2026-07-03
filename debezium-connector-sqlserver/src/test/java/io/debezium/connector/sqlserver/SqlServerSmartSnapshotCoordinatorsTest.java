@@ -85,6 +85,41 @@ public class SqlServerSmartSnapshotCoordinatorsTest {
         };
     }
 
+    /**
+     * A genuine pre-existing streaming offset for {@code streamingDatabase} (no {@code snapshot} key --
+     * matches what {@link SqlServerOffsetContext#getOffset()} produces once past the initial snapshot), and
+     * nothing for any other database.
+     */
+    private static SourceConnectorContext alreadyStreamingContext(String serverName, String streamingDatabase) {
+        Map<String, String> streamingPartition = new SqlServerPartition(serverName, streamingDatabase).getSourcePartition();
+        OffsetStorageReader reader = new OffsetStorageReader() {
+            @Override
+            public <T> Map<String, Object> offset(Map<String, T> partition) {
+                return streamingPartition.equals(partition) ? Map.of("commit_lsn", "0000002b:00000ce8:001a") : null;
+            }
+
+            @Override
+            public <T> Map<Map<String, T>, Map<String, Object>> offsets(Collection<Map<String, T>> partitions) {
+                return Collections.emptyMap();
+            }
+        };
+        return new SourceConnectorContext() {
+            @Override
+            public OffsetStorageReader offsetStorageReader() {
+                return reader;
+            }
+
+            @Override
+            public void requestTaskReconfiguration() {
+            }
+
+            @Override
+            public void raiseError(Exception e) {
+                throw new AssertionError("unexpected connector error", e);
+            }
+        };
+    }
+
     private SqlServerConnectorConfig configFor(int databaseCount, int tablesPerTask) {
         StringBuilder databaseNames = new StringBuilder();
         for (int i = 0; i < databaseCount; i++) {
@@ -176,5 +211,25 @@ public class SqlServerSmartSnapshotCoordinatorsTest {
 
         List<Map<String, String>> configs = coordinators.taskConfigs(config.getSmartSnapshotTablesPerTask(), Map.of());
         assertThat(configs).allSatisfy(c -> assertThat(c.get(SqlServerConnectorConfig.DATABASE_NAMES.name())).isEqualTo("db0"));
+    }
+
+    @Test
+    public void databaseAlreadyStreamingIsExcludedFromSmartSnapshotEvenThoughSharedCheckCannotSeeIt() {
+        // The shared SmartSnapshotConnectorCoordinator's own "already streaming" check looks up a
+        // single-field {server} key against the real offset store, which never matches SqlServerPartition's
+        // {server,database} key -- SqlServerSmartSnapshotCoordinators must do its own two-field check
+        // before ever constructing a coordinator for a database that's already genuinely streaming.
+        SqlServerConnectorConfig config = configFor(2, 2);
+        Map<String, Integer> tableCounts = Map.of("db0", 2, "db1", 2);
+        StubConnection connection = new StubConnection(config, tableCounts);
+
+        SqlServerSmartSnapshotCoordinators coordinators = new SqlServerSmartSnapshotCoordinators();
+        coordinators.start(config, alreadyStreamingContext(config.getLogicalName(), "db0"), () -> connection,
+                database -> new InMemorySnapshotCoordination());
+
+        assertThat(coordinators.remainingDatabases(config)).containsExactly("db0");
+
+        List<Map<String, String>> configs = coordinators.taskConfigs(config.getSmartSnapshotTablesPerTask(), Map.of());
+        assertThat(configs).allSatisfy(c -> assertThat(c.get(SqlServerConnectorConfig.DATABASE_NAMES.name())).isEqualTo("db1"));
     }
 }
