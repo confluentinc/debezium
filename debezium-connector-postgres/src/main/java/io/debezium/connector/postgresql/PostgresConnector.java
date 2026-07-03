@@ -74,9 +74,8 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         this.props = props;
 
         Configuration config = Configuration.from(props);
-        boolean smartSnapshotEnabled = config.getBoolean(CommonConnectorConfig.SMART_SNAPSHOT_ENABLED);
 
-        if (smartSnapshotEnabled) {
+        if (smartSnapshotApplies(config)) {
             PostgresConnectorConfig connectorConfig = new PostgresConnectorConfig(config);
             String serverName = config.getString(CommonConnectorConfig.TOPIC_PREFIX);
             String coordinationTopic = connectorConfig.getLogicalName() + ".snapshot-coordination";
@@ -104,14 +103,12 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
             return Collections.emptyList();
 
         Configuration config = Configuration.from(props);
-        boolean smartSnapshotEnabled = config.getBoolean(CommonConnectorConfig.SMART_SNAPSHOT_ENABLED);
-
-        if (smartSnapshotEnabled && maxTasks > 1 && smartSnapshotConnectorCoordinator != null) {
+        if (smartSnapshotApplies(config) && maxTasks > 1 && smartSnapshotConnectorCoordinator != null) {
             List<Map<String, String>> configs = smartSnapshotConnectorCoordinator.taskConfigs(maxTasks, props);
             if (configs != null) {
                 return configs;
             }
-            // null = snapshot complete → fall through to single config
+            // if the config is null it implies that the smart snapshot was complete, just fall through to single config
         }
 
         return Collections.singletonList(new HashMap<>(props));
@@ -271,6 +268,25 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         }
         catch (SQLException e) {
             throw new DebeziumException(e);
+        }
+    }
+
+    private static boolean smartSnapshotApplies(Configuration configuration) {
+        PostgresConnectorConfig connectorConfig = new PostgresConnectorConfig(configuration);
+        if (!connectorConfig.isSmartSnapshotEnabled()) {
+            return false;
+        }
+        switch (connectorConfig.getSnapshotMode()) {
+            case INITIAL:
+            case INITIAL_ONLY:
+            case WHEN_NEEDED:
+                return true;                       // parallelizable data snapshot
+            case CONFIGURATION_BASED:              // not supported on ccloud
+            case ALWAYS:                           // avoid the post-downscale double snapshot -> single-task
+            case NEVER:
+            case NO_DATA:                          // no data copy -> nothing to parallelize
+            default:
+                return false;
         }
     }
 }
