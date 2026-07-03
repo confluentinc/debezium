@@ -225,6 +225,7 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
 
                 String selectPublication = String.format("SELECT puballtables FROM pg_publication WHERE pubname = '%s'", publicationName);
                 try (Statement stmt = conn.createStatement()) {
+                    stmt.setQueryTimeout(getQueryTimeout());
                     boolean isOnlyRead = isReadOnlyDb();
                     try (ResultSet rs = stmt.executeQuery(selectPublication)) {
                         final boolean publicationExists = rs.next();
@@ -369,6 +370,7 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
         final Set<String> tableNames = tablesToCapture.stream().map(entity -> entity.schema() + "." + entity.table()).collect(Collectors.toSet());
         final Set<String> dbTableNamesHashSet = new HashSet<>();
         try (PreparedStatement prepStmt = stmt.getConnection().prepareStatement(validatePublication)) {
+            prepStmt.setQueryTimeout(getQueryTimeout());
             prepStmt.setString(1, publicationName);
             ResultSet rs = prepStmt.executeQuery();
             while (rs.next()) {
@@ -393,6 +395,7 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
 
         Set<TableId> publicationTables = new HashSet<>();
         try (PreparedStatement prepStmt = stmt.getConnection().prepareStatement(getPublicationTablesQuery)) {
+            prepStmt.setQueryTimeout(getQueryTimeout());
             try (ResultSet rs = prepStmt.executeQuery()) {
                 while (rs.next()) {
                     String schemaName = rs.getString("schemaname");
@@ -716,6 +719,7 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
             return;
         }
         try (Statement stmt = pgConnection().createStatement()) {
+            stmt.setQueryTimeout(getQueryTimeout());
             String seekCommand = String.format(
                     "SELECT pg_replication_slot_advance('%s', '%s')",
                     slotName,
