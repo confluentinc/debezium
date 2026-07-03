@@ -54,6 +54,12 @@ public class SqlServerChangeEventSourceFactory implements ChangeEventSourceFacto
     @Override
     public SnapshotChangeEventSource<SqlServerPartition, SqlServerOffsetContext> getSnapshotChangeEventSource(SnapshotProgressListener<SqlServerPartition> snapshotProgressListener,
                                                                                                               NotificationService<SqlServerPartition, SqlServerOffsetContext> notificationService) {
+        // database.task.index is stamped only by SqlServerSmartSnapshotCoordinators' sharded fan-out, unlike
+        // the connector-wide task.id which is also set by the ordinary (non-smart) round-robin path.
+        if (configuration.isSmartSnapshotEnabled() && configuration.getSmartSnapshotDatabaseTaskIndex() != null) {
+            return new SqlServerSmartSnapshotChangeEventSource(configuration, connectionFactory, schema, dispatcher, clock, snapshotProgressListener,
+                    notificationService, snapshotterService);
+        }
         return new SqlServerSnapshotChangeEventSource(configuration, connectionFactory, schema, dispatcher, clock, snapshotProgressListener, notificationService,
                 snapshotterService);
     }

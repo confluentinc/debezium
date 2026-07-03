@@ -6,6 +6,7 @@
 package io.debezium.connector.sqlserver;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -29,12 +30,16 @@ import io.debezium.document.DocumentReader;
 import io.debezium.jdbc.DefaultMainConnectionProvidingConnectionFactory;
 import io.debezium.jdbc.MainConnectionProvidingConnectionFactory;
 import io.debezium.pipeline.ChangeEventSourceCoordinator;
+import io.debezium.pipeline.CommonOffsetContext;
 import io.debezium.pipeline.DataChangeEvent;
 import io.debezium.pipeline.ErrorHandler;
 import io.debezium.pipeline.EventDispatcher;
 import io.debezium.pipeline.GuardrailValidator;
 import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.signal.SignalProcessor;
+import io.debezium.pipeline.source.snapshot.KafkaLogSnapshotCoordination;
+import io.debezium.pipeline.source.snapshot.SmartSnapshotConnectorCoordinator;
+import io.debezium.pipeline.source.snapshot.SnapshotCoordination;
 import io.debezium.pipeline.spi.Offsets;
 import io.debezium.relational.TableId;
 import io.debezium.schema.SchemaFactory;
@@ -42,6 +47,7 @@ import io.debezium.schema.SchemaNameAdjuster;
 import io.debezium.snapshot.SnapshotterService;
 import io.debezium.spi.topic.TopicNamingStrategy;
 import io.debezium.util.Clock;
+import io.debezium.util.Collect;
 
 /**
  * The main task executing streaming from SQL Server.
@@ -61,6 +67,7 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
     private volatile SqlServerConnection metadataConnection;
     private volatile SqlServerErrorHandler errorHandler;
     private volatile SqlServerDatabaseSchema schema;
+    private volatile SnapshotCoordination smartSnapshotCoordination;
 
     @Override
     public String version() {
@@ -98,6 +105,8 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
         Offsets<SqlServerPartition, SqlServerOffsetContext> offsets = getPreviousOffsets(
                 new SqlServerPartition.Provider(connectorConfig),
                 new SqlServerOffsetContext.Loader(connectorConfig));
+
+        seedStreamingOffsetsFromCoordination(connectorConfig, offsets);
 
         // Manual Bean Registration
         connectorConfig.getBeanRegistry().add(StandardBeanNames.CONFIGURATION, config);
@@ -166,24 +175,100 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
         NotificationService<SqlServerPartition, SqlServerOffsetContext> notificationService = new NotificationService<>(getNotificationChannels(),
                 connectorConfig, SchemaFactory.get(), dispatcher::enqueueNotification);
 
-        ChangeEventSourceCoordinator<SqlServerPartition, SqlServerOffsetContext> coordinator = new SqlServerChangeEventSourceCoordinator(
-                offsets,
-                errorHandler,
-                SqlServerConnector.class,
-                connectorConfig,
-                new SqlServerChangeEventSourceFactory(connectorConfig, connectionFactory, metadataConnection, errorHandler, dispatcher, clock, schema,
-                        notificationService, snapshotterService),
-                new SqlServerMetricsFactory(offsets.getPartitions()),
-                dispatcher,
-                schema,
-                clock,
-                signalProcessor,
-                notificationService,
-                snapshotterService);
+        String smartSnapshotDatabaseTaskIndex = connectorConfig.getSmartSnapshotDatabaseTaskIndex();
+        ChangeEventSourceCoordinator<SqlServerPartition, SqlServerOffsetContext> coordinator;
+        if (connectorConfig.isSmartSnapshotEnabled() && smartSnapshotDatabaseTaskIndex != null) {
+            // Sharded smart-snapshot task: DB-exclusive by construction (SqlServerSmartSnapshotCoordinators
+            // fans out one database per shard), so there is exactly one database to key the coordination
+            // topic off of.
+            String database = connectorConfig.getDatabaseNames().get(0);
+            String topicName = connectorConfig.getLogicalName() + "." + database + ".snapshot-coordination";
+            String clientIdSuffix = connectorConfig.getLogicalName() + "-" + database + "-coordination-task-" + smartSnapshotDatabaseTaskIndex;
+            Map<String, Object> clientConfig = KafkaLogSnapshotCoordination.clientConfigFromOverrides(
+                    config, connectorConfig.getSmartSnapshotCoordinationBootstrapServers());
+            this.smartSnapshotCoordination = new KafkaLogSnapshotCoordination(clientConfig, topicName, clientIdSuffix);
+
+            coordinator = new SqlServerSmartSnapshotChangeEventSourceCoordinator(
+                    offsets,
+                    errorHandler,
+                    SqlServerConnector.class,
+                    connectorConfig,
+                    new SqlServerChangeEventSourceFactory(connectorConfig, connectionFactory, metadataConnection, errorHandler, dispatcher, clock, schema,
+                            notificationService, snapshotterService),
+                    new SqlServerMetricsFactory(offsets.getPartitions()),
+                    dispatcher,
+                    schema,
+                    clock,
+                    signalProcessor,
+                    notificationService,
+                    snapshotterService,
+                    connectorConfig.getSmartSnapshotEpoch(),
+                    smartSnapshotCoordination,
+                    connectorConfig.getLogicalName(),
+                    smartSnapshotDatabaseTaskIndex);
+        }
+        else {
+            coordinator = new SqlServerChangeEventSourceCoordinator(
+                    offsets,
+                    errorHandler,
+                    SqlServerConnector.class,
+                    connectorConfig,
+                    new SqlServerChangeEventSourceFactory(connectorConfig, connectionFactory, metadataConnection, errorHandler, dispatcher, clock, schema,
+                            notificationService, snapshotterService),
+                    new SqlServerMetricsFactory(offsets.getPartitions()),
+                    dispatcher,
+                    schema,
+                    clock,
+                    signalProcessor,
+                    notificationService,
+                    snapshotterService);
+        }
 
         coordinator.start(taskContext, this.queue, metadataProvider);
 
         return coordinator;
+    }
+
+    /**
+     * Seed the collapsed/streaming task's offset from the per-database coordination topic when no offset is
+     * committed yet (design §7.5). Seed-once-if-absent: a partition that already has a committed offset (a
+     * live streamed offset is always >= L_db) is left untouched. Sharded snapshot tasks carry their own
+     * epoch and must not be seeded here -- gate on database.task.index being absent, mirroring how Postgres
+     * gates on {@code getSmartSnapshotEpoch() == null}.
+     */
+    private void seedStreamingOffsetsFromCoordination(SqlServerConnectorConfig connectorConfig,
+                                                      Offsets<SqlServerPartition, SqlServerOffsetContext> offsets) {
+        if (!connectorConfig.isSmartSnapshotEnabled() || connectorConfig.getSmartSnapshotDatabaseTaskIndex() != null
+                || !SqlServerSmartSnapshotCoordinators.coordinationBootstrapServersConfigured(connectorConfig, connectorConfig.getConfig())) {
+            return;
+        }
+        for (Map.Entry<SqlServerPartition, SqlServerOffsetContext> entry : new ArrayList<>(offsets.getOffsets().entrySet())) {
+            if (entry.getValue() != null) {
+                continue;
+            }
+            SqlServerPartition partition = entry.getKey();
+            String database = partition.getDatabaseName();
+            String topicName = connectorConfig.getLogicalName() + "." + database + ".snapshot-coordination";
+            String clientIdSuffix = connectorConfig.getLogicalName() + "-" + database + "-coordination-streaming";
+            Map<String, Object> clientConfig = KafkaLogSnapshotCoordination.clientConfigFromOverrides(
+                    connectorConfig.getConfig(), connectorConfig.getSmartSnapshotCoordinationBootstrapServers());
+            KafkaLogSnapshotCoordination coordination = new KafkaLogSnapshotCoordination(clientConfig, topicName, clientIdSuffix);
+            try {
+                coordination.start();
+                Map<String, Object> coordData = coordination.read(Collect.hashMapOf("server", connectorConfig.getLogicalName()));
+                if (coordData != null
+                        && Boolean.TRUE.equals(coordData.get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY))
+                        && coordData.get(SmartSnapshotConnectorCoordinator.SLOT_LSN_KEY) != null) {
+                    Lsn lsn = Lsn.valueOf(String.valueOf(coordData.get(SmartSnapshotConnectorCoordinator.SLOT_LSN_KEY)));
+                    LOGGER.info("Smart snapshot: [{}] seeding streaming offset from coordination, LSN={}", database, lsn);
+                    SqlServerOffsetContext syntheticOffset = new SqlServerOffsetContext(connectorConfig, TxLogPosition.valueOf(lsn), null, true);
+                    offsets.getOffsets().put(partition, syntheticOffset);
+                }
+            }
+            finally {
+                coordination.stop();
+            }
+        }
     }
 
     @Override
@@ -215,6 +300,10 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
 
     @Override
     protected void doStop() {
+        if (smartSnapshotCoordination != null) {
+            smartSnapshotCoordination.stop();
+        }
+
         try {
             if (dataConnection != null) {
                 dataConnection.close();

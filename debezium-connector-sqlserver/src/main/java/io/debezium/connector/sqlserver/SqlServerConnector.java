@@ -55,7 +55,7 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
         this.properties = Collections.unmodifiableMap(new HashMap<>(props));
 
         final SqlServerConnectorConfig config = new SqlServerConnectorConfig(Configuration.from(properties));
-        if (SqlServerSmartSnapshotCoordinators.smartSnapshotApplies(config)) {
+        if (SqlServerSmartSnapshotCoordinators.smartSnapshotApplies(config, Configuration.from(properties))) {
             SqlServerSmartSnapshotCoordinators coordinators = new SqlServerSmartSnapshotCoordinators();
             coordinators.start(config, Configuration.from(properties), context(), () -> connect(config));
             this.smartSnapshotCoordinators = coordinators.hasActiveDatabases() ? coordinators : null;

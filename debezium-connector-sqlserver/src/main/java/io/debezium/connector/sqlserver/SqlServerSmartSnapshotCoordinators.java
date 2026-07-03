@@ -18,6 +18,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.connect.connector.ConnectorContext;
 import org.apache.kafka.connect.source.SourceConnectorContext;
 import org.slf4j.Logger;
@@ -65,8 +66,17 @@ public class SqlServerSmartSnapshotCoordinators {
     // preserves database iteration order for deterministic task.id assignment
     private final Map<String, PerDatabaseState> perDatabase = new LinkedHashMap<>();
 
-    public static boolean smartSnapshotApplies(SqlServerConnectorConfig connectorConfig) {
+    public static boolean smartSnapshotApplies(SqlServerConnectorConfig connectorConfig, Configuration rawConfig) {
         if (!connectorConfig.isSmartSnapshotEnabled()) {
+            return false;
+        }
+        // smart.snapshot.enabled defaults to true connector-wide (it also gates lighter-weight single-task
+        // optimizations unrelated to multi-task fan-out -- DND delay, larger batches). The coordination
+        // topic's bootstrap servers are documented as "required when smart.snapshot.enabled=true and
+        // tasks.max > 1" -- treat their absence as "operator hasn't opted into multi-task fan-out" rather
+        // than attempting Kafka client construction with a null bootstrap and failing hard (e.g. embedded
+        // engine tests, which have no coordination topic Kafka broker at all).
+        if (!coordinationBootstrapServersConfigured(connectorConfig, rawConfig)) {
             return false;
         }
         switch (connectorConfig.getSnapshotMode()) {
@@ -83,6 +93,16 @@ public class SqlServerSmartSnapshotCoordinators {
             default:
                 return false;
         }
+    }
+
+    // package-private: also used by SqlServerConnectorTask's streaming-offset-seeding gate
+    static boolean coordinationBootstrapServersConfigured(SqlServerConnectorConfig connectorConfig, Configuration rawConfig) {
+        String explicit = connectorConfig.getSmartSnapshotCoordinationBootstrapServers();
+        if (explicit != null && !explicit.isEmpty()) {
+            return true;
+        }
+        String producerOverride = rawConfig.subset("producer.override.", true).getString(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG);
+        return producerOverride != null && !producerOverride.isEmpty();
     }
 
     /**
