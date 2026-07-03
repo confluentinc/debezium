@@ -938,6 +938,18 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
             .withDescription("Interval in milliseconds at which the connector checks the coordination topic for "
                     + "snapshot completion / restart during a smart (multi-task) snapshot. Internal, mainly for testing.");
 
+    public static final Field SMART_SNAPSHOT_TABLES_PER_TASK = Field.create("smart.snapshot.tables.per.task")
+            .withDisplayName("Smart snapshot tables per task")
+            .withType(Type.INT)
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTOR_SNAPSHOT, 25))
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.LOW)
+            .withDefault(2)
+            .withValidation(Field::isPositiveInteger)
+            .withDescription("When smart.snapshot.enabled=true, the target number of tables assigned to each "
+                    + "snapshot task; the task count is derived as ceil(tableCount / tablesPerTask). Only "
+                    + "honored by connectors that opt into table-driven allocation.");
+
     public static final Field DND_DELAY_MS = Field.create("dnd.delay.ms")
             .withDisplayName("DND delay (ms)")
             .withType(Type.LONG)
@@ -1461,6 +1473,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
                     DND_DELAY_MS,
                     SMART_SNAPSHOT_COORDINATION_BOOTSTRAP_SERVERS,
                     SMART_SNAPSHOT_MONITOR_POLL_INTERVAL_MS,
+                    SMART_SNAPSHOT_TABLES_PER_TASK,
                     SNAPSHOT_MODE_CUSTOM_NAME,
                     SNAPSHOT_MODE_CONFIGURATION_BASED_SNAPSHOT_DATA,
                     SNAPSHOT_MODE_CONFIGURATION_BASED_SNAPSHOT_SCHEMA,
@@ -1522,6 +1535,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
     private final long dndDelayMs;
     private final String smartSnapshotCoordinationBootstrapServers;
     private final long smartSnapshotMonitorPollIntervalMs;
+    private final int smartSnapshotTablesPerTask;
 
     private final String snapshotModeCustomName;
     private final Integer queryFetchSize;
@@ -1575,6 +1589,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
         this.dndDelayMs = config.getLong(DND_DELAY_MS);
         this.smartSnapshotCoordinationBootstrapServers = config.getString(SMART_SNAPSHOT_COORDINATION_BOOTSTRAP_SERVERS);
         this.smartSnapshotMonitorPollIntervalMs = config.getLong(SMART_SNAPSHOT_MONITOR_POLL_INTERVAL_MS);
+        this.smartSnapshotTablesPerTask = config.getInteger(SMART_SNAPSHOT_TABLES_PER_TASK);
         this.snapshotModeCustomName = config.getString(SNAPSHOT_MODE_CUSTOM_NAME);
         this.queryFetchSize = config.getInteger(QUERY_FETCH_SIZE);
         this.incrementalSnapshotChunkSize = config.getInteger(INCREMENTAL_SNAPSHOT_CHUNK_SIZE);
@@ -1744,6 +1759,10 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
 
     public long getSmartSnapshotMonitorPollIntervalMs() {
         return smartSnapshotMonitorPollIntervalMs;
+    }
+
+    public int getSmartSnapshotTablesPerTask() {
+        return smartSnapshotTablesPerTask;
     }
 
     public String getSnapshotModeCustomName() {

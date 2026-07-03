@@ -20,8 +20,13 @@ import io.debezium.util.Collect;
 public class SqlServerPartition extends AbstractPartition implements Partition {
     private static final String SERVER_PARTITION_KEY = "server";
     private static final String DATABASE_PARTITION_KEY = "database";
+    private static final String TASK_PARTITION_KEY = "task";
 
     private final String serverName;
+    // per-DB smart-snapshot shard index (SqlServerConnectorConfig.getSmartSnapshotDatabaseTaskIndex());
+    // null for the non-sharded/legacy partition shape. Required so that multiple sharded tasks reading
+    // the same database don't share one offset-store partition.
+    private final String smartSnapshotDatabaseTaskIndex;
     private final Map<String, String> sourcePartition;
     private final List<Map<String, String>> supportedFormats;
     private final int hashCode;
@@ -31,10 +36,18 @@ public class SqlServerPartition extends AbstractPartition implements Partition {
     }
 
     public SqlServerPartition(String serverName, String databaseName, boolean multiPartitionMode) {
+        this(serverName, databaseName, multiPartitionMode, null);
+    }
+
+    public SqlServerPartition(String serverName, String databaseName, boolean multiPartitionMode, String smartSnapshotDatabaseTaskIndex) {
         super(databaseName);
         this.serverName = serverName;
+        this.smartSnapshotDatabaseTaskIndex = smartSnapshotDatabaseTaskIndex;
 
-        this.sourcePartition = Collect.hashMapOf(SERVER_PARTITION_KEY, serverName, DATABASE_PARTITION_KEY, databaseName);
+        this.sourcePartition = smartSnapshotDatabaseTaskIndex != null
+                ? Collect.hashMapOf(SERVER_PARTITION_KEY, serverName, DATABASE_PARTITION_KEY, databaseName,
+                        TASK_PARTITION_KEY, smartSnapshotDatabaseTaskIndex)
+                : Collect.hashMapOf(SERVER_PARTITION_KEY, serverName, DATABASE_PARTITION_KEY, databaseName);
 
         // for connectors working in single-partition mode the format of a partition has been changed in Debezium 2.0,
         // the legacy/old format of the partition should still be supported along with the new format
@@ -42,7 +55,7 @@ public class SqlServerPartition extends AbstractPartition implements Partition {
         this.supportedFormats = multiPartitionMode ? Collections.singletonList(this.sourcePartition)
                 : Arrays.asList(this.sourcePartition, Collect.hashMapOf(SERVER_PARTITION_KEY, serverName));
 
-        this.hashCode = Objects.hash(serverName, databaseName);
+        this.hashCode = Objects.hash(serverName, databaseName, smartSnapshotDatabaseTaskIndex);
     }
 
     @Override
@@ -71,7 +84,8 @@ public class SqlServerPartition extends AbstractPartition implements Partition {
             return false;
         }
         final SqlServerPartition other = (SqlServerPartition) obj;
-        return Objects.equals(serverName, other.serverName) && Objects.equals(databaseName, other.databaseName);
+        return Objects.equals(serverName, other.serverName) && Objects.equals(databaseName, other.databaseName)
+                && Objects.equals(smartSnapshotDatabaseTaskIndex, other.smartSnapshotDatabaseTaskIndex);
     }
 
     @Override
@@ -95,9 +109,11 @@ public class SqlServerPartition extends AbstractPartition implements Partition {
         public Set<SqlServerPartition> getPartitions() {
             String serverName = connectorConfig.getLogicalName();
             boolean multiPartitionMode = connectorConfig.getDatabaseNames().size() > 1;
+            // present only for a sharded smart-snapshot task, which is always scoped to exactly one database
+            String smartSnapshotDatabaseTaskIndex = connectorConfig.getSmartSnapshotDatabaseTaskIndex();
 
             return connectorConfig.getDatabaseNames().stream()
-                    .map(databaseName -> new SqlServerPartition(serverName, databaseName, multiPartitionMode))
+                    .map(databaseName -> new SqlServerPartition(serverName, databaseName, multiPartitionMode, smartSnapshotDatabaseTaskIndex))
                     .collect(Collectors.toSet());
         }
     }

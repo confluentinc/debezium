@@ -32,6 +32,7 @@ import io.debezium.connector.AbstractSourceInfo;
 import io.debezium.connector.SourceInfoStructMaker;
 import io.debezium.document.Document;
 import io.debezium.jdbc.JdbcConfiguration;
+import io.debezium.pipeline.source.snapshot.SmartSnapshotConnectorCoordinator;
 import io.debezium.relational.ColumnFilterMode;
 import io.debezium.relational.HistorizedRelationalDatabaseConnectorConfig;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
@@ -395,6 +396,15 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
             .withValidation(SqlServerConnectorConfig::validateDatabaseNames)
             .withDescription("The names of the databases from which the connector should capture changes");
 
+    /**
+     * Per-database smart-snapshot shard index (0..n-1), distinct from the connector-wide {@code task.id}.
+     * Stamped by {@link SqlServerSmartSnapshotCoordinators} on each sharded task's config; used as the
+     * coordination-topic rendezvous key and to select the schema-history writer (index 0). Not a
+     * user-facing setting, so it is not registered as a {@link Field} / exposed in {@link #configDef()} —
+     * mirrors how the framework's own {@code epoch} property is handled.
+     */
+    public static final String SMART_SNAPSHOT_DATABASE_TASK_INDEX_PROPERTY_NAME = "smart.snapshot.database.task.index";
+
     public static final Field MAX_LSN_OPTIMIZATION = Field.createInternal("streaming.lsn.optimization")
             .withDisplayName("Max LSN Optimization")
             .withDefault(true)
@@ -600,6 +610,7 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
     private final DataQueryMode dataQueryMode;
     private final int streamingFetchSize;
     private final JdbcCredentialsProvider credsProvider;
+    private final String smartSnapshotDatabaseTaskIndex;
 
     public SqlServerConnectorConfig(Configuration config) {
         super(
@@ -623,6 +634,7 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
         this.instanceName = config.getString(INSTANCE);
         this.snapshotMode = SnapshotMode.parse(config.getString(SNAPSHOT_MODE), SNAPSHOT_MODE.defaultValueAsString());
         this.queryFetchSize = config.getInteger(QUERY_FETCH_SIZE);
+        this.smartSnapshotDatabaseTaskIndex = config.getString(SMART_SNAPSHOT_DATABASE_TASK_INDEX_PROPERTY_NAME);
 
         this.readOnlyDatabaseConnection = READ_ONLY_INTENT.equals(config.getString(APPLICATION_INTENT_KEY));
         if (readOnlyDatabaseConnection) {
@@ -655,6 +667,23 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
 
     public List<String> getDatabaseNames() {
         return databaseNames;
+    }
+
+    /**
+     * The per-database smart-snapshot shard index (0..n-1) for this task, or {@code null} when this task
+     * is not a sharded smart-snapshot task (streaming, or smart snapshot disabled).
+     */
+    public String getSmartSnapshotDatabaseTaskIndex() {
+        return smartSnapshotDatabaseTaskIndex;
+    }
+
+    /**
+     * The smart-snapshot coordination epoch stamped on this task's config, or {@code null} when this task
+     * is not a sharded smart-snapshot task. Mirrors {@code PostgresConnectorConfig.getSmartSnapshotEpoch()}.
+     */
+    public Integer getSmartSnapshotEpoch() {
+        String epochStr = getConfig().getString(SmartSnapshotConnectorCoordinator.EPOCH_KEY);
+        return epochStr != null ? Integer.parseInt(epochStr) : null;
     }
 
     public String getInstanceName() {

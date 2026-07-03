@@ -43,6 +43,7 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
     private static final Logger LOGGER = LoggerFactory.getLogger(SqlServerConnector.class);
 
     private Map<String, String> properties;
+    private volatile SqlServerSmartSnapshotCoordinators smartSnapshotCoordinators;
 
     @Override
     public String version() {
@@ -52,6 +53,13 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
     @Override
     public void start(Map<String, String> props) {
         this.properties = Collections.unmodifiableMap(new HashMap<>(props));
+
+        final SqlServerConnectorConfig config = new SqlServerConnectorConfig(Configuration.from(properties));
+        if (SqlServerSmartSnapshotCoordinators.smartSnapshotApplies(config)) {
+            SqlServerSmartSnapshotCoordinators coordinators = new SqlServerSmartSnapshotCoordinators();
+            coordinators.start(config, Configuration.from(properties), context(), () -> connect(config));
+            this.smartSnapshotCoordinators = coordinators.hasActiveDatabases() ? coordinators : null;
+        }
     }
 
     @Override
@@ -67,21 +75,60 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
 
         final SqlServerConnectorConfig config = new SqlServerConnectorConfig(Configuration.from(properties));
 
+        if (smartSnapshotCoordinators != null && maxTasks > 1) {
+            List<Map<String, String>> shardedConfigs = smartSnapshotCoordinators.taskConfigs(
+                    config.getSmartSnapshotTablesPerTask(), properties);
+            List<String> remainingDatabases = smartSnapshotCoordinators.remainingDatabases(config);
+
+            List<Map<String, String>> merged = new ArrayList<>(shardedConfigs);
+            if (!remainingDatabases.isEmpty()) {
+                try (SqlServerConnection connection = connect(config)) {
+                    merged.addAll(buildTaskConfigs(connection, config, maxTasks, remainingDatabases));
+                }
+                catch (SQLException e) {
+                    throw new IllegalArgumentException("Could not build task configs", e);
+                }
+            }
+            for (int i = 0; i < merged.size(); i++) {
+                merged.set(i, withGlobalTaskId(merged.get(i), i));
+            }
+
+            if (!smartSnapshotCoordinators.hasActiveDatabases()) {
+                smartSnapshotCoordinators.stop();
+                smartSnapshotCoordinators = null;
+            }
+            return merged;
+        }
+
+        if (smartSnapshotCoordinators != null) {
+            // maxTasks == 1 -- smart snapshot is off for this round; release and fall through
+            smartSnapshotCoordinators.stop();
+            smartSnapshotCoordinators = null;
+        }
+
         try (SqlServerConnection connection = connect(config)) {
-            return buildTaskConfigs(connection, config, maxTasks);
+            return buildTaskConfigs(connection, config, maxTasks, config.getDatabaseNames());
         }
         catch (SQLException e) {
             throw new IllegalArgumentException("Could not build task configs", e);
         }
     }
 
+    private static Map<String, String> withGlobalTaskId(Map<String, String> config, int globalTaskId) {
+        Map<String, String> withId = new HashMap<>(config);
+        withId.put(TASK_ID_PROPERTY_NAME, String.valueOf(globalTaskId));
+        return Collections.unmodifiableMap(withId);
+    }
+
     private List<Map<String, String>> buildTaskConfigs(SqlServerConnection connection, SqlServerConnectorConfig config,
-                                                       int maxTasks) {
-        List<String> databaseNames = config.getDatabaseNames();
+                                                       int maxTasks, List<String> databaseNames) {
+        if (databaseNames.isEmpty()) {
+            return Collections.emptyList();
+        }
 
         // Initialize the database list for each task
         List<List<String>> databasesByTask = new ArrayList<>();
-        final int numTasks = Math.min(maxTasks, config.getDatabaseNames().size());
+        final int numTasks = Math.min(maxTasks, databaseNames.size());
         for (int i = 0; i < numTasks; i++) {
             databasesByTask.add(new ArrayList<>());
         }
@@ -108,6 +155,10 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
 
     @Override
     public void stop() {
+        if (smartSnapshotCoordinators != null) {
+            smartSnapshotCoordinators.stop();
+            smartSnapshotCoordinators = null;
+        }
     }
 
     @Override
@@ -140,7 +191,7 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
                         LOGGER.debug("Successfully tested connection for {} with user '{}'", connection.connectionString(), username);
                     }
                     LOGGER.info("Checking database existence and connected principal's access to CDC table based on "
-                        + "configured snapshot mode");
+                            + "configured snapshot mode");
                     final List<String> noAccessDatabaseNames = new ArrayList<>();
                     for (String databaseName : sqlServerConfig.getDatabaseNames()) {
                         if (sqlServerConfig.getSnapshotMode() == SqlServerConnectorConfig.SnapshotMode.INITIAL_ONLY) {
@@ -190,7 +241,7 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
         return config.validate(SqlServerConnectorConfig.ALL_FIELDS);
     }
 
-    private SqlServerConnection connect(SqlServerConnectorConfig sqlServerConfig) {
+    static SqlServerConnection connect(SqlServerConnectorConfig sqlServerConfig) {
         return new SqlServerConnection(sqlServerConfig, null, Collections.emptySet(),
                 sqlServerConfig.useSingleDatabase());
     }

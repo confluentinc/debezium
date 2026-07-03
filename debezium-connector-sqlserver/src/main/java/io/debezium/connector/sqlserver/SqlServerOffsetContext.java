@@ -15,6 +15,7 @@ import io.debezium.connector.AbstractSourceInfo;
 import io.debezium.connector.SnapshotRecord;
 import io.debezium.connector.SnapshotType;
 import io.debezium.pipeline.CommonOffsetContext;
+import io.debezium.pipeline.source.snapshot.SmartSnapshotConnectorCoordinator;
 import io.debezium.pipeline.source.snapshot.incremental.IncrementalSnapshotContext;
 import io.debezium.pipeline.spi.OffsetContext;
 import io.debezium.pipeline.txmetadata.TransactionContext;
@@ -26,6 +27,8 @@ public class SqlServerOffsetContext extends CommonOffsetContext<SourceInfo> {
     private final Schema sourceInfoSchema;
     private final TransactionContext transactionContext;
     private final IncrementalSnapshotContext<TableId> incrementalSnapshotContext;
+    // smart-snapshot coordination epoch; null when smart snapshot is disabled or this is not a sharded task
+    private final Integer epoch;
 
     /**
      * The index of the current event within the current transaction.
@@ -34,7 +37,7 @@ public class SqlServerOffsetContext extends CommonOffsetContext<SourceInfo> {
 
     public SqlServerOffsetContext(SqlServerConnectorConfig connectorConfig, TxLogPosition position, SnapshotType snapshot,
                                   boolean snapshotCompleted, long eventSerialNo, TransactionContext transactionContext,
-                                  IncrementalSnapshotContext<TableId> incrementalSnapshotContext) {
+                                  IncrementalSnapshotContext<TableId> incrementalSnapshotContext, Integer epoch) {
         super(new SourceInfo(connectorConfig), snapshotCompleted);
 
         sourceInfo.setCommitLsn(position.getCommitLsn());
@@ -51,6 +54,14 @@ public class SqlServerOffsetContext extends CommonOffsetContext<SourceInfo> {
         this.eventSerialNo = eventSerialNo;
         this.transactionContext = transactionContext;
         this.incrementalSnapshotContext = incrementalSnapshotContext;
+        this.epoch = epoch;
+    }
+
+    public SqlServerOffsetContext(SqlServerConnectorConfig connectorConfig, TxLogPosition position, SnapshotType snapshot,
+                                  boolean snapshotCompleted, long eventSerialNo, TransactionContext transactionContext,
+                                  IncrementalSnapshotContext<TableId> incrementalSnapshotContext) {
+        this(connectorConfig, position, snapshot, snapshotCompleted, eventSerialNo, transactionContext,
+                incrementalSnapshotContext, connectorConfig.getSmartSnapshotEpoch());
     }
 
     public SqlServerOffsetContext(SqlServerConnectorConfig connectorConfig, TxLogPosition position, SnapshotType snapshot, boolean snapshotCompleted) {
@@ -69,7 +80,14 @@ public class SqlServerOffsetContext extends CommonOffsetContext<SourceInfo> {
         offset.put(SourceInfo.CHANGE_LSN_KEY,
                 sourceInfo.getChangeLsn() == null ? null : sourceInfo.getChangeLsn().toString());
         offset.put(SourceInfo.EVENT_SERIAL_NO_KEY, eventSerialNo);
+        if (epoch != null) {
+            offset.put(SmartSnapshotConnectorCoordinator.EPOCH_KEY, epoch);
+        }
         return sourceInfo.isSnapshot() ? offset : incrementalSnapshotContext.store(transactionContext.store(offset));
+    }
+
+    public Integer getEpoch() {
+        return epoch;
     }
 
     @Override
@@ -122,8 +140,10 @@ public class SqlServerOffsetContext extends CommonOffsetContext<SourceInfo> {
                 eventSerialNo = Long.valueOf(0);
             }
 
+            final Integer epoch = SmartSnapshotConnectorCoordinator.readEpoch((Map<String, Object>) offset);
+
             return new SqlServerOffsetContext(connectorConfig, TxLogPosition.valueOf(commitLsn, changeLsn), snapshot, snapshotCompleted, eventSerialNo,
-                    TransactionContext.load(offset), SqlServerIncrementalSnapshotContext.load(offset));
+                    TransactionContext.load(offset), SqlServerIncrementalSnapshotContext.load(offset), epoch);
         }
     }
 
@@ -134,6 +154,7 @@ public class SqlServerOffsetContext extends CommonOffsetContext<SourceInfo> {
                 ", sourceInfo=" + sourceInfo +
                 ", snapshotCompleted=" + snapshotCompleted +
                 ", eventSerialNo=" + eventSerialNo +
+                (epoch != null ? ", epoch=" + epoch : "") +
                 "]";
     }
 
