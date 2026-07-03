@@ -89,6 +89,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
     private volatile ErrorHandler errorHandler;
     private volatile PostgresSchema schema;
     private volatile SnapshotCoordination snapshotCoordination;
+    // a data snapshotting task in the smart snapshot mode
     private volatile boolean isSmartSnapshotTask;
     private volatile SnapshotLifecycleManager smartLifecycleManager;
 
@@ -100,10 +101,6 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
      */
     private volatile Thread smartSnapshotPreparationThread;
 
-    /*
-     * Stores any error raised in the preparation thread
-     */
-    private volatile Throwable smartSnapshotPreparationError;
 
     private Partition.Provider<PostgresPartition> partitionProvider = null;
     private OffsetContext.Loader<PostgresOffsetContext> offsetContextLoader = null;
@@ -159,9 +156,14 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                 this.partitionProvider, this.offsetContextLoader);
         PostgresOffsetContext previousOffset = previousOffsets.getTheOnlyOffset();
 
-        if (previousOffset == null) {
-            previousOffset = fetchOffsetFromCoordinationTopic(config, previousOffsets.getTheOnlyPartition(), connectorConfig, clock);
-            if (previousOffset != null) {
+        if (previousOffset == null || previousOffset.isInitialSnapshotRunning()) {
+            // A scenario can arise where offset topic contains marker for incompleted snapshot
+            // then smart snapshot feature was enabled and the snapshot completed
+            // In this particular scenario we should still check the offset topic
+            PostgresOffsetContext fromCoordinationTopic = fetchOffsetFromCoordinationTopic(config, previousOffsets.getTheOnlyPartition(), connectorConfig, clock);
+            if (fromCoordinationTopic != null) {
+                // non-null only when smart snapshot actually completed
+                previousOffset = fromCoordinationTopic;
                 previousOffsets = Offsets.of(previousOffsets.getTheOnlyPartition(), previousOffset);
             }
         }
@@ -663,8 +665,9 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
     private PostgresOffsetContext fetchOffsetFromCoordinationTopic(
                                                                    Configuration config, PostgresPartition partition, PostgresConnectorConfig connectorConfig,
                                                                    Clock clock) {
+        // Post-downscale streaming task: read LSN from coordination topic only if the feature is still enabled
+        // Otherwise, the snapshot taken in the smart snapshot mode is discarded
         if (connectorConfig.isSmartSnapshotEnabled() && !isSmartSnapshotTask) {
-            // Post-downscale streaming task: read LSN from coordination topic
             String coordinationTopic = connectorConfig.getLogicalName() + ".snapshot-coordination";
             String clientIdSuffix = connectorConfig.getLogicalName() + "-coordination-streaming";
             Map<String, Object> clientConfig = KafkaLogSnapshotCoordination.clientConfigFromOverrides(
