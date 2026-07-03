@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
+import org.apache.http.config.ConnectionConfig;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigValue;
 import org.apache.kafka.connect.connector.Task;
@@ -75,6 +76,12 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
 
         Configuration config = Configuration.from(props);
 
+        // smart snapshot applies only when the feature is on and snapshot mode is
+        // one of initial, initial_only & when_needed
+        // ideally we should also gate on number of task being > 1 but there doesn't seem to be a
+        // way to access that config here, it is passed in the #taskConfigs method
+        // if number of  task is 1 and above conditions apply we do some wasteful work here
+        // but all of that is cleared up in the taskConfigs method
         if (smartSnapshotApplies(config)) {
             PostgresConnectorConfig connectorConfig = new PostgresConnectorConfig(config);
             String serverName = config.getString(CommonConnectorConfig.TOPIC_PREFIX);
@@ -87,6 +94,8 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
 
             smartSnapshotConnectorCoordinator = new SmartSnapshotConnectorCoordinator(coordination, context(), serverName);
             List<TableId> tables = getMatchingCollections(config);
+            // reading the coordination topic should ideally be quick
+            // there doesn't seem to be a clean way to avoid reading it here
             smartSnapshotConnectorCoordinator.start(tables);
 
             // If previous snapshot was already complete, skip smart snapshot
@@ -103,12 +112,19 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
             return Collections.emptyList();
 
         Configuration config = Configuration.from(props);
-        if (smartSnapshotApplies(config) && maxTasks > 1 && smartSnapshotConnectorCoordinator != null) {
-            List<Map<String, String>> configs = smartSnapshotConnectorCoordinator.taskConfigs(maxTasks, props);
-            if (configs != null) {
-                return configs;
+        if (smartSnapshotApplies(config) && smartSnapshotConnectorCoordinator != null) {
+            if (maxTasks > 1) {
+                List<Map<String, String>> configs = smartSnapshotConnectorCoordinator.taskConfigs(maxTasks, props);
+                if (configs != null) {
+                    return configs;
+                }
             }
-            // if the config is null it implies that the smart snapshot was complete, just fall through to single config
+            // if we reach here it implies either of the following
+            // 1. the smart snapshot was complete, just fall through to single config
+            // 2. maxTasks was 1
+            // for either of the cases cleanup the coordinator as it is no longer needed
+            smartSnapshotConnectorCoordinator.stop();
+            smartSnapshotConnectorCoordinator = null;
         }
 
         return Collections.singletonList(new HashMap<>(props));
