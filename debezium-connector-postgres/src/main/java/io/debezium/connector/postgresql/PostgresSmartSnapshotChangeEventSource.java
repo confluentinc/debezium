@@ -120,14 +120,12 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
         // Same timing as existing single-task releaseSchemaSnapshotLocks().
         // For MySQL: information_schema isn't transactional, so global lock
         // must be held during schema read. Release only after schema is captured.
-        if (snapshotCoordination != null) {
-            try {
-                snapshotCoordination.writeTransactionStarted(taskId, epoch);
-                LOGGER.info("Smart snapshot: [task-{}] task signaled transaction_started (schema read done)", taskId);
-            }
-            catch (Exception e) {
-                LOGGER.warn("Smart snapshot: [task-{}] Failed to write transaction_started signal", taskId, e);
-            }
+        try {
+            snapshotCoordination.writeTransactionStarted(taskId, epoch);
+            LOGGER.info("Smart snapshot: [task-{}] task signaled transaction_started (schema read done)", taskId);
+        }
+        catch (Exception e) {
+            LOGGER.warn("Smart snapshot: [task-{}] Failed to write transaction_started signal", taskId, e);
         }
     }
 }

@@ -606,7 +606,9 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                             setup.snapshotName(), setup.consistentPosition(), leaderEpoch);
 
                     // wait until every task has imported + locked its subset, then release and end the thread
-                    while (!Thread.currentThread().isInterrupted() && !allTasksJoined(numTasks, leaderEpoch)) {
+                    while (!Thread.currentThread().isInterrupted()
+                            && !allTasksJoined(numTasks, leaderEpoch)
+                            && !anyRestartNeeded(numTasks, leaderEpoch)) {
                         Thread.sleep(30_000);
                         lifecycle.keepAlive();
                     }
@@ -614,6 +616,11 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                         // releaseSnapshot(): closes held+export conns; slot persists;
                         // thread ends
                         lifecycle.onAllTasksJoined();
+                    }
+                    else if (anyRestartNeeded(numTasks, leaderEpoch)) {
+                        LOGGER.warn("Smart snapshot: [Leader] restart_needed for the epoch {}, releasing early", leaderEpoch);
+                        // early abort: the connector monitor bumps epoch + reconfigures
+                        lifecycle.releaseSnapshot();
                     }
                 }
                 catch (InterruptedException e) {
@@ -660,6 +667,15 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
             }
         }
         return true;
+    }
+
+    private boolean anyRestartNeeded(int numTasks, int leaderEpoch) {
+        for (int i = 0; i < numTasks; i++) {
+            if (snapshotCoordination.isRestartNeeded(String.valueOf(i), leaderEpoch)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private PostgresOffsetContext fetchOffsetFromCoordinationTopic(
