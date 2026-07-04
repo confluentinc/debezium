@@ -592,7 +592,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                         return;
                     }
 
-                    final int numTasks = Integer.parseInt(config.getString(SnapshotCoordinationFacade.EPOCH, "1"));
+                    final int numTasks = Integer.parseInt(config.getString(SnapshotCoordinationFacade.NUM_TASKS, "1"));
                     final SmartSnapshotLifecycleManager.SnapshotSetup setup = lifecycle.prepareSnapshot(shouldStream);
 
                     // todo list of tables might require compression or enable compression on the coordination topic
