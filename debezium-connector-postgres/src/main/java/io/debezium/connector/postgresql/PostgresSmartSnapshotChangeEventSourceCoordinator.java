@@ -5,7 +5,6 @@
  */
 package io.debezium.connector.postgresql;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -25,7 +24,7 @@ import io.debezium.pipeline.metrics.spi.ChangeEventSourceMetricsFactory;
 import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.signal.SignalProcessor;
 import io.debezium.pipeline.source.snapshot.SmartSnapshotConnectorCoordinator;
-import io.debezium.pipeline.source.snapshot.SnapshotCoordination;
+import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.pipeline.source.spi.ChangeEventSource.ChangeEventSourceContext;
 import io.debezium.pipeline.source.spi.SnapshotChangeEventSource;
 import io.debezium.pipeline.spi.Offsets;
@@ -33,7 +32,6 @@ import io.debezium.pipeline.spi.SnapshotResult;
 import io.debezium.relational.TableId;
 import io.debezium.schema.DatabaseSchema;
 import io.debezium.snapshot.SnapshotterService;
-import io.debezium.util.Collect;
 import io.debezium.util.LoggingContext;
 
 public class PostgresSmartSnapshotChangeEventSourceCoordinator
@@ -44,9 +42,8 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
     private static final int retryCount = 30;
 
     private final int epoch;
-    private final SnapshotCoordination snapshotCoordination;
+    private final SnapshotCoordinationFacade snapshotCoordination;
     private final String taskId;
-    private final String serverName;
 
     public PostgresSmartSnapshotChangeEventSourceCoordinator(
                                                              Offsets<PostgresPartition, PostgresOffsetContext> previousOffsets,
@@ -62,9 +59,8 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
                                                              SignalProcessor<PostgresPartition, PostgresOffsetContext> signalProcessor,
                                                              NotificationService<PostgresPartition, PostgresOffsetContext> notificationService,
                                                              int epoch,
-                                                             SnapshotCoordination snapshotCoordination,
-                                                             String taskId,
-                                                             String serverName) {
+                                                             SnapshotCoordinationFacade snapshotCoordination,
+                                                             String taskId) {
         super(previousOffsets, errorHandler, connectorType, connectorConfig,
                 changeEventSourceFactory, changeEventSourceMetricsFactory,
                 eventDispatcher, schema, snapshotterService, slotInfo,
@@ -72,7 +68,6 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         this.epoch = epoch;
         this.snapshotCoordination = snapshotCoordination;
         this.taskId = taskId;
-        this.serverName = serverName;
     }
 
     @Override
@@ -106,20 +101,15 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         // reset it otherwise). If it shows the snapshot already completed, this restart is just the task
         // being bounced AFTER finishing (a reconfiguration or the managed runtime stopping a "done" task)
         // NOT a crash. Do not treat it as a rejoin; idle and let the connector downscale.
-        Map<String, Object> done = snapshotCoordination.read(
-                SmartSnapshotConnectorCoordinator.completedKey(serverName, taskId));
-        Integer doneEpoch = SmartSnapshotConnectorCoordinator.readEpoch(done);
-        if (done != null
-                && Boolean.TRUE.equals(done.get(SmartSnapshotConnectorCoordinator.COMPLETED_KEY))
-                && doneEpoch != null && doneEpoch == epoch) {
+        boolean done = snapshotCoordination.isDone(taskId, epoch);
+        if (done) {
             LOGGER.info("Smart snapshot [task-{}]: already completed @epoch {}, idling", taskId, epoch);
             idleUntilRestart(context);
             return;
         }
 
-        // --- Generic restart detection (DB-agnostic): (epoch, taskId) membership marker ---
-        Map<String, String> markerKey = SmartSnapshotConnectorCoordinator.joinMarkerKey(serverName, taskId);
-        Integer markerEpoch = SmartSnapshotConnectorCoordinator.readEpoch(snapshotCoordination.read(markerKey));
+        // Generic restart detection (DB-agnostic): (epoch, taskId) membership marker
+        Integer markerEpoch = snapshotCoordination.readJoinEpoch(taskId);
         if (markerEpoch != null && markerEpoch == epoch) {
             // rejoining epoch which implies that snapshot transaction can't be rejoined signal full restart.
             LOGGER.warn("Smart snapshot: [task-{}] rejoin detected for the epoch {}, signaling restart_needed", taskId, epoch);
@@ -129,8 +119,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         }
 
         // Stale-epoch check: the Connector already moved to a newer epoch, wait for restart.
-        Integer savedEpoch = SmartSnapshotConnectorCoordinator.readEpoch(
-                snapshotCoordination.read(SmartSnapshotConnectorCoordinator.epochKey(serverName)));
+        Integer savedEpoch = snapshotCoordination.readEpoch();
         if (savedEpoch != null && savedEpoch > epoch) {
             LOGGER.warn("Smart snapshot: [task-{}] saved epoch {} is greater than current epoch {}, waiting for restart",
                     taskId, savedEpoch, epoch);
@@ -142,10 +131,8 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         // If this write fails we just fail the task. We do NOT write restart_needed here: that is also a
         // topic write, so it would fail too. And it isn't needed — we haven't attached yet, so the task did
         // nothing. On restart there is no marker, so it starts fresh at the same epoch. Nothing to clean up.
-        Map<String, Object> marker = new HashMap<>();
-        marker.put(SmartSnapshotConnectorCoordinator.EPOCH_KEY, epoch);
         try {
-            snapshotCoordination.write(markerKey, marker);
+            snapshotCoordination.writeJoin(taskId, epoch);
         }
         catch (Exception e) {
             throw new DebeziumException(
@@ -153,23 +140,22 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         }
 
         // Read snapshot_name + LSN from coordination topic
-        Map<String, String> sharedPartition = Collect.hashMapOf("server", serverName);
         String snapshotName = null;
         String slotLsnStr = null;
         List<TableId> tableSubset = null;
         for (int attempt = 0; attempt < retryCount; attempt++) {
-            Map<String, Object> snaphsotInfo = snapshotCoordination.read(sharedPartition);
-            if (snaphsotInfo != null
-                    && snaphsotInfo.get(SmartSnapshotConnectorCoordinator.SNAPSHOT_NAME_KEY) != null) {
-                Integer snapshotInfoEpoch = SmartSnapshotConnectorCoordinator.readEpoch(snaphsotInfo);
+            Map<String, Object> snapshotInfo = snapshotCoordination.readSnapshotInfo();
+            if (snapshotInfo != null
+                    && snapshotInfo.get(SnapshotCoordinationFacade.SNAPSHOT_NAME) != null) {
+                Integer snapshotInfoEpoch = SnapshotCoordinationFacade.epochOf(snapshotInfo);
                 if (snapshotInfoEpoch != null && snapshotInfoEpoch == epoch) {
-                    snapshotName = (String) snaphsotInfo.get(
-                            SmartSnapshotConnectorCoordinator.SNAPSHOT_NAME_KEY);
-                    slotLsnStr = String.valueOf(snaphsotInfo.get(
-                            SmartSnapshotConnectorCoordinator.SLOT_LSN_KEY));
+                    snapshotName = (String) snapshotInfo.get(
+                            SnapshotCoordinationFacade.SNAPSHOT_NAME);
+                    slotLsnStr = String.valueOf(snapshotInfo.get(
+                            SnapshotCoordinationFacade.CONSISTENT_POINT));
                     List<TableId> all = SmartSnapshotConnectorCoordinator.parseTables(
-                            (String) snaphsotInfo.get(SmartSnapshotConnectorCoordinator.TABLES_KEY));
-                    int numTasks = ((Number) snaphsotInfo.get(SmartSnapshotConnectorCoordinator.NUM_TASKS_KEY)).intValue();
+                            (String) snapshotInfo.get(SnapshotCoordinationFacade.TABLES));
+                    int numTasks = ((Number) snapshotInfo.get(SnapshotCoordinationFacade.NUM_TASKS)).intValue();
                     tableSubset = SmartSnapshotConnectorCoordinator.tablesForTask(all, Integer.parseInt(taskId), numTasks);
                     break;
                 }
@@ -216,10 +202,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
 
     private void writeRestartNeeded() {
         try {
-            Map<String, Object> data = new HashMap<>();
-            data.put(SmartSnapshotConnectorCoordinator.RESTART_NEEDED_KEY, true);
-            data.put(SmartSnapshotConnectorCoordinator.EPOCH_KEY, epoch);
-            snapshotCoordination.write(SmartSnapshotConnectorCoordinator.taskSignalKey(serverName, taskId), data);
+            snapshotCoordination.writeRestartNeeded(taskId, epoch);
         }
         catch (Exception e) {
             // The topic write failed, so we cannot signal a restart. Just fail the task.
@@ -244,15 +227,12 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
 
     private void writeCompleted() {
         try {
-            Map<String, Object> data = new HashMap<>();
-            data.put(SmartSnapshotConnectorCoordinator.COMPLETED_KEY, true);
-            data.put(SmartSnapshotConnectorCoordinator.EPOCH_KEY, epoch);
-            snapshotCoordination.write(SmartSnapshotConnectorCoordinator.completedKey(serverName, taskId), data);
+            snapshotCoordination.writeDone(taskId, epoch);
         }
         catch (Exception e) {
             // can't record completion → the monitor would never downscale; fail so the task retries
             throw new DebeziumException(
-                    String.format("Smart snapshot [task-%s]: failed to write completed @epoch %d", taskId, epoch), e);
+                    String.format("Smart snapshot [task-%s]: Failed to write completed for epoch %d", taskId, epoch), e);
         }
     }
 }

@@ -40,6 +40,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
+import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 
 public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
@@ -54,14 +55,17 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
     private final KafkaBasedLog<String, String> log;
     private final TopicAdmin topicAdmin;
     private final ObjectMapper mapper = new ObjectMapper();
-    private final ObjectMapper keyMapper = new ObjectMapper()
-            .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
-    private final Map<String, Object> clientConfig; // bootstrap + security (SASL/SSL), shared by all clients
+    private final ObjectMapper keyMapper = new ObjectMapper().configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
+
+    // bootstrap + security (SASL/SSL), shared by all clients
+    private final Map<String, Object> clientConfig;
 
     private final Map<Map<String, String>, Map<String, Object>> cache = new ConcurrentHashMap<>();
 
-    public KafkaLogSnapshotCoordination(Map<String, Object> clientConfig, String topicName, String clientIdSuffix) {
-        this.clientConfig = new HashMap<>(clientConfig);
+    public KafkaLogSnapshotCoordination(Configuration configuration, CommonConnectorConfig commonConnectorConfig) {
+        String topicName = commonConnectorConfig.getLogicalName() + ".snapshot-coordination";
+        String clientIdSuffix = commonConnectorConfig.getLogicalName() + "-coordination-connector";
+        this.clientConfig = new HashMap<>(clientConfigFromOverrides(configuration, commonConnectorConfig.getSmartSnapshotCoordinationBootstrapServers()));
         Map<String, Object> producerProps = new HashMap<>(clientConfig);
         producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
         producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
@@ -118,6 +122,7 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
 
     @Override
     public void stop() {
+        // check if this is safe if start hasn't been invoked or not finished yet
         try {
             log.stop();
         }
@@ -214,7 +219,7 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
         }
     }
 
-    public static Map<String, Object> clientConfigFromOverrides(Configuration config, String explicitBootstrapServers) {
+    private Map<String, Object> clientConfigFromOverrides(Configuration config, String explicitBootstrapServers) {
         Map<String, Object> clientConfig = new HashMap<>();
         Configuration producerOverrides = config.subset("producer.override.", true);
         String bootstrap = (explicitBootstrapServers != null && !explicitBootstrapServers.isEmpty())

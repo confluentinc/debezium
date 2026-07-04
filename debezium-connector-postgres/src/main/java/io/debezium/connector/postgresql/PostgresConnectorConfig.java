@@ -36,7 +36,7 @@ import io.debezium.connector.postgresql.connection.ReplicationConnection;
 import io.debezium.connector.postgresql.connection.pgoutput.PgOutputMessageDecoder;
 import io.debezium.connector.postgresql.connection.pgproto.PgProtoMessageDecoder;
 import io.debezium.jdbc.JdbcConfiguration;
-import io.debezium.pipeline.source.snapshot.SmartSnapshotConnectorCoordinator;
+import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.relational.ColumnFilterMode;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.relational.TableId;
@@ -1584,7 +1584,7 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
     }
 
     public Integer getSmartSnapshotEpoch() {
-        String epochStr = getConfig().getString(SmartSnapshotConnectorCoordinator.EPOCH_KEY);
+        String epochStr = getConfig().getString(SnapshotCoordinationFacade.EPOCH);
         return epochStr != null ? Integer.parseInt(epochStr) : null;
     }
 

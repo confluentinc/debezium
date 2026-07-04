@@ -25,15 +25,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.debezium.DebeziumException;
-import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.connector.common.RelationalBaseSourceConnector;
 import io.debezium.connector.postgresql.PostgresConnectorConfig.LogicalDecoder;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.connector.postgresql.connection.ServerInfo;
-import io.debezium.pipeline.source.snapshot.KafkaLogSnapshotCoordination;
 import io.debezium.pipeline.source.snapshot.SmartSnapshotConnectorCoordinator;
-import io.debezium.pipeline.source.snapshot.SnapshotCoordination;
+import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.relational.TableId;
 import io.debezium.util.ThreadNameContext;
@@ -83,15 +81,10 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         // but all of that is cleared up in the taskConfigs method
         if (smartSnapshotApplies(config)) {
             PostgresConnectorConfig connectorConfig = new PostgresConnectorConfig(config);
-            String serverName = config.getString(CommonConnectorConfig.TOPIC_PREFIX);
-            String coordinationTopic = connectorConfig.getLogicalName() + ".snapshot-coordination";
-            String clientIdSuffix = connectorConfig.getLogicalName() + "-coordination-connector";
 
-            Map<String, Object> clientConfig = KafkaLogSnapshotCoordination.clientConfigFromOverrides(
-                    config, connectorConfig.getSmartSnapshotCoordinationBootstrapServers());
-            SnapshotCoordination coordination = new KafkaLogSnapshotCoordination(clientConfig, coordinationTopic, clientIdSuffix);
+            SnapshotCoordinationFacade coordinationFacade = new SnapshotCoordinationFacade(config, connectorConfig);
+            smartSnapshotConnectorCoordinator = new SmartSnapshotConnectorCoordinator(coordinationFacade, context(), connectorConfig.getLogicalName());
 
-            smartSnapshotConnectorCoordinator = new SmartSnapshotConnectorCoordinator(coordination, context(), serverName);
             // reading the coordination topic should ideally be quick
             // there doesn't seem to be a clean way to avoid reading it here
             smartSnapshotConnectorCoordinator.start();

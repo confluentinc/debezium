@@ -23,7 +23,7 @@ import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.connector.postgresql.connection.ReplicationMessage.Operation;
 import io.debezium.connector.postgresql.spi.OffsetState;
 import io.debezium.pipeline.CommonOffsetContext;
-import io.debezium.pipeline.source.snapshot.SmartSnapshotConnectorCoordinator;
+import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.pipeline.source.snapshot.incremental.IncrementalSnapshotContext;
 import io.debezium.pipeline.source.snapshot.incremental.SignalBasedIncrementalSnapshotContext;
 import io.debezium.pipeline.spi.OffsetContext;
@@ -105,7 +105,7 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
             result.put(SourceInfo.MSG_TYPE_KEY, sourceInfo.messageType().toString());
         }
         if (epoch != null) {
-            result.put(SmartSnapshotConnectorCoordinator.EPOCH_KEY, epoch);
+            result.put(SnapshotCoordinationFacade.EPOCH, epoch);
             // this is not needed as it is already populated in the previous `if (getSnapshot().isPresent())` block
             // note that in the constructor snapshot is cleared in postSnapshotCompletion() method call
             // but that only happens when the snapshot is completed,
@@ -226,7 +226,7 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
             final SnapshotType snapshot = loadSnapshot(offset).orElse(null);
             boolean snapshotCompleted = loadSnapshotCompleted(offset);
             final boolean lastSnapshotRecord = (boolean) ((Map<String, Object>) offset).getOrDefault(SourceInfo.LAST_SNAPSHOT_RECORD_KEY, Boolean.FALSE);
-            final Integer epoch = SmartSnapshotConnectorCoordinator.readEpoch((Map<String, Object>) offset);
+            final Integer epoch = SnapshotCoordinationFacade.epochOf((Map<String, Object>) offset);
             return new PostgresOffsetContext(connectorConfig, lsn,
                     lastCompletelyProcessedLsn, lastCommitLsn, txId, messageType, useconds, snapshot, lastSnapshotRecord,
                     snapshotCompleted,

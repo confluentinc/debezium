@@ -6,10 +6,8 @@
 package io.debezium.connector.postgresql;
 
 import java.sql.SQLException;
-import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import org.slf4j.Logger;
@@ -25,13 +23,11 @@ import io.debezium.jdbc.MainConnectionProvidingConnectionFactory;
 import io.debezium.pipeline.EventDispatcher;
 import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.source.SnapshottingTask;
-import io.debezium.pipeline.source.snapshot.SmartSnapshotConnectorCoordinator;
-import io.debezium.pipeline.source.snapshot.SnapshotCoordination;
+import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.pipeline.source.spi.SnapshotProgressListener;
 import io.debezium.relational.TableId;
 import io.debezium.snapshot.SnapshotterService;
 import io.debezium.util.Clock;
-import io.debezium.util.Collect;
 
 public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChangeEventSource {
 
@@ -41,7 +37,7 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
     private final PostgresConnection jdbcConnection;
     private final String taskId;
 
-    private volatile SnapshotCoordination snapshotCoordination;
+    private volatile SnapshotCoordinationFacade snapshotCoordination;
     private volatile int epoch;
     private volatile String smartSnapshotName;
     private volatile Lsn smartSnapshotLsn;
@@ -71,7 +67,7 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
                                         String snapshotName,
                                         Lsn lsn,
                                         List<TableId> tableIds,
-                                        SnapshotCoordination coordination) {
+                                        SnapshotCoordinationFacade coordination) {
         this.epoch = epoch;
         this.smartSnapshotName = snapshotName;
         this.smartSnapshotLsn = lsn;
@@ -126,13 +122,7 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
         // must be held during schema read. Release only after schema is captured.
         if (snapshotCoordination != null) {
             try {
-                Map<String, String> taskPartition = Collect.hashMapOf(
-                        "server", connectorConfig.getLogicalName(),
-                        PostgresPartition.TASK_PARTITION_KEY, connectorConfig.getTaskId());
-                Map<String, Object> signal = new HashMap<>();
-                signal.put(SmartSnapshotConnectorCoordinator.TRANSACTION_STARTED_KEY, true);
-                signal.put(SmartSnapshotConnectorCoordinator.EPOCH_KEY, epoch);
-                snapshotCoordination.write(taskPartition, signal);
+                snapshotCoordination.writeTransactionStarted(taskId, epoch);
                 LOGGER.info("Smart snapshot: [task-{}] task signaled transaction_started (schema read done)", taskId);
             }
             catch (Exception e) {
