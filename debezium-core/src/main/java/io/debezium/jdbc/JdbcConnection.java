@@ -708,7 +708,7 @@ public class JdbcConnection implements AutoCloseable {
         preparer.accept(statement);
         statement.setQueryTimeout(queryTimeout);
         try (ResultSet resultSet = QueryTimeoutDebug.executeQuery(statement, "JdbcConnection.prepareQueryWithBlockingConsumer",
-                maybeRedactSensitiveData(preparedQueryString), queryTimeout)) {
+                String.valueOf(maybeRedactSensitiveData(preparedQueryString)), queryTimeout)) {
             if (resultConsumer != null) {
                 resultConsumer.accept(resultSet);
             }
@@ -725,7 +725,7 @@ public class JdbcConnection implements AutoCloseable {
      */
     public JdbcConnection prepareQuery(String preparedQueryString) throws SQLException {
         final PreparedStatement statement = createPreparedStatement(preparedQueryString);
-        QueryTimeoutDebug.executeQuery(statement, "JdbcConnection.prepareQuery(String)", maybeRedactSensitiveData(preparedQueryString), queryTimeout);
+        QueryTimeoutDebug.executeQuery(statement, "JdbcConnection.prepareQuery(String)", String.valueOf(maybeRedactSensitiveData(preparedQueryString)), queryTimeout);
         return this;
     }
 
@@ -744,7 +744,7 @@ public class JdbcConnection implements AutoCloseable {
         final PreparedStatement statement = createPreparedStatement(preparedQueryString);
         preparer.accept(statement);
         try (ResultSet resultSet = QueryTimeoutDebug.executeQuery(statement, "JdbcConnection.prepareQuery",
-                maybeRedactSensitiveData(preparedQueryString), queryTimeout);) {
+                String.valueOf(maybeRedactSensitiveData(preparedQueryString)), queryTimeout);) {
             if (resultConsumer != null) {
                 resultConsumer.accept(resultSet);
             }
@@ -769,7 +769,7 @@ public class JdbcConnection implements AutoCloseable {
         final PreparedStatement statement = createPreparedStatement(preparedQueryString);
         preparer.accept(statement);
         try (ResultSet resultSet = QueryTimeoutDebug.executeQuery(statement, "JdbcConnection.prepareQueryAndMap",
-                maybeRedactSensitiveData(preparedQueryString), queryTimeout);) {
+                String.valueOf(maybeRedactSensitiveData(preparedQueryString)), queryTimeout);) {
             return mapper.apply(resultSet);
         }
     }
