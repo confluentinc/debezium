@@ -9,15 +9,17 @@ import java.util.List;
 
 import io.debezium.relational.TableId;
 
-public interface SnapshotLifecycleManager extends AutoCloseable {
+public interface SmartSnapshotLifecycleManager extends AutoCloseable {
 
     class SnapshotSetup {
         private final String snapshotName;
         private final String consistentPosition;
+        private final List<TableId> tables;
 
-        public SnapshotSetup(String snapshotName, String consistentPosition) {
+        public SnapshotSetup(String snapshotName, String consistentPosition, List<TableId> tables) {
             this.snapshotName = snapshotName;
             this.consistentPosition = consistentPosition;
+            this.tables = tables;
         }
 
         public String snapshotName() {
@@ -27,12 +29,16 @@ public interface SnapshotLifecycleManager extends AutoCloseable {
         public String consistentPosition() {
             return consistentPosition;
         }
+
+        public List<TableId> tables() {
+            return tables;
+        }
     }
 
     /**
      * Create slot/snapshot + lock tables. Holds connections open until releaseSnapshot().
      */
-    SnapshotSetup prepareSnapshot(List<TableId> tables, boolean shouldStream);
+    SnapshotSetup prepareSnapshot(boolean shouldStream);
 
     /**
      * Called when all tasks have read schema. Postgres: no-op. MySQL: UNLOCK TABLES.
@@ -43,16 +49,6 @@ public interface SnapshotLifecycleManager extends AutoCloseable {
      * Close all held connections and release locks.
      */
     void releaseSnapshot();
-
-    /**
-     * Current snapshot name, or null if not prepared.
-     */
-    String snapshotName();
-
-    /**
-     * Slot LSN (Postgres) or binlog position (MySQL), or null if not prepared.
-     */
-    String consistentPosition();
 
     /**
      * Ping held snapshot/lock connections to keep them alive during a long snapshot.

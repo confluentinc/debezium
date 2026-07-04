@@ -15,7 +15,6 @@ import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
-import org.apache.http.config.ConnectionConfig;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigValue;
 import org.apache.kafka.connect.connector.Task;
@@ -80,7 +79,7 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         // one of initial, initial_only & when_needed
         // ideally we should also gate on number of task being > 1 but there doesn't seem to be a
         // way to access that config here, it is passed in the #taskConfigs method
-        // if number of  task is 1 and above conditions apply we do some wasteful work here
+        // if number of task is 1 and above conditions apply we do some wasteful work here
         // but all of that is cleared up in the taskConfigs method
         if (smartSnapshotApplies(config)) {
             PostgresConnectorConfig connectorConfig = new PostgresConnectorConfig(config);
@@ -93,10 +92,9 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
             SnapshotCoordination coordination = new KafkaLogSnapshotCoordination(clientConfig, coordinationTopic, clientIdSuffix);
 
             smartSnapshotConnectorCoordinator = new SmartSnapshotConnectorCoordinator(coordination, context(), serverName);
-            List<TableId> tables = getMatchingCollections(config);
             // reading the coordination topic should ideally be quick
             // there doesn't seem to be a clean way to avoid reading it here
-            smartSnapshotConnectorCoordinator.start(tables);
+            smartSnapshotConnectorCoordinator.start();
 
             // If previous snapshot was already complete, skip smart snapshot
             if (smartSnapshotConnectorCoordinator.isComplete()) {
@@ -296,11 +294,11 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
             case INITIAL:
             case INITIAL_ONLY:
             case WHEN_NEEDED:
-                return true;                       // parallelizable data snapshot
-            case CONFIGURATION_BASED:              // not supported on ccloud
-            case ALWAYS:                           // avoid the post-downscale double snapshot -> single-task
+                return true; // parallelizable data snapshot
+            case CONFIGURATION_BASED: // not supported on ccloud
+            case ALWAYS: // avoid the post-downscale double snapshot -> single-task
             case NEVER:
-            case NO_DATA:                          // no data copy -> nothing to parallelize
+            case NO_DATA: // no data copy -> nothing to parallelize
             default:
                 return false;
         }

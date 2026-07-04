@@ -148,6 +148,9 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
         return cache.get(key);
     }
 
+    /**
+     * todo document the data freshness
+     */
     @Override
     public Map<String, Object> read(Map<String, String> key) {
         return cache.get(key);

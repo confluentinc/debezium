@@ -7,10 +7,15 @@ package io.debezium.connector.postgresql;
 
 import java.sql.SQLException;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.re2j.Pattern;
 
 import io.debezium.connector.postgresql.connection.Lsn;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
@@ -19,6 +24,7 @@ import io.debezium.connector.postgresql.spi.SlotState;
 import io.debezium.jdbc.MainConnectionProvidingConnectionFactory;
 import io.debezium.pipeline.EventDispatcher;
 import io.debezium.pipeline.notification.NotificationService;
+import io.debezium.pipeline.source.SnapshottingTask;
 import io.debezium.pipeline.source.snapshot.SmartSnapshotConnectorCoordinator;
 import io.debezium.pipeline.source.snapshot.SnapshotCoordination;
 import io.debezium.pipeline.source.spi.SnapshotProgressListener;
@@ -34,10 +40,12 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
     private final PostgresConnectorConfig connectorConfig;
     private final PostgresConnection jdbcConnection;
     private final String taskId;
-    private String smartSnapshotName;
-    private SnapshotCoordination snapshotCoordination;
-    private int epoch;
-    private Lsn smartSnapshotLsn;
+
+    private volatile SnapshotCoordination snapshotCoordination;
+    private volatile int epoch;
+    private volatile String smartSnapshotName;
+    private volatile Lsn smartSnapshotLsn;
+    private volatile List<TableId> smartSnapshotTables;
 
     public PostgresSmartSnapshotChangeEventSource(
                                                   PostgresConnectorConfig connectorConfig,
@@ -58,17 +66,28 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
         this.taskId = connectorConfig.getTaskId();
     }
 
-    public void setSmartSnapshotName(String snapshotName) {
-        this.smartSnapshotName = snapshotName;
-    }
-
-    public void setSmartSnapshotLsn(Lsn lsn) {
-        this.smartSnapshotLsn = lsn;
-    }
-
-    public void setSnapshotCoordination(SnapshotCoordination coordination, int epoch) {
-        this.snapshotCoordination = coordination;
+    public void setSnapshotCoordination(
+                                        int epoch,
+                                        String snapshotName,
+                                        Lsn lsn,
+                                        List<TableId> tableIds,
+                                        SnapshotCoordination coordination) {
         this.epoch = epoch;
+        this.smartSnapshotName = snapshotName;
+        this.smartSnapshotLsn = lsn;
+        this.smartSnapshotTables = tableIds;
+        this.snapshotCoordination = coordination;
+    }
+
+    @Override
+    protected void determineCapturedTables(
+                                           RelationalSnapshotContext<PostgresPartition, PostgresOffsetContext> ctx,
+                                           Set<Pattern> ignoredSnapshotPatterns, SnapshottingTask snapshottingTask) {
+        // this task's slice is already the final, filtered, sorted set from the leader; snapshot exactly it.
+        // signaling collection is assigned to one task via the split -> snapshotted once (no per-task re-add).
+        LinkedHashSet<TableId> mine = new LinkedHashSet<>(smartSnapshotTables);
+        ctx.capturedTables = mine;
+        ctx.capturedSchemaTables = mine; // unused on the Postgres path (readTableStructure derives schemas from capturedTables)
     }
 
     @Override
@@ -99,13 +118,6 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
     }
 
     @Override
-    protected void lockTablesForSchemaSnapshot(
-                                               ChangeEventSourceContext sourceContext,
-                                               RelationalSnapshotContext<PostgresPartition, PostgresOffsetContext> snapshotContext) {
-        LOGGER.info("Smart snapshot: [task-{}] skipping table locking (Connector holds locks)", taskId);
-    }
-
-    @Override
     protected void releaseSchemaSnapshotLocks(
                                               RelationalSnapshotContext<PostgresPartition, PostgresOffsetContext> snapshotContext) {
         // Signal transaction_started AFTER schema read (step 5 of doExecute).
@@ -118,7 +130,7 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
                         "server", connectorConfig.getLogicalName(),
                         PostgresPartition.TASK_PARTITION_KEY, connectorConfig.getTaskId());
                 Map<String, Object> signal = new HashMap<>();
-                signal.put("transaction_started", true);
+                signal.put(SmartSnapshotConnectorCoordinator.TRANSACTION_STARTED_KEY, true);
                 signal.put(SmartSnapshotConnectorCoordinator.EPOCH_KEY, epoch);
                 snapshotCoordination.write(taskPartition, signal);
                 LOGGER.info("Smart snapshot: [task-{}] task signaled transaction_started (schema read done)", taskId);

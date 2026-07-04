@@ -6,6 +6,7 @@
 package io.debezium.pipeline.source.snapshot;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -18,7 +19,6 @@ import org.apache.kafka.connect.source.SourceConnectorContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.ConfigurationNames;
 import io.debezium.connector.AbstractSourceInfo;
 import io.debezium.pipeline.CommonOffsetContext;
@@ -33,8 +33,10 @@ public class SmartSnapshotConnectorCoordinator {
     public static final String EPOCH_KEY = "epoch";
     public static final String SNAPSHOT_NAME_KEY = "snapshot_name";
     public static final String SLOT_LSN_KEY = "slot_lsn";
-    public static final String ALL_TABLES_KEY = "smart.snapshot.all.tables";
     public static final String RESTART_NEEDED_KEY = "restart_needed";
+    public static final String TABLES_KEY = "tables";
+    public static final String NUM_TASKS_KEY = "num_tasks";
+    public static final String TRANSACTION_STARTED_KEY = "transaction_started";
 
     // A record on the coordination topic can carry a "type" so two records for the same server
     // don't overwrite each other. The epoch record and the per-task join marker use it.
@@ -83,7 +85,6 @@ public class SmartSnapshotConnectorCoordinator {
      * However, reconfiguration should be triggered only once per epoch
      */
     private volatile int lastHandledRestartEpoch = -1;
-    private volatile List<TableId> snapshotTables;
 
     enum SmartSnapshotState {
         // smart snapshot is ongoing
@@ -106,7 +107,7 @@ public class SmartSnapshotConnectorCoordinator {
         this.serverName = serverName;
     }
 
-    public void start(List<TableId> tables) {
+    public void start() {
         SourceConnectorContext srcContext = (SourceConnectorContext) connectorContext;
         Map<String, Object> existingOffset = srcContext.offsetStorageReader().offset(snapshotInfoKey());
         boolean offsetExists = (existingOffset != null);
@@ -134,7 +135,6 @@ public class SmartSnapshotConnectorCoordinator {
         this.currentEpoch.set(determineEpoch(snapshotCoordination.read(epochKey())));
         persistEpoch(currentEpoch.get());
 
-        this.snapshotTables = new ArrayList<>(tables);
         startMonitorThread();
     }
 
@@ -142,10 +142,6 @@ public class SmartSnapshotConnectorCoordinator {
      * Builds the task list. The same inputs (topic + offsets + maxTasks) always give the same output.
      */
     public List<Map<String, String>> taskConfigs(int maxTasks, Map<String, String> baseProps) {
-        List<TableId> tables = snapshotTables;
-        if (tables == null || tables.isEmpty()) {
-            return null;
-        }
 
         switch (smartSnapshotState) {
             case COMPLETE:
@@ -163,34 +159,14 @@ public class SmartSnapshotConnectorCoordinator {
                 break;
         }
 
-        List<TableId> sorted = new ArrayList<>(tables);
-        sorted.sort(Comparator.comparing(TableId::toString));
-        int numTasks = Math.min(maxTasks, sorted.size());
+        int numTasks = maxTasks;
         this.lastNumTasks = numTasks;
-
-        List<List<TableId>> tablesByTask = new ArrayList<>();
-        for (int i = 0; i < numTasks; i++) {
-            tablesByTask.add(new ArrayList<>());
-        }
-        for (int i = 0; i < sorted.size(); i++) {
-            tablesByTask.get(i % numTasks).add(sorted.get(i));
-        }
-
-        String allTables = sorted.stream().map(TableId::toString).collect(Collectors.joining(","));
-
         List<Map<String, String>> out = new ArrayList<>();
         for (int i = 0; i < numTasks; i++) {
-            String subset = tablesByTask.get(i).stream().map(TableId::toString).collect(Collectors.joining(","));
             Map<String, String> taskProps = new HashMap<>(baseProps);
-            taskProps.put(CommonConnectorConfig.SNAPSHOT_MODE_TABLES.name(), subset);
             taskProps.put(ConfigurationNames.TASK_ID_PROPERTY_NAME, String.valueOf(i));
             taskProps.put(EPOCH_KEY, String.valueOf(currentEpoch.get()));
-            if (i == 0) {
-                // task-0 needs the full table list to lock every table before the snapshot
-                taskProps.put(ALL_TABLES_KEY, allTables);
-            }
-            LOGGER.info("Smart snapshot: task {} subset=[{}] epoch={}{}",
-                    i, subset, currentEpoch.get(), i == 0 ? " (leader, full table list attached)" : "");
+            taskProps.put(NUM_TASKS_KEY, String.valueOf(numTasks));
             out.add(taskProps);
         }
         return out;
@@ -303,8 +279,28 @@ public class SmartSnapshotConnectorCoordinator {
         }
     }
 
-    public int currentEpoch() {
-        return currentEpoch.get();
+    /**
+     * Deterministic per-task subset: stable sort by name, round-robin by task id.
+     */
+    public static List<TableId> tablesForTask(List<TableId> allTables, int taskId, int numTasks) {
+        List<TableId> sorted = new ArrayList<>(allTables);
+        sorted.sort(Comparator.comparing(TableId::toString));
+        List<TableId> mine = new ArrayList<>();
+        for (int i = taskId; i < sorted.size(); i += numTasks) { // i = taskId, taskId+numTasks, ...
+            mine.add(sorted.get(i));
+        }
+        return mine;
+    }
+
+    /**
+     * Parse a comma-joined FQN list back to TableIds.
+     */
+    public static List<TableId> parseTables(String joined) {
+        if (joined == null || joined.isEmpty()) {
+            return List.of();
+        }
+        return Arrays.stream(joined.split(",")).map(String::trim).filter(s -> !s.isEmpty())
+                .map(TableId::parse).collect(Collectors.toList());
     }
 
     /**

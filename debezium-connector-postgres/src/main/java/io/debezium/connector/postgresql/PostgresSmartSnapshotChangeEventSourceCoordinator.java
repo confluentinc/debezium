@@ -6,6 +6,7 @@
 package io.debezium.connector.postgresql;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -29,6 +30,7 @@ import io.debezium.pipeline.source.spi.ChangeEventSource.ChangeEventSourceContex
 import io.debezium.pipeline.source.spi.SnapshotChangeEventSource;
 import io.debezium.pipeline.spi.Offsets;
 import io.debezium.pipeline.spi.SnapshotResult;
+import io.debezium.relational.TableId;
 import io.debezium.schema.DatabaseSchema;
 import io.debezium.snapshot.SnapshotterService;
 import io.debezium.util.Collect;
@@ -154,16 +156,21 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         Map<String, String> sharedPartition = Collect.hashMapOf("server", serverName);
         String snapshotName = null;
         String slotLsnStr = null;
+        List<TableId> tableSubset = null;
         for (int attempt = 0; attempt < retryCount; attempt++) {
-            Map<String, Object> coordData = snapshotCoordination.read(sharedPartition);
-            if (coordData != null
-                    && coordData.get(SmartSnapshotConnectorCoordinator.SNAPSHOT_NAME_KEY) != null) {
-                Integer coordEpoch = SmartSnapshotConnectorCoordinator.readEpoch(coordData);
-                if (coordEpoch != null && coordEpoch == epoch) {
-                    snapshotName = (String) coordData.get(
+            Map<String, Object> snaphsotInfo = snapshotCoordination.read(sharedPartition);
+            if (snaphsotInfo != null
+                    && snaphsotInfo.get(SmartSnapshotConnectorCoordinator.SNAPSHOT_NAME_KEY) != null) {
+                Integer snapshotInfoEpoch = SmartSnapshotConnectorCoordinator.readEpoch(snaphsotInfo);
+                if (snapshotInfoEpoch != null && snapshotInfoEpoch == epoch) {
+                    snapshotName = (String) snaphsotInfo.get(
                             SmartSnapshotConnectorCoordinator.SNAPSHOT_NAME_KEY);
-                    slotLsnStr = String.valueOf(coordData.get(
+                    slotLsnStr = String.valueOf(snaphsotInfo.get(
                             SmartSnapshotConnectorCoordinator.SLOT_LSN_KEY));
+                    List<TableId> all = SmartSnapshotConnectorCoordinator.parseTables(
+                            (String) snaphsotInfo.get(SmartSnapshotConnectorCoordinator.TABLES_KEY));
+                    int numTasks = ((Number) snaphsotInfo.get(SmartSnapshotConnectorCoordinator.NUM_TASKS_KEY)).intValue();
+                    tableSubset = SmartSnapshotConnectorCoordinator.tablesForTask(all, Integer.parseInt(taskId), numTasks);
                     break;
                 }
             }
@@ -174,15 +181,13 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
             throw new DebeziumException(String.format("Smart snapshot [task-%s]: Timed out waiting for snapshot preparation", taskId));
         }
 
-        LOGGER.info("Smart snapshot: [task-{}] got snapshot='{}', LSN={}, executing snapshot-only, epoch={}",
-                taskId, snapshotName, slotLsnStr, epoch);
+        LOGGER.info("Smart snapshot: [task-{}] got snapshot='{}', LSN={}, tableSubset={} executing snapshot-only, epoch={}",
+                taskId, snapshotName, slotLsnStr, tableSubset, epoch);
 
         // Set snapshot name, LSN, and coordination on the source
         PostgresSmartSnapshotChangeEventSource smartSource = (PostgresSmartSnapshotChangeEventSource) snapshotSource;
-        smartSource.setSmartSnapshotName(snapshotName);
         // this was captured by the background thread on leader task
-        smartSource.setSmartSnapshotLsn(Lsn.valueOf(slotLsnStr));
-        smartSource.setSnapshotCoordination(snapshotCoordination, epoch);
+        smartSource.setSnapshotCoordination(epoch, snapshotName, Lsn.valueOf(slotLsnStr), tableSubset, snapshotCoordination);
 
         try {
             SnapshotResult<PostgresOffsetContext> snapshotResult = doSnapshot(snapshotSource, context, partition, previousOffset);
