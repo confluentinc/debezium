@@ -32,7 +32,7 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PostgresSmartSnapshotLifecycleManager.class);
 
-    // discoverAndLock only needs isRunning()==true; everything else is a harmless stub.
+    // PostgresLeaderSchemaSource#discoverAndLock only needs isRunning()==true; everything else is a harmless stub.
     private static final ChangeEventSource.ChangeEventSourceContext RUNNING_CONTEXT = new ChangeEventSource.ChangeEventSourceContext() {
         @Override
         public boolean isPaused() {
@@ -430,8 +430,8 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
         public SlotCreateOrExportResult(SlotCreationResult slotCreationResult, SlotState startingSlotState, String currentSnapshotName, String currentSlotLsn) {
             this.slotCreationResult = slotCreationResult;
             this.startingSlotState = startingSlotState;
-            this.currentSnapshotName = null;
-            this.currentSlotLsn = null;
+            this.currentSnapshotName = currentSnapshotName;
+            this.currentSlotLsn = currentSlotLsn;
         }
 
         public SlotCreationResult getSlotCreationResult() {

@@ -74,6 +74,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PostgresConnectorTask.class);
     private static final String CONTEXT_NAME = "postgres-connector-task";
+    private static final int POLL_MS = 30_000;
 
     private volatile PostgresTaskContext taskContext;
     private volatile ChangeEventQueue<DataChangeEvent> queue;
@@ -609,11 +610,11 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                     while (!Thread.currentThread().isInterrupted()
                             && !allTasksJoined(numTasks, leaderEpoch)
                             && !anyRestartNeeded(numTasks, leaderEpoch)) {
-                        Thread.sleep(30_000);
+                        Thread.sleep(POLL_MS);
                         lifecycle.keepAlive();
                     }
                     if (allTasksJoined(numTasks, leaderEpoch)) {
-                        // releaseSnapshot(): closes held+export conns; slot persists;
+                        // releaseSnapshot(), slot persists;
                         // thread ends
                         lifecycle.onAllTasksJoined();
                     }
