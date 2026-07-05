@@ -93,15 +93,13 @@ public class SmartSnapshotConnectorCoordinatorTest {
                 new TableId(null, "public", "a"), new TableId(null, "public", "b"));
     }
 
-    // ---- taskConfigs state machine --------------------------------------------------------------
-
     @Test
     public void taskConfigsActiveEmitsOneConfigPerTaskWithEpochAndCount() {
         List<Map<String, String>> configs = coordinator.taskConfigs(2, baseProps());
 
         assertThat(configs).hasSize(2);
         assertThat(configs.get(0)).containsEntry(ConfigurationNames.TASK_ID_PROPERTY_NAME, "0")
-                .containsEntry(SnapshotCoordinationFacade.EPOCH, "0")
+                .containsEntry(SnapshotCoordinationFacade.EPOCH, "1")
                 .containsEntry(SnapshotCoordinationFacade.NUM_TASKS, "2");
         assertThat(configs.get(1)).containsEntry(ConfigurationNames.TASK_ID_PROPERTY_NAME, "1");
     }
@@ -109,22 +107,22 @@ public class SmartSnapshotConnectorCoordinatorTest {
     @Test
     public void restartTickBumpsEpochOnNextTaskConfigs() {
         coordinator.taskConfigs(2, baseProps()); // sets numTasks = 2, epoch = 0
-        when(facade.isRestartNeeded("0", 0)).thenReturn(true);
+        when(facade.isRestartNeeded("0", 1)).thenReturn(true);
 
         assertThat(coordinator.monitorTick()).isFalse();
         verify(connectorContext).requestTaskReconfiguration();
 
         List<Map<String, String>> next = coordinator.taskConfigs(2, baseProps());
-        verify(facade).writeEpoch(1); // new epoch persisted before configs handed out
-        assertThat(next.get(0)).containsEntry(SnapshotCoordinationFacade.EPOCH, "1");
+        verify(facade).writeEpoch(2); // new epoch persisted before configs handed out
+        assertThat(next.get(0)).containsEntry(SnapshotCoordinationFacade.EPOCH, "2");
     }
 
     @Test
     public void allTasksDoneTickCompletesAndTaskConfigsWritesCompletion() {
         coordinator.taskConfigs(2, baseProps()); // numTasks = 2, epoch = 0
-        when(facade.isRestartNeeded(anyString(), eq(0))).thenReturn(false);
-        when(facade.isDone("0", 0)).thenReturn(true);
-        when(facade.isDone("1", 0)).thenReturn(true);
+        when(facade.isRestartNeeded(anyString(), eq(1))).thenReturn(false);
+        when(facade.isDone("0", 1)).thenReturn(true);
+        when(facade.isDone("1", 1)).thenReturn(true);
         when(facade.readSnapshotInfo()).thenReturn(Collect.hashMapOf(SnapshotCoordinationFacade.CONSISTENT_POINT, "0/16B3748"));
 
         assertThat(coordinator.monitorTick()).isTrue();
@@ -132,7 +130,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
         assertThat(coordinator.isComplete()).isTrue();
 
         assertThat(coordinator.taskConfigs(2, baseProps())).isNull(); // downscale
-        verify(facade).writeCompletion("0/16B3748", 0);
+        verify(facade).writeCompletion("0/16B3748", 1);
     }
 
     @Test
@@ -184,7 +182,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
         coordinator.start();
 
         assertThat(coordinator.isComplete()).isFalse();
-        verify(facade, times(1)).writeEpoch(0);
+        verify(facade, times(1)).writeEpoch(1);
     }
 
     private static Map<String, String> baseProps() {

@@ -53,7 +53,7 @@ public class SmartSnapshotConnectorCoordinator {
      * it is then propagated to the task as in task configs
      * it is updated in taskConfigs() when it detected the snapshotState to be RESTART
      */
-    private final AtomicInteger currentEpoch = new AtomicInteger(0);
+    private final AtomicInteger currentEpoch = new AtomicInteger(1);
 
     /*
      * the number of tasks
