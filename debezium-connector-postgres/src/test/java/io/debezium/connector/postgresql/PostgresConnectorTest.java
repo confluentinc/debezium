@@ -17,6 +17,9 @@ import org.apache.kafka.common.config.ConfigValue;
 import org.junit.Before;
 import org.junit.Test;
 
+import io.debezium.config.CommonConnectorConfig;
+import io.debezium.config.Configuration;
+
 public class PostgresConnectorTest {
     PostgresConnector connector;
 
@@ -42,5 +45,39 @@ public class PostgresConnectorTest {
                 assertThat(value.errorMessages().get(0), is("Error while validating connector config: The connection attempt failed."));
             }
         }
+    }
+
+    // Smart snapshot engages only for the data-copying modes; other modes fall back to the single-task path
+    // (guards the "always double-snapshots / no_data wasteful" regression).
+    @Test
+    public void smartSnapshotAppliesForDataSnapshotModes() {
+        assertThat(PostgresConnector.smartSnapshotApplies(smartConfig(true, "initial")), is(true));
+        assertThat(PostgresConnector.smartSnapshotApplies(smartConfig(true, "initial_only")), is(true));
+        assertThat(PostgresConnector.smartSnapshotApplies(smartConfig(true, "when_needed")), is(true));
+    }
+
+    @Test
+    public void smartSnapshotDoesNotApplyForNonDataModes() {
+        assertThat(PostgresConnector.smartSnapshotApplies(smartConfig(true, "always")), is(false));
+        assertThat(PostgresConnector.smartSnapshotApplies(smartConfig(true, "never")), is(false));
+        assertThat(PostgresConnector.smartSnapshotApplies(smartConfig(true, "no_data")), is(false));
+    }
+
+    @Test
+    public void smartSnapshotDoesNotApplyWhenDisabled() {
+        assertThat(PostgresConnector.smartSnapshotApplies(smartConfig(false, "initial")), is(false));
+    }
+
+    private static Configuration smartConfig(boolean enabled, String snapshotMode) {
+        return Configuration.create()
+                .with(PostgresConnectorConfig.HOSTNAME, "localhost")
+                .with(PostgresConnectorConfig.PORT, 5432)
+                .with(PostgresConnectorConfig.USER, "user")
+                .with(PostgresConnectorConfig.PASSWORD, "pass")
+                .with(PostgresConnectorConfig.DATABASE_NAME, "db")
+                .with(CommonConnectorConfig.TOPIC_PREFIX, "srv")
+                .with(CommonConnectorConfig.SMART_SNAPSHOT_ENABLED, enabled)
+                .with(PostgresConnectorConfig.SNAPSHOT_MODE, snapshotMode)
+                .build();
     }
 }
