@@ -82,6 +82,11 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         if (smartSnapshotApplies(config)) {
             PostgresConnectorConfig connectorConfig = new PostgresConnectorConfig(config);
 
+            if (!SnapshotCoordinationFacade.hasCoordinationBootstrap(config, connectorConfig)) {
+                LOGGER.info("Smart snapshot: No coordination bootstrap configured; skipping smart snapshot setup in start()");
+                return;
+            }
+
             SnapshotCoordinationFacade coordinationFacade = new SnapshotCoordinationFacade(config, connectorConfig);
             smartSnapshotConnectorCoordinator = new SmartSnapshotConnectorCoordinator(coordinationFacade, context(),
                     connectorConfig.getLogicalName(), connectorConfig.getSmartSnapshotMonitorPollIntervalMs());
