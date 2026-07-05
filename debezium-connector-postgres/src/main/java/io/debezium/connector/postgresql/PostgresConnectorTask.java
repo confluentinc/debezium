@@ -726,12 +726,23 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                                                                    Clock clock) {
         // Post-downscale streaming task: read LSN from coordination topic only if the feature is still enabled
         // Otherwise, the snapshot taken in the smart snapshot mode is discarded
-        if (connectorConfig.isSmartSnapshotEnabled() && !isSmartSnapshotTask) {
+        if (!connectorConfig.isSmartSnapshotEnabled() || isSmartSnapshotTask) {
+            return null;
+        }
 
-            SnapshotCoordinationFacade tempSnapshotCoordinationFacade = new SnapshotCoordinationFacade(config, connectorConfig);
-            tempSnapshotCoordinationFacade.start();
-            Map<String, Object> coordinationData = tempSnapshotCoordinationFacade.readSnapshotInfo();
-            tempSnapshotCoordinationFacade.stop();
+        if (!SnapshotCoordinationFacade.hasCoordinationBootstrap(config, connectorConfig)) {
+            return null;
+        }
+
+        SnapshotCoordinationFacade facade = SnapshotCoordinationFacade.readOnly(config, connectorConfig);
+
+        try {
+            if (!facade.startForRead()) {
+                // topic doesn't exist / broker unreachable skip fast
+                return null;
+            }
+
+            Map<String, Object> coordinationData = facade.readSnapshotInfo();
 
             if (coordinationData != null
                     && Boolean.TRUE.equals(coordinationData.get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY))
@@ -748,9 +759,10 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                 syntheticOffset.postSnapshotCompletion();
                 return syntheticOffset;
             }
+            return null;
+        } finally {
+            facade.stop();
         }
-
-        return null;
     }
 
     private void doStopSmartSnapshot() {

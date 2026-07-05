@@ -18,5 +18,13 @@ public interface SnapshotCoordination {
 
     void start();
 
+    /**
+     * Read-only start: return false (without creating anything or blocking) if there's nothing to read.
+     */
+    default boolean startForRead() {
+        start();
+        return true;
+    }
+
     void stop();
 }

@@ -62,8 +62,14 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
 
     private final Map<Map<String, String>, Map<String, Object>> cache = new ConcurrentHashMap<>();
 
+    private final String topicName;
+
     public KafkaLogSnapshotCoordination(Configuration configuration, CommonConnectorConfig commonConnectorConfig) {
-        String topicName = commonConnectorConfig.getLogicalName() + ".snapshot-coordination";
+        this(configuration, commonConnectorConfig, true);
+    }
+
+    public KafkaLogSnapshotCoordination(Configuration configuration, CommonConnectorConfig commonConnectorConfig, boolean createTopic) {
+        this.topicName = commonConnectorConfig.getLogicalName() + ".snapshot-coordination";
         String clientIdSuffix = commonConnectorConfig.getLogicalName() + "-coordination-connector";
         this.clientConfig = new HashMap<>(clientConfigFromOverrides(configuration, commonConnectorConfig.getSmartSnapshotCoordinationBootstrapServers()));
         Map<String, Object> producerProps = new HashMap<>(clientConfig);
@@ -81,7 +87,9 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
         adminProps.put(AdminClientConfig.CLIENT_ID_CONFIG, "snapshot-coordination-admin-" + clientIdSuffix);
         this.topicAdmin = new TopicAdmin(adminProps);
 
-        createTopicIfMissing(topicName, clientIdSuffix);
+        if (createTopic) {
+            createTopicIfMissing(topicName, clientIdSuffix);
+        }
 
         this.log = new KafkaBasedLog<>(
                 topicName, producerProps, consumerProps,
@@ -94,6 +102,16 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
 
     private String encodeKey(Map<String, String> key) throws Exception {
         return keyMapper.writeValueAsString(new TreeMap<>(key));
+    }
+
+    @Override
+    public boolean startForRead() {
+        // never created smart snapshot disabled (tasks.max=1) or broker unreachable
+        if (!topicExists()) {
+            return false;
+        }
+        start();
+        return true;
     }
 
     // multiple threads can invoke the start method
@@ -124,7 +142,9 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
     public void stop() {
         // check if this is safe if start hasn't been invoked or not finished yet
         try {
-            log.stop();
+            if (startInitiated.get()) {
+                log.stop();
+            }
         }
         finally {
             topicAdmin.close();
@@ -139,18 +159,6 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
         log.sendWithReceipt(keyJson, valueJson).get(30, TimeUnit.SECONDS);
         cache.put(key, new HashMap<>(data));
         LOGGER.info("Smart snapshot: wrote coordination data to key '{}', data={}", key, data);
-    }
-
-    // todo check if this is useful
-    private Map<String, Object> readSync(Map<String, String> key) {
-        try {
-            log.readToEnd().get(30, TimeUnit.SECONDS);
-        }
-        catch (InterruptedException | ExecutionException | TimeoutException e) {
-            LOGGER.error("Failed to write root configuration to Kafka: ", e);
-            throw new ConnectException("Error writing root configuration to Kafka", e);
-        }
-        return cache.get(key);
     }
 
     /**
@@ -184,6 +192,37 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
         catch (IOException e) {
             throw new ConnectException("Failed to parse coordination value", e);
         }
+    }
+
+    private boolean topicExists() {
+        Map<String, Object> adminConfig = new HashMap<>(clientConfig);
+        adminConfig.put(AdminClientConfig.CLIENT_ID_CONFIG, "snapshot-coordination-exists-check");
+        adminConfig.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, 5000);
+        adminConfig.put(AdminClientConfig.DEFAULT_API_TIMEOUT_MS_CONFIG, 5000);
+        try (AdminClient admin = AdminClient.create(adminConfig)) {
+            admin.describeTopics(Collections.singleton(topicName)).allTopicNames().get(5, TimeUnit.SECONDS);
+            return true;
+        }
+        catch (Exception e) {
+            LOGGER.debug("Smart snapshot: coordination topic '{}' unavailable for read: {}", topicName,
+                    e.toString());
+            return false;
+        }
+    }
+
+    /**
+     * True if a coordination bootstrap is resolvable (explicit or producer.override).
+     */
+    public static boolean hasBootstrap(Configuration config, CommonConnectorConfig connectorConfig) {
+        String explicit = connectorConfig.getSmartSnapshotCoordinationBootstrapServers();
+        if (explicit != null && !explicit.isEmpty()) {
+            return true;
+        }
+        String fromOverride =
+                config
+                .subset("producer.override.", true)
+                .getString(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG);
+        return fromOverride != null && !fromOverride.isEmpty();
     }
 
     private void createTopicIfMissing(String topicName, String clientIdSuffix) {
@@ -234,5 +273,17 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
             }
         }
         return clientConfig;
+    }
+
+    // todo check if this is useful
+    private Map<String, Object> readSync(Map<String, String> key) {
+        try {
+            log.readToEnd().get(30, TimeUnit.SECONDS);
+        }
+        catch (InterruptedException | ExecutionException | TimeoutException e) {
+            LOGGER.error("Failed to write root configuration to Kafka: ", e);
+            throw new ConnectException("Error writing root configuration to Kafka", e);
+        }
+        return cache.get(key);
     }
 }
