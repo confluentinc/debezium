@@ -141,8 +141,8 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
         LOGGER.info("Smart snapshot: wrote coordination data to key '{}', data={}", key, data);
     }
 
-    @Override
-    public Map<String, Object> readSync(Map<String, String> key) {
+    // todo check if this is useful
+    private Map<String, Object> readSync(Map<String, String> key) {
         try {
             log.readToEnd().get(30, TimeUnit.SECONDS);
         }
@@ -155,6 +155,7 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
 
     /**
      * todo document the data freshness
+     * the get is eventually consistent
      */
     @Override
     public Map<String, Object> read(Map<String, String> key) {

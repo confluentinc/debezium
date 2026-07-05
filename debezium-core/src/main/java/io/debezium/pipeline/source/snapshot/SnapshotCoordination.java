@@ -16,8 +16,6 @@ public interface SnapshotCoordination {
 
     Map<String, Object> read(Map<String, String> key);
 
-    Map<String, Object> readSync(Map<String, String> key);
-
     void start();
 
     void stop();
