@@ -557,7 +557,8 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                                                                                                           PostgresSchema schema) {
         if (config.getString(SnapshotCoordinationFacade.EPOCH) == null || config.getString(SnapshotCoordinationFacade.NUM_TASKS) == null) {
             // if taskId is null, we would never enter this branch
-            throw new DebeziumException(String.format("Smart snapshot: [task-%s] Failing as required configs [epoch, num_tasks] are missing.", connectorConfig.getTaskId()));
+            throw new DebeziumException(
+                    String.format("Smart snapshot: [task-%s] Failing as required configs [epoch, num_tasks] are missing.", connectorConfig.getTaskId()));
         }
 
         int epoch = Integer.parseInt(config.getString(SnapshotCoordinationFacade.EPOCH));

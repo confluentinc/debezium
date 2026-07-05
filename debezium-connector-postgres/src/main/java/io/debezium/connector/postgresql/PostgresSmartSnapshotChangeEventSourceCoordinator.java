@@ -225,7 +225,8 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
                 if (i % 3 == 0) { // log every 30 second
                     LOGGER.info("Smart snapshot: [task-{}] is idling", taskId);
                 }
-            } else {
+            }
+            else {
                 return;
             }
         }
