@@ -928,6 +928,16 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
             .withDescription("A list of host/port pairs for the Kafka cluster hosting the snapshot "
                     + "coordination topic. Required when smart.snapshot.enabled=true and tasks.max > 1.");
 
+    public static final Field SMART_SNAPSHOT_MONITOR_POLL_INTERVAL_MS = Field.createInternal("smart.snapshot.internal.monitor.poll.interval.ms")
+            .withDisplayName("Smart snapshot monitor poll interval (ms)")
+            .withType(Type.LONG)
+            .withWidth(Width.MEDIUM)
+            .withImportance(Importance.LOW)
+            .withDefault(30000L)
+            .withValidation(Field::isPositiveLong)
+            .withDescription("Interval in milliseconds at which the connector checks the coordination topic for "
+                    + "snapshot completion / restart during a smart (multi-task) snapshot. Internal, mainly for testing.");
+
     public static final Field DND_DELAY_MS = Field.create("dnd.delay.ms")
             .withDisplayName("DND delay (ms)")
             .withType(Type.LONG)
@@ -1450,6 +1460,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
                     SMART_SNAPSHOT_ENABLED,
                     DND_DELAY_MS,
                     SMART_SNAPSHOT_COORDINATION_BOOTSTRAP_SERVERS,
+                    SMART_SNAPSHOT_MONITOR_POLL_INTERVAL_MS,
                     SNAPSHOT_MODE_CUSTOM_NAME,
                     SNAPSHOT_MODE_CONFIGURATION_BASED_SNAPSHOT_DATA,
                     SNAPSHOT_MODE_CONFIGURATION_BASED_SNAPSHOT_SCHEMA,
@@ -1510,6 +1521,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
     private final boolean smartSnapshotEnabled;
     private final long dndDelayMs;
     private final String smartSnapshotCoordinationBootstrapServers;
+    private final long smartSnapshotMonitorPollIntervalMs;
 
     private final String snapshotModeCustomName;
     private final Integer queryFetchSize;
@@ -1562,6 +1574,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
         this.smartSnapshotEnabled = config.getBoolean(SMART_SNAPSHOT_ENABLED);
         this.dndDelayMs = config.getLong(DND_DELAY_MS);
         this.smartSnapshotCoordinationBootstrapServers = config.getString(SMART_SNAPSHOT_COORDINATION_BOOTSTRAP_SERVERS);
+        this.smartSnapshotMonitorPollIntervalMs = config.getLong(SMART_SNAPSHOT_MONITOR_POLL_INTERVAL_MS);
         this.snapshotModeCustomName = config.getString(SNAPSHOT_MODE_CUSTOM_NAME);
         this.queryFetchSize = config.getInteger(QUERY_FETCH_SIZE);
         this.incrementalSnapshotChunkSize = config.getInteger(INCREMENTAL_SNAPSHOT_CHUNK_SIZE);
@@ -1727,6 +1740,10 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
 
     public String getSmartSnapshotCoordinationBootstrapServers() {
         return smartSnapshotCoordinationBootstrapServers;
+    }
+
+    public long getSmartSnapshotMonitorPollIntervalMs() {
+        return smartSnapshotMonitorPollIntervalMs;
     }
 
     public String getSnapshotModeCustomName() {

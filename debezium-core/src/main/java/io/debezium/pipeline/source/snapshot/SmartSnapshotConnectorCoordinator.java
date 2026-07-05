@@ -28,11 +28,11 @@ import io.debezium.util.Collect;
 public class SmartSnapshotConnectorCoordinator {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SmartSnapshotConnectorCoordinator.class);
-    private static final long MONITOR_POLL_INTERVAL_MS = 30_000;
 
     private final SnapshotCoordinationFacade snapshotCoordination;
     private final ConnectorContext connectorContext;
     private final String serverName;
+    private final long monitorPollIntervalMs;
 
     /*
      * Performs 2 monitoring operations:
@@ -85,10 +85,12 @@ public class SmartSnapshotConnectorCoordinator {
 
     public SmartSnapshotConnectorCoordinator(SnapshotCoordinationFacade snapshotCoordination,
                                              ConnectorContext connectorContext,
-                                             String serverName) {
+                                             String serverName,
+                                             long monitorPollIntervalMs) {
         this.snapshotCoordination = snapshotCoordination;
         this.connectorContext = connectorContext;
         this.serverName = serverName;
+        this.monitorPollIntervalMs = monitorPollIntervalMs;
     }
 
     public void start() {
@@ -98,7 +100,7 @@ public class SmartSnapshotConnectorCoordinator {
         boolean snapshotInProgress = offsetExists && isSnapshotInProgress(existingOffset);
 
         if (offsetExists && !snapshotInProgress) {
-            LOGGER.info("Smart snapshot: existing streaming offset present, skipping smart snapshot");
+            LOGGER.info("Smart snapshot: Existing streaming offset present, skipping smart snapshot");
             this.smartSnapshotState = SmartSnapshotState.COMPLETE;
             return;
         }
@@ -108,7 +110,7 @@ public class SmartSnapshotConnectorCoordinator {
         Map<String, Object> snapshotInfo = snapshotCoordination.readSnapshotInfo();
         if (snapshotInfo != null
                 && Boolean.TRUE.equals(snapshotInfo.get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY))) {
-            LOGGER.info("Smart snapshot: coordination topic shows snapshot completed, skipping");
+            LOGGER.info("Smart snapshot: Coordination topic shows snapshot completed, skipping");
             this.smartSnapshotState = SmartSnapshotState.COMPLETE;
             return;
         }
@@ -116,7 +118,11 @@ public class SmartSnapshotConnectorCoordinator {
         // Read the epoch the Connector saved earlier. Do not change it on a plain restart.
         // (The snapshot prep runs on task-0 after taskConfigs, so the snapshot record may not exist
         // yet at this point — that's why the Connector keeps the epoch in its own record.)
-        this.currentEpoch.set(snapshotCoordination.readEpoch());
+        // On the very first start there is no saved epoch yet; keep the initial value (0).
+        Integer savedEpoch = snapshotCoordination.readEpoch();
+        if (savedEpoch != null) {
+            this.currentEpoch.set(savedEpoch);
+        }
         persistEpoch(currentEpoch.get());
 
         startMonitorThread();
@@ -129,14 +135,14 @@ public class SmartSnapshotConnectorCoordinator {
 
         switch (smartSnapshotState) {
             case COMPLETE:
-                LOGGER.info("Smart snapshot: complete, writing completion + downscaling");
+                LOGGER.info("Smart snapshot: Complete, marking completion and downscaling");
                 writeCompletion();
                 return null;
             case RESTART:
                 int past = currentEpoch.get();
                 int next = currentEpoch.incrementAndGet();
                 persistEpoch(next); // save the new epoch before handing out configs
-                LOGGER.info("Smart snapshot: epoch restart {} -> {}", past, next);
+                LOGGER.info("Smart snapshot: Epoch restart {} -> {}", past, next);
                 this.smartSnapshotState = SmartSnapshotState.ACTIVE;
                 break;
             case ACTIVE:
@@ -158,57 +164,74 @@ public class SmartSnapshotConnectorCoordinator {
 
     private void startMonitorThread() {
         monitorThread = new Thread(() -> {
-            LOGGER.info("Smart snapshot: monitor thread started");
+            LOGGER.info("Smart snapshot: Monitor thread started");
             while (!Thread.currentThread().isInterrupted()) {
                 try {
-                    Thread.sleep(MONITOR_POLL_INTERVAL_MS);
+                    Thread.sleep(monitorPollIntervalMs);
                 }
                 catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
+                    // todo verify the behaviour if we return here
                     return;
                 }
-                if (lastNumTasks <= 0) {
-                    continue;
-                }
-
-                int epoch = currentEpoch.get();
-
-                // 1. restart_needed — always checked, before the completion check; act on each epoch only once
-                boolean restart = false;
-                for (int i = 0; i < lastNumTasks; i++) {
-                    boolean restartNeeded = snapshotCoordination.isRestartNeeded(String.valueOf(i), epoch);
-                    if (restartNeeded) {
-                        LOGGER.info("Smart snapshot: task {} restart_needed for the epoch {}", i, epoch);
-                        restart = true;
-                        break;
-                    }
-                }
-                if (restart) {
-                    lastHandledRestartEpoch = epoch;
-                    smartSnapshotState = SmartSnapshotState.RESTART;
-                    connectorContext.requestTaskReconfiguration();
-                    continue;
-                }
-
-                // 2. all complete for the epoch → downscale
-                boolean allComplete = true;
-                for (int i = 0; i < lastNumTasks; i++) {
-                    boolean done = snapshotCoordination.isDone(String.valueOf(i), epoch);
-                    if (!done) {
-                        allComplete = false;
-                        break;
-                    }
-                }
-                if (allComplete) {
-                    LOGGER.info("Smart snapshot: all {} tasks complete for the epoch {}, downscaling", lastNumTasks, epoch);
-                    smartSnapshotState = SmartSnapshotState.COMPLETE;
-                    connectorContext.requestTaskReconfiguration();
+                if (monitorTick()) {
+                    // snapshot completed for this epoch; monitor is done
                     return;
                 }
             }
         }, "smart-snapshot-monitor");
         monitorThread.setDaemon(true);
         monitorThread.start();
+    }
+
+    /**
+     * One monitor iteration. Returns true when the snapshot is complete (the monitor should stop);
+     * false to keep polling. Visible for testing so the decision logic can be exercised without the sleep.
+     */
+    boolean monitorTick() {
+        if (lastNumTasks <= 0) {
+            return false;
+        }
+
+        int epoch = currentEpoch.get();
+
+        // 1. restart_needed — always checked, before the completion check; act on each epoch only once
+        boolean restart = false;
+        for (int i = 0; i < lastNumTasks; i++) {
+            boolean restartNeeded = snapshotCoordination.isRestartNeeded(String.valueOf(i), epoch);
+            if (restartNeeded) {
+                LOGGER.info("Smart snapshot: Task {} restart_needed for the epoch {}", i, epoch);
+                restart = true;
+                break;
+            }
+        }
+        if (restart) {
+            // handle each epoch only once
+            if (epoch > lastHandledRestartEpoch) {
+                LOGGER.info("Smart snapshot: Detected restart required for the epoch {}, bumping the epoch and reconfiguring", epoch);
+                lastHandledRestartEpoch = epoch;
+                smartSnapshotState = SmartSnapshotState.RESTART;
+                connectorContext.requestTaskReconfiguration();
+            }
+            return false;
+        }
+
+        // 2. all complete for the epoch → downscale
+        boolean allComplete = true;
+        for (int i = 0; i < lastNumTasks; i++) {
+            boolean done = snapshotCoordination.isDone(String.valueOf(i), epoch);
+            if (!done) {
+                allComplete = false;
+                break;
+            }
+        }
+        if (allComplete) {
+            LOGGER.info("Smart snapshot: All {} tasks complete for the epoch {}, downscaling", lastNumTasks, epoch);
+            smartSnapshotState = SmartSnapshotState.COMPLETE;
+            connectorContext.requestTaskReconfiguration();
+            return true;
+        }
+        return false;
     }
 
     public boolean isComplete() {

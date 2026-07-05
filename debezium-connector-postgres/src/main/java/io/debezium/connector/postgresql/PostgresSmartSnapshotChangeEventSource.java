@@ -84,6 +84,7 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
         LinkedHashSet<TableId> mine = new LinkedHashSet<>(smartSnapshotTables);
         ctx.capturedTables = mine;
         ctx.capturedSchemaTables = mine; // unused on the Postgres path (readTableStructure derives schemas from capturedTables)
+        LOGGER.info("Smart snapshot: [task-{}] Determining captured table using the slice from leader, tables={}, epoch={}", taskId, mine, epoch);
     }
 
     @Override

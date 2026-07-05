@@ -83,7 +83,8 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
             PostgresConnectorConfig connectorConfig = new PostgresConnectorConfig(config);
 
             SnapshotCoordinationFacade coordinationFacade = new SnapshotCoordinationFacade(config, connectorConfig);
-            smartSnapshotConnectorCoordinator = new SmartSnapshotConnectorCoordinator(coordinationFacade, context(), connectorConfig.getLogicalName());
+            smartSnapshotConnectorCoordinator = new SmartSnapshotConnectorCoordinator(coordinationFacade, context(),
+                    connectorConfig.getLogicalName(), connectorConfig.getSmartSnapshotMonitorPollIntervalMs());
 
             // reading the coordination topic should ideally be quick
             // there doesn't seem to be a clean way to avoid reading it here
@@ -110,7 +111,7 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
                     return configs;
                 }
             }
-            // if we reach here it implies either of the following
+            // if we reach here it implies either of the following:
             // 1. the smart snapshot was complete, just fall through to single config
             // 2. maxTasks was 1
             // for either of the cases cleanup the coordinator as it is no longer needed
@@ -278,7 +279,8 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         }
     }
 
-    private static boolean smartSnapshotApplies(Configuration configuration) {
+    // visible for testing
+    static boolean smartSnapshotApplies(Configuration configuration) {
         PostgresConnectorConfig connectorConfig = new PostgresConnectorConfig(configuration);
         if (!connectorConfig.isSmartSnapshotEnabled()) {
             return false;

@@ -43,8 +43,13 @@ public class SnapshotCoordinationFacade {
     private final String server;
 
     public SnapshotCoordinationFacade(Configuration configuration, CommonConnectorConfig connectorConfig) {
-        this.coordination = new KafkaLogSnapshotCoordination(configuration, connectorConfig);
-        this.server = connectorConfig.getLogicalName();
+        this(new KafkaLogSnapshotCoordination(configuration, connectorConfig), connectorConfig.getLogicalName());
+    }
+
+    // visible for testing: inject a coordination store (a fake / mock) without touching Kafka.
+    SnapshotCoordinationFacade(SnapshotCoordination coordination, String server) {
+        this.coordination = coordination;
+        this.server = server;
     }
 
     public void start() {

@@ -40,6 +40,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
     private static final Logger LOGGER = LoggerFactory.getLogger(
             PostgresSmartSnapshotChangeEventSourceCoordinator.class);
     private static final int retryCount = 30;
+    private static final int IDLE_DELAY_MS = 10_000;
 
     private final int epoch;
     private final SnapshotCoordinationFacade snapshotCoordination;
@@ -90,7 +91,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         if (previousOffset != null) {
             Integer offsetEpoch = previousOffset.getEpoch();
             if (offsetEpoch != null && !offsetEpoch.equals(epoch)) {
-                LOGGER.info("Smart snapshot: [task-{}] epoch mismatch (offset={}, config={}), clearing offset",
+                LOGGER.info("Smart snapshot: [task-{}] Epoch mismatch (offset={}, config={}), clearing offset",
                         taskId, offsetEpoch, epoch);
                 previousOffsets.resetOffset(partition);
                 previousOffset = null;
@@ -103,7 +104,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         // NOT a crash. Do not treat it as a rejoin; idle and let the connector downscale.
         boolean done = snapshotCoordination.isDone(taskId, epoch);
         if (done) {
-            LOGGER.info("Smart snapshot [task-{}]: already completed @epoch {}, idling", taskId, epoch);
+            LOGGER.info("Smart snapshot: [task-{}] Already completed for the epoch {}, idling", taskId, epoch);
             idleUntilRestart(context);
             return;
         }
@@ -112,7 +113,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         Integer markerEpoch = snapshotCoordination.readJoinEpoch(taskId);
         if (markerEpoch != null && markerEpoch == epoch) {
             // rejoining epoch which implies that snapshot transaction can't be rejoined signal full restart.
-            LOGGER.warn("Smart snapshot: [task-{}] rejoin detected for the epoch {}, signaling restart_needed", taskId, epoch);
+            LOGGER.warn("Smart snapshot: [task-{}] Rejoin detected for the epoch {}, signaling restart_needed", taskId, epoch);
             writeRestartNeeded();
             idleUntilRestart(context);
             return;
@@ -121,7 +122,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         // Stale-epoch check: the Connector already moved to a newer epoch, wait for restart.
         Integer savedEpoch = snapshotCoordination.readEpoch();
         if (savedEpoch != null && savedEpoch > epoch) {
-            LOGGER.warn("Smart snapshot: [task-{}] saved epoch {} is greater than current epoch {}, waiting for restart",
+            LOGGER.warn("Smart snapshot: [task-{}] Saved epoch {} is greater than current epoch {}, waiting for restart",
                     taskId, savedEpoch, epoch);
             idleUntilRestart(context);
             return;
@@ -136,7 +137,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         }
         catch (Exception e) {
             throw new DebeziumException(
-                    String.format("Smart snapshot: [task-%s] failed to write join marker for the epoch %d", taskId, epoch), e);
+                    String.format("Smart snapshot: [task-%s] Failed to write join marker for the epoch %d", taskId, epoch), e);
         }
 
         // Read snapshot_name + LSN from coordination topic
@@ -161,13 +162,13 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
                 }
             }
             LOGGER.info("Smart snapshot: [task-{}] waiting for snapshot preparation (attempt {}/30)", taskId, attempt + 1);
-            Thread.sleep(10_000);
+            Thread.sleep(IDLE_DELAY_MS);
         }
         if (snapshotName == null) {
             throw new DebeziumException(String.format("Smart snapshot [task-%s]: Timed out waiting for snapshot preparation", taskId));
         }
 
-        LOGGER.info("Smart snapshot: [task-{}] got snapshot='{}', LSN={}, tableSubset={} executing snapshot-only, epoch={}",
+        LOGGER.info("Smart snapshot: [task-{}] Read snapshot info, snapshot='{}', LSN={}, tableSubset={} executing snapshot-only, epoch={}",
                 taskId, snapshotName, slotLsnStr, tableSubset, epoch);
 
         // Set snapshot name, LSN, and coordination on the source
@@ -177,7 +178,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
 
         try {
             SnapshotResult<PostgresOffsetContext> snapshotResult = doSnapshot(snapshotSource, context, partition, previousOffset);
-            LOGGER.info("Smart snapshot: [task-{}] snapshot completed status={}", taskId, snapshotResult.getStatus());
+            LOGGER.info("Smart snapshot: [task-{}] Snapshot completed status={}", taskId, snapshotResult.getStatus());
         }
         catch (InterruptedException e) {
             throw e; // shutdown — not a snapshot failure, do not signal restart
@@ -188,10 +189,10 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
             // so the epoch must bump to throw that work away. The topic is likely still up (the failure was
             // in the snapshot, not the write), so the signal should go through and the monitor acts on its
             // next poll. If the write also fails, writeRestartNeeded throws and the marker handles it on restart.
-            LOGGER.warn("Smart snapshot: [task-{}] snapshot failed for the epoch {}, signaling restart_needed", taskId, epoch, e);
+            LOGGER.warn("Smart snapshot: [task-{}] Snapshot failed for the epoch {}, signaling restart_needed", taskId, epoch, e);
             writeRestartNeeded();
             throw e instanceof RuntimeException ? (RuntimeException) e
-                    : new DebeziumException(String.format("Smart snapshot: [task-%s], epoch-%s snapshot failed", taskId, epoch), e);
+                    : new DebeziumException(String.format("Smart snapshot: [task-%s] Snapshot failed for the epoch %s, signaling restart_needed", taskId, epoch), e);
         }
 
         writeCompleted();
@@ -217,9 +218,9 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
     private void idleUntilRestart(ChangeEventSourceContext context) throws InterruptedException {
         int counter = 0;
         while (context.isRunning()) {
-            Thread.sleep(10_000);
+            Thread.sleep(IDLE_DELAY_MS);
             if (counter % 3 == 0) { // log every 30 second
-                LOGGER.info("Smart snapshot: task {} is idling", taskId);
+                LOGGER.info("Smart snapshot: [task-{}] is idling", taskId);
             }
             counter++;
         }
