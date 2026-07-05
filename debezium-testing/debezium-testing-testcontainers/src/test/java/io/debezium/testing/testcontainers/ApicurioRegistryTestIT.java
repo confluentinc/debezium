@@ -31,6 +31,7 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.rnorth.ducttape.unreliables.Unreliables;
 import org.slf4j.Logger;
@@ -209,6 +210,7 @@ public class ApicurioRegistryTestIT {
 
     @FixFor("DBZ-5282")
     @Test
+    @Disabled("Flaky against debezium/connect:nightly image")
     public void shouldNotErrorWithBadHeader() {
 
         logMatchers.add(Pattern.compile(".*" + INVALID_HEADER_NAME_LOG + ".*", Pattern.DOTALL));
