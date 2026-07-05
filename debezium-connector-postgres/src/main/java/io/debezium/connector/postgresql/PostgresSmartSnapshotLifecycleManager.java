@@ -110,8 +110,14 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
         this.clock = clock;
     }
 
+    /**
+     * These three methods share the held connections and can be called from two threads at once (the leader
+     * prep thread and the task-stop path). 'synchronized' runs them one at a time so a release can't close a
+     * connection that keepAlive/prepare is still using. It's reentrant, so prepareSnapshot's error-path
+     * releaseSnapshot() still works.
+     */
     @Override
-    public SnapshotSetup prepareSnapshot(boolean shouldStream) {
+    public synchronized SnapshotSetup prepareSnapshot(boolean shouldStream) {
         SlotCreateOrExportResult slotCreateOrExportResult;
 
         if (shouldStream) {
@@ -283,7 +289,7 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
     }
 
     @Override
-    public void keepAlive() {
+    public synchronized void keepAlive() {
         pingOrThrow(snapshotHolderConnection, "snapshot-holder");
         pingOrThrow(schemaSnapshotConnection, "schema-snapshot-holder");
         ReplicationConnection replicationConnectionCopy = this.replicationConnection;
@@ -313,7 +319,7 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
     }
 
     @Override
-    public void releaseSnapshot() {
+    public synchronized void releaseSnapshot() {
         ReplicationConnection replicationConn = this.replicationConnection;
         this.replicationConnection = null;
         if (replicationConn != null) {
