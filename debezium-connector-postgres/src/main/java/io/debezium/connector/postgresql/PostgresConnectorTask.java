@@ -139,6 +139,8 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
         schema = new PostgresSchema(connectorConfig, defaultValueConverter, topicNamingStrategy, valueConverter);
 
+        // if the feature is enabled and taskId is null in ideal scenario the task should be streaming
+        // if it is a data snapshot task with feature enabled, it continues with single task data snapshot
         isSmartSnapshotTask = connectorConfig.isSmartSnapshotEnabled() && connectorConfig.getTaskId() != null;
 
         this.taskContext = isSmartSnapshotTask
@@ -553,7 +555,12 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                                                                                                           SignalProcessor<PostgresPartition, PostgresOffsetContext> signalProcessor,
                                                                                                           PostgresEventMetadataProvider metadataProvider, Clock clock,
                                                                                                           PostgresSchema schema) {
-        int epoch = Integer.parseInt(config.getString(SnapshotCoordinationFacade.EPOCH, "1"));
+        if (config.getString(SnapshotCoordinationFacade.EPOCH) == null || config.getString(SnapshotCoordinationFacade.NUM_TASKS) == null) {
+            // if taskId is null, we would never enter this branch
+            throw new DebeziumException(String.format("Smart snapshot: [task-%s] Failing as required configs [epoch, num_tasks] are missing.", connectorConfig.getTaskId()));
+        }
+
+        int epoch = Integer.parseInt(config.getString(SnapshotCoordinationFacade.EPOCH));
         LOGGER.info("Smart snapshot: task-{} epoch={}", connectorConfig.getTaskId(), epoch);
 
         this.snapshotCoordination = new SnapshotCoordinationFacade(config, connectorConfig);
@@ -570,12 +577,13 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
             final int leaderEpoch = epoch;
             final boolean shouldStream = !PostgresConnectorConfig.SnapshotMode.INITIAL_ONLY.getValue()
                     .equals(connectorConfig.getSnapshotMode().getValue());
-            final int numTasks = Integer.parseInt(config.getString(SnapshotCoordinationFacade.NUM_TASKS, "1"));
+            final int numTasks = Integer.parseInt(config.getString(SnapshotCoordinationFacade.NUM_TASKS));
             final PostgresSmartSnapshotLifecycleManager lifecycle = new PostgresSmartSnapshotLifecycleManager(
                     connectorConfig, connectionFactory, taskContext, snapshotterService,
                     schema, dispatcher, notificationService, clock);
             this.smartSnapshotLifecycleManager = lifecycle;
 
+            // only used for logging
             final PostgresPartition leaderPartition = new PostgresPartition(connectorConfig.getConnectorName(), "", "0");
             this.smartSnapshotPreparationThread = new Thread(
                     new LeaderSnapshotPreparation(lifecycle, this.snapshotCoordination, this.errorHandler,
