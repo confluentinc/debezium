@@ -39,7 +39,8 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
 
     private static final Logger LOGGER = LoggerFactory.getLogger(
             PostgresSmartSnapshotChangeEventSourceCoordinator.class);
-    private static final int retryCount = 30;
+    private static final int SNAPSHOT_INFO_POLL_RETRY_COUNT = 30;
+    private static final int IDLE_WAIT_COUNT = 30;
     private static final int IDLE_DELAY_MS = 10_000;
 
     private final int epoch;
@@ -144,7 +145,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         String snapshotName = null;
         String slotLsnStr = null;
         List<TableId> tableSubset = null;
-        for (int attempt = 0; attempt < retryCount; attempt++) {
+        for (int attempt = 0; attempt < SNAPSHOT_INFO_POLL_RETRY_COUNT; attempt++) {
             Map<String, Object> snapshotInfo = snapshotCoordination.readSnapshotInfo();
             if (snapshotInfo != null
                     && snapshotInfo.get(SnapshotCoordinationFacade.SNAPSHOT_NAME) != null) {
@@ -216,13 +217,17 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
     }
 
     private void idleUntilRestart(ChangeEventSourceContext context) throws InterruptedException {
-        int counter = 0;
-        while (context.isRunning()) {
-            Thread.sleep(IDLE_DELAY_MS);
-            if (counter % 3 == 0) { // log every 30 second
-                LOGGER.info("Smart snapshot: [task-{}] is idling", taskId);
+        // can't wait forever for restart, what if the monitor thread on connector dies?
+        // wait for 5 mins
+        for (int i = 0; i < IDLE_WAIT_COUNT; i++) {
+            if (context.isRunning()) {
+                Thread.sleep(IDLE_DELAY_MS);
+                if (i % 3 == 0) { // log every 30 second
+                    LOGGER.info("Smart snapshot: [task-{}] is idling", taskId);
+                }
+            } else {
+                return;
             }
-            counter++;
         }
     }
 
