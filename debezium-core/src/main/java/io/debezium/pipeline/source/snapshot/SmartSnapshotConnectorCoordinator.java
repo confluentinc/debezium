@@ -34,6 +34,11 @@ public class SmartSnapshotConnectorCoordinator {
     private final String serverName;
     private final long monitorPollIntervalMs;
 
+    // Guards the state machine (smartSnapshotState + currentEpoch + lastNumTasks + lastHandledRestartEpoch),
+    // which is read/written by both the monitor thread (monitorTick) and the connector thread (taskConfigs).
+    // Coordination-topic I/O and requestTaskReconfiguration are always done OUTSIDE this lock.
+    private final Object stateLock = new Object();
+
     /*
      * Performs 2 monitoring operations:
      * 1. check if any task has signalled for a restart, if yes set snapshot state to RESTART and invoke
@@ -132,30 +137,49 @@ public class SmartSnapshotConnectorCoordinator {
      * Builds the task list. The same inputs (topic + offsets + maxTasks) always give the same output.
      */
     public List<Map<String, String>> taskConfigs(int maxTasks, Map<String, String> baseProps) {
+        boolean complete = false;
+        boolean epochBumped = false;
+        final int numTasks = maxTasks;
+        final int epoch;
 
-        switch (smartSnapshotState) {
-            case COMPLETE:
-                LOGGER.info("Smart snapshot: Complete, marking completion and downscaling");
-                writeCompletion();
-                return null;
-            case RESTART:
-                int past = currentEpoch.get();
-                int next = currentEpoch.incrementAndGet();
-                persistEpoch(next); // save the new epoch before handing out configs
-                LOGGER.info("Smart snapshot: Epoch restart {} -> {}", past, next);
-                this.smartSnapshotState = SmartSnapshotState.ACTIVE;
-                break;
-            case ACTIVE:
-                break;
+        // Decide the transition atomically; do the coordination-topic writes afterwards, outside the lock,
+        // so a slow Kafka write never blocks the monitor thread.
+        synchronized (stateLock) {
+            switch (smartSnapshotState) {
+                case COMPLETE:
+                    complete = true;
+                    break;
+                case RESTART:
+                    int past = currentEpoch.get();
+                    int next = currentEpoch.incrementAndGet();
+                    LOGGER.info("Smart snapshot: Epoch restart {} -> {}", past, next);
+                    this.smartSnapshotState = SmartSnapshotState.ACTIVE;
+                    epochBumped = true;
+                    break;
+                case ACTIVE:
+                    break;
+            }
+            if (!complete) {
+                this.lastNumTasks = numTasks;
+            }
+            epoch = currentEpoch.get();
         }
 
-        int numTasks = maxTasks;
-        this.lastNumTasks = numTasks;
+        if (complete) {
+            LOGGER.info("Smart snapshot: Complete for the epoch {}, marking completion and downscaling", epoch);
+            writeCompletion();
+            return null;
+        }
+        if (epochBumped) {
+            // save the new epoch before handing out configs
+            persistEpoch(epoch);
+        }
+
         List<Map<String, String>> out = new ArrayList<>();
         for (int i = 0; i < numTasks; i++) {
             Map<String, String> taskProps = new HashMap<>(baseProps);
             taskProps.put(ConfigurationNames.TASK_ID_PROPERTY_NAME, String.valueOf(i));
-            taskProps.put(SnapshotCoordinationFacade.EPOCH, String.valueOf(currentEpoch.get()));
+            taskProps.put(SnapshotCoordinationFacade.EPOCH, String.valueOf(epoch));
             taskProps.put(SnapshotCoordinationFacade.NUM_TASKS, String.valueOf(numTasks));
             out.add(taskProps);
         }
@@ -174,7 +198,7 @@ public class SmartSnapshotConnectorCoordinator {
                     // todo verify the behaviour if we return here
                     return;
                 }
-                if (monitorTick()) {
+                if (monitorIteration()) {
                     // snapshot completed for this epoch; monitor is done
                     return;
                 }
@@ -186,52 +210,65 @@ public class SmartSnapshotConnectorCoordinator {
 
     /**
      * One monitor iteration. Returns true when the snapshot is complete (the monitor should stop);
-     * false to keep polling. Visible for testing so the decision logic can be exercised without the sleep.
+     * false to keep polling.
      */
-    boolean monitorTick() {
-        if (lastNumTasks <= 0) {
-            return false;
-        }
+    boolean monitorIteration() {
+        boolean requestReconfiguration = false;
+        boolean complete = false;
 
-        int epoch = currentEpoch.get();
+        // The reads below hit the coordination cache (non-blocking), so the whole decision is taken under the
+        // lock; only requestTaskReconfiguration is fired afterwards, outside the lock.
+        synchronized (stateLock) {
+            // Task count not established yet: taskConfigs() (which sets lastNumTasks) is called by runtime
+            // only after start() returns, but the monitor thread is already running. Skip the tick until then —
+            // otherwise the completion loop below runs zero iterations, leaves allComplete=true,
+            // and would falsely downscale before any task has started
+            if (lastNumTasks <= 0) {
+                return false;
+            }
 
-        // 1. restart_needed — always checked, before the completion check; act on each epoch only once
-        boolean restart = false;
-        for (int i = 0; i < lastNumTasks; i++) {
-            boolean restartNeeded = snapshotCoordination.isRestartNeeded(String.valueOf(i), epoch);
-            if (restartNeeded) {
-                LOGGER.info("Smart snapshot: Task {} restart_needed for the epoch {}", i, epoch);
-                restart = true;
-                break;
+            int epoch = currentEpoch.get();
+
+            // 1. restart_needed — always checked, before the completion check; act on each epoch only once
+            boolean restart = false;
+            for (int i = 0; i < lastNumTasks; i++) {
+                if (snapshotCoordination.isRestartNeeded(String.valueOf(i), epoch)) {
+                    LOGGER.info("Smart snapshot: Task {} restart_needed for the epoch {}", i, epoch);
+                    restart = true;
+                    break;
+                }
+            }
+            if (restart) {
+                // handle each epoch only once
+                if (epoch > lastHandledRestartEpoch) {
+                    LOGGER.info("Smart snapshot: Detected restart required for the epoch {}, bumping the epoch and reconfiguring", epoch);
+                    lastHandledRestartEpoch = epoch;
+                    smartSnapshotState = SmartSnapshotState.RESTART;
+                    requestReconfiguration = true;
+                }
+            }
+            else {
+                // 2. all complete for the epoch → downscale
+                boolean allComplete = true;
+                for (int i = 0; i < lastNumTasks; i++) {
+                    if (!snapshotCoordination.isDone(String.valueOf(i), epoch)) {
+                        allComplete = false;
+                        break;
+                    }
+                }
+                if (allComplete) {
+                    LOGGER.info("Smart snapshot: All {} tasks complete for the epoch {}, downscaling", lastNumTasks, epoch);
+                    smartSnapshotState = SmartSnapshotState.COMPLETE;
+                    requestReconfiguration = true;
+                    complete = true;
+                }
             }
         }
-        if (restart) {
-            // handle each epoch only once
-            if (epoch > lastHandledRestartEpoch) {
-                LOGGER.info("Smart snapshot: Detected restart required for the epoch {}, bumping the epoch and reconfiguring", epoch);
-                lastHandledRestartEpoch = epoch;
-                smartSnapshotState = SmartSnapshotState.RESTART;
-                connectorContext.requestTaskReconfiguration();
-            }
-            return false;
-        }
 
-        // 2. all complete for the epoch → downscale
-        boolean allComplete = true;
-        for (int i = 0; i < lastNumTasks; i++) {
-            boolean done = snapshotCoordination.isDone(String.valueOf(i), epoch);
-            if (!done) {
-                allComplete = false;
-                break;
-            }
-        }
-        if (allComplete) {
-            LOGGER.info("Smart snapshot: All {} tasks complete for the epoch {}, downscaling", lastNumTasks, epoch);
-            smartSnapshotState = SmartSnapshotState.COMPLETE;
+        if (requestReconfiguration) {
             connectorContext.requestTaskReconfiguration();
-            return true;
         }
-        return false;
+        return complete;
     }
 
     public boolean isComplete() {

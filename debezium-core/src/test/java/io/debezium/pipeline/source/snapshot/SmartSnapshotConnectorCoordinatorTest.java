@@ -7,6 +7,7 @@ package io.debezium.pipeline.source.snapshot;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -17,6 +18,9 @@ import static org.mockito.Mockito.when;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.kafka.connect.source.SourceConnectorContext;
 import org.apache.kafka.connect.storage.OffsetStorageReader;
@@ -105,11 +109,11 @@ public class SmartSnapshotConnectorCoordinatorTest {
     }
 
     @Test
-    public void restartTickBumpsEpochOnNextTaskConfigs() {
+    public void restartBumpsEpochOnNextTaskConfigs() {
         coordinator.taskConfigs(2, baseProps()); // sets numTasks = 2, epoch = 0
         when(facade.isRestartNeeded("0", 1)).thenReturn(true);
 
-        assertThat(coordinator.monitorTick()).isFalse();
+        assertThat(coordinator.monitorIteration()).isFalse();
         verify(connectorContext).requestTaskReconfiguration();
 
         List<Map<String, String>> next = coordinator.taskConfigs(2, baseProps());
@@ -118,14 +122,14 @@ public class SmartSnapshotConnectorCoordinatorTest {
     }
 
     @Test
-    public void allTasksDoneTickCompletesAndTaskConfigsWritesCompletion() {
+    public void allTasksDoneCompletesAndTaskConfigsWritesCompletion() {
         coordinator.taskConfigs(2, baseProps()); // numTasks = 2, epoch = 0
         when(facade.isRestartNeeded(anyString(), eq(1))).thenReturn(false);
         when(facade.isDone("0", 1)).thenReturn(true);
         when(facade.isDone("1", 1)).thenReturn(true);
         when(facade.readSnapshotInfo()).thenReturn(Collect.hashMapOf(SnapshotCoordinationFacade.CONSISTENT_POINT, "0/16B3748"));
 
-        assertThat(coordinator.monitorTick()).isTrue();
+        assertThat(coordinator.monitorIteration()).isTrue();
         verify(connectorContext).requestTaskReconfiguration();
         assertThat(coordinator.isComplete()).isTrue();
 
@@ -183,6 +187,43 @@ public class SmartSnapshotConnectorCoordinatorTest {
 
         assertThat(coordinator.isComplete()).isFalse();
         verify(facade, times(1)).writeEpoch(1);
+    }
+
+    // monitorIteration() and taskConfigs() must serialize on the same lock so the
+    // state-machine transition can't interleave. Block monitorIteration inside its critical section (a coordination
+    // read blocks) and assert taskConfigs cannot proceed until it is released.
+    @Test
+    public void monitorIterationAndTaskConfigsAreMutuallyExclusive() throws Exception {
+        coordinator.taskConfigs(2, baseProps()); // sets lastNumTasks=2, state ACTIVE
+
+        CountDownLatch inRead = new CountDownLatch(1);
+        CountDownLatch proceed = new CountDownLatch(1);
+        when(facade.isRestartNeeded(anyString(), anyInt())).thenAnswer(inv -> {
+            inRead.countDown();
+            proceed.await();
+            return false;
+        });
+
+        Thread monitor = new Thread(coordinator::monitorIteration, "monitor");
+        monitor.start();
+        // monitorIteration holds the lock, blocked in isRestartNeeded
+        assertThat(inRead.await(5, TimeUnit.SECONDS)).isTrue();
+
+        AtomicBoolean taskConfigsReturned = new AtomicBoolean(false);
+        Thread cfg = new Thread(() -> {
+            coordinator.taskConfigs(2, baseProps());
+            taskConfigsReturned.set(true);
+        }, "taskConfigs");
+        cfg.start();
+
+        Thread.sleep(300);
+        // excluded while monitorIteration holds the state lock
+        assertThat(taskConfigsReturned).isFalse();
+
+        proceed.countDown();
+        monitor.join(2000);
+        cfg.join(2000);
+        assertThat(taskConfigsReturned).isTrue();
     }
 
     private static Map<String, String> baseProps() {
