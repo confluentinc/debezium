@@ -323,8 +323,8 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
         SlotCreationResult slotCreatedInfo = null;
         if (snapshotter.shouldStream()) {
-            replicationConnection = taskContext.createReplicationConnectionWithRetry(jdbcConnection,
-                    connectorConfig.dropSlotOnStop());
+            replicationConnection = createReplicationConnection(this.taskContext,
+                    connectorConfig.maxRetries(), connectorConfig.retryDelay());
 
             // we need to create the slot before we start streaming if it doesn't exist
             // otherwise we can't stream back changes happening while the snapshot is taking place
@@ -367,12 +367,19 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
         ReplicationConnection get() throws SQLException;
     }
 
+    public ReplicationConnection createReplicationConnection(PostgresTaskContext taskContext, int maxRetries, Duration retryDelay)
+            throws ConnectException {
+        return createReplicationConnectionWithRetry(
+                () -> taskContext.createReplicationConnection(jdbcConnection), maxRetries, retryDelay);
+    }
+
     // shared retry loop — used by the task's instance method AND the lifecycle
     public static ReplicationConnection createReplicationConnectionWithRetry(
                                                                              ReplicationConnectionSupplier supplier, int maxRetries, Duration retryDelay)
             throws ConnectException {
         final Metronome metronome = Metronome.parker(retryDelay, Clock.SYSTEM);
         short retryCount = 0;
+        ReplicationConnection replicationConnection = null;
         while (retryCount <= maxRetries) {
             try {
                 return supplier.get();
@@ -383,23 +390,19 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                     LOGGER.error("Too many errors connecting to server. All {} retries failed.", maxRetries);
                     throw new ConnectException(ex);
                 }
-                LOGGER.warn("Error connecting to server; retry {} of {} after {}s: {}",
-                        retryCount, maxRetries, retryDelay.getSeconds(), ex.getMessage());
+
+                LOGGER.warn("Error connecting to server; will attempt retry {} of {} after {} " +
+                        "seconds. Exception message: {}", retryCount, maxRetries, retryDelay.getSeconds(), ex.getMessage());
                 try {
                     metronome.pause();
                 }
                 catch (InterruptedException e) {
+                    LOGGER.warn("Connection retry sleep interrupted by exception: " + e);
                     Thread.currentThread().interrupt();
                 }
             }
         }
-        throw new ConnectException("Failed to create replication connection");
-    }
-
-    public ReplicationConnection createReplicationConnection(PostgresTaskContext taskContext, int maxRetries, Duration retryDelay)
-            throws ConnectException {
-        return createReplicationConnectionWithRetry(
-                () -> taskContext.createReplicationConnection(jdbcConnection), maxRetries, retryDelay);
+        return replicationConnection;
     }
 
     @Override
@@ -760,7 +763,8 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                 return syntheticOffset;
             }
             return null;
-        } finally {
+        }
+        finally {
             facade.stop();
         }
     }

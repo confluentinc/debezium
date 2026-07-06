@@ -8,7 +8,6 @@ package io.debezium.connector.postgresql;
 
 import java.sql.SQLException;
 
-import org.apache.kafka.connect.errors.ConnectException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,7 +21,6 @@ import io.debezium.relational.TableId;
 import io.debezium.spi.topic.TopicNamingStrategy;
 import io.debezium.util.Clock;
 import io.debezium.util.ElapsedTimeStrategy;
-import io.debezium.util.Metronome;
 
 /**
  * The context of a {@link PostgresConnectorTask}. This deals with most of the brunt of reading various configuration options
@@ -128,33 +126,5 @@ public class PostgresTaskContext extends CdcSourceTaskContext {
                 .withSchema(schema)
                 .jdbcMetadataConnection(jdbcConnection)
                 .build();
-    }
-
-    // shared retry loop — used by the task AND the lifecycle:
-    public ReplicationConnection createReplicationConnectionWithRetry(PostgresConnection metadataConnection, boolean dropSlotOnClose) {
-        final Metronome metronome = Metronome.parker(config().retryDelay(), Clock.SYSTEM);
-        short retryCount = 0;
-        final int maxRetries = config().maxRetries();
-        while (retryCount <= maxRetries) {
-            try {
-                return createReplicationConnection(metadataConnection, dropSlotOnClose);
-            }
-            catch (SQLException ex) {
-                retryCount++;
-                if (retryCount > maxRetries) {
-                    LOGGER.error("Too many errors connecting to server. All {} retries failed.", maxRetries);
-                    throw new ConnectException(ex);
-                }
-                LOGGER.warn("Error connecting to server; retry {} of {} after {}s: {}",
-                        retryCount, maxRetries, config().retryDelay().getSeconds(), ex.getMessage());
-                try {
-                    metronome.pause();
-                }
-                catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            }
-        }
-        throw new ConnectException("Failed to create replication connection");
     }
 }
