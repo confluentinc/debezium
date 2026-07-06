@@ -109,7 +109,8 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
             return Collections.emptyList();
 
         Configuration config = Configuration.from(props);
-        if (smartSnapshotApplies(config) && smartSnapshotConnectorCoordinator != null) {
+        SmartSnapshotConnectorCoordinator oldCoordinator = this.smartSnapshotConnectorCoordinator;
+        if (smartSnapshotApplies(config) && oldCoordinator != null) {
             if (maxTasks > 1) {
                 List<Map<String, String>> configs = smartSnapshotConnectorCoordinator.taskConfigs(maxTasks, props);
                 if (configs != null) {
@@ -120,7 +121,7 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
             // 1. the smart snapshot was complete, just fall through to single config
             // 2. maxTasks was 1
             // for either of the cases cleanup the coordinator as it is no longer needed
-            smartSnapshotConnectorCoordinator.stop();
+            oldCoordinator.stop();
             smartSnapshotConnectorCoordinator = null;
         }
 
