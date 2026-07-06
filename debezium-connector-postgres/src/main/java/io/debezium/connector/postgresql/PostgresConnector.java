@@ -80,6 +80,12 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         // if number of task is 1 and above conditions apply we do some wasteful work here
         // but all of that is cleared up in the taskConfigs method
         if (smartSnapshotApplies(config)) {
+            Integer maxTask = config.getInteger("tasks.max");
+            if (maxTask != null && maxTask <= 1) {
+                // todo check if runtime passes tasks.max correctly
+                LOGGER.info("Smart snapshot is enabled but since the number of tasks is less than 1, falling back to feature disabled behaviour");
+                return;
+            }
             PostgresConnectorConfig connectorConfig = new PostgresConnectorConfig(config);
 
             if (!SnapshotCoordinationFacade.hasCoordinationBootstrap(config, connectorConfig)) {
