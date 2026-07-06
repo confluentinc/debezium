@@ -37,7 +37,7 @@ public class PostgresSmartSnapshotLifecycleManagerTest {
                 mock(PostgresSchema.class),
                 mock(EventDispatcher.class),
                 mock(NotificationService.class),
-                Clock.system());
+                Clock.system(), 1);
     }
 
     private static void setField(Object target, String name, Object value) throws Exception {

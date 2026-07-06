@@ -70,6 +70,7 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
     private final MainConnectionProvidingConnectionFactory<PostgresConnection> connectionFactory;
     private final PostgresTaskContext taskContext;
     private final SnapshotterService snapshotterService;
+    private final Integer epoch;
 
     // needed specifically to build inner class PostgresSmartSnapshotLeaderSchemaSource
     private final PostgresSchema schema;
@@ -91,7 +92,7 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
 
     // The leader's schema-snapshot connection: imports the shared snapshot (SET TRANSACTION SNAPSHOT),
     // discovers the tables under it, and holds ACCESS SHARE (if configured via snapshot.locking.mode) on them.
-    // Kept open until onAllTasksJoined / release.
+    // Kept open until onAllTasksTransactionStarted / release.
     private PostgresConnection schemaSnapshotConnection;
 
     // Once true, prepareSnapshot() must not retain any newly opened connection.
@@ -107,11 +108,13 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
                                                  MainConnectionProvidingConnectionFactory<PostgresConnection> connectionFactory,
                                                  PostgresTaskContext taskContext, SnapshotterService snapshotterService,
                                                  PostgresSchema schema, EventDispatcher<PostgresPartition, TableId> dispatcher,
-                                                 NotificationService<PostgresPartition, PostgresOffsetContext> notificationService, Clock clock) {
+                                                 NotificationService<PostgresPartition, PostgresOffsetContext> notificationService,
+                                                 Clock clock, Integer epoch) {
         this.connectorConfig = connectorConfig;
         this.connectionFactory = connectionFactory;
         this.taskContext = taskContext;
         this.snapshotterService = snapshotterService;
+        this.epoch = epoch;
 
         // needed specifically to build inner class PostgresSmartSnapshotLeaderSchemaSource
         this.schema = schema;
@@ -140,10 +143,10 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
             // This logic is similar to the feature disabled path in PostgresConnectorTask#start
             SlotState slotInfo = getSlotState();
             if (slotInfo == null) {
-                LOGGER.warn("Smart snapshot: Unable to load info of replication slot, Debezium will try to create the slot");
+                LOGGER.warn("Smart snapshot: Unable to load info of replication slot, Debezium will try to create the slot, epoch {}", epoch);
                 if (connectorConfig.isReadOnlyConnection()) {
                     LOGGER.warn("Connector is configured to be in read-only mode but replication slot was not found.\n" +
-                            "The attempt to create it can fail. Please check you configuration in case.");
+                            "The attempt to create it can fail. Please check you configuration in case. epoch {}", epoch);
                 }
                 slotCreateOrExportResult = createSlotViaReplicationProtocol();
             }
@@ -182,20 +185,20 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
             PostgresLeaderSchemaSource leaderSource = new PostgresLeaderSchemaSource(
                     connectorConfig, snapshotterService, heldFactory, schema, dispatcher, clock, notificationService,
                     slotCreateOrExportResult.getSlotCreationResult(), slotCreateOrExportResult.getStartingSlotState(),
-                    slotCreateOrExportResult.getCurrentSnapshotName());
+                    slotCreateOrExportResult.getCurrentSnapshotName(), epoch);
             PostgresPartition leaderPartition = new PostgresPartition(connectorConfig.getConnectorName(), "", "0");
             List<TableId> tables = leaderSource.discoverAndLock(leaderPartition, RUNNING_CONTEXT);
             return new SnapshotSetup(slotCreateOrExportResult.getCurrentSnapshotName(), slotCreateOrExportResult.getCurrentSlotLsn(), tables);
         }
         catch (Exception e) {
             releaseSnapshot();
-            throw new DebeziumException("Smart snapshot: [Leader] Failed to import/discover/lock the exported snapshot", e);
+            throw new DebeziumException("Smart snapshot: [Leader] Failed to import/discover/lock the exported snapshot for the epoch: " + epoch, e);
         }
     }
 
     @Override
-    public void onAllTasksJoined() {
-        LOGGER.info("Smart snapshot: [Leader] All tasks joined.");
+    public void onAllTasksStartedTransaction() {
+        LOGGER.info("Smart snapshot: [Leader] All tasks started their transaction for the epoch {}.", epoch);
         releaseSnapshot();
     }
 
@@ -206,7 +209,7 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
                     connectorConfig.plugin().getPostgresPluginName());
         }
         catch (SQLException e) {
-            LOGGER.warn("Smart snapshot: [Leader] Could not check slot state", e);
+            LOGGER.warn("Smart snapshot: [Leader] Could not check slot state for the epoch {}", epoch, e);
             return null;
         }
     }
@@ -217,24 +220,24 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
 
         if (connectorConfig.isReadOnlyConnection()) {
             LOGGER.warn("Smart snapshot: [Leader] Connector is configured to be in read-only mode but replication slot "
-                    + "was not found. The attempt to create it can fail.");
+                    + "was not found. The attempt to create it can fail, epoch {}", epoch);
         }
 
         try {
             SlotCreationResult result = replConn.createReplicationSlot()
-                    .orElseThrow(() -> new DebeziumException("Smart snapshot: [Leader] Slot creation returned no result"));
+                    .orElseThrow(() -> new DebeziumException("Smart snapshot: [Leader] Slot creation returned no result, epoch: " + epoch));
 
             String currentSlotLsn = result.startLsn().asString();
             String currentSnapshotName = result.snapshotName();
 
-            LOGGER.info("Smart snapshot: [Leader] Created slot '{}', LSN={}, snapshot='{}'",
-                    connectorConfig.slotName(), currentSlotLsn, currentSnapshotName);
+            LOGGER.info("Smart snapshot: [Leader] Created slot '{}', LSN={}, snapshot='{}', epoch='{}'",
+                    connectorConfig.slotName(), currentSlotLsn, currentSnapshotName, epoch);
 
             return new SlotCreateOrExportResult(result, null, currentSnapshotName, currentSlotLsn);
         }
         catch (SQLException ex) {
             releaseSnapshot();
-            String message = "Smart snapshot: [Leader] Creation of replication slot failed";
+            String message = "Smart snapshot: [Leader] Creation of replication slot failed for the epoch: " + epoch;
             if (ex.getMessage() != null && ex.getMessage().contains("already exists")) {
                 message += "; when setting up multiple connectors for the same database host, "
                         + "please make sure to use a distinct replication slot name for each.";
@@ -264,12 +267,12 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
             String walBefore = holder.queryAndMap(
                     "SELECT pg_current_wal_lsn()::text",
                     holder.singleResultMapper(
-                            rs -> rs.getString(1), "Failed to get WAL LSN"));
+                            rs -> rs.getString(1), "Smart snapshot: [Leader] Failed to get WAL LSN for the epoch: " + epoch));
 
             String currentSnapshotName = holder.queryAndMap(
                     "SELECT pg_export_snapshot()",
                     holder.singleResultMapper(
-                            rs -> rs.getString(1), "Failed to export snapshot"));
+                            rs -> rs.getString(1), "Smart snapshot: [Leader] Failed to export snapshot for the epoch: " + epoch));
 
             String currentSlotLsn;
             if (slotInfo != null && slotInfo.slotLastFlushedLsn() != null) {
@@ -278,14 +281,14 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
             else {
                 currentSlotLsn = walBefore;
             }
-            LOGGER.info("Smart snapshot: [Leader] exported snapshot '{}', LSN={}",
-                    currentSnapshotName, currentSlotLsn);
+            LOGGER.info("Smart snapshot: [Leader] exported snapshot '{}', LSN={}, epoch={}",
+                    currentSnapshotName, currentSlotLsn, epoch);
 
             return new SlotCreateOrExportResult(null, slotInfo, currentSnapshotName, currentSlotLsn);
         }
         catch (SQLException e) {
             releaseSnapshot();
-            throw new DebeziumException("Smart snapshot: Failed to export snapshot", e);
+            throw new DebeziumException("Smart snapshot: Failed to export snapshot for the epoch: " + epoch, e);
         }
     }
 
@@ -301,21 +304,21 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
             String currentSlotLsn = holder.queryAndMap(
                     "SELECT pg_current_wal_lsn()::text",
                     holder.singleResultMapper(
-                            rs -> rs.getString(1), "Failed to get WAL LSN"));
+                            rs -> rs.getString(1), "Failed to get WAL LSN for the epoch: " + epoch));
 
             String currentSnapshotName = holder.queryAndMap(
                     "SELECT pg_export_snapshot()",
                     holder.singleResultMapper(
-                            rs -> rs.getString(1), "Failed to export snapshot"));
+                            rs -> rs.getString(1), "Failed to export snapshot for the epoch: " + epoch));
 
-            LOGGER.info("Smart snapshot: [Leader] (no-stream) exported snapshot '{}', LSN={}",
-                    currentSnapshotName, currentSlotLsn);
+            LOGGER.info("Smart snapshot: [Leader] (no-stream) exported snapshot '{}', LSN={}, epoch={}",
+                    currentSnapshotName, currentSlotLsn, epoch);
 
             return new SlotCreateOrExportResult(null, null, currentSnapshotName, currentSlotLsn);
         }
         catch (SQLException e) {
             releaseSnapshot();
-            throw new DebeziumException("Smart snapshot: [Leader] Failed to export snapshot", e);
+            throw new DebeziumException("Smart snapshot: [Leader] Failed to export snapshot for the epoch: " + epoch, e);
         }
     }
 
@@ -338,11 +341,11 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
         if (replicationConn != null) {
             try {
                 if (!replicationConn.isConnected()) {
-                    throw new DebeziumException("Smart snapshot: [Leader] replication connection is no longer connected");
+                    throw new DebeziumException("Smart snapshot: [Leader] replication connection is no longer connected for the epoch: " + epoch);
                 }
             }
             catch (SQLException e) {
-                throw new DebeziumException("Smart snapshot: [Leader] replication connection liveness check failed", e);
+                throw new DebeziumException("Smart snapshot: [Leader] replication connection liveness check failed for the epoch: " + epoch, e);
             }
         }
     }
@@ -356,7 +359,7 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
             conn.executeWithoutCommitting("SELECT 1");
         }
         catch (SQLException e) {
-            throw new DebeziumException("Smart snapshot: [Leader] " + identifier + " connection is dead (held snapshot lost)", e);
+            throw new DebeziumException("Smart snapshot: [Leader] " + identifier + " connection is dead (held snapshot lost) for the epoch: " + epoch, e);
         }
     }
 
@@ -384,10 +387,10 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
         // Close the connections without holding the lock. For a connection that is busy with a
         // query, close() waits up to WAIT_FOR_CLOSE_SECONDS and then aborts it. This stops a
         // prepareSnapshot() that is waiting on a query on the leader prep thread.
-        closeQuietly(replicationConn, "replication");
-        closeQuietly(snapshotHolderConn, "snapshot holder");
-        closeQuietly(schemaSnapshotConn, "schema snapshot holder");
-        closeQuietly(replicationMetadataConn, "replication metadata");
+        closeQuietly(replicationConn, "replication", epoch);
+        closeQuietly(snapshotHolderConn, "snapshot holder", epoch);
+        closeQuietly(schemaSnapshotConn, "schema snapshot holder", epoch);
+        closeQuietly(replicationMetadataConn, "replication metadata", epoch);
     }
 
     /**
@@ -409,12 +412,12 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
             stateLock.unlock();
         }
         if (alreadyReleased) {
-            closeQuietly(resource, "opened after release");
-            throw new DebeziumException("Smart snapshot: [Leader] Snapshot released during preparation; aborting");
+            closeQuietly(resource, "opened after release", epoch);
+            throw new DebeziumException("Smart snapshot: [Leader] Snapshot released during preparation; aborting for the epoch: " + epoch);
         }
     }
 
-    private static void closeQuietly(AutoCloseable resource, String identifier) {
+    private static void closeQuietly(AutoCloseable resource, String identifier, Integer epoch) {
         if (resource == null) {
             return;
         }
@@ -422,7 +425,7 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
             resource.close();
         }
         catch (Exception e) {
-            LOGGER.warn("Smart snapshot: [Leader] Error closing {} connection", identifier, e);
+            LOGGER.warn("Smart snapshot: [Leader] Error closing {} connection for the epoch {}", epoch, identifier, e);
         }
     }
 
@@ -430,6 +433,7 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
         private final PostgresConnection connection;
         // the leader's pg_export_snapshot / new-slot exported name
         private final String exportedSnapshotName;
+        private final Integer epoch;
 
         PostgresLeaderSchemaSource(PostgresConnectorConfig connectorConfig, SnapshotterService snapshotterService,
                                    MainConnectionProvidingConnectionFactory<PostgresConnection> heldConnectionFactory,
@@ -437,11 +441,12 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
                                    NotificationService<PostgresPartition, PostgresOffsetContext> notificationService,
                                    SlotCreationResult slotCreatedInfo, SlotState startingSlotInfo,
                                    // exported name -> import it EXPLICITLY (works for new AND existing slot)
-                                   String exportedSnapshotName) {
+                                   String exportedSnapshotName, Integer epoch) {
             super(connectorConfig, snapshotterService, heldConnectionFactory, schema, dispatcher, clock, SnapshotProgressListener.NO_OP(),
                     slotCreatedInfo, startingSlotInfo, notificationService);
             this.connection = heldConnectionFactory.mainConnection();
             this.exportedSnapshotName = exportedSnapshotName;
+            this.epoch = epoch;
         }
 
         /**
@@ -455,15 +460,15 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
          * 1. the replication slot was just created -> creating the slot exported it, or
          * 2. the slot already existed (or there is no slot) -> the leader ran pg_export_snapshot() itself.
          * <p>
-         * The normal single-task snapshot code only issues SET TRANSACTION SNAPSHOT in case 1. In case 2it
+         * The normal single-task snapshot code only issues SET TRANSACTION SNAPSHOT in case 1. In case 2 it
          * starts a plain transaction with no SET TRANSACTION SNAPSHOT, so the session reads at its OWN,later
-         * point-in-time -- OK for a lone reader, but wrong for the leader and multiple followers, which must match the tasks.
+         * point-in-time, okay for a single reader, but wrong for the leader and multiple followers, which must match the tasks.
          * So we always issue it here:  SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;  SET TRANSACTION SNAPSHOT '<name>';
          */
         @Override
         protected void setSnapshotTransactionIsolationLevel(boolean isOnDemand) throws SQLException {
             if (exportedSnapshotName != null && !isOnDemand) {
-                LOGGER.info("Smart snapshot: [Leader] Setting transaction isolation level on the exported snapshot {}", exportedSnapshotName);
+                LOGGER.info("Smart snapshot: [Leader] Setting transaction isolation level on the exported snapshot {} for the epoch {}", exportedSnapshotName, epoch);
                 String combined = "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ; \n"
                         + String.format("SET TRANSACTION SNAPSHOT '%s';", exportedSnapshotName);
                 connection.executeWithoutCommitting(combined);
@@ -481,10 +486,10 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
                     partition, false);
             // REUSE -> setSnapshotTransactionIsolationLevel (overridden above) -> imports exported name on `held`
             connectionCreated(ctx);
-            LOGGER.info("Smart snapshot: [Leader] Determining captured tables.");
+            LOGGER.info("Smart snapshot: [Leader] Determining captured tables for the epoch {}", epoch);
             // discover UNDER the snapshot
             determineCapturedTables(ctx, getDataCollectionPattern(task.getDataCollections()), task);
-            LOGGER.info("Smart snapshot: [Leader] Optionally locking tables for schema snapshot.");
+            LOGGER.info("Smart snapshot: [Leader] Optionally locking tables for schema snapshot for the epoch {}", epoch);
             // lock (according to snapshot.locking.mode)
             lockTablesForSchemaSnapshot(running, ctx);
             return new ArrayList<>(ctx.capturedTables);
@@ -497,7 +502,11 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
         private final String currentSnapshotName;
         private final String currentSlotLsn;
 
-        public SlotCreateOrExportResult(SlotCreationResult slotCreationResult, SlotState startingSlotState, String currentSnapshotName, String currentSlotLsn) {
+        public SlotCreateOrExportResult(
+                                        SlotCreationResult slotCreationResult,
+                                        SlotState startingSlotState,
+                                        String currentSnapshotName,
+                                        String currentSlotLsn) {
             this.slotCreationResult = slotCreationResult;
             this.startingSlotState = startingSlotState;
             this.currentSnapshotName = currentSnapshotName;

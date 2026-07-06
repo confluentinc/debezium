@@ -43,7 +43,7 @@ public interface SmartSnapshotLifecycleManager extends AutoCloseable {
     /**
      * Called when all tasks have read schema. Postgres: no-op. MySQL: UNLOCK TABLES.
      */
-    void onAllTasksJoined();
+    void onAllTasksStartedTransaction();
 
     /**
      * Close all held connections and release locks.

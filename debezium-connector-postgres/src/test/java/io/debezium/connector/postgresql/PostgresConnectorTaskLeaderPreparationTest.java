@@ -98,7 +98,7 @@ public class PostgresConnectorTaskLeaderPreparationTest {
 
         verify(lifecycle).prepareSnapshot(true);
         verify(coordination).writeSnapshotInfo("snap", "0/16B3748", EPOCH, TABLES, 2);
-        verify(lifecycle).onAllTasksJoined();
+        verify(lifecycle).onAllTasksStartedTransaction();
         verify(lifecycle, never()).releaseSnapshot();
     }
 
@@ -112,7 +112,7 @@ public class PostgresConnectorTaskLeaderPreparationTest {
         prep(1, true).run();
 
         verify(lifecycle, times(1)).keepAlive();
-        verify(lifecycle).onAllTasksJoined();
+        verify(lifecycle).onAllTasksStartedTransaction();
     }
 
     @Test
@@ -124,7 +124,7 @@ public class PostgresConnectorTaskLeaderPreparationTest {
 
         verify(lifecycle).releaseSnapshot();
         verify(errorHandler).setProducerThrowable(any(DebeziumException.class));
-        verify(lifecycle, never()).onAllTasksJoined();
+        verify(lifecycle, never()).onAllTasksStartedTransaction();
     }
 
     @Test
@@ -136,7 +136,7 @@ public class PostgresConnectorTaskLeaderPreparationTest {
         prep(1, false).run();
 
         verify(lifecycle).prepareSnapshot(false);
-        verify(lifecycle).onAllTasksJoined();
+        verify(lifecycle).onAllTasksStartedTransaction();
     }
 
     // The join exists so we never close the coordination facade while the leader thread is still using

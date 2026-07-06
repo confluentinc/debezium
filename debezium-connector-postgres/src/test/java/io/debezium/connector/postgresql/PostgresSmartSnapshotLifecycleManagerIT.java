@@ -137,7 +137,7 @@ public class PostgresSmartSnapshotLifecycleManagerIT {
         assertThatCode(() -> manager.keepAlive()).doesNotThrowAnyException();
     }
 
-    // Real-database version of the unit test: a held connection is busy with a long query, and
+    // a held connection is busy with a long query, and
     // releaseSnapshot() on another thread must abort it rather than wait for it to finish.
     // This is the mechanism the whole fix relies on -- JdbcConnection.close() waits briefly and then abort()s a
     // busy connection, which ends the query and unblocks the thread running it. Without the abort this
@@ -178,7 +178,7 @@ public class PostgresSmartSnapshotLifecycleManagerIT {
         assertThat(releaseMs).isLessThan(20_000);
     }
 
-    // End-to-end version: a real prepareSnapshot() is blocked mid-flight on a table lock, and a
+    // a real prepareSnapshot() is blocked mid-flight on a table lock, and a
     // concurrent releaseSnapshot() (the task-stop path) must abort it rather than wait the lock out.
     // 'shared' locking makes the leader take ACCESS SHARE on the tables during discoverAndLock; an
     // ACCESS EXCLUSIVE lock held by another session blocks that. releaseSnapshot closes the leader's
@@ -340,6 +340,6 @@ public class PostgresSmartSnapshotLifecycleManagerIT {
 
         return new PostgresSmartSnapshotLifecycleManager(connectorConfig, connectionFactory,
                 taskContext,
-                snapshotterService, schema, dispatcher, notificationService, Clock.system());
+                snapshotterService, schema, dispatcher, notificationService, Clock.system(), 1);
     }
 }

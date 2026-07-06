@@ -591,7 +591,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
             final int numTasks = Integer.parseInt(config.getString(SnapshotCoordinationFacade.NUM_TASKS));
             final PostgresSmartSnapshotLifecycleManager lifecycle = new PostgresSmartSnapshotLifecycleManager(
                     connectorConfig, connectionFactory, taskContext, snapshotterService,
-                    schema, dispatcher, notificationService, clock);
+                    schema, dispatcher, notificationService, clock, leaderEpoch);
             this.smartSnapshotLifecycleManager = lifecycle;
 
             // only used for logging
@@ -684,13 +684,13 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                         setup.snapshotName(), setup.consistentPosition(), epoch);
 
                 // wait until every task has imported + locked its subset, then release and end the thread
-                while (!Thread.currentThread().isInterrupted() && !allTasksJoined() && !anyRestartNeeded()) {
+                while (!Thread.currentThread().isInterrupted() && !allTasksStartedTransaction() && !anyRestartNeeded()) {
                     Thread.sleep(pollMs);
                     lifecycle.keepAlive();
                 }
-                if (allTasksJoined()) {
+                if (allTasksStartedTransaction()) {
                     // releaseSnapshot(), slot persists; thread ends
-                    lifecycle.onAllTasksJoined();
+                    lifecycle.onAllTasksStartedTransaction();
                 }
                 else if (anyRestartNeeded()) {
                     LOGGER.warn("Smart snapshot: [Leader] Detected restarted needed for the epoch {}, releasing early", epoch);
@@ -729,7 +729,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
             }
         }
 
-        boolean allTasksJoined() {
+        boolean allTasksStartedTransaction() {
             for (int i = 0; i < numTasks; i++) {
                 if (!coordination.isTransactionStarted(String.valueOf(i), epoch)) {
                     return false;
