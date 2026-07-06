@@ -128,8 +128,9 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
             // 1. the smart snapshot was complete, just fall through to single config
             // 2. maxTasks was 1
             // for either of the cases cleanup the coordinator as it is no longer needed
-            oldCoordinator.stop();
             smartSnapshotConnectorCoordinator = null;
+            // set the coordinator to null first as stopping might throw
+            oldCoordinator.stop();
         }
 
         return Collections.singletonList(new HashMap<>(props));

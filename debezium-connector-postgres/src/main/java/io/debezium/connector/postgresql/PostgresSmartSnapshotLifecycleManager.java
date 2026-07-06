@@ -425,7 +425,7 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
             resource.close();
         }
         catch (Exception e) {
-            LOGGER.warn("Smart snapshot: [Leader] Error closing {} connection for the epoch {}", epoch, identifier, e);
+            LOGGER.warn("Smart snapshot: [Leader] Error closing {} connection for the epoch {}", identifier, epoch, e);
         }
     }
 

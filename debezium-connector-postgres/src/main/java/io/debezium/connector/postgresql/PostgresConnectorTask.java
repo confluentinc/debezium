@@ -574,6 +574,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
         int epoch = Integer.parseInt(config.getString(SnapshotCoordinationFacade.EPOCH));
         LOGGER.info("Smart snapshot: task-{} epoch={}", connectorConfig.getTaskId(), epoch);
 
+        // todo should the leader thread creates its own coordination this would solve the gate required in start to make it idempotent
         this.snapshotCoordination = new SnapshotCoordinationFacade(config, connectorConfig);
         try {
             // end the setup txn (guardrail query, etc.) so the snapshot's SET is the first

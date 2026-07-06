@@ -198,12 +198,16 @@ public class SmartSnapshotConnectorCoordinator {
                 }
                 catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
+                    LOGGER.info("Smart snapshot: Monitor thread interrupted, exiting gracefully, epoch {}.", currentEpoch.get());
                     // todo verify the behaviour if we return here
                     return;
                 }
                 try {
+
                     if (monitorIteration()) {
                         // snapshot completed for this epoch; monitor is done
+                        // todo what if the upon finishing the thread exits but our task reconfiguration request is lost?
+                        // todo should we continue hitting reconfiguration until downscaling?
                         return;
                     }
                 }
@@ -300,6 +304,7 @@ public class SmartSnapshotConnectorCoordinator {
         if (requestReconfiguration) {
             // Do not trigger a reconfiguration while shutting down.
             if (stopping) {
+                LOGGER.info("Smart snapshot: Skipping requestTaskReconfiguration, as we are stopping for the epoch {}", epoch);
                 return false;
             }
             try {
