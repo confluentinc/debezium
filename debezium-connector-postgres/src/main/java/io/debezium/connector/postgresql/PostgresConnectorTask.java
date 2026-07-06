@@ -139,9 +139,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
         schema = new PostgresSchema(connectorConfig, defaultValueConverter, topicNamingStrategy, valueConverter);
 
-        // if the feature is enabled and taskId is null in ideal scenario the task should be streaming
-        // if it is a data snapshot task with feature enabled, it continues with single task data snapshot
-        isSmartSnapshotTask = connectorConfig.isSmartSnapshotEnabled() && connectorConfig.getTaskId() != null;
+        isSmartSnapshotTask = isSmartSnapshotTask(config, connectorConfig);
 
         this.taskContext = isSmartSnapshotTask
                 ? new PostgresTaskContext(connectorConfig, connectorConfig.getTaskId(), schema, topicNamingStrategy)
@@ -545,6 +543,15 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                 LOGGER.warn("WAL_LEVEL check failed but this is ignored as CDC was not requested");
             }
         }
+    }
+
+    private boolean isSmartSnapshotTask(Configuration config, CommonConnectorConfig connectorConfig) {
+        String numTasksStr = config.getString(SnapshotCoordinationFacade.NUM_TASKS);
+        boolean isParallelRound = numTasksStr != null && ! "1".equals(numTasksStr);
+
+        // if the feature is enabled and taskId is null in ideal scenario the task should be streaming
+        // if it is a data snapshot task with feature enabled, it continues with single task data snapshot
+        return connectorConfig.isSmartSnapshotEnabled() && connectorConfig.getTaskId() != null && isParallelRound;
     }
 
     private ChangeEventSourceCoordinator<PostgresPartition, PostgresOffsetContext> startSmartSnapshotTask(
