@@ -8,6 +8,7 @@ package io.debezium.connector.postgresql;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -93,6 +94,15 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
     // Kept open until onAllTasksJoined / release.
     private PostgresConnection schemaSnapshotConnection;
 
+    // Once true, prepareSnapshot() must not retain any newly opened connection.
+    private boolean released;
+
+    // Guards the four held-connection references above and the 'released' flag. Held only for the brief
+    // reference read/write and never across a JDBC round-trip, so releaseSnapshot() (task-stop thread) can run
+    // while prepareSnapshot() (leader prep thread) is blocked in a non-interruptible JDBC call and abort it by
+    // closing the connections.
+    private final ReentrantLock stateLock = new ReentrantLock();
+
     public PostgresSmartSnapshotLifecycleManager(PostgresConnectorConfig connectorConfig,
                                                  MainConnectionProvidingConnectionFactory<PostgresConnection> connectionFactory,
                                                  PostgresTaskContext taskContext, SnapshotterService snapshotterService,
@@ -111,13 +121,18 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
     }
 
     /**
-     * These three methods share the held connections and can be called from two threads at once (the leader
-     * prep thread and the task-stop path). 'synchronized' runs them one at a time so a release can't close a
-     * connection that keepAlive/prepare is still using. It's reentrant, so prepareSnapshot's error-path
-     * releaseSnapshot() still works.
+     * prepareSnapshot, keepAlive and releaseSnapshot methods share the held connections and may be
+     * called from two threads at the same time: the leader thread and the task-stop
+     * thread. The old design made all three methods 'synchronized'. That serialised the long,
+     * database-bound prepare against release, so a task stop could be blocked until prepare finished.
+     * <p>
+     * Instead, only the connection references and the 'released' flag are guarded by
+     * {@link #stateLock}. prepareSnapshot runs its database work without the lock and records
+     * each connection through {@link #register}. releaseSnapshot sets 'released', detaches the
+     * references, then closes them, which stops any prepare still in progress.
      */
     @Override
-    public synchronized SnapshotSetup prepareSnapshot(boolean shouldStream) {
+    public SnapshotSetup prepareSnapshot(boolean shouldStream) {
         SlotCreateOrExportResult slotCreateOrExportResult;
 
         if (shouldStream) {
@@ -142,12 +157,19 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
         }
 
         try {
-            this.schemaSnapshotConnection = connectionFactory.newConnection();
-            // so executeWithoutCommitting HOLDS the locks
-            this.schemaSnapshotConnection.connection().setAutoCommit(false);
+            // Work through the local 'holder' reference, not the field. register() sets the field so
+            // releaseSnapshot() can find and close this connection; but if a release happens while
+            // this method is still running, the field is set to null. Reading the field afterwards
+            // would then throw a NullPointerException, whereas the local always points to this
+            // connection. If a release closes it underneath us, the next call on the local fails with
+            // a normal "connection closed" SQLException, which is caught and treated as a shutdown.
+            final PostgresConnection holder = connectionFactory.newConnection();
+            register(holder, () -> this.schemaSnapshotConnection = holder);
+            // set auto-commit off so executeWithoutCommitting holds the locks
+            holder.connection().setAutoCommit(false);
             MainConnectionProvidingConnectionFactory<PostgresConnection> heldFactory = new MainConnectionProvidingConnectionFactory<>() {
                 public PostgresConnection mainConnection() {
-                    return schemaSnapshotConnection;
+                    return holder;
                 }
 
                 public PostgresConnection newConnection() {
@@ -190,7 +212,8 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
     }
 
     private SlotCreateOrExportResult createSlotViaReplicationProtocol() {
-        replicationConnection = createReplicationConnectionWithRetry();
+        final ReplicationConnection replConn = createReplicationConnectionWithRetry();
+        register(replConn, () -> this.replicationConnection = replConn);
 
         if (connectorConfig.isReadOnlyConnection()) {
             LOGGER.warn("Smart snapshot: [Leader] Connector is configured to be in read-only mode but replication slot "
@@ -198,7 +221,7 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
         }
 
         try {
-            SlotCreationResult result = replicationConnection.createReplicationSlot()
+            SlotCreationResult result = replConn.createReplicationSlot()
                     .orElseThrow(() -> new DebeziumException("Smart snapshot: [Leader] Slot creation returned no result"));
 
             String currentSlotLsn = result.startLsn().asString();
@@ -222,28 +245,30 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
 
     // Mirrors PostgresConnectorTask#createReplicationConnection
     private ReplicationConnection createReplicationConnectionWithRetry() {
-        replicationMetadataConnection = connectionFactory.newConnection();
+        final PostgresConnection metadataConn = connectionFactory.newConnection();
+        register(metadataConn, () -> this.replicationMetadataConnection = metadataConn);
         // dropSlotOnClose=false so the slot persists for streaming after downscale
         return PostgresConnectorTask.createReplicationConnectionWithRetry(
-                () -> taskContext.createReplicationConnection(replicationMetadataConnection, false),
+                () -> taskContext.createReplicationConnection(metadataConn, false),
                 connectorConfig.maxRetries(), connectorConfig.retryDelay());
     }
 
     private SlotCreateOrExportResult exportSnapshotFromExistingSlot(SlotState slotInfo) {
         try {
-            snapshotHolderConnection = connectionFactory.newConnection();
-            snapshotHolderConnection.connection().setAutoCommit(false);
-            snapshotHolderConnection.executeWithoutCommitting(
+            final PostgresConnection holder = connectionFactory.newConnection();
+            register(holder, () -> this.snapshotHolderConnection = holder);
+            holder.connection().setAutoCommit(false);
+            holder.executeWithoutCommitting(
                     "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
 
-            String walBefore = snapshotHolderConnection.queryAndMap(
+            String walBefore = holder.queryAndMap(
                     "SELECT pg_current_wal_lsn()::text",
-                    snapshotHolderConnection.singleResultMapper(
+                    holder.singleResultMapper(
                             rs -> rs.getString(1), "Failed to get WAL LSN"));
 
-            String currentSnapshotName = snapshotHolderConnection.queryAndMap(
+            String currentSnapshotName = holder.queryAndMap(
                     "SELECT pg_export_snapshot()",
-                    snapshotHolderConnection.singleResultMapper(
+                    holder.singleResultMapper(
                             rs -> rs.getString(1), "Failed to export snapshot"));
 
             String currentSlotLsn;
@@ -266,20 +291,21 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
 
     private SlotCreateOrExportResult exportSnapshotWithoutSlot() {
         try {
-            snapshotHolderConnection = connectionFactory.newConnection();
-            snapshotHolderConnection.connection().setAutoCommit(false);
-            snapshotHolderConnection.executeWithoutCommitting(
+            final PostgresConnection holder = connectionFactory.newConnection();
+            register(holder, () -> this.snapshotHolderConnection = holder);
+            holder.connection().setAutoCommit(false);
+            holder.executeWithoutCommitting(
                     "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
 
-            // No slot → no slot LSN. Use current WAL position as reference.
-            String currentSlotLsn = snapshotHolderConnection.queryAndMap(
+            // No slot, so no slot LSN. Use current WAL position as reference.
+            String currentSlotLsn = holder.queryAndMap(
                     "SELECT pg_current_wal_lsn()::text",
-                    snapshotHolderConnection.singleResultMapper(
+                    holder.singleResultMapper(
                             rs -> rs.getString(1), "Failed to get WAL LSN"));
 
-            String currentSnapshotName = snapshotHolderConnection.queryAndMap(
+            String currentSnapshotName = holder.queryAndMap(
                     "SELECT pg_export_snapshot()",
-                    snapshotHolderConnection.singleResultMapper(
+                    holder.singleResultMapper(
                             rs -> rs.getString(1), "Failed to export snapshot"));
 
             LOGGER.info("Smart snapshot: [Leader] (no-stream) exported snapshot '{}', LSN={}",
@@ -294,13 +320,24 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
     }
 
     @Override
-    public synchronized void keepAlive() {
-        pingOrThrow(snapshotHolderConnection, "snapshot-holder");
-        pingOrThrow(schemaSnapshotConnection, "schema-snapshot-holder");
-        ReplicationConnection replicationConnectionCopy = this.replicationConnection;
-        if (replicationConnectionCopy != null) {
+    public void keepAlive() {
+        final PostgresConnection snapshotHolderConn;
+        final PostgresConnection schemaSnapshotConn;
+        final ReplicationConnection replicationConn;
+        stateLock.lock();
+        try {
+            snapshotHolderConn = this.snapshotHolderConnection;
+            schemaSnapshotConn = this.schemaSnapshotConnection;
+            replicationConn = this.replicationConnection;
+        }
+        finally {
+            stateLock.unlock();
+        }
+        pingOrThrow(snapshotHolderConn, "snapshot-holder");
+        pingOrThrow(schemaSnapshotConn, "schema-snapshot-holder");
+        if (replicationConn != null) {
             try {
-                if (!replicationConnectionCopy.isConnected()) {
+                if (!replicationConn.isConnected()) {
                     throw new DebeziumException("Smart snapshot: [Leader] replication connection is no longer connected");
                 }
             }
@@ -310,7 +347,7 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
         }
     }
 
-    private void pingOrThrow(PostgresConnection conn, String which) {
+    private void pingOrThrow(PostgresConnection conn, String identifier) {
         if (conn == null) {
             return;
         }
@@ -319,51 +356,73 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
             conn.executeWithoutCommitting("SELECT 1");
         }
         catch (SQLException e) {
-            throw new DebeziumException("Smart snapshot: [Leader] " + which + " connection is dead (held snapshot lost)", e);
+            throw new DebeziumException("Smart snapshot: [Leader] " + identifier + " connection is dead (held snapshot lost)", e);
         }
     }
 
     @Override
-    public synchronized void releaseSnapshot() {
-        ReplicationConnection replicationConn = this.replicationConnection;
-        this.replicationConnection = null;
-        if (replicationConn != null) {
-            try {
-                replicationConn.close();
-            }
-            catch (Exception e) {
-                LOGGER.warn("Smart snapshot: [Leader] Error closing replication connection", e);
+    public void releaseSnapshot() {
+        final ReplicationConnection replicationConn;
+        final PostgresConnection snapshotHolderConn;
+        final PostgresConnection schemaSnapshotConn;
+        final PostgresConnection replicationMetadataConn;
+        stateLock.lock();
+        try {
+            released = true;
+            replicationConn = this.replicationConnection;
+            this.replicationConnection = null;
+            snapshotHolderConn = this.snapshotHolderConnection;
+            this.snapshotHolderConnection = null;
+            schemaSnapshotConn = this.schemaSnapshotConnection;
+            this.schemaSnapshotConnection = null;
+            replicationMetadataConn = this.replicationMetadataConnection;
+            this.replicationMetadataConnection = null;
+        }
+        finally {
+            stateLock.unlock();
+        }
+        // Close the connections without holding the lock. For a connection that is busy with a
+        // query, close() waits up to WAIT_FOR_CLOSE_SECONDS and then aborts it. This stops a
+        // prepareSnapshot() that is waiting on a query on the leader prep thread.
+        closeQuietly(replicationConn, "replication");
+        closeQuietly(snapshotHolderConn, "snapshot holder");
+        closeQuietly(schemaSnapshotConn, "schema snapshot holder");
+        closeQuietly(replicationMetadataConn, "replication metadata");
+    }
+
+    /**
+     * Records a newly opened connection in the guarded state. If releaseSnapshot() has already
+     * run, the connection is closed at once and this method throws. This makes prepareSnapshot
+     * stop rather than keep a connection that will never be released, or publish a snapshot
+     * during shutdown.
+     */
+    private void register(AutoCloseable resource, Runnable connectionAssignment) {
+        final boolean alreadyReleased;
+        stateLock.lock();
+        try {
+            alreadyReleased = released;
+            if (!alreadyReleased) {
+                connectionAssignment.run();
             }
         }
-        PostgresConnection snapshotHolderConn = this.snapshotHolderConnection;
-        this.snapshotHolderConnection = null;
-        if (snapshotHolderConn != null) {
-            try {
-                snapshotHolderConn.close();
-            }
-            catch (Exception e) {
-                LOGGER.warn("Smart snapshot: [Leader] Error closing snapshot holder connection", e);
-            }
+        finally {
+            stateLock.unlock();
         }
-        PostgresConnection lockHolderConn = this.schemaSnapshotConnection;
-        this.schemaSnapshotConnection = null;
-        if (lockHolderConn != null) {
-            try {
-                lockHolderConn.close();
-            }
-            catch (Exception e) {
-                LOGGER.warn("Smart snapshot: [Leader] Error closing lock holder connection", e);
-            }
+        if (alreadyReleased) {
+            closeQuietly(resource, "opened after release");
+            throw new DebeziumException("Smart snapshot: [Leader] Snapshot released during preparation; aborting");
         }
-        PostgresConnection replicationMetadataConn = this.replicationMetadataConnection;
-        this.replicationMetadataConnection = null;
-        if (replicationMetadataConn != null) {
-            try {
-                replicationMetadataConn.close();
-            }
-            catch (Exception e) {
-                LOGGER.warn("Smart snapshot: [Leader] Error closing replication metadata connection", e);
-            }
+    }
+
+    private static void closeQuietly(AutoCloseable resource, String identifier) {
+        if (resource == null) {
+            return;
+        }
+        try {
+            resource.close();
+        }
+        catch (Exception e) {
+            LOGGER.warn("Smart snapshot: [Leader] Error closing {} connection", identifier, e);
         }
     }
 

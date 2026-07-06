@@ -8,11 +8,13 @@ package io.debezium.connector.postgresql;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import java.lang.reflect.Field;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.Test;
 
@@ -44,44 +46,70 @@ public class PostgresSmartSnapshotLifecycleManagerTest {
         field.set(target, value);
     }
 
-    // releaseSnapshot() (called from the task-stop path) and keepAlive()
-    // (called from the leader prep thread) touch the same held connections and must be mutually exclusive.
-    // We block releaseSnapshot inside its critical section (the held connection's close() blocks) and assert
-    // keepAlive cannot run until it is released.
+    // On the fixed design releaseSnapshot must not wait for a long-running operation that another
+    // thread is doing on a held connection. Here keepAlive is blocked inside its ping; releaseSnapshot
+    // on another thread must still finish quickly. On the old design (all methods synchronized on the
+    // same monitor) releaseSnapshot would block until the ping returned, and this test would time out.
     @Test
-    public void releaseSnapshotAndKeepAliveAreMutuallyExclusive() throws Exception {
+    public void releaseSnapshotDoesNotWaitForInFlightKeepAlive() throws Exception {
         PostgresSmartSnapshotLifecycleManager manager = newManager();
 
         PostgresConnection held = mock(PostgresConnection.class);
-        CountDownLatch inClose = new CountDownLatch(1);
-        CountDownLatch proceed = new CountDownLatch(1);
+        CountDownLatch pinging = new CountDownLatch(1);
+        CountDownLatch letPingFinish = new CountDownLatch(1);
+        // keepAlive pings the held connection with "SELECT 1"; make that call block to model a long
+        // in-flight operation on the connection.
         doAnswer(inv -> {
-            inClose.countDown();
-            proceed.await();
+            pinging.countDown();
+            letPingFinish.await(5, TimeUnit.SECONDS);
             return null;
-        }).when(held).close();
+        }).when(held).executeWithoutCommitting("SELECT 1");
 
         setField(manager, "snapshotHolderConnection", held);
 
+        Thread pinger = new Thread(manager::keepAlive, "pinger");
+        pinger.start();
+        // wait until keepAlive is blocked inside the ping
+        assertThat(pinging.await(5, TimeUnit.SECONDS)).isTrue();
+
+        // releaseSnapshot on another thread must finish promptly, not wait for the blocked ping.
         Thread releaser = new Thread(manager::releaseSnapshot, "releaser");
         releaser.start();
-        // releaseSnapshot holds the monitor, stuck in close()
-        assertThat(inClose.await(5, TimeUnit.SECONDS)).isTrue();
-
-        AtomicBoolean keepAliveReturned = new AtomicBoolean(false);
-        Thread pinger = new Thread(() -> {
-            manager.keepAlive();
-            keepAliveReturned.set(true);
-        }, "pinger");
-        pinger.start();
-
-        Thread.sleep(300);
-        // excluded while releaseSnapshot holds the lock
-        assertThat(keepAliveReturned).isFalse();
-
-        proceed.countDown();
         releaser.join(2000);
-        pinger.join(2000);
-        assertThat(keepAliveReturned).isTrue();
+        try {
+            assertThat(releaser.isAlive()).isFalse();
+        }
+        finally {
+            letPingFinish.countDown();
+            pinger.join(2000);
+        }
+    }
+
+    // releaseSnapshot may be called from both the prep thread and the stop thread; it must close each
+    // held connection exactly once.
+    @Test
+    public void releaseSnapshotIsIdempotent() throws Exception {
+        PostgresSmartSnapshotLifecycleManager manager = newManager();
+        PostgresConnection held = mock(PostgresConnection.class);
+        setField(manager, "snapshotHolderConnection", held);
+
+        manager.releaseSnapshot();
+        manager.releaseSnapshot();
+
+        verify(held, times(1)).close();
+    }
+
+    // After a release the held connections are gone. keepAlive must be a safe no-op: it must not throw
+    // and must not ping a connection that has already been closed.
+    @Test
+    public void keepAliveAfterReleaseDoesNothing() throws Exception {
+        PostgresSmartSnapshotLifecycleManager manager = newManager();
+        PostgresConnection held = mock(PostgresConnection.class);
+        setField(manager, "snapshotHolderConnection", held);
+
+        manager.releaseSnapshot();
+        manager.keepAlive();
+
+        verify(held, never()).executeWithoutCommitting("SELECT 1");
     }
 }

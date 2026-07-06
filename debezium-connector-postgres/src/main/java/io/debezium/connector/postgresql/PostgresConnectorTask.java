@@ -95,7 +95,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
      * This involves slot creation or snapshot creation
      * called in start() during the task startup
      */
-    private volatile Thread smartSnapshotPreparationThread;
+    private volatile Thread smartSnapshotLeaderThread;
 
     private Partition.Provider<PostgresPartition> partitionProvider = null;
     private OffsetContext.Loader<PostgresOffsetContext> offsetContextLoader = null;
@@ -596,13 +596,13 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
             // only used for logging
             final PostgresPartition leaderPartition = new PostgresPartition(connectorConfig.getConnectorName(), "", "0");
-            this.smartSnapshotPreparationThread = new Thread(
-                    new LeaderSnapshotPreparation(lifecycle, this.snapshotCoordination, this.errorHandler,
+            this.smartSnapshotLeaderThread = new Thread(
+                    new SmartSnapshotLeader(lifecycle, this.snapshotCoordination, this.errorHandler,
                             leaderEpoch, numTasks, shouldStream, POLL_MS,
                             () -> taskContext.configureLoggingContext("snapshot-prep", leaderPartition)),
                     "smart-snapshot-leader-prep");
-            this.smartSnapshotPreparationThread.setDaemon(true);
-            this.smartSnapshotPreparationThread.start();
+            this.smartSnapshotLeaderThread.setDaemon(true);
+            this.smartSnapshotLeaderThread.start();
         }
 
         // The leader task background thread handles slot creation & replication connection creation, skip those
@@ -630,7 +630,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
      * signals a restart -- before releasing the held connections. Extracted from an inline Runnable so the
      * orchestration can be unit tested with a mock lifecycle + coordination (pollMs = 0 skips the real wait).
      */
-    static class LeaderSnapshotPreparation implements Runnable {
+    static class SmartSnapshotLeader implements Runnable {
 
         private final SmartSnapshotLifecycleManager lifecycle;
         private final SnapshotCoordinationFacade coordination;
@@ -641,9 +641,9 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
         private final long pollMs;
         private final Runnable loggingContextSetup;
 
-        LeaderSnapshotPreparation(SmartSnapshotLifecycleManager lifecycle, SnapshotCoordinationFacade coordination,
-                                  ErrorHandler errorHandler, int epoch, int numTasks, boolean shouldStream, long pollMs,
-                                  Runnable loggingContextSetup) {
+        SmartSnapshotLeader(SmartSnapshotLifecycleManager lifecycle, SnapshotCoordinationFacade coordination,
+                            ErrorHandler errorHandler, int epoch, int numTasks, boolean shouldStream, long pollMs,
+                            Runnable loggingContextSetup) {
             this.lifecycle = lifecycle;
             this.coordination = coordination;
             this.errorHandler = errorHandler;
@@ -703,8 +703,14 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                 // todo verify the behaviour
             }
             catch (Exception e) {
-                LOGGER.error("Smart snapshot: [Leader] Snapshot preparation failed", e);
                 lifecycle.releaseSnapshot();
+                if (Thread.currentThread().isInterrupted()) {
+                    // The task was stopped and our connections were aborted. This is a normal
+                    // shutdown, not a failure, so do not report an error.
+                    LOGGER.info("Smart snapshot: [Leader] Snapshot preparation stopped during shutdown", e);
+                    return;
+                }
+                LOGGER.error("Smart snapshot: [Leader] Snapshot preparation failed", e);
                 // Fail the task with the real error. We do NOT write restart_needed here: prep failed,
                 // so the snapshot was never published and there is nothing to throw away. When task-0
                 // restarts it sees its own marker and writes restart_needed then, which bumps the epoch.
@@ -777,23 +783,63 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
     }
 
     private void doStopSmartSnapshot() {
-        if (smartSnapshotPreparationThread != null) {
-            smartSnapshotPreparationThread.interrupt();
+        if (!isSmartSnapshotTask) {
+            return;
+        }
+        stopSmartSnapshot(smartSnapshotLeaderThread, smartSnapshotLifecycleManager, snapshotCoordination, 10_000);
+        smartSnapshotLeaderThread = null;
+        smartSnapshotLifecycleManager = null;
+    }
+
+    /**
+     * Stops the smart snapshot related stuff for this task. This runs on the Kafka Connect task-stop
+     * thread, which is a different thread from the leader thread.
+     * <p>
+     * Only smart snapshot tasks set up any of these resources, so for every other task this method
+     * returns early. Even among smart snapshot tasks, the prep thread and lifecycle manager exist
+     * only on the leader (task-0); followers have just the coordination facade.
+     * <p>
+     * The steps must run in this order:
+     * 1. interrupt() wakes the prep thread if it is sleeping in the keep-alive loop.
+     * 2. releaseSnapshot() closes the held connections. If the prep thread is waiting on a
+     * database call that cannot be interrupted, closing the connection aborts that call so the
+     * thread can finish. interrupt() is done first so that the error raised by the aborted
+     * call is recognised as a shutdown rather than a real failure.
+     * 3. join() waits for the prep thread to actually finish, so that it is no longer using the
+     * coordination facade when we stop it in the next step. The wait is bounded so that stop
+     * can never block forever.
+     * 4. stop() closes the coordination facade last, because it wraps a Kafka client that is not
+     * safe to use on one thread and close on another at the same time.
+     */
+    static void stopSmartSnapshot(Thread leaderThread, SmartSnapshotLifecycleManager lifecycle,
+                                  SnapshotCoordinationFacade coordinationFacade, long joinMs) {
+        // 1. Signal the leader thread to stop and unblock it wherever it may be waiting.
+        // interrupt() wakes it from sleep(); releaseSnapshot() closes and aborts the held
+        // connections, ending any query it is waiting on.
+        if (leaderThread != null) {
+            LOGGER.info("Smart snapshot: [Leader] stopping snapshot preparation and releasing held connections");
+            leaderThread.interrupt();
+        }
+        if (lifecycle != null) {
+            lifecycle.releaseSnapshot();
+        }
+
+        // 2. Wait for the prep thread to finish, so it is no longer using the coordination
+        // facade when we close it below. Bounded so stop can never block forever.
+        if (leaderThread != null) {
             try {
-                smartSnapshotPreparationThread.join(5000);
+                leaderThread.join(joinMs);
+                if (leaderThread.isAlive()) {
+                    LOGGER.warn("Smart snapshot: [Leader] Leader thread did not stop within {} ms", joinMs);
+                }
             }
             catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
-            smartSnapshotPreparationThread = null;
         }
-        if (smartSnapshotLifecycleManager != null) {
-            smartSnapshotLifecycleManager.releaseSnapshot();
-            smartSnapshotLifecycleManager = null;
-        }
-
-        if (snapshotCoordination != null) {
-            snapshotCoordination.stop();
+        if (coordinationFacade != null) {
+            LOGGER.info("Smart snapshot: Stopping coordination facade");
+            coordinationFacade.stop();
         }
     }
 }
