@@ -47,6 +47,43 @@ public class SnapshotCoordinationFacadeTest {
     }
 
     @Test
+    public void parseTablesTrimsSkipsBlanksAndHandlesEmpty() {
+        assertThat(SnapshotCoordinationFacade.parseTables(null)).isEmpty();
+        assertThat(SnapshotCoordinationFacade.parseTables("")).isEmpty();
+        List<TableId> tables = List.of(
+                new TableId(null, "public", "a"),
+                new TableId(null, "public", "b"));
+        assertThat(SnapshotCoordinationFacade.parseTables(SnapshotCoordinationFacade.joinTableIds(tables))).containsExactly(
+                tables.get(0), tables.get(1));
+    }
+
+    @Test
+    public void tablesForTaskSplitsRoundRobinAfterStableSort() {
+        List<TableId> all = List.of(
+                new TableId(null, "public", "d"),
+                new TableId(null, "public", "b"),
+                new TableId(null, "public", "a"),
+                new TableId(null, "public", "c"));
+        // sorted: a, b, c, d
+        assertThat(SnapshotCoordinationFacade.tablesForTask(all, 0, 2))
+                .containsExactly(new TableId(null, "public", "a"), new TableId(null, "public", "c"));
+        assertThat(SnapshotCoordinationFacade.tablesForTask(all, 1, 2))
+                .containsExactly(new TableId(null, "public", "b"), new TableId(null, "public", "d"));
+    }
+
+    @Test
+    public void tablesForTaskHandlesUnevenSplitAndEmptyShare() {
+        List<TableId> all = List.of(
+                new TableId(null, "public", "a"),
+                new TableId(null, "public", "b"),
+                new TableId(null, "public", "c"));
+        assertThat(SnapshotCoordinationFacade.tablesForTask(all, 0, 2)).hasSize(2); // a, c
+        assertThat(SnapshotCoordinationFacade.tablesForTask(all, 1, 2)).hasSize(1); // b
+        // more tasks than tables -> the extra task gets nothing
+        assertThat(SnapshotCoordinationFacade.tablesForTask(all, 5, 6)).isEmpty();
+    }
+
+    @Test
     public void writeEpochUsesTheEpochKey() throws Exception {
         facade.writeEpoch(3);
 
@@ -119,7 +156,7 @@ public class SnapshotCoordinationFacadeTest {
                 .containsEntry("epoch", 4)
                 .containsEntry("snapshot_completed", false)
                 .containsEntry("num_tasks", 2)
-                .containsEntry("tables", "public.a,public.b");
+                .containsEntry("tables", SnapshotCoordinationFacade.joinTableIds(tables));
     }
 
     @Test

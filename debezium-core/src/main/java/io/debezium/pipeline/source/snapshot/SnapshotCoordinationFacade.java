@@ -6,6 +6,8 @@
 
 package io.debezium.pipeline.source.snapshot;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -107,9 +109,43 @@ public class SnapshotCoordinationFacade {
         value.put(CONSISTENT_POINT, consistentPoint);
         value.put(EPOCH, epoch);
         value.put(SNAPSHOT_COMPLETED, false);
-        value.put(TABLES, tables.stream().map(TableId::toString).collect(Collectors.joining(",")));
+        // value.put(TABLES, tables.stream().map(TableId::toString).collect(Collectors.joining(",")));
+        // JSON array of quoted FQNs — survives names with commas/dots (comma-join + split(",") is unsafe)
+        value.put(TABLES, joinTableIds(tables));
         value.put(NUM_TASKS, numTasks);
         write(snapshotInfoKey(), value);
+    }
+
+    public static Object joinTableIds(List<TableId> tables) {
+        // JSON array of quoted FQNs — survives names with commas/dots (comma-join + split(",") is unsafe)
+        return tables.stream().map(TableId::toDoubleQuotedString).collect(Collectors.toList());
+    }
+
+    /**
+     * Decode the TABLES field (a JSON array of quoted FQNs from the snapshot-info record) back to TableIds.
+     */
+    @SuppressWarnings("unchecked")
+    public static List<TableId> parseTables(Object tablesValue) {
+        if (!(tablesValue instanceof List)) {
+            return List.of();
+        }
+        return ((List<String>) tablesValue).stream()
+                .filter(s -> s != null && !s.isBlank())
+                .map(TableId::parse) // quote-aware (TableIdParser) -> handles dots/commas inside a quoted part
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Deterministic per-task subset: stable sort by name, round-robin by task id.
+     */
+    public static List<TableId> tablesForTask(List<TableId> allTables, int taskId, int numTasks) {
+        List<TableId> sorted = new ArrayList<>(allTables);
+        sorted.sort(Comparator.comparing(TableId::toString));
+        List<TableId> mine = new ArrayList<>();
+        for (int i = taskId; i < sorted.size(); i += numTasks) { // i = taskId, taskId+numTasks, ...
+            mine.add(sorted.get(i));
+        }
+        return mine;
     }
 
     public void writeCompletion(String consistentPoint, int epoch) {

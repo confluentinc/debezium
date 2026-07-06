@@ -32,7 +32,6 @@ import org.mockito.MockitoAnnotations;
 
 import io.debezium.config.ConfigurationNames;
 import io.debezium.pipeline.CommonOffsetContext;
-import io.debezium.relational.TableId;
 import io.debezium.util.Collect;
 
 /**
@@ -61,40 +60,6 @@ public class SmartSnapshotConnectorCoordinatorTest {
     @After
     public void after() {
         coordinator.stop();
-    }
-
-    @Test
-    public void tablesForTaskSplitsRoundRobinAfterStableSort() {
-        List<TableId> all = List.of(
-                new TableId(null, "public", "d"),
-                new TableId(null, "public", "b"),
-                new TableId(null, "public", "a"),
-                new TableId(null, "public", "c"));
-        // sorted: a, b, c, d
-        assertThat(SmartSnapshotConnectorCoordinator.tablesForTask(all, 0, 2))
-                .containsExactly(new TableId(null, "public", "a"), new TableId(null, "public", "c"));
-        assertThat(SmartSnapshotConnectorCoordinator.tablesForTask(all, 1, 2))
-                .containsExactly(new TableId(null, "public", "b"), new TableId(null, "public", "d"));
-    }
-
-    @Test
-    public void tablesForTaskHandlesUnevenSplitAndEmptyShare() {
-        List<TableId> all = List.of(
-                new TableId(null, "public", "a"),
-                new TableId(null, "public", "b"),
-                new TableId(null, "public", "c"));
-        assertThat(SmartSnapshotConnectorCoordinator.tablesForTask(all, 0, 2)).hasSize(2); // a, c
-        assertThat(SmartSnapshotConnectorCoordinator.tablesForTask(all, 1, 2)).hasSize(1); // b
-        // more tasks than tables -> the extra task gets nothing
-        assertThat(SmartSnapshotConnectorCoordinator.tablesForTask(all, 5, 6)).isEmpty();
-    }
-
-    @Test
-    public void parseTablesTrimsSkipsBlanksAndHandlesEmpty() {
-        assertThat(SmartSnapshotConnectorCoordinator.parseTables(null)).isEmpty();
-        assertThat(SmartSnapshotConnectorCoordinator.parseTables("")).isEmpty();
-        assertThat(SmartSnapshotConnectorCoordinator.parseTables(" public.a , public.b ,")).containsExactly(
-                new TableId(null, "public", "a"), new TableId(null, "public", "b"));
     }
 
     @Test

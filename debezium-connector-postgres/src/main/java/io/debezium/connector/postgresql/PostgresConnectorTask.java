@@ -547,7 +547,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
     private boolean isSmartSnapshotTask(Configuration config, CommonConnectorConfig connectorConfig) {
         String numTasksStr = config.getString(SnapshotCoordinationFacade.NUM_TASKS);
-        boolean isParallelRound = numTasksStr != null && ! "1".equals(numTasksStr);
+        boolean isParallelRound = numTasksStr != null && !"1".equals(numTasksStr);
 
         // if the feature is enabled and taskId is null in ideal scenario the task should be streaming
         // if it is a data snapshot task with feature enabled, it continues with single task data snapshot

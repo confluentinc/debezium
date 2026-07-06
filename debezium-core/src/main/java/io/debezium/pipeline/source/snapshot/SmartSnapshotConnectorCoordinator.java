@@ -6,13 +6,10 @@
 package io.debezium.pipeline.source.snapshot;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 import org.apache.kafka.connect.connector.ConnectorContext;
 import org.apache.kafka.connect.source.SourceConnectorContext;
@@ -22,7 +19,6 @@ import org.slf4j.LoggerFactory;
 import io.debezium.config.ConfigurationNames;
 import io.debezium.connector.AbstractSourceInfo;
 import io.debezium.pipeline.CommonOffsetContext;
-import io.debezium.relational.TableId;
 import io.debezium.util.Collect;
 
 public class SmartSnapshotConnectorCoordinator {
@@ -311,30 +307,6 @@ public class SmartSnapshotConnectorCoordinator {
         catch (Exception e) {
             LOGGER.error("Smart snapshot: Failed to save epoch {}", epoch, e);
         }
-    }
-
-    /**
-     * Deterministic per-task subset: stable sort by name, round-robin by task id.
-     */
-    public static List<TableId> tablesForTask(List<TableId> allTables, int taskId, int numTasks) {
-        List<TableId> sorted = new ArrayList<>(allTables);
-        sorted.sort(Comparator.comparing(TableId::toString));
-        List<TableId> mine = new ArrayList<>();
-        for (int i = taskId; i < sorted.size(); i += numTasks) { // i = taskId, taskId+numTasks, ...
-            mine.add(sorted.get(i));
-        }
-        return mine;
-    }
-
-    /**
-     * Parse a comma-joined FQN list back to TableIds.
-     */
-    public static List<TableId> parseTables(String joined) {
-        if (joined == null || joined.isEmpty()) {
-            return List.of();
-        }
-        return Arrays.stream(joined.split(",")).map(String::trim).filter(s -> !s.isEmpty())
-                .map(TableId::parse).collect(Collectors.toList());
     }
 
     private static boolean isSnapshotInProgress(Map<String, Object> offset) {

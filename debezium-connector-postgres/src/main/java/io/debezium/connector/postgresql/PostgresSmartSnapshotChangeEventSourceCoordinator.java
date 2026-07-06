@@ -23,7 +23,6 @@ import io.debezium.pipeline.EventDispatcher;
 import io.debezium.pipeline.metrics.spi.ChangeEventSourceMetricsFactory;
 import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.signal.SignalProcessor;
-import io.debezium.pipeline.source.snapshot.SmartSnapshotConnectorCoordinator;
 import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.pipeline.source.spi.ChangeEventSource.ChangeEventSourceContext;
 import io.debezium.pipeline.source.spi.SnapshotChangeEventSource;
@@ -155,10 +154,9 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
                             SnapshotCoordinationFacade.SNAPSHOT_NAME);
                     slotLsnStr = String.valueOf(snapshotInfo.get(
                             SnapshotCoordinationFacade.CONSISTENT_POINT));
-                    List<TableId> all = SmartSnapshotConnectorCoordinator.parseTables(
-                            (String) snapshotInfo.get(SnapshotCoordinationFacade.TABLES));
+                    List<TableId> all = SnapshotCoordinationFacade.parseTables(snapshotInfo.get(SnapshotCoordinationFacade.TABLES));
                     int numTasks = ((Number) snapshotInfo.get(SnapshotCoordinationFacade.NUM_TASKS)).intValue();
-                    tableSubset = SmartSnapshotConnectorCoordinator.tablesForTask(all, Integer.parseInt(taskId), numTasks);
+                    tableSubset = SnapshotCoordinationFacade.tablesForTask(all, Integer.parseInt(taskId), numTasks);
                     break;
                 }
             }
