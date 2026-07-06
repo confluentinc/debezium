@@ -125,6 +125,11 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
             // This logic is similar to the feature disabled path in PostgresConnectorTask#start
             SlotState slotInfo = getSlotState();
             if (slotInfo == null) {
+                LOGGER.warn("Smart snapshot: Unable to load info of replication slot, Debezium will try to create the slot");
+                if (connectorConfig.isReadOnlyConnection()) {
+                    LOGGER.warn("Connector is configured to be in read-only mode but replication slot was not found.\n" +
+                            "The attempt to create it can fail. Please check you configuration in case.");
+                }
                 slotCreateOrExportResult = createSlotViaReplicationProtocol();
             }
             else {
