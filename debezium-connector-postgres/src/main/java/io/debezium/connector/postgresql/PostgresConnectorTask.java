@@ -599,8 +599,8 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
             this.smartSnapshotLeaderThread = new Thread(
                     new SmartSnapshotLeader(lifecycle, this.snapshotCoordination, this.errorHandler,
                             leaderEpoch, numTasks, shouldStream, POLL_MS,
-                            () -> taskContext.configureLoggingContext("snapshot-prep", leaderPartition)),
-                    "smart-snapshot-leader-prep");
+                            () -> taskContext.configureLoggingContext("smart-snapshot-leader", leaderPartition)),
+                    "smart-snapshot-leader");
             this.smartSnapshotLeaderThread.setDaemon(true);
             this.smartSnapshotLeaderThread.start();
         }
@@ -699,22 +699,33 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                 }
             }
             catch (InterruptedException e) {
+                // Path A: an interrupt-aware wait (Thread.sleep in the keep-alive loop) was interrupted
+                // by the task-stop path. The flag was cleared when InterruptedException was thrown, so
+                // restore it and end the thread.
+                LOGGER.info("Smart snapshot: [Leader] Interrupted while waiting, stopping snapshot preparation.");
                 Thread.currentThread().interrupt();
                 // todo verify the behaviour
             }
-            catch (Exception e) {
+            catch (Throwable t) {
+                // todo verify the behaviour
+                // Catching Throwable ensures that an Error (for example NoClassDefFoundError or OutOfMemoryError)
+                // also fails the task, instead of the
+                // thread dying silently and leaving the snapshot round stranded.
                 lifecycle.releaseSnapshot();
                 if (Thread.currentThread().isInterrupted()) {
-                    // The task was stopped and our connections were aborted. This is a normal
-                    // shutdown, not a failure, so do not report an error.
-                    LOGGER.info("Smart snapshot: [Leader] Snapshot preparation stopped during shutdown", e);
+                    // Path B: the thread was blocked in a call that ignores interrupts (a JDBC call), so
+                    // the task-stop path aborted it by closing the connection. The exception here is that
+                    // abort (for example a SQLException), not an InterruptedException, but the interrupt
+                    // flag is still set, which tells us this is a shutdown rather than a real failure.
+                    LOGGER.info("Smart snapshot: [Leader] Snapshot preparation aborted by shutdown, held connection closed.", t);
                     return;
                 }
-                LOGGER.error("Smart snapshot: [Leader] Snapshot preparation failed", e);
-                // Fail the task with the real error. We do NOT write restart_needed here: prep failed,
+                LOGGER.error("Smart snapshot: [Leader] Snapshot preparation failed", t);
+                // Fail the task with the real error. We do NOT write restart_needed here: preparation failed,
                 // so the snapshot was never published and there is nothing to throw away. When task-0
-                // restarts it sees its own marker and writes restart_needed then, which bumps the epoch.
-                errorHandler.setProducerThrowable(new DebeziumException("Smart snapshot: [Leader] Preparation failed", e));
+                // restarts it sees its own marker and writes restart_needed then,
+                // which cause connector to bump the epoch.
+                errorHandler.setProducerThrowable(new DebeziumException("Smart snapshot: [Leader] Snapshot preparation failed", t));
             }
         }
 
