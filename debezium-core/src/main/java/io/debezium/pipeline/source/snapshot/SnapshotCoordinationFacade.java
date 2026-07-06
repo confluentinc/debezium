@@ -52,16 +52,14 @@ public class SnapshotCoordinationFacade {
         this.server = server;
     }
 
-    public static boolean hasCoordinationBootstrap(Configuration config, CommonConnectorConfig
-            connectorConfig) {
+    public static boolean hasCoordinationBootstrap(Configuration config, CommonConnectorConfig connectorConfig) {
         return KafkaLogSnapshotCoordination.hasBootstrap(config, connectorConfig);
     }
 
     /**
      * Read-only facade that does NOT create the coordination topic.
      */
-    public static SnapshotCoordinationFacade readOnly(Configuration config, CommonConnectorConfig
-            connectorConfig) {
+    public static SnapshotCoordinationFacade readOnly(Configuration config, CommonConnectorConfig connectorConfig) {
         return new SnapshotCoordinationFacade(
                 new KafkaLogSnapshotCoordination(config, connectorConfig, false),
                 connectorConfig.getLogicalName());

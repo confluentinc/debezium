@@ -218,8 +218,7 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
         if (explicit != null && !explicit.isEmpty()) {
             return true;
         }
-        String fromOverride =
-                config
+        String fromOverride = config
                 .subset("producer.override.", true)
                 .getString(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG);
         return fromOverride != null && !fromOverride.isEmpty();
