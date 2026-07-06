@@ -1582,6 +1582,11 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
         return getConfig().getString(RelationalDatabaseConnectorConfig.PASSWORD);
     }
 
+    public Integer getSmartSnapshotEpoch() {
+        String epochStr = getConfig().getString(PostgresConnector.EPOCH_KEY);
+        return epochStr != null ? Integer.parseInt(epochStr) : null;
+    }
+
     /**
      * Returns true if a custom credential provider is configured.
      */
