@@ -31,7 +31,7 @@ public class SmartSnapshotConnectorCoordinator {
     private final long monitorPollIntervalMs;
 
     // Guards the state machine (smartSnapshotState + currentEpoch + lastNumTasks + lastHandledRestartEpoch),
-    // which is read/written by both the monitor thread (monitorTick) and the connector thread (taskConfigs).
+    // which is read/written by both the monitor thread (monitorIteration) and the connector thread (taskConfigs).
     // Coordination-topic I/O and requestTaskReconfiguration are always done OUTSIDE this lock.
     private final Object stateLock = new Object();
 
@@ -45,8 +45,15 @@ public class SmartSnapshotConnectorCoordinator {
      * and streaming to begin
      *
      * check startMonitorThread()
+     *
+     * start() (connector thread) writes it, stop() (another thread) reads it.
+     * without volatile stop() could see a stale null and never stop the monitor.
      */
-    private Thread monitorThread;
+    private volatile Thread monitorThread;
+
+    // Set to true when stop() is called. The monitor checks this so it does not ask for a
+    // reconfiguration while the connector is shutting down.
+    private volatile boolean stopping = false;
 
     /*
      * current coordination round
@@ -111,15 +118,15 @@ public class SmartSnapshotConnectorCoordinator {
         Map<String, Object> snapshotInfo = snapshotCoordination.readSnapshotInfo();
         if (snapshotInfo != null
                 && Boolean.TRUE.equals(snapshotInfo.get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY))) {
-            LOGGER.info("Smart snapshot: Coordination topic shows snapshot completed, skipping");
+            LOGGER.info("Smart snapshot: Coordination topic shows snapshot completed, skipping epoch {}", SnapshotCoordinationFacade.epochOf(snapshotInfo));
             this.smartSnapshotState = SmartSnapshotState.COMPLETE;
             return;
         }
 
         // Read the epoch the Connector saved earlier. Do not change it on a plain restart.
-        // (The snapshot prep runs on task-0 after taskConfigs, so the snapshot record may not exist
+        // (The snapshot preparation runs on task-0 after taskConfigs, so the snapshot record may not exist
         // yet at this point — that's why the Connector keeps the epoch in its own record.)
-        // On the very first start there is no saved epoch yet; keep the initial value (0).
+        // On the very first start there is no saved epoch yet; keep the initial value (1).
         Integer savedEpoch = snapshotCoordination.readEpoch();
         if (savedEpoch != null) {
             this.currentEpoch.set(savedEpoch);
@@ -183,8 +190,8 @@ public class SmartSnapshotConnectorCoordinator {
     }
 
     private void startMonitorThread() {
-        monitorThread = new Thread(() -> {
-            LOGGER.info("Smart snapshot: Monitor thread started");
+        Thread thread = new Thread(() -> {
+            LOGGER.info("Smart snapshot: Monitor thread started, epoch {}", currentEpoch.get());
             while (!Thread.currentThread().isInterrupted()) {
                 try {
                     Thread.sleep(monitorPollIntervalMs);
@@ -194,14 +201,32 @@ public class SmartSnapshotConnectorCoordinator {
                     // todo verify the behaviour if we return here
                     return;
                 }
-                if (monitorIteration()) {
-                    // snapshot completed for this epoch; monitor is done
-                    return;
+                try {
+                    if (monitorIteration()) {
+                        // snapshot completed for this epoch; monitor is done
+                        return;
+                    }
+                }
+                catch (Throwable throwable) {
+                    // One bad iteration (for example a malformed record or a transient error) must NOT kill the
+                    // monitor. If the monitor dies, the snapshot never downscales or restarts and the connector
+                    // hangs silently. So log it and keep polling on the next loop.
+                    LOGGER.warn("Smart snapshot: Monitor iteration failed, will retry on next poll, epoch {}", currentEpoch.get(), throwable);
                 }
             }
         }, "smart-snapshot-monitor");
-        monitorThread.setDaemon(true);
-        monitorThread.start();
+        thread.setDaemon(true);
+
+        // If the monitor thread ever dies from something the loop above did not
+        // catch, log it and fail the connector so that runtime restarts it, instead of hanging forever.
+        // todo verify if this works
+        thread.setUncaughtExceptionHandler((t, err) -> {
+            LOGGER.error("Smart snapshot: Monitor thread died unexpectedly, failing the connector, epoch: {}", currentEpoch.get(), err);
+            connectorContext.raiseError(new RuntimeException("Smart snapshot: monitor thread died, epoch: " + currentEpoch.get(), err));
+        });
+
+        this.monitorThread = thread;
+        thread.start();
     }
 
     /**
@@ -211,6 +236,12 @@ public class SmartSnapshotConnectorCoordinator {
     boolean monitorIteration() {
         boolean requestReconfiguration = false;
         boolean complete = false;
+
+        // Remember the state before it is changed. If reconfiguration fails below,
+        // roll back to these values so the next iteration tries again instead of getting stuck.
+        SmartSnapshotState previousState;
+        int previousHandledRestartEpoch;
+        int epoch;
 
         // The reads below hit the coordination cache (non-blocking), so the whole decision is taken under the
         // lock; only requestTaskReconfiguration is fired afterwards, outside the lock.
@@ -223,7 +254,9 @@ public class SmartSnapshotConnectorCoordinator {
                 return false;
             }
 
-            int epoch = currentEpoch.get();
+            epoch = currentEpoch.get();
+            previousState = smartSnapshotState;
+            previousHandledRestartEpoch = lastHandledRestartEpoch;
 
             // 1. restart_needed — always checked, before the completion check; act on each epoch only once
             boolean restart = false;
@@ -243,8 +276,11 @@ public class SmartSnapshotConnectorCoordinator {
                     requestReconfiguration = true;
                 }
             }
-            else {
-                // 2. all complete for the epoch → downscale
+            // Only look at completion when no restart is pending. If the state is already RESTART it means we
+            // asked for a reconfiguration that taskConfigs() has not consumed yet — do NOT overwrite it with
+            // COMPLETE, or the restart would be silently lost.
+            else if (smartSnapshotState != SmartSnapshotState.RESTART) {
+                // 2. all complete for the epoch, downscale
                 boolean allComplete = true;
                 for (int i = 0; i < lastNumTasks; i++) {
                     if (!snapshotCoordination.isDone(String.valueOf(i), epoch)) {
@@ -262,7 +298,24 @@ public class SmartSnapshotConnectorCoordinator {
         }
 
         if (requestReconfiguration) {
-            connectorContext.requestTaskReconfiguration();
+            // Do not trigger a reconfiguration while shutting down.
+            if (stopping) {
+                return false;
+            }
+            try {
+                connectorContext.requestTaskReconfiguration();
+            }
+            catch (Exception e) {
+                // Undo the state change made above so the next
+                // iteration detects the same condition and tries again.
+                LOGGER.warn("Smart snapshot: requestTaskReconfiguration failed, rolling back and will retry, epoch {}", epoch, e);
+                synchronized (stateLock) {
+                    this.smartSnapshotState = previousState;
+                    this.lastHandledRestartEpoch = previousHandledRestartEpoch;
+                }
+                // keep polling; the monitor must not stop just because one reconfigure call failed
+                return false;
+            }
         }
         return complete;
     }
@@ -272,15 +325,22 @@ public class SmartSnapshotConnectorCoordinator {
     }
 
     public void stop() {
+        // avoid reconfiguration while stopping
+        stopping = true;
         stopMonitorThread();
         snapshotCoordination.stop();
     }
 
     private void stopMonitorThread() {
-        if (monitorThread != null) {
-            monitorThread.interrupt();
+        // read the volatile
+        Thread monitorThreadCopy = monitorThread;
+        if (monitorThreadCopy != null) {
+            monitorThreadCopy.interrupt();
             try {
-                monitorThread.join(5000);
+                monitorThreadCopy.join(5000);
+                if (monitorThreadCopy.isAlive()) {
+                    LOGGER.warn("Smart snapshot: Monitor thread did not stop within 5s");
+                }
             }
             catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -290,28 +350,28 @@ public class SmartSnapshotConnectorCoordinator {
     }
 
     private void writeCompletion() {
-        try {
-            Map<String, Object> snapshotInfo = snapshotCoordination.readSnapshotInfo();
-            snapshotCoordination.writeCompletion(snapshotInfo != null ? (String) snapshotInfo.get(SnapshotCoordinationFacade.CONSISTENT_POINT) : null,
-                    currentEpoch.get());
-        }
-        catch (Exception e) {
-            LOGGER.error("Smart snapshot: Failed to write completion", e);
-        }
+        Map<String, Object> snapshotInfo = snapshotCoordination.readSnapshotInfo();
+        String consistentPoint = snapshotInfo != null ? (String) snapshotInfo.get(SnapshotCoordinationFacade.CONSISTENT_POINT) : null;
+        // Let it throw on failure. The caller (taskConfigs) then does NOT downscale, and the connector fails
+        // and restarts — which retries the whole thing cleanly. The producer behind this write already retries
+        // transient broker errors internally, so a failure reaching here means it is genuinely not going through.
+        snapshotCoordination.writeCompletion(consistentPoint, currentEpoch.get());
     }
 
     private void persistEpoch(int epoch) {
-        try {
-            snapshotCoordination.writeEpoch(epoch);
-        }
-        catch (Exception e) {
-            LOGGER.error("Smart snapshot: Failed to save epoch {}", epoch, e);
-        }
+        // Let it throw on failure: then do not hand out configs at an unsaved epoch (same reasoning as
+        // writeCompletion — the underlying producer already retries transient errors).
+        snapshotCoordination.writeEpoch(epoch);
     }
 
     private static boolean isSnapshotInProgress(Map<String, Object> offset) {
         Object snapshot = offset.get(AbstractSourceInfo.SNAPSHOT_KEY);
         boolean completed = Boolean.TRUE.equals(offset.get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY));
         return snapshot != null && !completed;
+    }
+
+    // visible for testing: lets a test reach the monitor thread (and its uncaught-exception handler)
+    Thread monitorThread() {
+        return monitorThread;
     }
 }

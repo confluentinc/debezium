@@ -93,6 +93,7 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
 
             // reading the coordination topic should ideally be quick
             // there doesn't seem to be a clean way to avoid reading it here
+            // todo should this be made async?
             smartSnapshotConnectorCoordinator.start();
 
             // If previous snapshot was already complete, skip smart snapshot
