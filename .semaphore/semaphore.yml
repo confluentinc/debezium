@@ -29,7 +29,15 @@ global_job_config:
       # (ChronoLocalDateTime.toLocalDate() returns null -> NPE in Timestamp.toEpochMillis).
       # Reporter only ever hit it on x86 CI (GitHub Actions); this semaphore agent
       # is x86-64 (s1-prod-ubuntu24-04-amd64-1), matching that environment.
-      - sem-version java 24
+      #
+      # `sem-version java 24` is NOT available on this agent (LTS only: 8/11/17/21),
+      # so install Eclipse Temurin 24 (x64) directly. Semaphore persists shell env
+      # across commands in a job, so JAVA_HOME/PATH carry into the mvn step below.
+      - curl -fsSL -o /tmp/jdk24.tar.gz "https://api.adoptium.net/v3/binary/latest/24/ga/linux/x64/jdk/hotspot/normal/eclipse"
+      - mkdir -p "$HOME/jdk24" && tar -xzf /tmp/jdk24.tar.gz -C "$HOME/jdk24" --strip-components=1
+      - export JAVA_HOME="$HOME/jdk24"
+      - export PATH="$JAVA_HOME/bin:$PATH"
+      - java -version
       - . cache-maven restore
 
 blocks:
