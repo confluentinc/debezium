@@ -605,8 +605,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                     new SmartSnapshotLeader(
                             lifecycle, leaderCoordination, this.errorHandler,
                             leaderEpoch, numTasks, shouldStream, POLL_MS,
-                            () -> taskContext.configureLoggingContext("smart-snapshot-leader", leaderPartition)
-                    ),
+                            () -> taskContext.configureLoggingContext("smart-snapshot-leader", leaderPartition)),
                     "smart-snapshot-leader");
             this.smartSnapshotLeaderThread.setDaemon(true);
             this.smartSnapshotLeaderThread.start();

@@ -199,13 +199,15 @@ public class SmartSnapshotConnectorCoordinator {
                 }
                 catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    LOGGER.info("Smart snapshot: Monitor thread interrupted, exiting gracefully, epoch {} lastHandledRestartEpoch {}", currentEpoch.get(), lastHandledRestartEpoch);
+                    LOGGER.info("Smart snapshot: Monitor thread interrupted, exiting gracefully, epoch {} lastHandledRestartEpoch {}", currentEpoch.get(),
+                            lastHandledRestartEpoch);
                     // todo verify the behaviour if we return here
                     return;
                 }
                 try {
                     if (monitorIteration()) {
-                        LOGGER.info("Smart snapshot: Monitor iteration completed, monitor thread will stop now, epoch {} lastHandledRestartEpoch {}", currentEpoch.get(), lastHandledRestartEpoch);
+                        LOGGER.info("Smart snapshot: Monitor iteration completed, monitor thread will stop now, epoch {} lastHandledRestartEpoch {}", currentEpoch.get(),
+                                lastHandledRestartEpoch);
                         // snapshot completed for this epoch; monitor is done
                         // todo what if the upon finishing the thread exits but our task reconfiguration request is lost?
                         // todo should we continue hitting reconfiguration until downscaling?
@@ -216,7 +218,8 @@ public class SmartSnapshotConnectorCoordinator {
                     // One bad iteration (for example a malformed record or a transient error) must NOT kill the
                     // monitor. If the monitor dies, the snapshot never downscales or restarts and the connector
                     // hangs silently. So log it and keep polling on the next loop.
-                    LOGGER.warn("Smart snapshot: Monitor iteration failed, will retry on next poll, epoch {} lastHandledRestartEpoch {}", currentEpoch.get(), lastHandledRestartEpoch, throwable);
+                    LOGGER.warn("Smart snapshot: Monitor iteration failed, will retry on next poll, epoch {} lastHandledRestartEpoch {}", currentEpoch.get(),
+                            lastHandledRestartEpoch, throwable);
                 }
             }
         }, "smart-snapshot-monitor");
@@ -267,7 +270,8 @@ public class SmartSnapshotConnectorCoordinator {
             boolean restart = false;
             for (int i = 0; i < lastNumTasks; i++) {
                 if (snapshotCoordination.isRestartNeeded(String.valueOf(i), epoch)) {
-                    LOGGER.info("Smart snapshot: Task-{} detected `restart_needed` signal for the epoch {}, lastHandledRestartEpoch {}", i, epoch, lastHandledRestartEpoch);
+                    LOGGER.info("Smart snapshot: Task-{} detected `restart_needed` signal for the epoch {}, lastHandledRestartEpoch {}", i, epoch,
+                            lastHandledRestartEpoch);
                     restart = true;
                     break;
                 }
@@ -279,8 +283,10 @@ public class SmartSnapshotConnectorCoordinator {
                     lastHandledRestartEpoch = epoch;
                     smartSnapshotState = SmartSnapshotState.RESTART;
                     requestReconfiguration = true;
-                } else {
-                    LOGGER.info("Smart snapshot: Detected `restart_needed` signal for the epoch {}, but ignored since it is less than last restarted epoch {}", epoch, lastHandledRestartEpoch);
+                }
+                else {
+                    LOGGER.info("Smart snapshot: Detected `restart_needed` signal for the epoch {}, but ignored since it is less than last restarted epoch {}", epoch,
+                            lastHandledRestartEpoch);
                 }
             }
             // Only look at completion when no restart is pending. If the state is already RESTART it means we
@@ -296,7 +302,8 @@ public class SmartSnapshotConnectorCoordinator {
                     }
                 }
                 if (allComplete) {
-                    LOGGER.info("Smart snapshot: All {} tasks complete for the epoch {} lastHandledRestartEpoch {}, downscaling", lastNumTasks, epoch, lastHandledRestartEpoch);
+                    LOGGER.info("Smart snapshot: All {} tasks complete for the epoch {} lastHandledRestartEpoch {}, downscaling", lastNumTasks, epoch,
+                            lastHandledRestartEpoch);
                     smartSnapshotState = SmartSnapshotState.COMPLETE;
                     requestReconfiguration = true;
                     complete = true;
@@ -307,7 +314,8 @@ public class SmartSnapshotConnectorCoordinator {
         if (requestReconfiguration) {
             // Do not trigger a reconfiguration while shutting down.
             if (stopping) {
-                LOGGER.info("Smart snapshot: Skipping task reconfiguration, as we are stopping for the epoch {} lastHandledRestartEpoch {}", epoch, lastHandledRestartEpoch);
+                LOGGER.info("Smart snapshot: Skipping task reconfiguration, as we are stopping for the epoch {} lastHandledRestartEpoch {}", epoch,
+                        lastHandledRestartEpoch);
                 return false;
             }
             try {
@@ -316,7 +324,8 @@ public class SmartSnapshotConnectorCoordinator {
             catch (Exception e) {
                 // Undo the state change made above so the next
                 // iteration detects the same condition and tries again.
-                LOGGER.warn("Smart snapshot: Task reconfiguration request failed, rolling back the state and will retry, epoch {} lastHandledRestartEpoch {}", epoch, lastHandledRestartEpoch, e);
+                LOGGER.warn("Smart snapshot: Task reconfiguration request failed, rolling back the state and will retry, epoch {} lastHandledRestartEpoch {}", epoch,
+                        lastHandledRestartEpoch, e);
                 synchronized (stateLock) {
                     this.smartSnapshotState = previousState;
                     this.lastHandledRestartEpoch = previousHandledRestartEpoch;

@@ -5,11 +5,17 @@
  */
 package io.debezium.pipeline.source.snapshot;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import io.debezium.config.CommonConnectorConfig;
-import io.debezium.config.Configuration;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.CreateTopicsResult;
@@ -28,16 +34,12 @@ import org.apache.kafka.connect.util.TopicAdmin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
-import java.util.TreeMap;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+
+import io.debezium.config.CommonConnectorConfig;
+import io.debezium.config.Configuration;
 
 public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
 
@@ -127,7 +129,7 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
                 log.stop();
             }
         }
-        finally{
+        finally {
             topicAdmin.close();
         }
     }
@@ -139,7 +141,7 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
         // synchronous
         log.sendWithReceipt(keyJson, valueJson).get(30, TimeUnit.SECONDS);
         cache.put(key, new HashMap<>(data));
-        LOGGER.info("Smart snapshot: Persisted coordination data, key={}, value={}", key, data);
+        LOGGER.debug("Smart snapshot: Persisted coordination data, key={}, value={}", key, data);
     }
 
     /**

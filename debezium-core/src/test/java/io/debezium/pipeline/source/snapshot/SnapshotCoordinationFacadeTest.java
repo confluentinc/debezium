@@ -5,18 +5,6 @@
  */
 package io.debezium.pipeline.source.snapshot;
 
-import io.debezium.DebeziumException;
-import io.debezium.relational.TableId;
-import io.debezium.util.Collect;
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-
-import java.util.List;
-import java.util.Map;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
@@ -26,6 +14,19 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import java.util.List;
+import java.util.Map;
+
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+
+import io.debezium.DebeziumException;
+import io.debezium.relational.TableId;
+import io.debezium.util.Collect;
 
 /**
  * Unit tests for {@link SnapshotCoordinationFacade}: the typed key/value layer over the coordination store.
@@ -49,13 +50,35 @@ public class SnapshotCoordinationFacadeTest {
 
     @Test
     public void parseTablesTrimsSkipsBlanksAndHandlesEmpty() {
-        assertThat(SnapshotCoordinationFacade.parseTables(null)).isEmpty();
-        assertThat(SnapshotCoordinationFacade.parseTables("")).isEmpty();
+        assertThat(SnapshotCoordinationFacade.parseTablesPostgres(null)).isEmpty();
+        assertThat(SnapshotCoordinationFacade.parseTablesPostgres("")).isEmpty();
         List<TableId> tables = List.of(
                 new TableId(null, "public", "a"),
                 new TableId(null, "public", "b"));
-        assertThat(SnapshotCoordinationFacade.parseTables(SnapshotCoordinationFacade.joinTableIds(tables))).containsExactly(
+        assertThat(SnapshotCoordinationFacade.parseTablesPostgres(SnapshotCoordinationFacade.joinTableIds(tables))).containsExactly(
                 tables.get(0), tables.get(1));
+    }
+
+    @Test
+    public void testPostgresDialectSchemaParsingIdentity() {
+        // REMEDIATION: Set catalog to null to match Debezium's native Postgres TableId generation
+        TableId originalTable = new TableId(null, "chaos,schema", "customers,export");
+        List<TableId> discoveredTables = List.of(originalTable);
+
+        // This now generates a 2-part string: "\"chaos,schema\".\"customers,export\""
+        Object serializedPayload = SnapshotCoordinationFacade.joinTableIds(discoveredTables);
+
+        // Run through the parsing plane
+        List<TableId> parsedTables = SnapshotCoordinationFacade.parseTablesPostgres(serializedPayload);
+
+        assertEquals(1, parsedTables.size());
+        TableId resultTable = parsedTables.get(0);
+
+        // This assertion will now FAIL on the old code (yielding null)
+        // and PASS only with TableId.parse(s, false)
+        assertEquals("chaos,schema", resultTable.schema());
+
+        assertEquals("customers,export", resultTable.table());
     }
 
     @Test
@@ -69,8 +92,7 @@ public class SnapshotCoordinationFacadeTest {
                 tableWithComma,
                 tableWithDot,
                 tableWithQuotes,
-                tableWithSpaces
-        );
+                tableWithSpaces);
 
         // Convert to double-quoted string list (what goes into Jackson)
         Object serializedJsonArray = SnapshotCoordinationFacade.joinTableIds(discoveredTables);
@@ -87,7 +109,7 @@ public class SnapshotCoordinationFacadeTest {
         assertEquals("\"chaos,schema\".\"report\"\"internal\"\"final\"", jsonStringArray.get(2)); // Double quotes escaped internally
 
         // 3. Test Deserialization: Parse it back using the TableIdParser hook
-        List<TableId> parsedTables = SnapshotCoordinationFacade.parseTables(serializedJsonArray);
+        List<TableId> parsedTables = SnapshotCoordinationFacade.parseTablesPostgres(serializedJsonArray);
 
         assertEquals(discoveredTables.size(), parsedTables.size());
 

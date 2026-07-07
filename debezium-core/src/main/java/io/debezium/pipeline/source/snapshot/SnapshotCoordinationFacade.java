@@ -125,13 +125,14 @@ public class SnapshotCoordinationFacade {
      * Decode the TABLES field (a JSON array of quoted FQNs from the snapshot-info record) back to TableIds.
      */
     @SuppressWarnings("unchecked")
-    public static List<TableId> parseTables(Object tablesValue) {
+    public static List<TableId> parseTablesPostgres(Object tablesValue) {
         if (!(tablesValue instanceof List)) {
             return List.of();
         }
         return ((List<String>) tablesValue).stream()
                 .filter(s -> s != null && !s.isBlank())
-                .map(TableId::parse) // quote-aware (TableIdParser) -> handles dots/commas inside a quoted part
+                // Pass false to interpret 2-part identifiers as schema.table (Postgres style)
+                .map(s -> TableId.parse(s, false))
                 .collect(Collectors.toList());
     }
 

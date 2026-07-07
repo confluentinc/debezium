@@ -137,7 +137,6 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         // if the write fails let the task fail
         snapshotCoordination.writeJoin(taskId, epoch);
 
-
         // Read snapshot_name + LSN from coordination topic
         String snapshotName = null;
         String slotLsnStr = null;
@@ -149,13 +148,15 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
                 Integer snapshotInfoEpoch = SnapshotCoordinationFacade.epochOf(snapshotInfo);
                 if (snapshotInfoEpoch != null) {
                     if (snapshotInfoEpoch != epoch) {
-                        LOGGER.info("Smart snapshot: [task-{}] received snapshot info is for a different epoch, receivedEpoch {} currentEpoch {}", taskId, snapshotInfoEpoch, epoch);
-                    } else {
+                        LOGGER.info("Smart snapshot: [task-{}] received snapshot info is for a different epoch, receivedEpoch {} currentEpoch {}", taskId,
+                                snapshotInfoEpoch, epoch);
+                    }
+                    else {
                         snapshotName = (String) snapshotInfo.get(
                                 SnapshotCoordinationFacade.SNAPSHOT_NAME);
                         slotLsnStr = String.valueOf(snapshotInfo.get(
                                 SnapshotCoordinationFacade.CONSISTENT_POINT));
-                        List<TableId> all = SnapshotCoordinationFacade.parseTables(snapshotInfo.get(SnapshotCoordinationFacade.TABLES));
+                        List<TableId> all = SnapshotCoordinationFacade.parseTablesPostgres(snapshotInfo.get(SnapshotCoordinationFacade.TABLES));
                         int numTasks = ((Number) snapshotInfo.get(SnapshotCoordinationFacade.NUM_TASKS)).intValue();
                         tableSubset = SnapshotCoordinationFacade.tablesForTask(all, Integer.parseInt(taskId), numTasks);
                         break;
@@ -169,8 +170,9 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
             throw new DebeziumException(String.format("Smart snapshot [task-%s]: Timed out waiting for snapshot preparation", taskId));
         }
 
-        LOGGER.info("Smart snapshot: [task-{}] Read snapshot info, snapshot={}, LSN={}, tableSubset={} executing snapshot-only, epoch={}",
-                taskId, snapshotName, slotLsnStr, tableSubset, epoch);
+        // todo should we log each tableId separately?
+        LOGGER.info("Smart snapshot: [task-{}] Read snapshot info, snapshot={}, LSN={}, executing snapshot-only, epoch={}",
+                taskId, snapshotName, slotLsnStr, epoch);
 
         // Set snapshot name, LSN, and coordination on the source
         PostgresSmartSnapshotChangeEventSource smartSource = (PostgresSmartSnapshotChangeEventSource) snapshotSource;
