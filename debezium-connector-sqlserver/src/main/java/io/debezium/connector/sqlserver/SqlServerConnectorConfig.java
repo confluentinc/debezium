@@ -32,6 +32,7 @@ import io.debezium.connector.AbstractSourceInfo;
 import io.debezium.connector.SourceInfoStructMaker;
 import io.debezium.document.Document;
 import io.debezium.jdbc.JdbcConfiguration;
+import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.relational.ColumnFilterMode;
 import io.debezium.relational.HistorizedRelationalDatabaseConnectorConfig;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
@@ -655,6 +656,18 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
 
     public List<String> getDatabaseNames() {
         return databaseNames;
+    }
+
+    /**
+     * The smart-snapshot coordination epoch stamped on this task's config, or {@code null} when this task
+     * is not a sharded smart-snapshot task. Mirrors {@code PostgresConnectorConfig.getSmartSnapshotEpoch()}.
+     * Phase 0 (design §0.5, single database) is why this alone is sufficient to identify a sharded task --
+     * with exactly one database, the per-DB shard index and the connector-wide {@code task.id} (see
+     * {@link #getTaskId()}) coincide, so no separate per-DB index property is needed.
+     */
+    public Integer getSmartSnapshotEpoch() {
+        String epochStr = getConfig().getString(SnapshotCoordinationFacade.EPOCH);
+        return epochStr != null ? Integer.parseInt(epochStr) : null;
     }
 
     public String getInstanceName() {

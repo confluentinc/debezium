@@ -6,6 +6,8 @@
 package io.debezium.connector.sqlserver;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -29,12 +31,15 @@ import io.debezium.document.DocumentReader;
 import io.debezium.jdbc.DefaultMainConnectionProvidingConnectionFactory;
 import io.debezium.jdbc.MainConnectionProvidingConnectionFactory;
 import io.debezium.pipeline.ChangeEventSourceCoordinator;
+import io.debezium.pipeline.CommonOffsetContext;
 import io.debezium.pipeline.DataChangeEvent;
 import io.debezium.pipeline.ErrorHandler;
 import io.debezium.pipeline.EventDispatcher;
 import io.debezium.pipeline.GuardrailValidator;
 import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.signal.SignalProcessor;
+import io.debezium.pipeline.source.snapshot.KafkaLogSnapshotCoordination;
+import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.pipeline.spi.Offsets;
 import io.debezium.relational.TableId;
 import io.debezium.schema.SchemaFactory;
@@ -61,6 +66,7 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
     private volatile SqlServerConnection metadataConnection;
     private volatile SqlServerErrorHandler errorHandler;
     private volatile SqlServerDatabaseSchema schema;
+    private volatile SnapshotCoordinationFacade smartSnapshotCoordination;
 
     @Override
     public String version() {
@@ -98,6 +104,8 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
         Offsets<SqlServerPartition, SqlServerOffsetContext> offsets = getPreviousOffsets(
                 new SqlServerPartition.Provider(connectorConfig),
                 new SqlServerOffsetContext.Loader(connectorConfig));
+
+        seedStreamingOffsetsFromCoordination(connectorConfig, offsets);
 
         // Manual Bean Registration
         connectorConfig.getBeanRegistry().add(StandardBeanNames.CONFIGURATION, config);
@@ -166,24 +174,126 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
         NotificationService<SqlServerPartition, SqlServerOffsetContext> notificationService = new NotificationService<>(getNotificationChannels(),
                 connectorConfig, SchemaFactory.get(), dispatcher::enqueueNotification);
 
-        ChangeEventSourceCoordinator<SqlServerPartition, SqlServerOffsetContext> coordinator = new SqlServerChangeEventSourceCoordinator(
-                offsets,
-                errorHandler,
-                SqlServerConnector.class,
-                connectorConfig,
-                new SqlServerChangeEventSourceFactory(connectorConfig, connectionFactory, metadataConnection, errorHandler, dispatcher, clock, schema,
-                        notificationService, snapshotterService),
-                new SqlServerMetricsFactory(offsets.getPartitions()),
-                dispatcher,
-                schema,
-                clock,
-                signalProcessor,
-                notificationService,
-                snapshotterService);
+        Integer smartSnapshotEpoch = connectorConfig.getSmartSnapshotEpoch();
+        ChangeEventSourceCoordinator<SqlServerPartition, SqlServerOffsetContext> coordinator;
+        if (connectorConfig.isSmartSnapshotEnabled() && smartSnapshotEpoch != null) {
+            // Sharded smart-snapshot task. Phase 0 (design §0.5) restricts smart snapshot to a single
+            // database, so the connector-wide task.id doubles as the per-DB shard index -- no separate
+            // index property needed. The coordination topic itself is connector-wide (single topic per
+            // server, matching the current framework -- design §3.5's per-database topic naming no longer
+            // applies now that a single SnapshotCoordinationFacade instance is shared across the whole
+            // connector, same as Postgres).
+            String taskId = connectorConfig.getTaskId();
+            this.smartSnapshotCoordination = new SnapshotCoordinationFacade(config, connectorConfig);
+            List<TableId> uncapturedEligibleTables = readUncapturedEligibleTables(config, connectorConfig, taskId);
+
+            coordinator = new SqlServerSmartSnapshotChangeEventSourceCoordinator(
+                    offsets,
+                    errorHandler,
+                    SqlServerConnector.class,
+                    connectorConfig,
+                    new SqlServerChangeEventSourceFactory(connectorConfig, connectionFactory, metadataConnection, errorHandler, dispatcher, clock, schema,
+                            notificationService, snapshotterService),
+                    new SqlServerMetricsFactory(offsets.getPartitions()),
+                    dispatcher,
+                    schema,
+                    clock,
+                    signalProcessor,
+                    notificationService,
+                    snapshotterService,
+                    smartSnapshotEpoch,
+                    smartSnapshotCoordination,
+                    taskId,
+                    uncapturedEligibleTables,
+                    () -> new SqlServerConnection(connectorConfig, valueConverters, connectorConfig.getSkippedOperations(),
+                            connectorConfig.useSingleDatabase(), connectorConfig.getOptionRecompile()));
+        }
+        else {
+            coordinator = new SqlServerChangeEventSourceCoordinator(
+                    offsets,
+                    errorHandler,
+                    SqlServerConnector.class,
+                    connectorConfig,
+                    new SqlServerChangeEventSourceFactory(connectorConfig, connectionFactory, metadataConnection, errorHandler, dispatcher, clock, schema,
+                            notificationService, snapshotterService),
+                    new SqlServerMetricsFactory(offsets.getPartitions()),
+                    dispatcher,
+                    schema,
+                    clock,
+                    signalProcessor,
+                    notificationService,
+                    snapshotterService);
+        }
 
         coordinator.start(taskContext, this.queue, metadataProvider);
 
         return coordinator;
+    }
+
+    /**
+     * Seed the collapsed/streaming task's offset from the shared coordination topic when no offset is
+     * committed yet (design §7.5). Seed-once-if-absent: a partition that already has a committed offset (a
+     * live streamed offset is always >= L_db) is left untouched. Sharded snapshot tasks carry their own
+     * epoch and must not be seeded here -- gate on {@code getSmartSnapshotEpoch() == null}, mirroring
+     * {@code PostgresConnectorTask.fetchOffsetFromCoordinationTopic}.
+     */
+    private void seedStreamingOffsetsFromCoordination(SqlServerConnectorConfig connectorConfig,
+                                                      Offsets<SqlServerPartition, SqlServerOffsetContext> offsets) {
+        if (!connectorConfig.isSmartSnapshotEnabled() || connectorConfig.getSmartSnapshotEpoch() != null
+                || !SnapshotCoordinationFacade.hasCoordinationBootstrap(connectorConfig.getConfig(), connectorConfig)) {
+            return;
+        }
+        SnapshotCoordinationFacade facade = SnapshotCoordinationFacade.readOnly(connectorConfig.getConfig(), connectorConfig);
+        try {
+            if (!facade.startForRead()) {
+                return; // topic missing/broker unreachable -- fast skip
+            }
+            Map<String, Object> snapshotInfo = facade.readSnapshotInfo();
+            if (snapshotInfo == null
+                    || !Boolean.TRUE.equals(snapshotInfo.get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY))
+                    || snapshotInfo.get(SnapshotCoordinationFacade.CONSISTENT_POINT) == null) {
+                return;
+            }
+            Lsn lsn = Lsn.valueOf(String.valueOf(snapshotInfo.get(SnapshotCoordinationFacade.CONSISTENT_POINT)));
+            for (Map.Entry<SqlServerPartition, SqlServerOffsetContext> entry : new ArrayList<>(offsets.getOffsets().entrySet())) {
+                if (entry.getValue() != null) {
+                    continue;
+                }
+                LOGGER.info("Smart snapshot: [{}] seeding streaming offset from coordination, LSN={}", entry.getKey().getDatabaseName(), lsn);
+                SqlServerOffsetContext syntheticOffset = new SqlServerOffsetContext(connectorConfig, TxLogPosition.valueOf(lsn), null, true);
+                offsets.getOffsets().put(entry.getKey(), syntheticOffset);
+            }
+        }
+        finally {
+            facade.stop();
+        }
+    }
+
+    /**
+     * The schema-history writer (task.id==0) additionally dispatches the eligible-but-uncaptured leftover
+     * set the Connector published alongside the shared snapshot-info record (design §6.2;
+     * {@link SqlServerUncapturedSchemaCoordination} -- outside the shared facade's typed protocol, so read
+     * directly here rather than threading it through {@code SnapshotCoordinationFacade}). Best-effort: a
+     * missing record (Kafka replication lag on the very first read) degrades to "no leftover", not a crash.
+     */
+    private List<TableId> readUncapturedEligibleTables(Configuration config, SqlServerConnectorConfig connectorConfig, String taskId) {
+        if (!"0".equals(taskId)) {
+            return Collections.emptyList();
+        }
+        KafkaLogSnapshotCoordination coordination = new KafkaLogSnapshotCoordination(config, connectorConfig, false);
+        try {
+            coordination.start();
+            Map<String, Object> value = coordination.read(SqlServerUncapturedSchemaCoordination.key(connectorConfig.getLogicalName()));
+            if (value == null) {
+                return Collections.emptyList();
+            }
+            List<TableId> tables = SnapshotCoordinationFacade.parseTables(value.get(SqlServerUncapturedSchemaCoordination.TABLES));
+            LOGGER.info("Smart snapshot: [0] read {} eligible-but-uncaptured table(s) to additionally dispatch", tables.size());
+            return tables;
+        }
+        finally {
+            coordination.stop();
+        }
     }
 
     @Override
@@ -215,6 +325,10 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
 
     @Override
     protected void doStop() {
+        if (smartSnapshotCoordination != null) {
+            smartSnapshotCoordination.stop();
+        }
+
         try {
             if (dataConnection != null) {
                 dataConnection.close();
