@@ -5,28 +5,36 @@
  */
 package io.debezium.connector.sqlserver;
 
-import java.sql.SQLException;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.re2j.Pattern;
 
 import io.debezium.jdbc.MainConnectionProvidingConnectionFactory;
 import io.debezium.pipeline.EventDispatcher;
 import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.source.SnapshottingTask;
 import io.debezium.pipeline.source.spi.SnapshotProgressListener;
+import io.debezium.relational.RelationalSnapshotChangeEventSource.RelationalSnapshotContext;
 import io.debezium.relational.TableId;
 import io.debezium.snapshot.SnapshotterService;
 import io.debezium.util.Clock;
 
 /**
  * Sharded snapshot task change-event source for the smart-snapshot {@code repeatable_read} design: reads
- * {@code L_db} from coordination (injected by {@link SqlServerSmartSnapshotChangeEventSourceCoordinator}) instead
- * of capturing its own (design §11.0 -- only the Connector captures the anchor), and suppresses schema-change
- * dispatch for every task except the designated schema-history writer (design §6.2).
+ * {@code L_db} and its own table shard from coordination (injected by
+ * {@link SqlServerSmartSnapshotChangeEventSourceCoordinator} once it has polled the shared snapshot-info
+ * record and computed this task's shard via {@code SnapshotCoordinationFacade.tablesForTask}) instead of
+ * discovering tables/capturing its own anchor itself (design §11.0 -- only the Connector captures the
+ * anchor). Overriding {@code determineCapturedTables} to assign the pre-computed shard to both
+ * {@code capturedTables} and {@code capturedSchemaTables} means every task -- including the one whose shard
+ * happens to land at index 0 -- dispatches schema-history CREATE TABLEs for only its own shard, from the
+ * same live read it uses for its own data (design §6.2): the union across all shards is what makes
+ * schema-history complete, not any single task dispatching everything.
  *
  * <p>Schema *locking* is intentionally left untouched: the inherited {@code lockTablesForSchemaSnapshot}/
  * {@code releaseSchemaSnapshotLocks} already do the per-table {@code TABLOCKX}-then-release dance that this
@@ -37,7 +45,9 @@ public class SqlServerSmartSnapshotChangeEventSource extends SqlServerSnapshotCh
     private static final Logger LOGGER = LoggerFactory.getLogger(SqlServerSmartSnapshotChangeEventSource.class);
 
     private final SqlServerConnectorConfig connectorConfig;
-    private Lsn smartSnapshotLsn;
+    private volatile Lsn smartSnapshotLsn;
+    private volatile List<TableId> smartSnapshotTables;
+    private volatile List<TableId> uncapturedEligibleTables;
 
     public SqlServerSmartSnapshotChangeEventSource(SqlServerConnectorConfig connectorConfig,
                                                    MainConnectionProvidingConnectionFactory<SqlServerConnection> connectionFactory,
@@ -49,13 +59,27 @@ public class SqlServerSmartSnapshotChangeEventSource extends SqlServerSnapshotCh
         this.connectorConfig = connectorConfig;
     }
 
-    /** Set by the coordinator once it has read {@code L_db} + matching epoch from the coordination topic. */
-    public void setSmartSnapshotLsn(Lsn lsn) {
+    /**
+     * Set by the coordinator once it has read {@code L_db} + this task's own shard (via
+     * {@code SnapshotCoordinationFacade.tablesForTask}) at the matching epoch from the coordination topic.
+     * {@code uncapturedEligibleTables} is non-empty only for the schema-history writer (task.id==0) and only
+     * under {@code store.only.captured.tables.ddl=false} -- the "eligible for schema but not data-captured"
+     * leftover set (design §6.2); every other task gets an empty list.
+     */
+    public void setSmartSnapshotShard(Lsn lsn, List<TableId> tables, List<TableId> uncapturedEligibleTables) {
         this.smartSnapshotLsn = lsn;
+        this.smartSnapshotTables = tables;
+        this.uncapturedEligibleTables = uncapturedEligibleTables;
     }
 
-    private boolean isSchemaHistoryWriter() {
-        return "0".equals(connectorConfig.getSmartSnapshotDatabaseTaskIndex());
+    @Override
+    protected void determineCapturedTables(RelationalSnapshotContext<SqlServerPartition, SqlServerOffsetContext> ctx,
+                                           Set<Pattern> dataCollectionsToBeSnapshotted, SnapshottingTask snapshottingTask)
+            throws Exception {
+        ctx.capturedTables = new LinkedHashSet<>(smartSnapshotTables);
+        LinkedHashSet<TableId> schemaTables = new LinkedHashSet<>(smartSnapshotTables);
+        schemaTables.addAll(uncapturedEligibleTables);
+        ctx.capturedSchemaTables = schemaTables;
     }
 
     @Override
@@ -71,42 +95,7 @@ public class SqlServerSmartSnapshotChangeEventSource extends SqlServerSnapshotCh
         // L_db comes from coordination (captured once by the Connector), never from this task's own
         // getMaxLsn() -- every shard must stream from the identical anchor (design §11.0).
         ctx.offset = new SqlServerOffsetContext(connectorConfig, TxLogPosition.valueOf(smartSnapshotLsn), null, false);
-        LOGGER.info("Smart snapshot: [{}/{}] set offset LSN={}",
-                ctx.partition.getDatabaseName(), connectorConfig.getSmartSnapshotDatabaseTaskIndex(), smartSnapshotLsn);
-    }
-
-    @Override
-    protected void readTableStructure(ChangeEventSourceContext sourceContext,
-                                      RelationalSnapshotContext<SqlServerPartition, SqlServerOffsetContext> snapshotContext,
-                                      SqlServerOffsetContext offsetContext, SnapshottingTask snapshottingTask)
-            throws SQLException, InterruptedException {
-        if (!isSchemaHistoryWriter()) {
-            super.readTableStructure(sourceContext, snapshotContext, offsetContext, snapshottingTask);
-            return;
-        }
-
-        // The writer must read the FULL DB structure (design §6.2), not just its own shard, even when
-        // store.only.captured.tables.ddl=true would otherwise narrow readTableStructure() to
-        // snapshotContext.capturedTables -- else createSchemaChangeEventsForTables() throws for out-of-shard
-        // tables. Swap in the full set only for the duration of this call: capturedTables must stay
-        // shard-scoped for the subsequent data-read phase.
-        Set<TableId> shardTables = snapshotContext.capturedTables;
-        snapshotContext.capturedTables = snapshotContext.capturedSchemaTables;
-        try {
-            super.readTableStructure(sourceContext, snapshotContext, offsetContext, snapshottingTask);
-        }
-        finally {
-            snapshotContext.capturedTables = shardTables;
-        }
-    }
-
-    @Override
-    protected Collection<TableId> getTablesForSchemaChange(RelationalSnapshotContext<SqlServerPartition, SqlServerOffsetContext> snapshotContext) {
-        if (!isSchemaHistoryWriter()) {
-            // non-writers still build their in-memory schema via readTableStructure() above; they just
-            // don't dispatch it -- only the writer's CREATE TABLE reaches the schema-history topic (§6.2)
-            return Collections.emptyList();
-        }
-        return super.getTablesForSchemaChange(snapshotContext);
+        LOGGER.info("Smart snapshot: [{}/{}] set offset LSN={}, shard={}",
+                ctx.partition.getDatabaseName(), connectorConfig.getTaskId(), smartSnapshotLsn, smartSnapshotTables);
     }
 }

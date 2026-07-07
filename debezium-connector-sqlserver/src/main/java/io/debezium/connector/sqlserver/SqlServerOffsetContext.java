@@ -15,7 +15,7 @@ import io.debezium.connector.AbstractSourceInfo;
 import io.debezium.connector.SnapshotRecord;
 import io.debezium.connector.SnapshotType;
 import io.debezium.pipeline.CommonOffsetContext;
-import io.debezium.pipeline.source.snapshot.SmartSnapshotConnectorCoordinator;
+import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.pipeline.source.snapshot.incremental.IncrementalSnapshotContext;
 import io.debezium.pipeline.spi.OffsetContext;
 import io.debezium.pipeline.txmetadata.TransactionContext;
@@ -81,7 +81,7 @@ public class SqlServerOffsetContext extends CommonOffsetContext<SourceInfo> {
                 sourceInfo.getChangeLsn() == null ? null : sourceInfo.getChangeLsn().toString());
         offset.put(SourceInfo.EVENT_SERIAL_NO_KEY, eventSerialNo);
         if (epoch != null) {
-            offset.put(SmartSnapshotConnectorCoordinator.EPOCH_KEY, epoch);
+            offset.put(SnapshotCoordinationFacade.EPOCH, epoch);
         }
         return sourceInfo.isSnapshot() ? offset : incrementalSnapshotContext.store(transactionContext.store(offset));
     }
@@ -140,7 +140,7 @@ public class SqlServerOffsetContext extends CommonOffsetContext<SourceInfo> {
                 eventSerialNo = Long.valueOf(0);
             }
 
-            final Integer epoch = SmartSnapshotConnectorCoordinator.readEpoch((Map<String, Object>) offset);
+            final Integer epoch = SnapshotCoordinationFacade.epochOf((Map<String, Object>) offset);
 
             return new SqlServerOffsetContext(connectorConfig, TxLogPosition.valueOf(commitLsn, changeLsn), snapshot, snapshotCompleted, eventSerialNo,
                     TransactionContext.load(offset), SqlServerIncrementalSnapshotContext.load(offset), epoch);

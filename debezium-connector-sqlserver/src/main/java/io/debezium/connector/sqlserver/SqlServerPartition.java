@@ -23,10 +23,10 @@ public class SqlServerPartition extends AbstractPartition implements Partition {
     private static final String TASK_PARTITION_KEY = "task";
 
     private final String serverName;
-    // per-DB smart-snapshot shard index (SqlServerConnectorConfig.getSmartSnapshotDatabaseTaskIndex());
-    // null for the non-sharded/legacy partition shape. Required so that multiple sharded tasks reading
-    // the same database don't share one offset-store partition.
-    private final String smartSnapshotDatabaseTaskIndex;
+    // task.id, present only for a sharded smart-snapshot task (Phase 0, design §0.5: single database, so
+    // task.id doubles as the per-DB shard index); null for the non-sharded/legacy partition shape. Required
+    // so that multiple sharded tasks reading the same database don't share one offset-store partition.
+    private final String taskId;
     private final Map<String, String> sourcePartition;
     private final List<Map<String, String>> supportedFormats;
     private final int hashCode;
@@ -39,14 +39,14 @@ public class SqlServerPartition extends AbstractPartition implements Partition {
         this(serverName, databaseName, multiPartitionMode, null);
     }
 
-    public SqlServerPartition(String serverName, String databaseName, boolean multiPartitionMode, String smartSnapshotDatabaseTaskIndex) {
+    public SqlServerPartition(String serverName, String databaseName, boolean multiPartitionMode, String taskId) {
         super(databaseName);
         this.serverName = serverName;
-        this.smartSnapshotDatabaseTaskIndex = smartSnapshotDatabaseTaskIndex;
+        this.taskId = taskId;
 
-        this.sourcePartition = smartSnapshotDatabaseTaskIndex != null
+        this.sourcePartition = taskId != null
                 ? Collect.hashMapOf(SERVER_PARTITION_KEY, serverName, DATABASE_PARTITION_KEY, databaseName,
-                        TASK_PARTITION_KEY, smartSnapshotDatabaseTaskIndex)
+                        TASK_PARTITION_KEY, taskId)
                 : Collect.hashMapOf(SERVER_PARTITION_KEY, serverName, DATABASE_PARTITION_KEY, databaseName);
 
         // for connectors working in single-partition mode the format of a partition has been changed in Debezium 2.0,
@@ -55,7 +55,7 @@ public class SqlServerPartition extends AbstractPartition implements Partition {
         this.supportedFormats = multiPartitionMode ? Collections.singletonList(this.sourcePartition)
                 : Arrays.asList(this.sourcePartition, Collect.hashMapOf(SERVER_PARTITION_KEY, serverName));
 
-        this.hashCode = Objects.hash(serverName, databaseName, smartSnapshotDatabaseTaskIndex);
+        this.hashCode = Objects.hash(serverName, databaseName, taskId);
     }
 
     @Override
@@ -85,7 +85,7 @@ public class SqlServerPartition extends AbstractPartition implements Partition {
         }
         final SqlServerPartition other = (SqlServerPartition) obj;
         return Objects.equals(serverName, other.serverName) && Objects.equals(databaseName, other.databaseName)
-                && Objects.equals(smartSnapshotDatabaseTaskIndex, other.smartSnapshotDatabaseTaskIndex);
+                && Objects.equals(taskId, other.taskId);
     }
 
     @Override
@@ -109,11 +109,13 @@ public class SqlServerPartition extends AbstractPartition implements Partition {
         public Set<SqlServerPartition> getPartitions() {
             String serverName = connectorConfig.getLogicalName();
             boolean multiPartitionMode = connectorConfig.getDatabaseNames().size() > 1;
-            // present only for a sharded smart-snapshot task, which is always scoped to exactly one database
-            String smartSnapshotDatabaseTaskIndex = connectorConfig.getSmartSnapshotDatabaseTaskIndex();
+            // task.id is stamped on every task (smart-snapshot sharded or the ordinary round-robin path
+            // alike), so it alone can't signal "this is a sharded task" -- gate on the epoch, which is
+            // stamped only by the sharded smart-snapshot fan-out (always scoped to exactly one database).
+            String taskId = connectorConfig.getSmartSnapshotEpoch() != null ? connectorConfig.getTaskId() : null;
 
             return connectorConfig.getDatabaseNames().stream()
-                    .map(databaseName -> new SqlServerPartition(serverName, databaseName, multiPartitionMode, smartSnapshotDatabaseTaskIndex))
+                    .map(databaseName -> new SqlServerPartition(serverName, databaseName, multiPartitionMode, taskId))
                     .collect(Collectors.toSet());
         }
     }

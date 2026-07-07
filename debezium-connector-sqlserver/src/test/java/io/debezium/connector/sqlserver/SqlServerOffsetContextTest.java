@@ -13,7 +13,7 @@ import org.junit.Test;
 
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
-import io.debezium.pipeline.source.snapshot.SmartSnapshotConnectorCoordinator;
+import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 
 public class SqlServerOffsetContextTest {
 
@@ -21,7 +21,7 @@ public class SqlServerOffsetContextTest {
         Configuration.Builder builder = Configuration.create()
                 .with(CommonConnectorConfig.TOPIC_PREFIX, "serverX");
         if (epoch != null) {
-            builder = builder.with(SmartSnapshotConnectorCoordinator.EPOCH_KEY, epoch);
+            builder = builder.with(SnapshotCoordinationFacade.EPOCH, epoch);
         }
         return new SqlServerConnectorConfig(builder.build());
     }
@@ -33,7 +33,7 @@ public class SqlServerOffsetContextTest {
                 connectorConfig, TxLogPosition.valueOf(Lsn.valueOf(new byte[]{ 0x01 })), null, false);
 
         assertThat(offset.getEpoch()).isNull();
-        assertThat(offset.getOffset()).doesNotContainKey(SmartSnapshotConnectorCoordinator.EPOCH_KEY);
+        assertThat(offset.getOffset()).doesNotContainKey(SnapshotCoordinationFacade.EPOCH);
     }
 
     @Test
@@ -43,7 +43,7 @@ public class SqlServerOffsetContextTest {
                 connectorConfig, TxLogPosition.valueOf(Lsn.valueOf(new byte[]{ 0x01 })), null, false);
 
         assertThat(offset.getEpoch()).isEqualTo(2);
-        assertThat(offset.getOffset().get(SmartSnapshotConnectorCoordinator.EPOCH_KEY)).isEqualTo(2);
+        assertThat(offset.getOffset().get(SnapshotCoordinationFacade.EPOCH)).isEqualTo(2);
     }
 
     @Test
