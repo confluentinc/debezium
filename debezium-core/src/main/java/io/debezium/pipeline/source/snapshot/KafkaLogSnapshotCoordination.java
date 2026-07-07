@@ -69,6 +69,7 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
     }
 
     public KafkaLogSnapshotCoordination(Configuration configuration, CommonConnectorConfig commonConnectorConfig, boolean createTopic) {
+        // todo should this have the connector id instead? if yes how to fetch that?
         this.topicName = commonConnectorConfig.getLogicalName() + ".snapshot-coordination";
         String clientIdSuffix = commonConnectorConfig.getLogicalName() + "-coordination-connector";
         this.clientConfig = new HashMap<>(clientConfigFromOverrides(configuration, commonConnectorConfig.getSmartSnapshotCoordinationBootstrapServers()));
@@ -158,7 +159,7 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
         // synchronous
         log.sendWithReceipt(keyJson, valueJson).get(30, TimeUnit.SECONDS);
         cache.put(key, new HashMap<>(data));
-        LOGGER.info("Smart snapshot: wrote coordination data to key '{}', data={}", key, data);
+        LOGGER.info("Smart snapshot: Persisted coordination data, key={}, value={}", key, data);
     }
 
     /**
@@ -178,7 +179,7 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
             });
         }
         catch (IOException e) {
-            throw new RuntimeException("Failed to parse coordination key", e);
+            throw new RuntimeException("Smart snapshot: Failed to parse coordination key", e);
         }
         if (record.value() == null) { // tombstone
             cache.remove(key);
@@ -190,7 +191,7 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
             cache.put(key, data);
         }
         catch (IOException e) {
-            throw new ConnectException("Failed to parse coordination value", e);
+            throw new ConnectException("Smart snapshot: Failed to parse coordination value", e);
         }
     }
 
@@ -204,7 +205,7 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
             return true;
         }
         catch (Exception e) {
-            LOGGER.debug("Smart snapshot: coordination topic '{}' unavailable for read: {}", topicName,
+            LOGGER.debug("Smart snapshot: Coordination topic '{}' unavailable for read: {}", topicName,
                     e.toString());
             return false;
         }
@@ -239,22 +240,23 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
             }
             topic.configs(Map.of(
                     TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_COMPACT, // compaction = latest value per key
+                    // todo add an aggressive cleanup config
                     TopicConfig.MIN_CLEANABLE_DIRTY_RATIO_CONFIG, "0.01"));
 
             CreateTopicsResult result = admin.createTopics(Collections.singleton(topic));
             result.all().get(30, TimeUnit.SECONDS);
-            LOGGER.info("Snapshot coordination topic '{}' created", topicName);
+            LOGGER.info("Smart snapshot: Snapshot coordination topic '{}' created", topicName);
         }
         catch (ExecutionException e) {
             if (e.getCause() instanceof TopicExistsException) {
-                LOGGER.info("Snapshot coordination topic '{}' already exists", topicName);
+                LOGGER.info("Smart snapshot: Snapshot coordination topic '{}' already exists", topicName);
             }
             else {
-                throw new ConnectException("Failed to create snapshot coordination topic '" + topicName + "'", e);
+                throw new ConnectException("Smart snapshot: Failed to create snapshot coordination topic '" + topicName + "'", e);
             }
         }
         catch (Exception e) {
-            throw new ConnectException("Failed to create snapshot coordination topic '" + topicName + "'", e);
+            throw new ConnectException("Smart snapshot: Failed to create snapshot coordination topic '" + topicName + "'", e);
         }
     }
 

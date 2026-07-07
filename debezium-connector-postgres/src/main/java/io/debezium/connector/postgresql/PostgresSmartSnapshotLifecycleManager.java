@@ -146,7 +146,7 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
                 LOGGER.warn("Smart snapshot: Unable to load info of replication slot, Debezium will try to create the slot, epoch {}", epoch);
                 if (connectorConfig.isReadOnlyConnection()) {
                     LOGGER.warn("Connector is configured to be in read-only mode but replication slot was not found.\n" +
-                            "The attempt to create it can fail. Please check you configuration in case. epoch {}", epoch);
+                            "The attempt to create it can fail. Please check you configuration in case, epoch {}", epoch);
                 }
                 slotCreateOrExportResult = createSlotViaReplicationProtocol();
             }
@@ -198,7 +198,7 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
 
     @Override
     public void onAllTasksStartedTransaction() {
-        LOGGER.info("Smart snapshot: [Leader] All tasks started their transaction for the epoch {}.", epoch);
+        LOGGER.info("Smart snapshot: [Leader] All tasks started their transaction for the epoch {}", epoch);
         releaseSnapshot();
     }
 

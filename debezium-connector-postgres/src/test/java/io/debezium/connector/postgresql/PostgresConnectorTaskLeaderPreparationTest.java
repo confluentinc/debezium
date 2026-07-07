@@ -172,7 +172,7 @@ public class PostgresConnectorTaskLeaderPreparationTest {
             return null;
         }).when(coordination).stop();
 
-        PostgresConnectorTask.stopSmartSnapshot(leader, lifecycle, coordination, 2000);
+        PostgresConnectorTask.stopSmartSnapshot(leader, lifecycle, coordination, 2000, 1);
 
         verify(lifecycle).releaseSnapshot();
         verify(coordination).stop();

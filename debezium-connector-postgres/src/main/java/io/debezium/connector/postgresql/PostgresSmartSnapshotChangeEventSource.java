@@ -84,7 +84,7 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
         LinkedHashSet<TableId> mine = new LinkedHashSet<>(smartSnapshotTables);
         ctx.capturedTables = mine;
         ctx.capturedSchemaTables = mine; // unused on the Postgres path (readTableStructure derives schemas from capturedTables)
-        LOGGER.info("Smart snapshot: [task-{}] Determining captured table using the slice from leader, tables={}, epoch={}", taskId, mine, epoch);
+        LOGGER.info("Smart snapshot: [task-{}] Determining captured table using the slice from leader, tables {}, epoch {}", taskId, mine, epoch);
     }
 
     @Override
@@ -99,7 +99,7 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
         offset.updateWalPosition(smartSnapshotLsn, null, getClock().currentTime(),
                 txId, null, null, null);
         ctx.offset = offset;
-        LOGGER.info("Smart snapshot: [task-{}] set offset LSN={}, epoch={}", taskId, smartSnapshotLsn, epoch);
+        LOGGER.info("Smart snapshot: [task-{}] Set offset LSN={}, epoch={}", taskId, smartSnapshotLsn, epoch);
     }
 
     @Override
@@ -107,7 +107,7 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
         if (smartSnapshotName != null && !isOnDemand) {
             String snapSet = String.format("SET TRANSACTION SNAPSHOT '%s';", smartSnapshotName);
             String combined = "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ; \n" + snapSet;
-            LOGGER.info("Smart snapshot: [task-{}] opening transaction with: {}", taskId, combined);
+            LOGGER.info("Smart snapshot: [task-{}] opening transaction with: {} for the epoch {}", taskId, combined, epoch);
             jdbcConnection.executeWithoutCommitting(combined);
             return;
         }
@@ -121,12 +121,9 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
         // Same timing as existing single-task releaseSchemaSnapshotLocks().
         // For MySQL: information_schema isn't transactional, so global lock
         // must be held during schema read. Release only after schema is captured.
-        try {
-            snapshotCoordination.writeTransactionStarted(taskId, epoch);
-            LOGGER.info("Smart snapshot: [task-{}] task signaled transaction_started (schema read done)", taskId);
-        }
-        catch (Exception e) {
-            LOGGER.warn("Smart snapshot: [task-{}] Failed to write transaction_started signal", taskId, e);
-        }
+
+        // don't catch write failure, let the task fail instead
+        snapshotCoordination.writeTransactionStarted(taskId, epoch);
+        LOGGER.info("Smart snapshot: [task-{}] task signaled transaction_started (schema read done) for the epoch {}", taskId, epoch);
     }
 }

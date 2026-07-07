@@ -5,26 +5,27 @@
  */
 package io.debezium.pipeline.source.snapshot;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-import java.util.List;
-import java.util.Map;
-
+import io.debezium.DebeziumException;
+import io.debezium.relational.TableId;
+import io.debezium.util.Collect;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import io.debezium.DebeziumException;
-import io.debezium.relational.TableId;
-import io.debezium.util.Collect;
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link SnapshotCoordinationFacade}: the typed key/value layer over the coordination store.
@@ -55,6 +56,58 @@ public class SnapshotCoordinationFacadeTest {
                 new TableId(null, "public", "b"));
         assertThat(SnapshotCoordinationFacade.parseTables(SnapshotCoordinationFacade.joinTableIds(tables))).containsExactly(
                 tables.get(0), tables.get(1));
+    }
+
+    @Test
+    public void testAdversarialTableNamesSerializationAndRouting() {
+        TableId tableWithComma = new TableId("chaos,schema", null, "customers,export");
+        TableId tableWithDot = new TableId("chaos,schema", null, "data.metrics.v1");
+        TableId tableWithQuotes = new TableId("chaos,schema", null, "report\"internal\"final");
+        TableId tableWithSpaces = new TableId("chaos,schema", null, "$Weird Spaces & Caps#");
+
+        List<TableId> discoveredTables = List.of(
+                tableWithComma,
+                tableWithDot,
+                tableWithQuotes,
+                tableWithSpaces
+        );
+
+        // Convert to double-quoted string list (what goes into Jackson)
+        Object serializedJsonArray = SnapshotCoordinationFacade.joinTableIds(discoveredTables);
+
+        assertTrue(serializedJsonArray instanceof List);
+
+        @SuppressWarnings("unchecked")
+        List<String> jsonStringArray = (List<String>) serializedJsonArray;
+
+        // Verify the exact double-quoted format generated
+        // Debezium's toDoubleQuotedString output format: "catalog"."schema"."table"
+        assertEquals("\"chaos,schema\".\"customers,export\"", jsonStringArray.get(0));
+        assertEquals("\"chaos,schema\".\"data.metrics.v1\"", jsonStringArray.get(1));
+        assertEquals("\"chaos,schema\".\"report\"\"internal\"\"final\"", jsonStringArray.get(2)); // Double quotes escaped internally
+
+        // 3. Test Deserialization: Parse it back using the TableIdParser hook
+        List<TableId> parsedTables = SnapshotCoordinationFacade.parseTables(serializedJsonArray);
+
+        assertEquals(discoveredTables.size(), parsedTables.size());
+
+        // Assert every single table recovered its exact structural identity
+        assertEquals(tableWithComma, parsedTables.get(0));
+        assertEquals(tableWithDot, parsedTables.get(1));
+        assertEquals(tableWithQuotes, parsedTables.get(2));
+        assertEquals(tableWithSpaces, parsedTables.get(3));
+
+        // 4. Test Shard Routing (tablesForTask Stride Loop)
+        // Ensure that the odd naming characters do not throw off the round-robin allocation
+        List<TableId> task0Shard = SnapshotCoordinationFacade.tablesForTask(parsedTables, 0, 2);
+        List<TableId> task1Shard = SnapshotCoordinationFacade.tablesForTask(parsedTables, 1, 2);
+
+        assertEquals(2, task0Shard.size());
+        assertEquals(2, task1Shard.size());
+
+        // Verify that the tables are cleanly divided without mixing fragments or throwing string allocation errors
+        assertTrue(task0Shard.contains(tableWithComma) || task0Shard.contains(tableWithDot));
+        assertTrue(task1Shard.contains(tableWithQuotes) || task1Shard.contains(tableWithSpaces));
     }
 
     @Test
