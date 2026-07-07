@@ -600,9 +600,10 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
             // only used for logging
             final PostgresPartition leaderPartition = new PostgresPartition(connectorConfig.getConnectorName(), "", "0");
+            SnapshotCoordinationFacade leaderCoordination = new SnapshotCoordinationFacade(config, connectorConfig);
             this.smartSnapshotLeaderThread = new Thread(
                     new SmartSnapshotLeader(
-                            lifecycle, this.snapshotCoordination, this.errorHandler,
+                            lifecycle, leaderCoordination, this.errorHandler,
                             leaderEpoch, numTasks, shouldStream, POLL_MS,
                             () -> taskContext.configureLoggingContext("smart-snapshot-leader", leaderPartition)
                     ),
@@ -733,6 +734,10 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                 // restarts it sees its own marker and writes restart_needed then,
                 // which cause connector to bump the epoch.
                 errorHandler.setProducerThrowable(new DebeziumException("Smart snapshot: [Leader] Snapshot preparation failed for the epoch " + leaderEpoch, throwable));
+            }
+            finally {
+                // this is leader's private kafka based SnapshotCoordination
+                coordination.stop();
             }
         }
 

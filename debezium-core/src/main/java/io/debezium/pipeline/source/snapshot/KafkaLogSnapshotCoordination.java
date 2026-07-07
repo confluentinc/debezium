@@ -5,19 +5,11 @@
  */
 package io.debezium.pipeline.source.snapshot;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
-import java.util.TreeMap;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
-
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import io.debezium.config.CommonConnectorConfig;
+import io.debezium.config.Configuration;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.CreateTopicsResult;
@@ -36,12 +28,16 @@ import org.apache.kafka.connect.util.TopicAdmin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-
-import io.debezium.config.CommonConnectorConfig;
-import io.debezium.config.Configuration;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
 
@@ -49,8 +45,7 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
 
     private final int PARTITION_COUNT = 1;
 
-    private final AtomicBoolean startInitiated = new AtomicBoolean(false);
-    private final CountDownLatch startedLatch = new CountDownLatch(1);
+    private volatile boolean started = false;
 
     private final KafkaBasedLog<String, String> log;
     private final TopicAdmin topicAdmin;
@@ -107,7 +102,7 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
 
     @Override
     public boolean startForRead() {
-        // never created smart snapshot disabled (tasks.max=1) or broker unreachable
+        // if the caller only wants to reach the coordination topic
         if (!topicExists()) {
             return false;
         }
@@ -115,39 +110,24 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
         return true;
     }
 
-    // multiple threads can invoke the start method
     @Override
     public void start() {
+        if (started) {
+            return;
+        }
         // reads beginning to end, then starts background tailing thread
-        if (startInitiated.compareAndSet(false, true)) {
-            try {
-                log.start();
-            }
-            finally {
-                startedLatch.countDown(); // release any caller waiting below
-            }
-        }
-        else {
-            // another caller is starting (or already started) the log — wait for it to finish
-            try {
-                startedLatch.await();
-            }
-            catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new ConnectException("Smart snapshot: Interrupted waiting for snapshot coordination to start", e);
-            }
-        }
+        log.start();
+        started = true;
     }
 
     @Override
     public void stop() {
-        // check if this is safe if start hasn't been invoked or not finished yet
         try {
-            if (startInitiated.get()) {
+            if (started) {
                 log.stop();
             }
         }
-        finally {
+        finally{
             topicAdmin.close();
         }
     }
