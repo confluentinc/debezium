@@ -151,8 +151,9 @@ public class SqlServerSmartSnapshotChangeEventSourceCoordinator extends SqlServe
 
         ((SqlServerSmartSnapshotChangeEventSource) snapshotSource).setSmartSnapshotShard(shard.lsn, shard.tables, uncapturedEligibleTables);
 
+        SnapshotResult<SqlServerOffsetContext> snapshotResult;
         try {
-            SnapshotResult<SqlServerOffsetContext> snapshotResult = doSnapshot(snapshotSource, context, partition, previousOffset);
+            snapshotResult = doSnapshot(snapshotSource, context, partition, previousOffset);
             LOGGER.info("Smart snapshot: [{}/{}] snapshot completed status={}", partition.getDatabaseName(), taskId, snapshotResult.getStatus());
         }
         catch (InterruptedException e) {
@@ -163,6 +164,17 @@ public class SqlServerSmartSnapshotChangeEventSourceCoordinator extends SqlServe
             // and re-snapshots the shard from scratch, which is always safe under repeatable_read (§7.1).
             throw new DebeziumException(
                     String.format("Smart snapshot: [%s/%s] epoch-%d snapshot failed", partition.getDatabaseName(), taskId, epoch), e);
+        }
+
+        // Only record this shard as done for a genuinely COMPLETED (or SKIPPED -- a legitimate "nothing to do")
+        // snapshot, matching the base ChangeEventSourceCoordinator's own isCompletedOrSkipped() gate. A
+        // non-throwing ABORTED can't occur on this path today (abort surfaces as a thrown exception, handled
+        // above), but guard anyway: writing done for a non-completed result would let the monitor downscale a
+        // shard that never captured its data. Fail loudly instead.
+        if (!snapshotResult.isCompletedOrSkipped()) {
+            throw new DebeziumException(String.format(
+                    "Smart snapshot: [%s/%s] epoch-%d snapshot ended with unexpected status %s; not recording completion",
+                    partition.getDatabaseName(), taskId, epoch, snapshotResult.getStatus()));
         }
 
         writeCompleted();

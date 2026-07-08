@@ -93,43 +93,63 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
         }
 
         SnapshotCoordinationFacade coordinationFacade = new SnapshotCoordinationFacade(config, connectorConfig);
-        // Started here (rather than left for SmartSnapshotConnectorCoordinator#start to do internally) so
-        // bumpEpochIfIncompleteRoundExists() below can peek at the coordination topic before the coordinator
-        // ever reads-and-adopts an epoch. Idempotent: the coordinator's own later start() call becomes a
-        // no-op against this already-started facade.
-        coordinationFacade.start();
-        bumpEpochIfIncompleteRoundExists(coordinationFacade, database);
-        SmartSnapshotConnectorCoordinator coordinator = new SmartSnapshotConnectorCoordinator(
-                coordinationFacade, context(), connectorConfig.getLogicalName(), connectorConfig.getSmartSnapshotMonitorPollIntervalMs());
-        coordinator.start();
-        if (coordinator.isComplete()) {
-            LOGGER.info("Smart snapshot: [{}] round already complete, skipping", database);
-            coordinator.stop();
-            return;
+        SmartSnapshotConnectorCoordinator coordinator = null;
+        // Everything below starts real resources (the facade's Kafka clients, then the coordinator's daemon
+        // monitor thread) but only "commits" them to smartSnapshotConnectorCoordinator at the very end. If
+        // anything in between throws -- most realistically prepareSnapshot()'s awaitMaxLsn timing out on a
+        // freshly-enabled CDC capture job, but also any coordination write -- those resources must be released
+        // here: Connect calls stop() on a FAILED connector, but by then the field is still null so stop()
+        // would be a no-op and the monitor thread + Kafka clients would leak (a fresh set on every restart).
+        try {
+            // Started here (rather than left for SmartSnapshotConnectorCoordinator#start to do internally) so
+            // bumpEpochIfIncompleteRoundExists() below can peek at the coordination topic before the coordinator
+            // ever reads-and-adopts an epoch. Idempotent: the coordinator's own later start() call becomes a
+            // no-op against this already-started facade.
+            coordinationFacade.start();
+            bumpEpochIfIncompleteRoundExists(coordinationFacade, database);
+            coordinator = new SmartSnapshotConnectorCoordinator(
+                    coordinationFacade, context(), connectorConfig.getLogicalName(), connectorConfig.getSmartSnapshotMonitorPollIntervalMs());
+            coordinator.start();
+            if (coordinator.isComplete()) {
+                LOGGER.info("Smart snapshot: [{}] round already complete, skipping", database);
+                coordinator.stop();
+                return;
+            }
+
+            // Capture L_db + discover captured tables synchronously, directly from Connector-side code -- unlike
+            // Postgres's task-0 leader thread, SQL Server's anchor capture is a one-shot query with nothing held
+            // afterward, so it has none of the long-lived-connection/DND concerns that motivated Postgres's move.
+            boolean shouldStream = connectorConfig.getSnapshotMode() != SqlServerConnectorConfig.SnapshotMode.INITIAL_ONLY;
+            SqlServerSnapshotLifecycleManager lifecycle = new SqlServerSnapshotLifecycleManager(connectorConfig, database, () -> connect(connectorConfig));
+            SnapshotSetup setup = lifecycle.prepareSnapshot(shouldStream);
+            if (setup.tables().isEmpty()) {
+                LOGGER.info("Smart snapshot: [{}] no captured tables, skipping smart snapshot", database);
+                coordinator.stop();
+                return;
+            }
+
+            int effectiveMaxTasks = Math.max(1, ceilDiv(setup.tables().size(), connectorConfig.getSmartSnapshotTablesPerTask()));
+            int epoch = coordinationFacade.readEpoch();
+            coordinationFacade.writeSnapshotInfo(setup.snapshotName(), setup.consistentPosition(), epoch, setup.tables(), effectiveMaxTasks);
+            LOGGER.info("Smart snapshot: [{}] published L_db={} epoch={} numTasks={} for {} table(s)",
+                    database, setup.consistentPosition(), epoch, effectiveMaxTasks, setup.tables().size());
+
+            publishUncapturedEligibleTables(config, connectorConfig, database, lifecycle.getUncapturedEligibleTables(), epoch);
+
+            this.smartSnapshotConnectorCoordinator = coordinator;
+            this.smartSnapshotEffectiveMaxTasks = effectiveMaxTasks;
         }
-
-        // Capture L_db + discover captured tables synchronously, directly from Connector-side code -- unlike
-        // Postgres's task-0 leader thread, SQL Server's anchor capture is a one-shot query with nothing held
-        // afterward, so it has none of the long-lived-connection/DND concerns that motivated Postgres's move.
-        boolean shouldStream = connectorConfig.getSnapshotMode() != SqlServerConnectorConfig.SnapshotMode.INITIAL_ONLY;
-        SqlServerSnapshotLifecycleManager lifecycle = new SqlServerSnapshotLifecycleManager(connectorConfig, database, () -> connect(connectorConfig));
-        SnapshotSetup setup = lifecycle.prepareSnapshot(shouldStream);
-        if (setup.tables().isEmpty()) {
-            LOGGER.info("Smart snapshot: [{}] no captured tables, skipping smart snapshot", database);
-            coordinator.stop();
-            return;
+        catch (RuntimeException e) {
+            // coordinator.stop() also stops the shared facade (and the monitor thread); if we failed before
+            // the coordinator was even created, stop the facade directly.
+            if (coordinator != null) {
+                coordinator.stop();
+            }
+            else {
+                coordinationFacade.stop();
+            }
+            throw e;
         }
-
-        int effectiveMaxTasks = Math.max(1, ceilDiv(setup.tables().size(), connectorConfig.getSmartSnapshotTablesPerTask()));
-        int epoch = coordinationFacade.readEpoch();
-        coordinationFacade.writeSnapshotInfo(setup.snapshotName(), setup.consistentPosition(), epoch, setup.tables(), effectiveMaxTasks);
-        LOGGER.info("Smart snapshot: [{}] published L_db={} epoch={} numTasks={} for {} table(s)",
-                database, setup.consistentPosition(), epoch, effectiveMaxTasks, setup.tables().size());
-
-        publishUncapturedEligibleTables(config, connectorConfig, database, lifecycle.getUncapturedEligibleTables(), epoch);
-
-        this.smartSnapshotConnectorCoordinator = coordinator;
-        this.smartSnapshotEffectiveMaxTasks = effectiveMaxTasks;
     }
 
     /**

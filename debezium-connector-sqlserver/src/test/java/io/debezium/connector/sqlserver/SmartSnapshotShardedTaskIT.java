@@ -146,6 +146,12 @@ public class SmartSnapshotShardedTaskIT extends AbstractAsyncEngineConnectorTest
         SourceRecords records = consumeRecordsByTopic(10);
         assertThat(records.recordsForTopic(serverName + ".testDB1.dbo.table1")).hasSize(5);
         assertThat(records.recordsForTopic(serverName + ".testDB1.dbo.table2")).hasSize(5);
+        // The point of this test: table3 is schema-tracked but NOT data-captured. Asserting it produced zero
+        // data records is what actually proves the exclusion took effect -- without this, a silently-broken
+        // table.exclude.list (see the 2-part-vs-3-part trap in design §18.1) would capture table3 as an
+        // ordinary shard and dispatch its schema through the normal path, and the schema-history assertion
+        // below would still pass for the wrong reason.
+        assertThat(records.recordsForTopic(serverName + ".testDB1.dbo.table3")).isNull();
 
         String schemaHistoryContent = java.nio.file.Files.readString(TestHelper.SCHEMA_HISTORY_PATH);
         assertThat(schemaHistoryContent).contains("table1");
