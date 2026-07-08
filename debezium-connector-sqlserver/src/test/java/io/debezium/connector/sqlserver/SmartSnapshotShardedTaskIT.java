@@ -135,7 +135,9 @@ public class SmartSnapshotShardedTaskIT extends AbstractAsyncEngineConnectorTest
                 .with(CommonConnectorConfig.SMART_SNAPSHOT_ENABLED, true)
                 .with(CommonConnectorConfig.SMART_SNAPSHOT_COORDINATION_BOOTSTRAP_SERVERS, KAFKA_BOOTSTRAP_SERVERS)
                 .with(CommonConnectorConfig.SMART_SNAPSHOT_TABLES_PER_TASK, 1)
-                .with(RelationalDatabaseConnectorConfig.TABLE_EXCLUDE_LIST, "testDB1.dbo.table3")
+                // SQL Server's table.exclude.list is schema.table (2-part), not database.schema.table -- the
+                // connector's tableIdMapper is `x -> x.schema() + "." + x.table()` (SqlServerConnectorConfig).
+                .with(RelationalDatabaseConnectorConfig.TABLE_EXCLUDE_LIST, "dbo\\.table3")
                 .with("tasks.max", 2)
                 .build();
 
@@ -201,6 +203,65 @@ public class SmartSnapshotShardedTaskIT extends AbstractAsyncEngineConnectorTest
         finally {
             facade.stop();
         }
+
+        stopConnector();
+    }
+
+    @Test
+    public void taskRestartNeededStillDispatchesEligibleButUncapturedTablesAtBumpedEpoch() throws Exception {
+        // Gap fix found by a later review of the async taskConfigs()-republish path (see design doc §18):
+        // SqlServerConnector#republishInBackground writes snapshot_info *before*
+        // publishUncapturedEligibleTables, and Kafka Connect can start a new task-0 as soon as taskConfigs()
+        // returns -- well before that background thread reaches the second write. Task-0's read of the
+        // uncaptured-schema record used to be a single, unretried check (safe only under the ordering
+        // guarantee the old *synchronous* restart-republish had, before it was moved to a background thread),
+        // so it would silently see nothing and never dispatch table3's schema for the new epoch.
+        // SqlServerConnectorTask#readUncapturedEligibleTables now polls for a matching-epoch record instead,
+        // and SqlServerConnector#publishUncapturedEligibleTables always writes (even an empty list) so "not
+        // yet published" and "legitimately nothing to publish" are distinguishable. This combines both
+        // preconditions the two prior tests exercised separately -- an uncaptured table (table3) *and* a
+        // restart_needed-triggered epoch bump forcing the async republish path -- which neither of them did.
+        connection.execute("CREATE TABLE table3 (id int, name varchar(30), primary key(id))");
+
+        Configuration config = TestHelper.defaultConfig()
+                .with(CommonConnectorConfig.TOPIC_PREFIX, serverName)
+                .with(CommonConnectorConfig.SMART_SNAPSHOT_ENABLED, true)
+                .with(CommonConnectorConfig.SMART_SNAPSHOT_COORDINATION_BOOTSTRAP_SERVERS, KAFKA_BOOTSTRAP_SERVERS)
+                .with(CommonConnectorConfig.SMART_SNAPSHOT_TABLES_PER_TASK, 1)
+                .with(CommonConnectorConfig.SMART_SNAPSHOT_MONITOR_POLL_INTERVAL_MS, 1000)
+                // SQL Server's table.exclude.list is schema.table (2-part), not database.schema.table -- see
+                // writerAlsoDispatchesEligibleButUncapturedTables's comment above for why.
+                .with(RelationalDatabaseConnectorConfig.TABLE_EXCLUDE_LIST, "dbo\\.table3")
+                .with("tasks.max", 2)
+                .build();
+
+        SqlServerConnectorConfig connectorConfig = new SqlServerConnectorConfig(config);
+        SnapshotCoordinationFacade seed = new SnapshotCoordinationFacade(config, connectorConfig);
+        seed.start();
+        seed.writeRestartNeeded("0", 1);
+        seed.stop();
+
+        start(SqlServerConnector.class, config);
+        assertConnectorIsRunning();
+
+        SnapshotCoordinationFacade facade = new SnapshotCoordinationFacade(config, connectorConfig);
+        try {
+            facade.start();
+            Awaitility.await().atMost(60, TimeUnit.SECONDS).untilAsserted(() -> assertThat(facade.readEpoch()).isEqualTo(2));
+
+            Awaitility.await().atMost(30, TimeUnit.SECONDS).untilAsserted(() -> {
+                assertThat(facade.isDone("0", 2)).isTrue();
+                assertThat(facade.isDone("1", 2)).isTrue();
+            });
+        }
+        finally {
+            facade.stop();
+        }
+
+        String schemaHistoryContent = java.nio.file.Files.readString(TestHelper.SCHEMA_HISTORY_PATH);
+        assertThat(schemaHistoryContent).contains("table1");
+        assertThat(schemaHistoryContent).contains("table2");
+        assertThat(schemaHistoryContent).contains("table3");
 
         stopConnector();
     }
