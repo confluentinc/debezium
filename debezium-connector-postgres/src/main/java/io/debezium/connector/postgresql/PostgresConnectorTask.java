@@ -600,10 +600,10 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
             // only used for logging
             final PostgresPartition leaderPartition = new PostgresPartition(connectorConfig.getConnectorName(), "", "0");
-            SnapshotCoordinationFacade leaderCoordination = new SnapshotCoordinationFacade(config, connectorConfig);
+            SnapshotCoordinationFacade leaderSnapshotCoordination = new SnapshotCoordinationFacade(config, connectorConfig);
             this.smartSnapshotLeaderThread = new Thread(
                     new SmartSnapshotLeader(
-                            lifecycle, leaderCoordination, this.errorHandler,
+                            lifecycle, leaderSnapshotCoordination, this.errorHandler,
                             leaderEpoch, numTasks, shouldStream, POLL_MS,
                             () -> taskContext.configureLoggingContext("smart-snapshot-leader", leaderPartition)),
                     "smart-snapshot-leader");
@@ -639,7 +639,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
     static class SmartSnapshotLeader implements Runnable {
 
         private final SmartSnapshotLifecycleManager lifecycle;
-        private final SnapshotCoordinationFacade coordination;
+        private final SnapshotCoordinationFacade leaderSnapshotCoordination;
         private final ErrorHandler errorHandler;
         private final int leaderEpoch;
         private final int numTasks;
@@ -647,11 +647,11 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
         private final long pollMs;
         private final Runnable loggingContextSetup;
 
-        SmartSnapshotLeader(SmartSnapshotLifecycleManager lifecycle, SnapshotCoordinationFacade coordination,
+        SmartSnapshotLeader(SmartSnapshotLifecycleManager lifecycle, SnapshotCoordinationFacade leaderSnapshotCoordination,
                             ErrorHandler errorHandler, int leaderEpoch, int numTasks, boolean shouldStream, long pollMs,
                             Runnable loggingContextSetup) {
             this.lifecycle = lifecycle;
-            this.coordination = coordination;
+            this.leaderSnapshotCoordination = leaderSnapshotCoordination;
             this.errorHandler = errorHandler;
             this.leaderEpoch = leaderEpoch;
             this.numTasks = numTasks;
@@ -666,10 +666,10 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                 loggingContextSetup.run();
 
                 // background thread — safe to block on the topic read here
-                coordination.start();
+                leaderSnapshotCoordination.start();
 
                 // a completed task-0 that got restarted must NOT re-prepare, if other task can't finish the coordinator would start a new round
-                if (coordination.isDone("0", leaderEpoch)) {
+                if (leaderSnapshotCoordination.isDone("0", leaderEpoch)) {
                     LOGGER.info("Smart snapshot: [Leader] Snapshot already completed for the epoch {}, skipping leader preparation", leaderEpoch);
                     // thread ends; no re-export, no re-lock, {server} key untouched. Foreground idles until downscale.
                     return;
@@ -684,7 +684,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                 final SmartSnapshotLifecycleManager.SnapshotSetup setup = lifecycle.prepareSnapshot(shouldStream);
 
                 // todo list of tables might require compression or enable compression on the coordination topic
-                coordination.writeSnapshotInfo(setup.snapshotName(), setup.consistentPosition(), leaderEpoch, setup.tables(), numTasks);
+                leaderSnapshotCoordination.writeSnapshotInfo(setup.snapshotName(), setup.consistentPosition(), leaderEpoch, setup.tables(), numTasks);
 
                 LOGGER.info("Smart snapshot: [Leader] Prepared snapshot={}, lsn={}, epoch={}",
                         setup.snapshotName(), setup.consistentPosition(), leaderEpoch);
@@ -735,14 +735,24 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                 errorHandler.setProducerThrowable(new DebeziumException("Smart snapshot: [Leader] Snapshot preparation failed for the epoch " + leaderEpoch, throwable));
             }
             finally {
-                // this is leader's private kafka based SnapshotCoordination
-                coordination.stop();
+                boolean wasInterrupted = Thread.interrupted();
+                try {
+                    LOGGER.info("Smart snapshot: [Leader] Cleaning up snapshot coordination resources for the epoch {}", leaderEpoch);
+                    // this is leader's private kafka based SnapshotCoordination
+                    leaderSnapshotCoordination.stop();
+                }
+                catch (Exception e) {
+                    LOGGER.warn("Smart snapshot: Non-critical failure shutting down coordination log components: {} for the epoch {}", e.getMessage(), leaderEpoch);
+                }
+                if (wasInterrupted) {
+                    Thread.currentThread().interrupt();
+                }
             }
         }
 
         boolean allTasksStartedTransaction() {
             for (int i = 0; i < numTasks; i++) {
-                if (!coordination.isTransactionStarted(String.valueOf(i), leaderEpoch)) {
+                if (!leaderSnapshotCoordination.isTransactionStarted(String.valueOf(i), leaderEpoch)) {
                     return false;
                 }
             }
@@ -751,7 +761,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
         boolean anyRestartNeeded() {
             for (int i = 0; i < numTasks; i++) {
-                if (coordination.isRestartNeeded(String.valueOf(i), leaderEpoch)) {
+                if (leaderSnapshotCoordination.isRestartNeeded(String.valueOf(i), leaderEpoch)) {
                     return true;
                 }
             }
@@ -846,6 +856,8 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
             lifecycle.releaseSnapshot();
         }
 
+        boolean currentThreadWasInterrupted = false;
+
         // 2. Wait for the prep thread to finish, so it is no longer using the coordination
         // facade when we close it below. Bounded so stop can never block forever.
         if (leaderThread != null) {
@@ -856,12 +868,22 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                 }
             }
             catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+                LOGGER.warn("Smart snapshot: Task thread was interrupted while waiting for leader thread join.");
+                currentThreadWasInterrupted = true;
             }
         }
         if (coordinationFacade != null) {
-            LOGGER.info("Smart snapshot: Stopping coordination facade for the epoch {}", epoch);
-            coordinationFacade.stop();
+            try {
+                LOGGER.info("Smart snapshot: Stopping coordination facade for the epoch {}", epoch);
+                coordinationFacade.stop();
+            }
+            catch (Exception e) {
+                LOGGER.error("Smart snapshot: Failed to cleanly close coordination facade log: {} for the epoch {}", e.getMessage(), epoch);
+            }
+        }
+
+        if (currentThreadWasInterrupted) {
+            Thread.currentThread().interrupt();
         }
     }
 }
