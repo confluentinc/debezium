@@ -185,7 +185,7 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
             // connector, same as Postgres).
             String taskId = connectorConfig.getTaskId();
             this.smartSnapshotCoordination = new SnapshotCoordinationFacade(config, connectorConfig);
-            List<TableId> uncapturedEligibleTables = readUncapturedEligibleTables(config, connectorConfig, taskId);
+            List<TableId> uncapturedEligibleTables = readUncapturedEligibleTables(config, connectorConfig, taskId, smartSnapshotEpoch);
 
             coordinator = new SqlServerSmartSnapshotChangeEventSourceCoordinator(
                     offsets,
@@ -275,8 +275,12 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
      * {@link SqlServerUncapturedSchemaCoordination} -- outside the shared facade's typed protocol, so read
      * directly here rather than threading it through {@code SnapshotCoordinationFacade}). Best-effort: a
      * missing record (Kafka replication lag on the very first read) degrades to "no leftover", not a crash.
+     *
+     * <p>Gap fix: also reject a record tagged with an epoch other than this task's own {@code myEpoch} --
+     * a stale value left over from a since-superseded round (this record is compacted-topic "latest wins",
+     * not epoch-partitioned) must not be used just because it happens to be present when this task-0 reads.
      */
-    private List<TableId> readUncapturedEligibleTables(Configuration config, SqlServerConnectorConfig connectorConfig, String taskId) {
+    private List<TableId> readUncapturedEligibleTables(Configuration config, SqlServerConnectorConfig connectorConfig, String taskId, int myEpoch) {
         if (!"0".equals(taskId)) {
             return Collections.emptyList();
         }
@@ -287,8 +291,14 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
             if (value == null) {
                 return Collections.emptyList();
             }
+            Integer recordEpoch = SqlServerUncapturedSchemaCoordination.epochOf(value);
+            if (recordEpoch == null || recordEpoch != myEpoch) {
+                LOGGER.info("Smart snapshot: [0] eligible-but-uncaptured record is for epoch {} (mine is {}), ignoring as stale",
+                        recordEpoch, myEpoch);
+                return Collections.emptyList();
+            }
             List<TableId> tables = SnapshotCoordinationFacade.parseTables(value.get(SqlServerUncapturedSchemaCoordination.TABLES));
-            LOGGER.info("Smart snapshot: [0] read {} eligible-but-uncaptured table(s) to additionally dispatch", tables.size());
+            LOGGER.info("Smart snapshot: [0] read {} eligible-but-uncaptured table(s) to additionally dispatch, epoch={}", tables.size(), myEpoch);
             return tables;
         }
         finally {

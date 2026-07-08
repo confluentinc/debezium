@@ -8,6 +8,9 @@ package io.debezium.connector.sqlserver;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Proxy;
+import java.sql.Connection;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -32,7 +35,36 @@ public class SqlServerSnapshotLifecycleManagerTest {
         return new SqlServerConnectorConfig(
                 Configuration.create()
                         .with(CommonConnectorConfig.TOPIC_PREFIX, "serverX")
+                        // Kafka Connect always injects this into the raw worker config; needed here because
+                        // prepareSnapshot() now stands up a real SnapshotterService (design §15.7), whose
+                        // provider chain resolves connector-specific implementations via this property.
+                        .with("connector.class", SqlServerConnector.class.getName())
                         .build());
+    }
+
+    /**
+     * A minimal dynamic-proxy {@link Connection} answering only what
+     * {@code SqlServerSnapshotChangeEventSource.connectionCreated()} needs
+     * (@code getTransactionIsolation()}) -- avoids a real network connect attempt in
+     * {@link StubConnection#connection()}. Every other method returns a JDK-default value (0/false/null),
+     * which is fine since nothing else in the discovery-only call chain touches the connection.
+     */
+    private static Connection fakeJdbcConnection() {
+        InvocationHandler handler = (proxy, method, args) -> {
+            if ("getTransactionIsolation".equals(method.getName())) {
+                return Connection.TRANSACTION_READ_COMMITTED;
+            }
+            Class<?> returnType = method.getReturnType();
+            if (returnType == boolean.class) {
+                return false;
+            }
+            if (returnType.isPrimitive() && returnType != void.class) {
+                return 0;
+            }
+            return null;
+        };
+        return (Connection) Proxy.newProxyInstance(SqlServerSnapshotLifecycleManagerTest.class.getClassLoader(),
+                new Class<?>[]{ Connection.class }, handler);
     }
 
     /** A connection stub that never touches the network -- overrides getMaxLsn()/readTableNames(), no-op close(). */
@@ -60,6 +92,11 @@ public class SqlServerSnapshotLifecycleManagerTest {
         }
 
         @Override
+        public synchronized Connection connection() {
+            return fakeJdbcConnection();
+        }
+
+        @Override
         public synchronized void close() {
             // no real connection was ever opened
         }
@@ -69,6 +106,57 @@ public class SqlServerSnapshotLifecycleManagerTest {
         Set<TableId> tables = new LinkedHashSet<>();
         tables.add(new TableId("db1", "dbo", "t1"));
         return tables;
+    }
+
+    private static Set<TableId> twoTables() {
+        Set<TableId> tables = new LinkedHashSet<>();
+        tables.add(new TableId("db1", "dbo", "t1"));
+        tables.add(new TableId("db1", "dbo", "t2"));
+        return tables;
+    }
+
+    // Design §15.7: prepareSnapshot() must call the REAL discovery pipeline (determineCapturedTables()),
+    // not a hand-rolled filter -- these two tests guard the two things a hand-rolled filter previously
+    // missed: snapshot.include.collection.list restriction, and forced signal-table inclusion.
+
+    @Test
+    public void prepareSnapshotRespectsSnapshotIncludeCollectionList() {
+        SqlServerConnectorConfig config = new SqlServerConnectorConfig(
+                Configuration.create()
+                        .with(CommonConnectorConfig.TOPIC_PREFIX, "serverX")
+                        .with("connector.class", SqlServerConnector.class.getName())
+                        .with(CommonConnectorConfig.SNAPSHOT_MODE_TABLES, "db1\\.dbo\\.t1")
+                        .build());
+        Lsn lsn = Lsn.valueOf(new byte[]{ 0x01 });
+        StubConnection connection = new StubConnection(config, List.of(lsn), twoTables());
+
+        SqlServerSnapshotLifecycleManager manager = new SqlServerSnapshotLifecycleManager(config, "db1", () -> connection);
+        SnapshotSetup setup = manager.prepareSnapshot(true);
+
+        assertThat(setup.tables()).containsExactly(new TableId("db1", "dbo", "t1"));
+    }
+
+    @Test
+    public void prepareSnapshotAppliesTableIncludeListAndSnapshotIncludeCollectionListTogether() {
+        // Fidelity check: a hand-rolled filter could plausibly apply only one of these two independent
+        // narrowing filters. The real pipeline ANDs them: table.include.list passes {t1, t2}, then
+        // snapshot.include.collection.list narrows that further down to just t1.
+        SqlServerConnectorConfig config = new SqlServerConnectorConfig(
+                Configuration.create()
+                        .with(CommonConnectorConfig.TOPIC_PREFIX, "serverX")
+                        .with("connector.class", SqlServerConnector.class.getName())
+                        // SQL Server's table.include.list is schema.table (2-part), not database.schema.table --
+                        // the connector's tableIdMapper is `x -> x.schema() + "." + x.table()` (SqlServerConnectorConfig).
+                        .with(io.debezium.relational.RelationalDatabaseConnectorConfig.TABLE_INCLUDE_LIST, "dbo\\.t1,dbo\\.t2")
+                        .with(CommonConnectorConfig.SNAPSHOT_MODE_TABLES, "db1\\.dbo\\.t1")
+                        .build());
+        Lsn lsn = Lsn.valueOf(new byte[]{ 0x01 });
+        StubConnection connection = new StubConnection(config, List.of(lsn), twoTables());
+
+        SqlServerSnapshotLifecycleManager manager = new SqlServerSnapshotLifecycleManager(config, "db1", () -> connection);
+        SnapshotSetup setup = manager.prepareSnapshot(true);
+
+        assertThat(setup.tables()).containsExactly(new TableId("db1", "dbo", "t1"));
     }
 
     @Test

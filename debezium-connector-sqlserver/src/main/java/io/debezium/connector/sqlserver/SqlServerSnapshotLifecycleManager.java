@@ -10,16 +10,17 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.debezium.DebeziumException;
+import io.debezium.jdbc.DefaultMainConnectionProvidingConnectionFactory;
+import io.debezium.jdbc.MainConnectionProvidingConnectionFactory;
 import io.debezium.pipeline.source.snapshot.SmartSnapshotLifecycleManager;
 import io.debezium.relational.TableId;
+import io.debezium.snapshot.SnapshotterService;
 import io.debezium.util.Clock;
 import io.debezium.util.Metronome;
 
@@ -69,25 +70,44 @@ public class SqlServerSnapshotLifecycleManager implements SmartSnapshotLifecycle
 
     @Override
     public SnapshotSetup prepareSnapshot(boolean shouldStream) {
+        SqlServerLeaderSchemaSource.DiscoveryResult discovery;
+        // Real discovery pipeline (design §15.7), not a hand-rolled filter: respects
+        // snapshot.include.collection.list and forced signal-table inclusion exactly like single-task mode,
+        // since it calls the same inherited determineCapturedTables() chain. Own connection, explicitly
+        // closed here -- SqlServerLeaderSchemaSource has no lifecycle management of its own (it's a one-off,
+        // not a task-managed ChangeEventSource), so nothing else would ever release it.
+        try (SqlServerConnection discoveryConnection = connectionSupplier.get()) {
+            MainConnectionProvidingConnectionFactory<SqlServerConnection> connectionFactory = new DefaultMainConnectionProvidingConnectionFactory<>(
+                    () -> discoveryConnection);
+            SnapshotterService snapshotterService = SqlServerLeaderSchemaSource.buildSnapshotterService(connectorConfig);
+            SqlServerLeaderSchemaSource leaderSchemaSource = new SqlServerLeaderSchemaSource(connectorConfig, connectionFactory, snapshotterService);
+            SqlServerPartition partition = new SqlServerPartition(connectorConfig.getLogicalName(), databaseName);
+            discovery = leaderSchemaSource.discover(partition);
+        }
+        catch (SQLException e) {
+            throw new DebeziumException("Smart snapshot: [" + databaseName + "] failed to discover tables", e);
+        }
+        catch (RuntimeException e) {
+            throw e;
+        }
+        catch (Exception e) {
+            throw new DebeziumException("Smart snapshot: [" + databaseName + "] failed to discover tables", e);
+        }
+
+        List<TableId> tables = discovery.capturedTables;
+        this.uncapturedEligibleTables = discovery.uncapturedEligibleTables;
+        if (tables.isEmpty()) {
+            return new SnapshotSetup(null, null, tables);
+        }
+
         try (SqlServerConnection connection = connectionSupplier.get()) {
-            Set<TableId> allTables = connection.readTableNames(databaseName, null, null, new String[]{ "TABLE" });
-            List<TableId> tables = allTables.stream()
-                    .filter(tableId -> connectorConfig.getTableFilters().dataCollectionFilter().isIncluded(tableId))
-                    .collect(Collectors.toList());
-            this.uncapturedEligibleTables = allTables.stream()
-                    .filter(tableId -> !tables.contains(tableId))
-                    .filter(tableId -> connectorConfig.getTableFilters().eligibleForSchemaDataCollectionFilter().isIncluded(tableId))
-                    .collect(Collectors.toList());
-            if (tables.isEmpty()) {
-                return new SnapshotSetup(null, null, tables);
-            }
             Lsn lsn = awaitMaxLsn(connection);
             LOGGER.info("Smart snapshot: [{}] captured L_db={} for {} table(s), {} eligible-but-uncaptured for schema-history",
                     databaseName, lsn, tables.size(), uncapturedEligibleTables.size());
             return new SnapshotSetup(null, lsn.toString(), tables);
         }
         catch (SQLException e) {
-            throw new DebeziumException("Smart snapshot: [" + databaseName + "] failed to discover tables / capture max LSN", e);
+            throw new DebeziumException("Smart snapshot: [" + databaseName + "] failed to capture max LSN", e);
         }
     }
 

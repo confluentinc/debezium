@@ -8,6 +8,7 @@ package io.debezium.connector.sqlserver;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.sql.SQLException;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -149,6 +150,57 @@ public class SmartSnapshotShardedTaskIT extends AbstractAsyncEngineConnectorTest
         assertThat(schemaHistoryContent).contains("table1");
         assertThat(schemaHistoryContent).contains("table2");
         assertThat(schemaHistoryContent).contains("table3");
+
+        stopConnector();
+    }
+
+    @Test
+    public void taskRestartNeededRepublishesSnapshotInfoAtBumpedEpoch() throws Exception {
+        // Gap 2: SqlServerSmartSnapshotChangeEventSourceCoordinator#isLDbStale signals restart_needed when
+        // L_db has aged past CDC retention; the shared SmartSnapshotConnectorCoordinator bumps the epoch and
+        // hands out new task configs for it, but never republishes snapshot_info itself. Without
+        // SqlServerConnector#republishIfEpochAdvanced, the new epoch's shard tasks would poll a snapshot_info
+        // still tagged with the OLD epoch forever and time out. Pre-seeding restart_needed for epoch 1/task 0
+        // *before* the round even starts (rather than trying to race a real CDC-retention trigger or a real
+        // shard task's own completion timing) makes the very first monitor tick force the restart
+        // deterministically -- the monitor always checks restart_needed before completion, every tick, so it
+        // fires regardless of how fast the tiny epoch-1 shards would otherwise finish.
+        Configuration config = TestHelper.defaultConfig()
+                .with(CommonConnectorConfig.TOPIC_PREFIX, serverName)
+                .with(CommonConnectorConfig.SMART_SNAPSHOT_ENABLED, true)
+                .with(CommonConnectorConfig.SMART_SNAPSHOT_COORDINATION_BOOTSTRAP_SERVERS, KAFKA_BOOTSTRAP_SERVERS)
+                .with(CommonConnectorConfig.SMART_SNAPSHOT_TABLES_PER_TASK, 1)
+                .with(CommonConnectorConfig.SMART_SNAPSHOT_MONITOR_POLL_INTERVAL_MS, 1000)
+                .with("tasks.max", 2)
+                .build();
+
+        SqlServerConnectorConfig connectorConfig = new SqlServerConnectorConfig(config);
+        SnapshotCoordinationFacade seed = new SnapshotCoordinationFacade(config, connectorConfig);
+        seed.start();
+        seed.writeRestartNeeded("0", 1);
+        seed.stop();
+
+        start(SqlServerConnector.class, config);
+        assertConnectorIsRunning();
+
+        SnapshotCoordinationFacade facade = new SnapshotCoordinationFacade(config, connectorConfig);
+        try {
+            facade.start();
+            Awaitility.await().atMost(60, TimeUnit.SECONDS).untilAsserted(() -> {
+                assertThat(facade.readEpoch()).isEqualTo(2);
+                Map<String, Object> snapshotInfo = facade.readSnapshotInfo();
+                assertThat(SnapshotCoordinationFacade.epochOf(snapshotInfo)).isEqualTo(2);
+                assertThat(snapshotInfo.get(SnapshotCoordinationFacade.CONSISTENT_POINT)).isNotNull();
+            });
+
+            Awaitility.await().atMost(30, TimeUnit.SECONDS).untilAsserted(() -> {
+                assertThat(facade.isDone("0", 2)).isTrue();
+                assertThat(facade.isDone("1", 2)).isTrue();
+            });
+        }
+        finally {
+            facade.stop();
+        }
 
         stopConnector();
     }
