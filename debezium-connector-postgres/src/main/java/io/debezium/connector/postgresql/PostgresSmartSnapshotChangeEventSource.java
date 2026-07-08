@@ -85,7 +85,7 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
         ctx.capturedTables = mine;
         ctx.capturedSchemaTables = mine; // unused on the Postgres path (readTableStructure derives schemas from capturedTables)
         // todo should we log each tableId?
-        LOGGER.info("Smart snapshot: [task-{}] Determining captured table using the slice from leader, epoch {}", taskId, epoch);
+        LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Determining captured tables using the slice from the leader", taskId, epoch);
     }
 
     @Override
@@ -100,7 +100,7 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
         offset.updateWalPosition(smartSnapshotLsn, null, getClock().currentTime(),
                 txId, null, null, null);
         ctx.offset = offset;
-        LOGGER.info("Smart snapshot: [task-{}] Set offset LSN={}, epoch={}", taskId, smartSnapshotLsn, epoch);
+        LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Set offset LSN={}", taskId, epoch, smartSnapshotLsn);
     }
 
     @Override
@@ -108,7 +108,7 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
         if (smartSnapshotName != null && !isOnDemand) {
             String snapSet = String.format("SET TRANSACTION SNAPSHOT '%s';", smartSnapshotName);
             String combined = "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ; \n" + snapSet;
-            LOGGER.info("Smart snapshot: [task-{}] opening transaction with: {} for the epoch {}", taskId, combined, epoch);
+            LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Opening snapshot transaction: {}", taskId, epoch, combined);
             jdbcConnection.executeWithoutCommitting(combined);
             return;
         }
@@ -125,6 +125,6 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
 
         // don't catch write failure, let the task fail instead
         snapshotCoordination.writeTransactionStarted(taskId, epoch);
-        LOGGER.info("Smart snapshot: [task-{}] task signaled transaction_started (schema read done) for the epoch {}", taskId, epoch);
+        LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Signaled transaction_started (schema read done)", taskId, epoch);
     }
 }

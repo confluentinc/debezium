@@ -83,19 +83,20 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
             Integer maxTask = config.getInteger("tasks.max");
             if (maxTask != null && maxTask <= 1) {
                 // todo check if runtime passes tasks.max correctly
-                LOGGER.info("Smart snapshot is enabled but since the number of tasks is less than 1, falling back to feature disabled behaviour");
+                LOGGER.info("Smart snapshot: [role=connector] Enabled but tasks.max is 1 or less, falling back to feature-disabled behaviour");
                 return;
             }
             PostgresConnectorConfig connectorConfig = new PostgresConnectorConfig(config);
 
             if (!SnapshotCoordinationFacade.hasCoordinationBootstrap(config, connectorConfig)) {
-                LOGGER.info("Smart snapshot: No coordination bootstrap configured; skipping smart snapshot setup in start()");
+                LOGGER.info("Smart snapshot: [role=connector] No coordination bootstrap configured; skipping smart snapshot setup in start()");
                 return;
             }
 
             SnapshotCoordinationFacade coordinationFacade = new SnapshotCoordinationFacade(config, connectorConfig);
             smartSnapshotConnectorCoordinator = new SmartSnapshotConnectorCoordinator(coordinationFacade, context(),
-                    connectorConfig.getLogicalName(), connectorConfig.getSmartSnapshotMonitorPollIntervalMs());
+                    connectorConfig.getLogicalName(), connectorConfig.getSmartSnapshotMonitorPollIntervalMs(),
+                    connectorConfig.getContextName());
 
             // reading the coordination topic should ideally be quick
             // there doesn't seem to be a clean way to avoid reading it here

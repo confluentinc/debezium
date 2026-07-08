@@ -92,8 +92,8 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
             // todo test this branch
             Integer offsetEpoch = previousOffset.getEpoch();
             if (offsetEpoch != null && !offsetEpoch.equals(epoch)) {
-                LOGGER.info("Smart snapshot: [task-{}] Epoch mismatch (offsetEpoch {}, configEpoch {}), clearing offset",
-                        taskId, offsetEpoch, epoch);
+                LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Epoch mismatch, clearing offset. offsetEpoch={} configEpoch={}",
+                        taskId, epoch, offsetEpoch, epoch);
                 previousOffsets.resetOffset(partition);
                 previousOffset = null;
             }
@@ -105,7 +105,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         // NOT a crash. Do not treat it as a rejoin; idle and let the connector downscale.
         boolean done = snapshotCoordination.isDone(taskId, epoch);
         if (done) {
-            LOGGER.info("Smart snapshot: [task-{}] Already completed for the epoch {}, idling", taskId, epoch);
+            LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Already completed, idling", taskId, epoch);
             idleUntilRestart(context);
             return;
         }
@@ -114,7 +114,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         Integer markerEpoch = snapshotCoordination.readJoinEpoch(taskId);
         if (markerEpoch != null && markerEpoch == epoch) {
             // rejoining epoch which implies that snapshot transaction can't be rejoined signal full restart.
-            LOGGER.warn("Smart snapshot: [task-{}] Rejoin detected for the epoch {}, signaling `restart_needed`", taskId, epoch);
+            LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Rejoin detected, signaling `restart_needed`", taskId, epoch);
             writeRestartNeeded();
             idleUntilRestart(context);
             return;
@@ -123,8 +123,8 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         // Stale-epoch check: the Connector already moved to a newer epoch, wait for restart.
         Integer savedEpoch = snapshotCoordination.readEpoch();
         if (savedEpoch != null && savedEpoch > epoch) {
-            LOGGER.warn("Smart snapshot: [task-{}] Saved epoch {} is greater than current epoch {}, waiting for restart",
-                    taskId, savedEpoch, epoch);
+            LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Saved epoch is greater than current epoch, waiting for restart. savedEpoch={} currentEpoch={}",
+                    taskId, epoch, savedEpoch, epoch);
             idleUntilRestart(context);
             return;
         }
@@ -148,8 +148,8 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
                 Integer snapshotInfoEpoch = SnapshotCoordinationFacade.epochOf(snapshotInfo);
                 if (snapshotInfoEpoch != null) {
                     if (snapshotInfoEpoch != epoch) {
-                        LOGGER.info("Smart snapshot: [task-{}] received snapshot info is for a different epoch, receivedEpoch {} currentEpoch {}", taskId,
-                                snapshotInfoEpoch, epoch);
+                        LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Received snapshot info is for a different epoch. receivedEpoch={} currentEpoch={}",
+                                taskId, epoch, snapshotInfoEpoch, epoch);
                     }
                     else {
                         snapshotName = (String) snapshotInfo.get(
@@ -163,16 +163,16 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
                     }
                 }
             }
-            LOGGER.info("Smart snapshot: [task-{}] waiting for snapshot preparation (attempt {}/30)", taskId, attempt + 1);
+            LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Waiting for snapshot preparation (attempt {}/30)", taskId, epoch, attempt + 1);
             Thread.sleep(IDLE_DELAY_MS);
         }
         if (snapshotName == null) {
-            throw new DebeziumException(String.format("Smart snapshot [task-%s]: Timed out waiting for snapshot preparation", taskId));
+            throw new DebeziumException(String.format("Smart snapshot: [role=task taskId=%s epoch=%d] Timed out waiting for snapshot preparation", taskId, epoch));
         }
 
         // todo should we log each tableId separately?
-        LOGGER.info("Smart snapshot: [task-{}] Read snapshot info, snapshot={}, LSN={}, executing snapshot-only, epoch={}",
-                taskId, snapshotName, slotLsnStr, epoch);
+        LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Read snapshot info, executing snapshot-only. snapshot={}, LSN={}",
+                taskId, epoch, snapshotName, slotLsnStr);
 
         // Set snapshot name, LSN, and coordination on the source
         PostgresSmartSnapshotChangeEventSource smartSource = (PostgresSmartSnapshotChangeEventSource) snapshotSource;
@@ -181,10 +181,10 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
 
         try {
             SnapshotResult<PostgresOffsetContext> snapshotResult = doSnapshot(snapshotSource, context, partition, previousOffset);
-            LOGGER.info("Smart snapshot: [task-{}] Snapshot completed status={}", taskId, snapshotResult.getStatus());
+            LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Snapshot completed. status={}", taskId, epoch, snapshotResult.getStatus());
         }
         catch (InterruptedException e) {
-            LOGGER.warn("Smart snapshot: [task-{}] Interrupted while waiting, exiting gracefully for the epoch {}", taskId, epoch, e);
+            LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Interrupted while waiting, exiting gracefully", taskId, epoch, e);
             Thread.currentThread().interrupt();
         }
         catch (Exception e) {
@@ -195,9 +195,9 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
             // next poll. If the write also fails, writeRestartNeeded throws and the marker handles it on restart.
 
             // todo should we check for interrupted here?
-            LOGGER.warn("Smart snapshot: [task-{}] Snapshot failed for the epoch {}, signaling `restart_needed`", taskId, epoch, e);
+            LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Snapshot failed, signaling `restart_needed`", taskId, epoch, e);
             writeRestartNeeded();
-            throw new DebeziumException(String.format("Smart snapshot: [task-%s] Snapshot failed for the epoch %s, signaling restart_needed", taskId, epoch), e);
+            throw new DebeziumException(String.format("Smart snapshot: [role=task taskId=%s epoch=%d] Snapshot failed, signaling restart_needed", taskId, epoch), e);
         }
 
         writeCompleted();
@@ -217,7 +217,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
             // down it keeps failing and restarting until the topic is back, then the signal goes through.
             // Nothing is committed in the meantime, so this is safe.
             throw new DebeziumException(
-                    String.format("Smart snapshot: [task-%s] Failed to write restart_needed for the epoch %d", taskId, epoch), e);
+                    String.format("Smart snapshot: [role=task taskId=%s epoch=%d] Failed to write restart_needed", taskId, epoch), e);
         }
     }
 
@@ -228,7 +228,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
             if (context.isRunning()) {
                 Thread.sleep(IDLE_DELAY_MS);
                 if (i % 3 == 0) { // log every 30 second
-                    LOGGER.info("Smart snapshot: [task-{}] is idling for the epoch {}", taskId, epoch);
+                    LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Idling", taskId, epoch);
                 }
             }
             else {
@@ -244,7 +244,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         catch (Exception e) {
             // can't record completion, the monitor would never downscale; fail so the task retries
             throw new DebeziumException(
-                    String.format("Smart snapshot [task-%s]: Failed to write completion for the epoch %d", taskId, epoch), e);
+                    String.format("Smart snapshot: [role=task taskId=%s epoch=%d] Failed to write completion", taskId, epoch), e);
         }
     }
 }

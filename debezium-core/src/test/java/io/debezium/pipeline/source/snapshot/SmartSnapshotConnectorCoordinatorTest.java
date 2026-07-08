@@ -60,7 +60,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
     @Before
     public void before() {
         MockitoAnnotations.openMocks(this);
-        coordinator = new SmartSnapshotConnectorCoordinator(facade, connectorContext, "srv", 30_000L);
+        coordinator = new SmartSnapshotConnectorCoordinator(facade, connectorContext, "srv", 30_000L, "connector-context");
     }
 
     @After
@@ -233,7 +233,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
     // (no leak), and stop() must see the freshly-published thread reference.
     @Test
     public void stopTerminatesRunningMonitorThread() throws Exception {
-        coordinator = new SmartSnapshotConnectorCoordinator(facade, connectorContext, "srv", 10L);
+        coordinator = new SmartSnapshotConnectorCoordinator(facade, connectorContext, "srv", 10L, "connector-context");
         when(connectorContext.offsetStorageReader()).thenReturn(offsetStorageReader);
         when(offsetStorageReader.offset(any())).thenReturn(null);
         when(facade.readSnapshotInfo()).thenReturn(null);
@@ -257,7 +257,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
     // monitor — it logs and keeps polling.
     @Test
     public void monitorThreadSurvivesAThrowingIteration() throws Exception {
-        coordinator = new SmartSnapshotConnectorCoordinator(facade, connectorContext, "srv", 10L);
+        coordinator = new SmartSnapshotConnectorCoordinator(facade, connectorContext, "srv", 10L, "connector-context");
         when(connectorContext.offsetStorageReader()).thenReturn(offsetStorageReader);
         when(offsetStorageReader.offset(any())).thenReturn(null);
         when(facade.readSnapshotInfo()).thenReturn(null);
@@ -336,7 +336,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
     // final epoch (never the stale epoch 1), and the monitor stops.
     @Test
     public void monitorAndTaskConfigsRaceThroughRestartBumpAndComplete() throws Exception {
-        coordinator = new SmartSnapshotConnectorCoordinator(facade, connectorContext, "srv", 10L);
+        coordinator = new SmartSnapshotConnectorCoordinator(facade, connectorContext, "srv", 10L, "connector-context");
 
         // start() preconditions: fresh snapshot, saved epoch = 1
         when(connectorContext.offsetStorageReader()).thenReturn(offsetStorageReader);

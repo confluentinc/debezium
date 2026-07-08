@@ -20,6 +20,7 @@ import io.debezium.config.ConfigurationNames;
 import io.debezium.connector.AbstractSourceInfo;
 import io.debezium.pipeline.CommonOffsetContext;
 import io.debezium.util.Collect;
+import io.debezium.util.LoggingContext;
 
 public class SmartSnapshotConnectorCoordinator {
 
@@ -29,6 +30,10 @@ public class SmartSnapshotConnectorCoordinator {
     private final ConnectorContext connectorContext;
     private final String serverName;
     private final long monitorPollIntervalMs;
+    // Connector type (MDC connectorType) used to establish the Debezium logging context on the monitor
+    // thread. The monitor runs on its own thread, which does not inherit the connector thread's MDC, so
+    // without setting it the log-pattern fields (connector type/name) would be blank on monitor lines.
+    private final String connectorType;
 
     // Guards the state machine (smartSnapshotState + currentEpoch + lastNumTasks + lastHandledRestartEpoch),
     // which is read/written by both the monitor thread (monitorIteration) and the connector thread (taskConfigs).
@@ -94,11 +99,13 @@ public class SmartSnapshotConnectorCoordinator {
     public SmartSnapshotConnectorCoordinator(SnapshotCoordinationFacade snapshotCoordination,
                                              ConnectorContext connectorContext,
                                              String serverName,
-                                             long monitorPollIntervalMs) {
+                                             long monitorPollIntervalMs,
+                                             String connectorType) {
         this.snapshotCoordination = snapshotCoordination;
         this.connectorContext = connectorContext;
         this.serverName = serverName;
         this.monitorPollIntervalMs = monitorPollIntervalMs;
+        this.connectorType = connectorType;
     }
 
     public void start() {
@@ -108,7 +115,7 @@ public class SmartSnapshotConnectorCoordinator {
         boolean snapshotInProgress = offsetExists && isSnapshotInProgress(existingOffset);
 
         if (offsetExists && !snapshotInProgress) {
-            LOGGER.info("Smart snapshot: Existing streaming offset present, skipping smart snapshot");
+            LOGGER.info("Smart snapshot: [role=connector] Existing streaming offset present, skipping smart snapshot");
             this.smartSnapshotState = SmartSnapshotState.COMPLETE;
             return;
         }
@@ -118,7 +125,8 @@ public class SmartSnapshotConnectorCoordinator {
         Map<String, Object> snapshotInfo = snapshotCoordination.readSnapshotInfo();
         if (snapshotInfo != null
                 && Boolean.TRUE.equals(snapshotInfo.get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY))) {
-            LOGGER.info("Smart snapshot: Coordination topic shows snapshot completed, skipping epoch {}", SnapshotCoordinationFacade.epochOf(snapshotInfo));
+            LOGGER.info("Smart snapshot: [role=connector epoch={}] Coordination topic shows snapshot completed, skipping",
+                    SnapshotCoordinationFacade.epochOf(snapshotInfo));
             this.smartSnapshotState = SmartSnapshotState.COMPLETE;
             return;
         }
@@ -155,7 +163,7 @@ public class SmartSnapshotConnectorCoordinator {
                 case RESTART:
                     int past = currentEpoch.get();
                     int next = currentEpoch.incrementAndGet();
-                    LOGGER.info("Smart snapshot: Epoch restart old {} new {}", past, next);
+                    LOGGER.info("Smart snapshot: [role=connector epoch={}] Epoch restart. old={} new={}", next, past, next);
                     this.smartSnapshotState = SmartSnapshotState.ACTIVE;
                     epochBumped = true;
                     break;
@@ -169,13 +177,14 @@ public class SmartSnapshotConnectorCoordinator {
         }
 
         if (complete) {
-            LOGGER.info("Smart snapshot: Complete for the epoch {} lastHandledRestartEpoch {}, marking completion and downscaling", epoch, lastHandledRestartEpoch);
+            LOGGER.info("Smart snapshot: [role=connector epoch={} lastHandledRestartEpoch={}] Snapshot complete, writing completion marker and downscaling", epoch,
+                    lastHandledRestartEpoch);
             writeCompletion();
             return null;
         }
         if (epochBumped) {
             // save the new epoch before handing out configs
-            LOGGER.info("Smart snapshot: Epoch bumped, persisting the new epoch {} lastHandledRestartEpoch {}", epoch, lastHandledRestartEpoch);
+            LOGGER.info("Smart snapshot: [role=connector epoch={} lastHandledRestartEpoch={}] Epoch bumped, persisting the new epoch", epoch, lastHandledRestartEpoch);
             persistEpoch(epoch);
         }
 
@@ -192,21 +201,25 @@ public class SmartSnapshotConnectorCoordinator {
 
     private void startMonitorThread() {
         Thread thread = new Thread(() -> {
-            LOGGER.info("Smart snapshot: Monitor thread started, epoch {} lastHandledRestartEpoch {}", currentEpoch.get(), lastHandledRestartEpoch);
+            // The monitor thread does not inherit the connector thread's MDC; establish it here so the
+            // connector type/name appear on monitor log lines.
+            LoggingContext.forConnector(connectorType, serverName, "smart-snapshot-monitor");
+            LOGGER.info("Smart snapshot: [role=monitor epoch={} lastHandledRestartEpoch={}] Monitor thread started", currentEpoch.get(), lastHandledRestartEpoch);
             while (!Thread.currentThread().isInterrupted()) {
                 try {
                     Thread.sleep(monitorPollIntervalMs);
                 }
                 catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    LOGGER.info("Smart snapshot: Monitor thread interrupted, exiting gracefully, epoch {} lastHandledRestartEpoch {}", currentEpoch.get(),
+                    LOGGER.info("Smart snapshot: [role=monitor epoch={} lastHandledRestartEpoch={}] Monitor thread interrupted, exiting gracefully", currentEpoch.get(),
                             lastHandledRestartEpoch);
                     // todo verify the behaviour if we return here
                     return;
                 }
                 try {
                     if (monitorIteration()) {
-                        LOGGER.info("Smart snapshot: Monitor iteration completed, monitor thread will stop now, epoch {} lastHandledRestartEpoch {}", currentEpoch.get(),
+                        LOGGER.info("Smart snapshot: [role=monitor epoch={} lastHandledRestartEpoch={}] Monitor iteration completed, monitor thread will stop now",
+                                currentEpoch.get(),
                                 lastHandledRestartEpoch);
                         // snapshot completed for this epoch; monitor is done
                         // todo what if the upon finishing the thread exits but our task reconfiguration request is lost?
@@ -218,7 +231,8 @@ public class SmartSnapshotConnectorCoordinator {
                     // One bad iteration (for example a malformed record or a transient error) must NOT kill the
                     // monitor. If the monitor dies, the snapshot never downscales or restarts and the connector
                     // hangs silently. So log it and keep polling on the next loop.
-                    LOGGER.warn("Smart snapshot: Monitor iteration failed, will retry on next poll, epoch {} lastHandledRestartEpoch {}", currentEpoch.get(),
+                    LOGGER.warn("Smart snapshot: [role=monitor epoch={} lastHandledRestartEpoch={}] Monitor iteration failed, will retry on next poll",
+                            currentEpoch.get(),
                             lastHandledRestartEpoch, throwable);
                 }
             }
@@ -229,8 +243,8 @@ public class SmartSnapshotConnectorCoordinator {
         // catch, log it and fail the connector so that runtime restarts it, instead of hanging forever.
         // todo verify if this works
         thread.setUncaughtExceptionHandler((t, err) -> {
-            LOGGER.error("Smart snapshot: Monitor thread died unexpectedly, failing the connector, epoch: {}", currentEpoch.get(), err);
-            connectorContext.raiseError(new RuntimeException("Smart snapshot: Monitor thread died, epoch: " + currentEpoch.get(), err));
+            LOGGER.error("Smart snapshot: [role=monitor epoch={}] Monitor thread died unexpectedly, failing the connector", currentEpoch.get(), err);
+            connectorContext.raiseError(new RuntimeException("Smart snapshot: [role=monitor epoch=" + currentEpoch.get() + "] Monitor thread died", err));
         });
 
         this.monitorThread = thread;
@@ -270,8 +284,8 @@ public class SmartSnapshotConnectorCoordinator {
             boolean restart = false;
             for (int i = 0; i < lastNumTasks; i++) {
                 if (snapshotCoordination.isRestartNeeded(String.valueOf(i), epoch)) {
-                    LOGGER.info("Smart snapshot: Task-{} detected `restart_needed` signal for the epoch {}, lastHandledRestartEpoch {}", i, epoch,
-                            lastHandledRestartEpoch);
+                    LOGGER.info("Smart snapshot: [role=monitor epoch={} lastHandledRestartEpoch={}] task-{} signaled `restart_needed`", epoch,
+                            lastHandledRestartEpoch, i);
                     restart = true;
                     break;
                 }
@@ -279,13 +293,15 @@ public class SmartSnapshotConnectorCoordinator {
             if (restart) {
                 // handle each epoch only once
                 if (epoch > lastHandledRestartEpoch) {
-                    LOGGER.info("Smart snapshot: Detected `restart_needed` signal for the epoch {}, bumping the epoch and reconfiguring", epoch);
+                    LOGGER.info("Smart snapshot: [role=monitor epoch={}] Detected `restart_needed` signal, bumping the epoch and reconfiguring", epoch);
                     lastHandledRestartEpoch = epoch;
                     smartSnapshotState = SmartSnapshotState.RESTART;
                     requestReconfiguration = true;
                 }
                 else {
-                    LOGGER.info("Smart snapshot: Detected `restart_needed` signal for the epoch {}, but ignored since it is less than last restarted epoch {}", epoch,
+                    LOGGER.info(
+                            "Smart snapshot: [role=monitor epoch={} lastHandledRestartEpoch={}] Detected `restart_needed` signal, but ignored since it is not newer than the last restarted epoch",
+                            epoch,
                             lastHandledRestartEpoch);
                 }
             }
@@ -302,8 +318,8 @@ public class SmartSnapshotConnectorCoordinator {
                     }
                 }
                 if (allComplete) {
-                    LOGGER.info("Smart snapshot: All {} tasks complete for the epoch {} lastHandledRestartEpoch {}, downscaling", lastNumTasks, epoch,
-                            lastHandledRestartEpoch);
+                    LOGGER.info("Smart snapshot: [role=monitor epoch={} lastHandledRestartEpoch={}] All {} tasks complete, downscaling", epoch,
+                            lastHandledRestartEpoch, lastNumTasks);
                     smartSnapshotState = SmartSnapshotState.COMPLETE;
                     requestReconfiguration = true;
                     complete = true;
@@ -314,7 +330,7 @@ public class SmartSnapshotConnectorCoordinator {
         if (requestReconfiguration) {
             // Do not trigger a reconfiguration while shutting down.
             if (stopping) {
-                LOGGER.info("Smart snapshot: Skipping task reconfiguration, as we are stopping for the epoch {} lastHandledRestartEpoch {}", epoch,
+                LOGGER.info("Smart snapshot: [role=monitor epoch={} lastHandledRestartEpoch={}] Skipping task reconfiguration, as we are stopping", epoch,
                         lastHandledRestartEpoch);
                 return false;
             }
@@ -324,7 +340,9 @@ public class SmartSnapshotConnectorCoordinator {
             catch (Exception e) {
                 // Undo the state change made above so the next
                 // iteration detects the same condition and tries again.
-                LOGGER.warn("Smart snapshot: Task reconfiguration request failed, rolling back the state and will retry, epoch {} lastHandledRestartEpoch {}", epoch,
+                LOGGER.warn(
+                        "Smart snapshot: [role=monitor epoch={} lastHandledRestartEpoch={}] Task reconfiguration request failed, rolling back the state and will retry",
+                        epoch,
                         lastHandledRestartEpoch, e);
                 synchronized (stateLock) {
                     this.smartSnapshotState = previousState;
@@ -356,7 +374,7 @@ public class SmartSnapshotConnectorCoordinator {
             try {
                 monitorThreadCopy.join(5000);
                 if (monitorThreadCopy.isAlive()) {
-                    LOGGER.warn("Smart snapshot: Monitor thread did not stop within 5s");
+                    LOGGER.warn("Smart snapshot: [role=connector epoch={}] Monitor thread did not stop within 5s", currentEpoch.get());
                 }
             }
             catch (InterruptedException e) {

@@ -141,7 +141,7 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
         // synchronous
         log.sendWithReceipt(keyJson, valueJson).get(30, TimeUnit.SECONDS);
         cache.put(key, new HashMap<>(data));
-        LOGGER.debug("Smart snapshot: Persisted coordination data, key={}, value={}", key, data);
+        LOGGER.debug("Smart snapshot: [role=coordination] Persisted coordination data, key={}, value={}", key, data);
     }
 
     /**
@@ -161,7 +161,7 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
             });
         }
         catch (IOException e) {
-            throw new RuntimeException("Smart snapshot: Failed to parse coordination key", e);
+            throw new RuntimeException("Smart snapshot: [role=coordination] Failed to parse coordination key", e);
         }
         if (record.value() == null) { // tombstone
             cache.remove(key);
@@ -173,7 +173,7 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
             cache.put(key, data);
         }
         catch (IOException e) {
-            throw new ConnectException("Smart snapshot: Failed to parse coordination value", e);
+            throw new ConnectException("Smart snapshot: [role=coordination] Failed to parse coordination value", e);
         }
     }
 
@@ -187,7 +187,7 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
             return true;
         }
         catch (Exception e) {
-            LOGGER.debug("Smart snapshot: Coordination topic '{}' unavailable for read: {}", topicName,
+            LOGGER.debug("Smart snapshot: [role=coordination] Coordination topic '{}' unavailable for read: {}", topicName,
                     e.toString());
             return false;
         }
@@ -227,18 +227,18 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
 
             CreateTopicsResult result = admin.createTopics(Collections.singleton(topic));
             result.all().get(30, TimeUnit.SECONDS);
-            LOGGER.info("Smart snapshot: Snapshot coordination topic '{}' created", topicName);
+            LOGGER.info("Smart snapshot: [role=coordination] Snapshot coordination topic '{}' created", topicName);
         }
         catch (ExecutionException e) {
             if (e.getCause() instanceof TopicExistsException) {
-                LOGGER.info("Smart snapshot: Snapshot coordination topic '{}' already exists", topicName);
+                LOGGER.info("Smart snapshot: [role=coordination] Snapshot coordination topic '{}' already exists", topicName);
             }
             else {
-                throw new ConnectException("Smart snapshot: Failed to create snapshot coordination topic '" + topicName + "'", e);
+                throw new ConnectException("Smart snapshot: [role=coordination] Failed to create snapshot coordination topic '" + topicName + "'", e);
             }
         }
         catch (Exception e) {
-            throw new ConnectException("Smart snapshot: Failed to create snapshot coordination topic '" + topicName + "'", e);
+            throw new ConnectException("Smart snapshot: [role=coordination] Failed to create snapshot coordination topic '" + topicName + "'", e);
         }
     }
 
