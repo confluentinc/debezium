@@ -54,6 +54,15 @@ public class SqlServerChangeEventSourceFactory implements ChangeEventSourceFacto
     @Override
     public SnapshotChangeEventSource<SqlServerPartition, SqlServerOffsetContext> getSnapshotChangeEventSource(SnapshotProgressListener<SqlServerPartition> snapshotProgressListener,
                                                                                                               NotificationService<SqlServerPartition, SqlServerOffsetContext> notificationService) {
+        // epoch is stamped only on a sharded smart-snapshot task's config (by the framework
+        // SmartSnapshotConnectorCoordinator.taskConfigs()), unlike task.id which is also set by the ordinary
+        // (non-smart) round-robin path -- so epoch, not task.id, is what distinguishes a sharded smart-snapshot
+        // task here (unlike Postgres, which can key off task.id alone since its ordinary single-task path never
+        // sets it).
+        if (configuration.isSmartSnapshotEnabled() && configuration.getSmartSnapshotEpoch() != null) {
+            return new SqlServerSmartSnapshotChangeEventSource(configuration, connectionFactory, schema, dispatcher, clock, snapshotProgressListener,
+                    notificationService, snapshotterService);
+        }
         return new SqlServerSnapshotChangeEventSource(configuration, connectionFactory, schema, dispatcher, clock, snapshotProgressListener, notificationService,
                 snapshotterService);
     }
