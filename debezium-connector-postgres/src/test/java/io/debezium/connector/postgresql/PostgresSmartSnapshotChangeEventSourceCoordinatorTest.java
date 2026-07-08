@@ -116,18 +116,18 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
 
     @Test
     public void alreadyDoneTaskIdlesWithoutSnapshotting() throws Exception {
-        when(coordination.isDone(TASK_ID, EPOCH)).thenReturn(true);
+        when(coordination.isTaskDone(TASK_ID, EPOCH)).thenReturn(true);
 
         execute();
 
         assertThat(coordinator.doSnapshotCalled).isFalse();
-        verify(coordination, never()).writeJoin(anyString(), anyInt());
+        verify(coordination, never()).writeTaskJoin(anyString(), anyInt());
     }
 
     @Test
     public void rejoinSignalsRestartWithoutSnapshotting() throws Exception {
-        when(coordination.isDone(TASK_ID, EPOCH)).thenReturn(false);
-        when(coordination.readJoinEpoch(TASK_ID)).thenReturn(EPOCH); // marker for this epoch already present
+        when(coordination.isTaskDone(TASK_ID, EPOCH)).thenReturn(false);
+        when(coordination.readTaskJoinEpoch(TASK_ID)).thenReturn(EPOCH); // marker for this epoch already present
 
         execute();
 
@@ -137,20 +137,20 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
 
     @Test
     public void staleEpochIdlesWithoutSnapshotting() throws Exception {
-        when(coordination.isDone(TASK_ID, EPOCH)).thenReturn(false);
-        when(coordination.readJoinEpoch(TASK_ID)).thenReturn(null);
+        when(coordination.isTaskDone(TASK_ID, EPOCH)).thenReturn(false);
+        when(coordination.readTaskJoinEpoch(TASK_ID)).thenReturn(null);
         when(coordination.readEpoch()).thenReturn(EPOCH + 1); // connector already advanced
 
         execute();
 
-        verify(coordination, never()).writeJoin(anyString(), anyInt());
+        verify(coordination, never()).writeTaskJoin(anyString(), anyInt());
         assertThat(coordinator.doSnapshotCalled).isFalse();
     }
 
     @Test
     public void freshJoinWritesMarkerSnapshotsThenCompletes() throws Exception {
-        when(coordination.isDone(TASK_ID, EPOCH)).thenReturn(false);
-        when(coordination.readJoinEpoch(TASK_ID)).thenReturn(null);
+        when(coordination.isTaskDone(TASK_ID, EPOCH)).thenReturn(false);
+        when(coordination.readTaskJoinEpoch(TASK_ID)).thenReturn(null);
         when(coordination.readEpoch()).thenReturn(null);
         when(coordination.readSnapshotInfo()).thenReturn(Collect.hashMapOf(
                 SnapshotCoordinationFacade.SNAPSHOT_NAME, "snap",
@@ -163,16 +163,16 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
 
         assertThat(coordinator.doSnapshotCalled).isTrue();
         InOrder order = inOrder(coordination);
-        order.verify(coordination).writeJoin(TASK_ID, EPOCH);
+        order.verify(coordination).writeTaskJoin(TASK_ID, EPOCH);
         order.verify(coordination).readSnapshotInfo();
-        order.verify(coordination).writeDone(TASK_ID, EPOCH);
+        order.verify(coordination).writeTaskDone(TASK_ID, EPOCH);
         verify(snapshotSource).setSnapshotCoordination(eq(EPOCH), eq("snap"), any(), any(), eq(coordination));
     }
 
     @Test
     public void snapshotFailureSignalsRestartAndRethrows() {
-        when(coordination.isDone(TASK_ID, EPOCH)).thenReturn(false);
-        when(coordination.readJoinEpoch(TASK_ID)).thenReturn(null);
+        when(coordination.isTaskDone(TASK_ID, EPOCH)).thenReturn(false);
+        when(coordination.readTaskJoinEpoch(TASK_ID)).thenReturn(null);
         when(coordination.readEpoch()).thenReturn(null);
         when(coordination.readSnapshotInfo()).thenReturn(Collect.hashMapOf(
                 SnapshotCoordinationFacade.SNAPSHOT_NAME, "snap",

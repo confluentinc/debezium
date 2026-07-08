@@ -42,7 +42,6 @@ import io.debezium.document.DocumentReader;
 import io.debezium.jdbc.DefaultMainConnectionProvidingConnectionFactory;
 import io.debezium.jdbc.MainConnectionProvidingConnectionFactory;
 import io.debezium.pipeline.ChangeEventSourceCoordinator;
-import io.debezium.pipeline.CommonOffsetContext;
 import io.debezium.pipeline.DataChangeEvent;
 import io.debezium.pipeline.ErrorHandler;
 import io.debezium.pipeline.GuardrailValidator;
@@ -671,7 +670,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                 leaderSnapshotCoordination.start();
 
                 // a completed task-0 that got restarted must NOT re-prepare, if other task can't finish the coordinator would start a new round
-                if (leaderSnapshotCoordination.isDone("0", leaderEpoch)) {
+                if (leaderSnapshotCoordination.isTaskDone("0", leaderEpoch)) {
                     LOGGER.info("Smart snapshot: [role=leader epoch={}] Snapshot already completed, skipping leader preparation", leaderEpoch);
                     // thread ends; no re-export, no re-lock, {server} key untouched. Foreground idles until downscale.
                     return;
@@ -756,7 +755,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
         boolean allTasksStartedTransaction() {
             for (int i = 0; i < numTasks; i++) {
-                if (!leaderSnapshotCoordination.isTransactionStarted(String.valueOf(i), leaderEpoch)) {
+                if (!leaderSnapshotCoordination.isTaskStartedTransaction(String.valueOf(i), leaderEpoch)) {
                     return false;
                 }
             }
@@ -794,12 +793,11 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                 return null;
             }
 
-            Map<String, Object> coordinationData = facade.readSnapshotInfo();
+            Map<String, Object> completionInfo = facade.readCompletion();
 
-            if (coordinationData != null
-                    && Boolean.TRUE.equals(coordinationData.get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY))
-                    && coordinationData.get(SnapshotCoordinationFacade.CONSISTENT_POINT) != null) {
-                String lsnStr = String.valueOf(coordinationData.get(SnapshotCoordinationFacade.CONSISTENT_POINT));
+            if (completionInfo != null
+                    && completionInfo.get(SnapshotCoordinationFacade.CONSISTENT_POINT) != null) {
+                String lsnStr = String.valueOf(completionInfo.get(SnapshotCoordinationFacade.CONSISTENT_POINT));
                 Lsn lsn = Lsn.valueOf(lsnStr);
                 LOGGER.info("Smart snapshot: [role=task] Post-downscale streaming task, using LSN={} from coordination topic", lsn);
                 // Create synthetic offset — snapshot completed, start streaming from this LSN

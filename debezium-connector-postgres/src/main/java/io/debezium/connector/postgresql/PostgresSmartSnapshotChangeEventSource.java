@@ -124,7 +124,7 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
         // must be held during schema read. Release only after schema is captured.
 
         // don't catch write failure, let the task fail instead
-        snapshotCoordination.writeTransactionStarted(taskId, epoch);
-        LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Signaled transaction_started (schema read done)", taskId, epoch);
+        snapshotCoordination.writeTaskStartedTransaction(taskId, epoch);
+        LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Signaled task_started_transaction (schema read done)", taskId, epoch);
     }
 }

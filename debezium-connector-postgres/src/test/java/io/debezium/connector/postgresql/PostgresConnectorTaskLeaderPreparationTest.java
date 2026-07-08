@@ -67,7 +67,7 @@ public class PostgresConnectorTaskLeaderPreparationTest {
 
     @Test
     public void skipsPreparationWhenLeaderAlreadyCompleted() {
-        when(coordination.isDone("0", EPOCH)).thenReturn(true);
+        when(coordination.isTaskDone("0", EPOCH)).thenReturn(true);
 
         prep(2, true).run();
 
@@ -89,10 +89,10 @@ public class PostgresConnectorTaskLeaderPreparationTest {
 
     @Test
     public void preparesPublishesAndReleasesWhenAllTasksJoin() {
-        when(coordination.isDone("0", EPOCH)).thenReturn(false);
+        when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
         when(lifecycle.prepareSnapshot(true)).thenReturn(new SnapshotSetup("snap", "0/16B3748", TABLES));
-        when(coordination.isTransactionStarted("0", EPOCH)).thenReturn(true);
-        when(coordination.isTransactionStarted("1", EPOCH)).thenReturn(true);
+        when(coordination.isTaskStartedTransaction("0", EPOCH)).thenReturn(true);
+        when(coordination.isTaskStartedTransaction("1", EPOCH)).thenReturn(true);
 
         prep(2, true).run();
 
@@ -104,10 +104,10 @@ public class PostgresConnectorTaskLeaderPreparationTest {
 
     @Test
     public void keepsSnapshotAliveWhileWaitingForTasks() {
-        when(coordination.isDone("0", EPOCH)).thenReturn(false);
+        when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
         when(lifecycle.prepareSnapshot(true)).thenReturn(new SnapshotSetup("snap", "0/16B3748", TABLES));
         // not joined on the first check, joined afterwards -> the wait loop runs one iteration
-        when(coordination.isTransactionStarted("0", EPOCH)).thenReturn(false, true);
+        when(coordination.isTaskStartedTransaction("0", EPOCH)).thenReturn(false, true);
 
         prep(1, true).run();
 
@@ -117,7 +117,7 @@ public class PostgresConnectorTaskLeaderPreparationTest {
 
     @Test
     public void onPreparationFailureReleasesAndFailsTheTask() {
-        when(coordination.isDone("0", EPOCH)).thenReturn(false);
+        when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
         when(lifecycle.prepareSnapshot(anyBoolean())).thenThrow(new RuntimeException("boom"));
 
         prep(2, true).run();
@@ -129,9 +129,9 @@ public class PostgresConnectorTaskLeaderPreparationTest {
 
     @Test
     public void nonStreamingModePreparesWithoutSlot() {
-        when(coordination.isDone("0", EPOCH)).thenReturn(false);
+        when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
         when(lifecycle.prepareSnapshot(false)).thenReturn(new SnapshotSetup("snap", "0/16B3748", TABLES));
-        when(coordination.isTransactionStarted("0", EPOCH)).thenReturn(true);
+        when(coordination.isTaskStartedTransaction("0", EPOCH)).thenReturn(true);
 
         prep(1, false).run();
 

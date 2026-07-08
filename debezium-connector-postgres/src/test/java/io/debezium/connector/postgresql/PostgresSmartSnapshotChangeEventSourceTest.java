@@ -145,17 +145,17 @@ public class PostgresSmartSnapshotChangeEventSourceTest {
 
         source.releaseSchemaSnapshotLocks(newContext());
 
-        verify(coordination).writeTransactionStarted(TASK_ID, EPOCH);
+        verify(coordination).writeTaskStartedTransaction(TASK_ID, EPOCH);
     }
 
     @Test
-    public void releaseSchemaSnapshotLocksSwallowsCoordinationErrors() {
+    public void releaseSchemaSnapshotLocksDoesNotSwallowCoordinationErrors() {
         source.setSnapshotCoordination(EPOCH, SNAPSHOT_NAME, null, List.of(), coordination);
-        doThrow(new RuntimeException("topic down")).when(coordination).writeTransactionStarted(anyString(), anyInt());
+        doThrow(new RuntimeException("topic down")).when(coordination).writeTaskStartedTransaction(anyString(), anyInt());
 
         // best-effort: a failed signal must not break the (already finished) schema read
-        assertThatCode(() -> source.releaseSchemaSnapshotLocks(newContext())).doesNotThrowAnyException();
-        verify(coordination).writeTransactionStarted(TASK_ID, EPOCH);
+        assertThatCode(() -> source.releaseSchemaSnapshotLocks(newContext())).hasMessage("topic down");
+        verify(coordination).writeTaskStartedTransaction(TASK_ID, EPOCH);
     }
 
     @Test

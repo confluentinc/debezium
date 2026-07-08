@@ -98,15 +98,17 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
                     connectorConfig.getLogicalName(), connectorConfig.getSmartSnapshotMonitorPollIntervalMs(),
                     connectorConfig.getContextName());
 
-            // reading the coordination topic should ideally be quick
+            // this involves reading the coordination topic synchronously
+            // ideally it should be quick
             // there doesn't seem to be a clean way to avoid reading it here
-            // todo should this be made async?
+            // todo should this be made async? so that by the time taskConfig is called reading is done?
             smartSnapshotConnectorCoordinator.start();
 
             // If previous snapshot was already complete, skip smart snapshot
-            if (smartSnapshotConnectorCoordinator.isComplete()) {
-                smartSnapshotConnectorCoordinator.stop();
+            SmartSnapshotConnectorCoordinator oldCoordinator = this.smartSnapshotConnectorCoordinator;
+            if (oldCoordinator.isComplete()) {
                 smartSnapshotConnectorCoordinator = null;
+                oldCoordinator.stop();
             }
         }
     }

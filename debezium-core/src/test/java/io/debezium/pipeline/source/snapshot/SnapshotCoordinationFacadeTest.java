@@ -162,13 +162,13 @@ public class SnapshotCoordinationFacadeTest {
     public void writeEpochUsesTheEpochKey() throws Exception {
         facade.writeEpoch(3);
 
-        verify(coordination).write(Collect.hashMapOf("server", SERVER, "type", "epoch"),
+        verify(coordination).write(Collect.hashMapOf("server", SERVER, "type", "epoch_marker"),
                 Collect.hashMapOf("epoch", 3));
     }
 
     @Test
     public void readEpochReturnsTheStoredValue() {
-        when(coordination.read(Collect.hashMapOf("server", SERVER, "type", "epoch")))
+        when(coordination.read(Collect.hashMapOf("server", SERVER, "type", "epoch_marker")))
                 .thenReturn(Collect.hashMapOf("epoch", 7));
 
         assertThat(facade.readEpoch()).isEqualTo(7);
@@ -182,40 +182,37 @@ public class SnapshotCoordinationFacadeTest {
     }
 
     @Test
-    public void isDoneRequiresBothTheFlagAndAMatchingEpoch() {
-        Map<String, String> key = Collect.hashMapOf("server", SERVER, "task", "2", "type", "done");
-        when(coordination.read(key)).thenReturn(Collect.hashMapOf("completed", true, "epoch", 5));
+    public void isTaskDoneRequiresMatchingEpoch() {
+        Map<String, String> key = Collect.hashMapOf("server", SERVER, "task", "2", "type", "task_done");
+        when(coordination.read(key)).thenReturn(Collect.hashMapOf("epoch", 5));
 
-        assertThat(facade.isDone("2", 5)).isTrue();
-        assertThat(facade.isDone("2", 4)).isFalse(); // epoch mismatch -> stale
+        assertThat(facade.isTaskDone("2", 5)).isTrue();
+        assertThat(facade.isTaskDone("2", 4)).isFalse(); // epoch mismatch -> stale
     }
 
     @Test
-    public void isDoneIsFalseWhenMissingOrFlagUnset() {
-        Map<String, String> key = Collect.hashMapOf("server", SERVER, "task", "2", "type", "done");
+    public void isDoneIsTaskFalseWhenMissingOrExistsAtEpochUnset() {
+        Map<String, String> key = Collect.hashMapOf("server", SERVER, "task", "2", "type", "task_done");
         when(coordination.read(key)).thenReturn(null);
-        assertThat(facade.isDone("2", 5)).isFalse();
-
-        when(coordination.read(key)).thenReturn(Collect.hashMapOf("completed", false, "epoch", 5));
-        assertThat(facade.isDone("2", 5)).isFalse();
+        assertThat(facade.isTaskDone("2", 5)).isFalse();
     }
 
     @Test
-    public void isRestartNeededRequiresTheFlagAndEpoch() {
-        Map<String, String> key = Collect.hashMapOf("server", SERVER, "task", "0", "type", "restart");
-        when(coordination.read(key)).thenReturn(Collect.hashMapOf("restart_needed", true, "epoch", 1));
+    public void isRestartNeededRequiresMatchingEpoch() {
+        Map<String, String> key = Collect.hashMapOf("server", SERVER, "task", "0", "type", "task_restart");
+        when(coordination.read(key)).thenReturn(Collect.hashMapOf("epoch", 1));
 
         assertThat(facade.isRestartNeeded("0", 1)).isTrue();
         assertThat(facade.isRestartNeeded("0", 2)).isFalse();
     }
 
     @Test
-    public void isTransactionStartedRequiresTheFlagAndEpoch() {
-        Map<String, String> key = Collect.hashMapOf("server", SERVER, "task", "1", "type", "started");
-        when(coordination.read(key)).thenReturn(Collect.hashMapOf("transaction_started", true, "epoch", 9));
+    public void isTaskStartedTransactionRequiresMatchingEpoch() {
+        Map<String, String> key = Collect.hashMapOf("server", SERVER, "task", "1", "type", "task_started_transaction");
+        when(coordination.read(key)).thenReturn(Collect.hashMapOf("epoch", 9));
 
-        assertThat(facade.isTransactionStarted("1", 9)).isTrue();
-        assertThat(facade.isTransactionStarted("1", 8)).isFalse();
+        assertThat(facade.isTaskStartedTransaction("1", 9)).isTrue();
+        assertThat(facade.isTaskStartedTransaction("1", 8)).isFalse();
     }
 
     @Test
@@ -225,11 +222,10 @@ public class SnapshotCoordinationFacadeTest {
         facade.writeSnapshotInfo("snap", "0/16B3748", 4, tables, 2);
 
         ArgumentCaptor<Map<String, Object>> value = valueCaptor();
-        verify(coordination).write(eq(snapshotInfoKey()), value.capture());
+        verify(coordination).write(eq(Collect.hashMapOf("server", SERVER, "type", "snapshot_info")), value.capture());
         assertThat(value.getValue()).containsEntry("snapshot_name", "snap")
                 .containsEntry("consistent_point", "0/16B3748")
                 .containsEntry("epoch", 4)
-                .containsEntry("snapshot_completed", false)
                 .containsEntry("num_tasks", 2)
                 .containsEntry("tables", SnapshotCoordinationFacade.joinTableIds(tables));
     }
@@ -239,55 +235,55 @@ public class SnapshotCoordinationFacadeTest {
         facade.writeCompletion("0/16B3748", 4);
 
         ArgumentCaptor<Map<String, Object>> value = valueCaptor();
-        verify(coordination).write(eq(snapshotInfoKey()), value.capture());
-        assertThat(value.getValue()).containsEntry("snapshot_completed", true)
+        verify(coordination).write(eq(Collect.hashMapOf("server", SERVER, "type", "snapshot_done")), value.capture());
+        assertThat(value.getValue())
                 .containsEntry("consistent_point", "0/16B3748")
                 .containsEntry("epoch", 4);
     }
 
     @Test
-    public void readJoinEpochReturnsTheStoredEpoch() {
-        when(coordination.read(Collect.hashMapOf("server", SERVER, "task", "0", "type", "join")))
+    public void readTaskJoinEpochReturnsTheStoredEpoch() {
+        when(coordination.read(Collect.hashMapOf("server", SERVER, "task", "0", "type", "task_join")))
                 .thenReturn(Collect.hashMapOf("epoch", 6));
 
-        assertThat(facade.readJoinEpoch("0")).isEqualTo(6);
+        assertThat(facade.readTaskJoinEpoch("0")).isEqualTo(6);
     }
 
     @Test
     public void writeJoinUsesThePerTaskJoinKey() throws Exception {
-        facade.writeJoin("0", 6);
+        facade.writeTaskJoin("0", 6);
 
-        verify(coordination).write(Collect.hashMapOf("server", SERVER, "task", "0", "type", "join"),
+        verify(coordination).write(Collect.hashMapOf("server", SERVER, "task", "0", "type", "task_join"),
                 Collect.hashMapOf("epoch", 6));
     }
 
     @Test
-    public void writeDoneMarksTheTaskCompleted() throws Exception {
-        facade.writeDone("1", 3);
+    public void writeTaskDoneMarksTheTaskCompleted() throws Exception {
+        facade.writeTaskDone("1", 3);
 
-        verify(coordination).write(Collect.hashMapOf("server", SERVER, "task", "1", "type", "done"),
-                Collect.hashMapOf("completed", true, "epoch", 3));
+        verify(coordination).write(Collect.hashMapOf("server", SERVER, "task", "1", "type", "task_done"),
+                Collect.hashMapOf("epoch", 3));
     }
 
     @Test
-    public void writeRestartNeededSetsTheRestartFlag() throws Exception {
+    public void writeRestartNeededSetsTheRestartExistsAtEpoch() throws Exception {
         facade.writeRestartNeeded("2", 8);
 
-        verify(coordination).write(Collect.hashMapOf("server", SERVER, "task", "2", "type", "restart"),
-                Collect.hashMapOf("restart_needed", true, "epoch", 8));
+        verify(coordination).write(Collect.hashMapOf("server", SERVER, "task", "2", "type", "task_restart"),
+                Collect.hashMapOf("epoch", 8));
     }
 
     @Test
-    public void writeTransactionStartedSetsTheStartedFlag() throws Exception {
-        facade.writeTransactionStarted("0", 5);
+    public void writeTaskStartedTransaction() throws Exception {
+        facade.writeTaskStartedTransaction("0", 5);
 
-        verify(coordination).write(Collect.hashMapOf("server", SERVER, "task", "0", "type", "started"),
-                Collect.hashMapOf("transaction_started", true, "epoch", 5));
+        verify(coordination).write(Collect.hashMapOf("server", SERVER, "task", "0", "type", "task_started_transaction"),
+                Collect.hashMapOf("epoch", 5));
     }
 
     @Test
     public void readSnapshotInfoReadsTheSnapshotInfoKey() {
-        when(coordination.read(snapshotInfoKey())).thenReturn(Collect.hashMapOf("snapshot_name", "snap"));
+        when(coordination.read(Collect.hashMapOf("server", SERVER, "type", "snapshot_info"))).thenReturn(Collect.hashMapOf("snapshot_name", "snap"));
 
         assertThat(facade.readSnapshotInfo()).containsEntry("snapshot_name", "snap");
     }
@@ -309,9 +305,5 @@ public class SnapshotCoordinationFacadeTest {
     @SuppressWarnings("unchecked")
     private static ArgumentCaptor<Map<String, Object>> valueCaptor() {
         return ArgumentCaptor.forClass(Map.class);
-    }
-
-    private static Map<String, String> snapshotInfoKey() {
-        return Collect.hashMapOf("server", SERVER, "type", "snapshot_info");
     }
 }

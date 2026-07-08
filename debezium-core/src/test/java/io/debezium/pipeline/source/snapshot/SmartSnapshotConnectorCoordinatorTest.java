@@ -96,8 +96,8 @@ public class SmartSnapshotConnectorCoordinatorTest {
     public void allTasksDoneCompletesAndTaskConfigsWritesCompletion() {
         coordinator.taskConfigs(2, baseProps()); // numTasks = 2, epoch = 0
         when(facade.isRestartNeeded(anyString(), eq(1))).thenReturn(false);
-        when(facade.isDone("0", 1)).thenReturn(true);
-        when(facade.isDone("1", 1)).thenReturn(true);
+        when(facade.isTaskDone("0", 1)).thenReturn(true);
+        when(facade.isTaskDone("1", 1)).thenReturn(true);
         when(facade.readSnapshotInfo()).thenReturn(Collect.hashMapOf(SnapshotCoordinationFacade.CONSISTENT_POINT, "0/16B3748"));
 
         assertThat(coordinator.monitorIteration()).isTrue();
@@ -138,6 +138,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
         when(connectorContext.offsetStorageReader()).thenReturn(offsetStorageReader);
         when(offsetStorageReader.offset(any())).thenReturn(null);
         when(facade.readSnapshotInfo()).thenReturn(null);
+        when(facade.readCompletion()).thenReturn(null);
         when(facade.readEpoch()).thenReturn(2);
 
         coordinator.start();
@@ -152,6 +153,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
         when(connectorContext.offsetStorageReader()).thenReturn(offsetStorageReader);
         when(offsetStorageReader.offset(any())).thenReturn(null);
         when(facade.readSnapshotInfo()).thenReturn(null);
+        when(facade.readCompletion()).thenReturn(null);
         when(facade.readEpoch()).thenReturn(null);
 
         // must not NPE on the null epoch; falls back to the initial epoch (0) and persists it
@@ -237,9 +239,10 @@ public class SmartSnapshotConnectorCoordinatorTest {
         when(connectorContext.offsetStorageReader()).thenReturn(offsetStorageReader);
         when(offsetStorageReader.offset(any())).thenReturn(null);
         when(facade.readSnapshotInfo()).thenReturn(null);
+        when(facade.readCompletion()).thenReturn(null);
         when(facade.readEpoch()).thenReturn(1);
         when(facade.isRestartNeeded(anyString(), anyInt())).thenReturn(false);
-        when(facade.isDone(anyString(), anyInt())).thenReturn(false);
+        when(facade.isTaskDone(anyString(), anyInt())).thenReturn(false);
 
         coordinator.start(); // launches the monitor thread
         coordinator.taskConfigs(2, baseProps()); // lastNumTasks=2 so the loop does real work
@@ -260,6 +263,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
         coordinator = new SmartSnapshotConnectorCoordinator(facade, connectorContext, "srv", 10L, "connector-context");
         when(connectorContext.offsetStorageReader()).thenReturn(offsetStorageReader);
         when(offsetStorageReader.offset(any())).thenReturn(null);
+        when(facade.readCompletion()).thenReturn(null);
         when(facade.readSnapshotInfo()).thenReturn(null);
         when(facade.readEpoch()).thenReturn(1);
 
@@ -268,11 +272,11 @@ public class SmartSnapshotConnectorCoordinatorTest {
         when(facade.isRestartNeeded(anyString(), anyInt())).thenAnswer(inv -> {
             keptPolling.countDown();
             if (calls.getAndIncrement() == 0) {
-                throw new RuntimeException("boom"); // first iteration explodes
+                throw new RuntimeException("Fetching restart info threw"); // first iteration explodes
             }
             return false;
         });
-        when(facade.isDone(anyString(), anyInt())).thenReturn(false);
+        when(facade.isTaskDone(anyString(), anyInt())).thenReturn(false);
 
         coordinator.start();
         coordinator.taskConfigs(2, baseProps());
@@ -288,6 +292,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
         when(connectorContext.offsetStorageReader()).thenReturn(offsetStorageReader);
         when(offsetStorageReader.offset(any())).thenReturn(null);
         when(facade.readSnapshotInfo()).thenReturn(null);
+        when(facade.readCompletion()).thenReturn(null);
         when(facade.readEpoch()).thenReturn(1);
         coordinator.start();
 
@@ -343,6 +348,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
         when(offsetStorageReader.offset(any())).thenReturn(null);
         when(facade.readSnapshotInfo()).thenReturn(Collect.hashMapOf(SnapshotCoordinationFacade.CONSISTENT_POINT,
                 "0/16B3748"));
+        when(facade.readCompletion()).thenReturn(null);
         when(facade.readEpoch()).thenReturn(1);
 
         // Coordination state the two threads observe:
@@ -350,8 +356,8 @@ public class SmartSnapshotConnectorCoordinatorTest {
         // epoch 2 -> no restart, everybody is done
         when(facade.isRestartNeeded(anyString(), eq(1))).thenReturn(true);
         when(facade.isRestartNeeded(anyString(), eq(2))).thenReturn(false);
-        when(facade.isDone(anyString(), eq(1))).thenReturn(false);
-        when(facade.isDone(anyString(), eq(2))).thenReturn(true);
+        when(facade.isTaskDone(anyString(), eq(1))).thenReturn(false);
+        when(facade.isTaskDone(anyString(), eq(2))).thenReturn(true);
 
         // fires when the connector thread writes completion for the final epoch
         CountDownLatch completed = new CountDownLatch(1);
@@ -418,8 +424,8 @@ public class SmartSnapshotConnectorCoordinatorTest {
     public void completionReconfigurationFailureRollsBackAndRetries() {
         coordinator.taskConfigs(2, baseProps()); // epoch = 1, numTasks = 2
         when(facade.isRestartNeeded(anyString(), eq(1))).thenReturn(false);
-        when(facade.isDone("0", 1)).thenReturn(true);
-        when(facade.isDone("1", 1)).thenReturn(true);
+        when(facade.isTaskDone("0", 1)).thenReturn(true);
+        when(facade.isTaskDone("1", 1)).thenReturn(true);
         doThrow(new RuntimeException("kafka down")).doNothing()
                 .when(connectorContext).requestTaskReconfiguration();
 

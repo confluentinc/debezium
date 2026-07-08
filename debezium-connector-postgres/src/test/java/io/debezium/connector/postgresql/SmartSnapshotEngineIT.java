@@ -110,7 +110,7 @@ public class SmartSnapshotEngineIT extends AbstractAsyncEngineConnectorTest {
         SourceRecords records = consumeRecordsByTopicUntil(untilMarker);
 
         // the epoch-bump restart actually happened
-        assertThat(logInterceptor.containsMessage("Epoch restart 1 -> 2")).isTrue();
+        assertThat(logInterceptor.containsMessage("Epoch restart. old=1 new=2")).isTrue();
 
         // and the connector recovered: after dedup-by-key, s1.a has the base rows plus the post-restart row
         // (record-level duplicates from the re-snapshot are expected and collapse under key dedup)
@@ -140,7 +140,7 @@ public class SmartSnapshotEngineIT extends AbstractAsyncEngineConnectorTest {
                 .build();
         SnapshotCoordinationFacade facade = new SnapshotCoordinationFacade(cfg, new PostgresConnectorConfig(cfg));
         facade.start();
-        facade.writeJoin("0", 1);
+        facade.writeTaskJoin("0", 1);
         facade.stop();
     }
 

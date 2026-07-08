@@ -122,11 +122,10 @@ public class SmartSnapshotConnectorCoordinator {
 
         snapshotCoordination.start();
 
-        Map<String, Object> snapshotInfo = snapshotCoordination.readSnapshotInfo();
-        if (snapshotInfo != null
-                && Boolean.TRUE.equals(snapshotInfo.get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY))) {
+        Map<String, Object> completionInfo = snapshotCoordination.readCompletion();
+        if (completionInfo != null) {
             LOGGER.info("Smart snapshot: [role=connector epoch={}] Coordination topic shows snapshot completed, skipping",
-                    SnapshotCoordinationFacade.epochOf(snapshotInfo));
+                    SnapshotCoordinationFacade.epochOf(completionInfo));
             this.smartSnapshotState = SmartSnapshotState.COMPLETE;
             return;
         }
@@ -312,7 +311,7 @@ public class SmartSnapshotConnectorCoordinator {
                 // 2. all complete for the epoch, downscale
                 boolean allComplete = true;
                 for (int i = 0; i < lastNumTasks; i++) {
-                    if (!snapshotCoordination.isDone(String.valueOf(i), epoch)) {
+                    if (!snapshotCoordination.isTaskDone(String.valueOf(i), epoch)) {
                         allComplete = false;
                         break;
                     }
@@ -400,6 +399,7 @@ public class SmartSnapshotConnectorCoordinator {
     }
 
     private static boolean isSnapshotInProgress(Map<String, Object> offset) {
+        // todo can this be reused from task?
         Object snapshot = offset.get(AbstractSourceInfo.SNAPSHOT_KEY);
         boolean completed = Boolean.TRUE.equals(offset.get(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY));
         return snapshot != null && !completed;

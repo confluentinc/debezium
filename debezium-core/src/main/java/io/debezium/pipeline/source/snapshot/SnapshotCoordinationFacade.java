@@ -25,21 +25,19 @@ public class SnapshotCoordinationFacade {
     // don't overwrite each other.
     private static final String TYPE = "type";
     private static final String TYPE_SNAPSHOT_INFO = "snapshot_info";
-    private static final String TYPE_EPOCH = "epoch";
-    private static final String TYPE_STARTED = "started";
-    private static final String TYPE_RESTART = "restart";
-    private static final String TYPE_JOIN = "join";
-    private static final String TYPE_DONE = "done";
+    // server-level completion
+    private static final String TYPE_SNAPSHOT_DONE = "snapshot_done";
+    private static final String TYPE_EPOCH = "epoch_marker";
+    private static final String TYPE_TASK_STARTED_TRANSACTION = "task_started_transaction";
+    private static final String TYPE_TASK_RESTART = "task_restart";
+    private static final String TYPE_TASK_JOIN = "task_join";
+    private static final String TYPE_TASK_DONE = "task_done";
 
     public static final String EPOCH = "epoch";
     public static final String SNAPSHOT_NAME = "snapshot_name";
     public static final String CONSISTENT_POINT = "consistent_point";
     public static final String TABLES = "tables";
     public static final String NUM_TASKS = "num_tasks";
-    public static final String SNAPSHOT_COMPLETED = "snapshot_completed";
-    public static final String TRANSACTION_STARTED = "transaction_started";
-    public static final String RESTART_NEEDED = "restart_needed";
-    public static final String COMPLETED = "completed";
 
     private final SnapshotCoordination coordination;
     private final String server;
@@ -83,24 +81,28 @@ public class SnapshotCoordinationFacade {
         return Collect.hashMapOf("server", server, TYPE, TYPE_SNAPSHOT_INFO);
     }
 
+    private Map<String, String> snapshotDoneKey() {
+        return Collect.hashMapOf("server", server, TYPE, TYPE_SNAPSHOT_DONE);
+    }
+
     private Map<String, String> epochKey() {
         return Collect.hashMapOf("server", server, TYPE, TYPE_EPOCH);
     }
 
-    private Map<String, String> startedKey(String taskId) {
-        return Collect.hashMapOf("server", server, "task", taskId, TYPE, TYPE_STARTED);
+    private Map<String, String> taskStartedTransactionKey(String taskId) {
+        return Collect.hashMapOf("server", server, "task", taskId, TYPE, TYPE_TASK_STARTED_TRANSACTION);
     }
 
-    private Map<String, String> restartKey(String taskId) {
-        return Collect.hashMapOf("server", server, "task", taskId, TYPE, TYPE_RESTART);
+    private Map<String, String> taskRestartKey(String taskId) {
+        return Collect.hashMapOf("server", server, "task", taskId, TYPE, TYPE_TASK_RESTART);
     }
 
-    private Map<String, String> joinKey(String taskId) {
-        return Collect.hashMapOf("server", server, "task", taskId, TYPE, TYPE_JOIN);
+    private Map<String, String> taskJoinKey(String taskId) {
+        return Collect.hashMapOf("server", server, "task", taskId, TYPE, TYPE_TASK_JOIN);
     }
 
-    private Map<String, String> doneKey(String taskId) {
-        return Collect.hashMapOf("server", server, "task", taskId, TYPE, TYPE_DONE);
+    private Map<String, String> taskDoneKey(String taskId) {
+        return Collect.hashMapOf("server", server, "task", taskId, TYPE, TYPE_TASK_DONE);
     }
 
     public void writeSnapshotInfo(String snapshotName, String consistentPoint, int epoch, List<TableId> tables, int numTasks) {
@@ -108,7 +110,6 @@ public class SnapshotCoordinationFacade {
         value.put(SNAPSHOT_NAME, snapshotName);
         value.put(CONSISTENT_POINT, consistentPoint);
         value.put(EPOCH, epoch);
-        value.put(SNAPSHOT_COMPLETED, false);
         // value.put(TABLES, tables.stream().map(TableId::toString).collect(Collectors.joining(",")));
         // JSON array of quoted FQNs — survives names with commas/dots (comma-join + split(",") is unsafe)
         value.put(TABLES, joinTableIds(tables));
@@ -153,12 +154,17 @@ public class SnapshotCoordinationFacade {
         Map<String, Object> value = new HashMap<>();
         value.put(CONSISTENT_POINT, consistentPoint);
         value.put(EPOCH, epoch);
-        value.put(SNAPSHOT_COMPLETED, true);
-        write(snapshotInfoKey(), value);
+        write(snapshotDoneKey(), value);
     }
 
+    // no epoch check
     public Map<String, Object> readSnapshotInfo() {
         return coordination.read(snapshotInfoKey());
+    }
+
+    public Map<String, Object> readCompletion() {
+        // has consistent_point + epoch; non-null = done
+        return coordination.read(snapshotDoneKey());
     }
 
     public void writeEpoch(int epoch) {
@@ -169,36 +175,36 @@ public class SnapshotCoordinationFacade {
         return epochOf(coordination.read(epochKey()));
     }
 
-    public void writeTransactionStarted(String taskId, int epoch) {
-        write(startedKey(taskId), Collect.hashMapOf(TRANSACTION_STARTED, true, EPOCH, epoch));
+    public void writeTaskStartedTransaction(String taskId, int epoch) {
+        write(taskStartedTransactionKey(taskId), Collect.hashMapOf(EPOCH, epoch));
     }
 
-    public boolean isTransactionStarted(String taskId, int epoch) {
-        return flag(startedKey(taskId), TRANSACTION_STARTED, epoch);
+    public boolean isTaskStartedTransaction(String taskId, int epoch) {
+        return existsAtEpoch(taskStartedTransactionKey(taskId), epoch);
     }
 
     public void writeRestartNeeded(String taskId, int epoch) {
-        write(restartKey(taskId), Collect.hashMapOf(RESTART_NEEDED, true, EPOCH, epoch));
+        write(taskRestartKey(taskId), Collect.hashMapOf(EPOCH, epoch));
     }
 
     public boolean isRestartNeeded(String taskId, int epoch) {
-        return flag(restartKey(taskId), RESTART_NEEDED, epoch);
+        return existsAtEpoch(taskRestartKey(taskId), epoch);
     }
 
-    public void writeJoin(String taskId, int epoch) {
-        write(joinKey(taskId), Collect.hashMapOf(EPOCH, epoch));
+    public void writeTaskJoin(String taskId, int epoch) {
+        write(taskJoinKey(taskId), Collect.hashMapOf(EPOCH, epoch));
     }
 
-    public Integer readJoinEpoch(String taskId) {
-        return epochOf(coordination.read(joinKey(taskId)));
+    public Integer readTaskJoinEpoch(String taskId) {
+        return epochOf(coordination.read(taskJoinKey(taskId)));
     }
 
-    public void writeDone(String taskId, int epoch) {
-        write(doneKey(taskId), Collect.hashMapOf(COMPLETED, true, EPOCH, epoch));
+    public void writeTaskDone(String taskId, int epoch) {
+        write(taskDoneKey(taskId), Collect.hashMapOf(EPOCH, epoch));
     }
 
-    public boolean isDone(String taskId, int epoch) {
-        return flag(doneKey(taskId), COMPLETED, epoch);
+    public boolean isTaskDone(String taskId, int epoch) {
+        return existsAtEpoch(taskDoneKey(taskId), epoch);
     }
 
     public static Integer epochOf(Map<String, Object> value) {
@@ -206,11 +212,10 @@ public class SnapshotCoordinationFacade {
                 value.get(EPOCH) != null) ? ((Number) value.get(EPOCH)).intValue() : null;
     }
 
-    private boolean flag(Map<String, String> key, String field, int epoch) {
+    private boolean existsAtEpoch(Map<String, String> key, int epoch) {
         Map<String, Object> value = coordination.read(key);
         Integer epochOfValue = epochOf(value);
         return value != null &&
-                Boolean.TRUE.equals(value.get(field)) &&
                 epochOfValue != null &&
                 epochOfValue == epoch;
     }

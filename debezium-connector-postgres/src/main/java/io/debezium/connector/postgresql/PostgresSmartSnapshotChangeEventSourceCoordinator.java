@@ -103,7 +103,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         // reset it otherwise). If it shows the snapshot already completed, this restart is just the task
         // being bounced AFTER finishing (a reconfiguration or the managed runtime stopping a "done" task)
         // NOT a crash. Do not treat it as a rejoin; idle and let the connector downscale.
-        boolean done = snapshotCoordination.isDone(taskId, epoch);
+        boolean done = snapshotCoordination.isTaskDone(taskId, epoch);
         if (done) {
             LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Already completed, idling", taskId, epoch);
             idleUntilRestart(context);
@@ -111,7 +111,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         }
 
         // Generic restart detection (DB-agnostic): (epoch, taskId) membership marker
-        Integer markerEpoch = snapshotCoordination.readJoinEpoch(taskId);
+        Integer markerEpoch = snapshotCoordination.readTaskJoinEpoch(taskId);
         if (markerEpoch != null && markerEpoch == epoch) {
             // rejoining epoch which implies that snapshot transaction can't be rejoined signal full restart.
             LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Rejoin detected, signaling `restart_needed`", taskId, epoch);
@@ -135,7 +135,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         // nothing. On restart there is no marker, so it starts fresh at the same epoch. Nothing to clean up.
 
         // if the write fails let the task fail
-        snapshotCoordination.writeJoin(taskId, epoch);
+        snapshotCoordination.writeTaskJoin(taskId, epoch);
 
         // Read snapshot_name + LSN from coordination topic
         String snapshotName = null;
@@ -239,7 +239,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
 
     private void writeCompleted() {
         try {
-            snapshotCoordination.writeDone(taskId, epoch);
+            snapshotCoordination.writeTaskDone(taskId, epoch);
         }
         catch (Exception e) {
             // can't record completion, the monitor would never downscale; fail so the task retries
