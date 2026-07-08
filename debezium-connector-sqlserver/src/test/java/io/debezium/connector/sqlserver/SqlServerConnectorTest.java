@@ -21,6 +21,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import io.debezium.config.CommonConnectorConfig;
+import io.debezium.config.Configuration;
 
 public class SqlServerConnectorTest {
     SqlServerConnector connector;
@@ -55,6 +56,56 @@ public class SqlServerConnectorTest {
     @Test
     public void shouldReturnConfigurationDefinition() {
         assertConfigDefIsValid(connector, SqlServerConnectorConfig.ALL_FIELDS);
+    }
+
+    private Configuration smartConfig(boolean enabled, String snapshotMode, String... databaseNames) {
+        return Configuration.create()
+                .with(CommonConnectorConfig.TOPIC_PREFIX, "serverX")
+                .with(SqlServerConnectorConfig.DATABASE_NAMES, String.join(",", databaseNames))
+                .with(CommonConnectorConfig.SMART_SNAPSHOT_ENABLED, enabled)
+                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, snapshotMode)
+                .build();
+    }
+
+    // Smart snapshot engages only for the data-copying modes; other modes fall back to the single-task path
+    // (guards the "always double-snapshots / no_data wasteful" regression).
+    @Test
+    public void smartSnapshotAppliesForDataSnapshotModes() {
+        assertThat(SqlServerConnector.smartSnapshotApplies(smartConfig(true, "initial", "db1"))).isTrue();
+        assertThat(SqlServerConnector.smartSnapshotApplies(smartConfig(true, "initial_only", "db1"))).isTrue();
+        assertThat(SqlServerConnector.smartSnapshotApplies(smartConfig(true, "when_needed", "db1"))).isTrue();
+    }
+
+    @Test
+    public void smartSnapshotDoesNotApplyForNonDataModes() {
+        assertThat(SqlServerConnector.smartSnapshotApplies(smartConfig(true, "no_data", "db1"))).isFalse();
+        assertThat(SqlServerConnector.smartSnapshotApplies(smartConfig(true, "schema_only", "db1"))).isFalse();
+    }
+
+    @Test
+    public void smartSnapshotDoesNotApplyWhenDisabled() {
+        assertThat(SqlServerConnector.smartSnapshotApplies(smartConfig(false, "initial", "db1"))).isFalse();
+    }
+
+    // Phase 0: smart snapshot is restricted to single-database connectors -- a multi-DB connector falls back
+    // to the ordinary per-DB path even though it's otherwise eligible.
+    @Test
+    public void smartSnapshotDoesNotApplyForMultiDatabaseConnectors() {
+        assertThat(SqlServerConnector.smartSnapshotApplies(smartConfig(true, "initial", "db1", "db2"))).isFalse();
+    }
+
+    // Phase 0: smart snapshot only engages under repeatable_read; other isolation modes fall back to
+    // single-task (read_uncommitted is unsafe for the L_db + CDC-catch-up model).
+    @Test
+    public void smartSnapshotOnlyAppliesUnderRepeatableRead() {
+        assertThat(SqlServerConnector.smartSnapshotApplies(
+                smartConfig(true, "initial", "db1").edit().with(SqlServerConnectorConfig.SNAPSHOT_ISOLATION_MODE, "repeatable_read").build())).isTrue();
+        assertThat(SqlServerConnector.smartSnapshotApplies(
+                smartConfig(true, "initial", "db1").edit().with(SqlServerConnectorConfig.SNAPSHOT_ISOLATION_MODE, "snapshot").build())).isFalse();
+        assertThat(SqlServerConnector.smartSnapshotApplies(
+                smartConfig(true, "initial", "db1").edit().with(SqlServerConnectorConfig.SNAPSHOT_ISOLATION_MODE, "read_committed").build())).isFalse();
+        assertThat(SqlServerConnector.smartSnapshotApplies(
+                smartConfig(true, "initial", "db1").edit().with(SqlServerConnectorConfig.SNAPSHOT_ISOLATION_MODE, "read_uncommitted").build())).isFalse();
     }
 
     protected static void assertConfigDefIsValid(Connector connector, io.debezium.config.Field.Set fields) {
