@@ -45,13 +45,17 @@ import io.debezium.util.LoggingContext;
  * <p>Unlike {@code PostgresSmartSnapshotChangeEventSourceCoordinator}, there is no join-marker/rejoin-detection
  * or {@code restart_needed} signaling on an ordinary snapshot failure: under {@code repeatable_read} a
  * restarted shard task has nothing unrejoinable to protect (no exported snapshot, no held connection) -- it
- * simply re-reads its shard from scratch at the same epoch/L_db (design §7.1). The one exception is
- * retention staleness (design TL;DR "Task restart" exception): if {@code L_db} has aged past CDC change-table
- * retention for any table in this shard, blindly re-snapshotting is doomed -- the eventual streaming handoff
- * would still fail (F11) -- so the task instead signals {@code restart_needed} via the existing generic
- * mechanism (reused as-is from the {@code snapshot}-isolation design/Postgres) and lets the core monitor
- * thread (already running, already polling this exact flag every {@code smart.snapshot.internal.monitor
- * .poll.interval.ms}) force a fresh round (new {@code L_db}, epoch bump, all shards redo).
+ * simply re-reads its shard from scratch at the same epoch/L_db (design §7.1).
+ *
+ * <p>Retention staleness (design TL;DR "Task restart" exception, §13 F11 / §19): if {@code L_db} has aged past
+ * CDC change-table retention for any table in this shard, blindly re-snapshotting is doomed -- the eventual
+ * streaming handoff would still fail. For Phase 0 this fails the task with a non-retriable exception rather
+ * than trying to auto-recover online (design §19): recovery is a manual connector restart, which re-runs
+ * {@code SqlServerConnector.start()} -> {@code bumpEpochIfIncompleteRoundExists} (fresh {@code L_db} + epoch
+ * bump) synchronously. The exception is deliberately non-retriable ({@link DebeziumException} with no
+ * {@code SQLException}/{@code IOException} cause -- see {@code SqlServerErrorHandler#communicationExceptions}):
+ * a *retriable* failure would restart only the task, which re-reads the same epoch/L_db from its config and
+ * re-hits the same staleness, spinning forever -- only a *connector* restart bumps the epoch (Gap 1).
  */
 public class SqlServerSmartSnapshotChangeEventSourceCoordinator extends SqlServerChangeEventSourceCoordinator {
 
@@ -134,9 +138,15 @@ public class SqlServerSmartSnapshotChangeEventSourceCoordinator extends SqlServe
         ShardAssignment shard = awaitShardAssignment(partition);
 
         if (isLDbStale(partition, shard)) {
-            writeRestartNeeded();
-            idleUntilRestart(context);
-            return;
+            // Phase 0 (design §19): fail the task with a non-retriable exception rather than auto-recovering.
+            // Non-retriable is deliberate -- a retriable failure restarts only the task, which re-reads the
+            // same epoch/L_db and re-hits this same staleness forever; only a connector restart bumps the
+            // epoch (Gap 1) and captures a fresh L_db. The message tells the operator to restart the connector.
+            throw new DebeziumException(String.format(
+                    "Smart snapshot: [%s/%s] L_db=%s (epoch %d) has aged past CDC change-table retention for this shard; "
+                            + "a fresh snapshot anchor is required. Restart the CONNECTOR (not just this task) to capture a new "
+                            + "L_db and retry -- restarting only the task would re-use the same stale anchor and fail again.",
+                    partition.getDatabaseName(), taskId, shard.lsn, epoch));
         }
 
         ((SqlServerSmartSnapshotChangeEventSource) snapshotSource).setSmartSnapshotShard(shard.lsn, shard.tables, uncapturedEligibleTables);
@@ -200,7 +210,7 @@ public class SqlServerSmartSnapshotChangeEventSourceCoordinator extends SqlServe
     }
 
     /**
-     * Retention check (design TL;DR "Task restart" exception, §13 F11): {@code L_db} has aged past CDC
+     * Retention check (design TL;DR "Task restart" exception, §13 F11 / §19): {@code L_db} has aged past CDC
      * change-table retention if any of this shard's tables' capture instance has a min LSN beyond {@code
      * L_db} -- i.e. the change table has already been purged past the point this round is trying to stream
      * from. Checked once per shard task, on every (re)start, before re-snapshotting -- cheap (one query per
@@ -215,7 +225,7 @@ public class SqlServerSmartSnapshotChangeEventSourceCoordinator extends SqlServe
                 }
                 Lsn minLsn = connection.getMinLsn(partition.getDatabaseName(), changeTable.getCaptureInstance());
                 if (minLsn.isAvailable() && minLsn.compareTo(shard.lsn) > 0) {
-                    LOGGER.warn("Smart snapshot: [{}/{}] L_db={} has aged past CDC retention for {} (min_lsn={}), signaling restart_needed",
+                    LOGGER.warn("Smart snapshot: [{}/{}] L_db={} has aged past CDC retention for {} (min_lsn={}), failing the task",
                             partition.getDatabaseName(), taskId, shard.lsn, changeTable.getSourceTableId(), minLsn);
                     return true;
                 }
@@ -225,17 +235,6 @@ public class SqlServerSmartSnapshotChangeEventSourceCoordinator extends SqlServe
         catch (SQLException e) {
             throw new DebeziumException(
                     String.format("Smart snapshot: [%s/%s] failed to check CDC retention for L_db=%s", partition.getDatabaseName(), taskId, shard.lsn), e);
-        }
-    }
-
-    private void writeRestartNeeded() {
-        try {
-            snapshotCoordination.writeRestartNeeded(taskId, epoch);
-        }
-        catch (Exception e) {
-            // can't signal restart -> the monitor would never force a fresh round; fail so the task retries
-            throw new DebeziumException(
-                    String.format("Smart snapshot: [%s] failed to write restart_needed @epoch %d", taskId, epoch), e);
         }
     }
 

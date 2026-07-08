@@ -59,12 +59,6 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SqlServerConnectorTask.class);
     private static final String CONTEXT_NAME = "sql-server-connector-task";
-    // Bounds readUncapturedEligibleTables()'s poll loop -- same order of magnitude as
-    // SqlServerSmartSnapshotChangeEventSourceCoordinator's own snapshot-info poll budget (30 * 10s = 5min),
-    // since both are ultimately waiting on the same background republish thread (SqlServerConnector
-    // #republishInBackground) to finish its JDBC discovery + L_db capture.
-    private static final int UNCAPTURED_SCHEMA_POLL_RETRY_COUNT = 30;
-    private static final long UNCAPTURED_SCHEMA_POLL_INTERVAL_MS = 10_000;
 
     private volatile SqlServerTaskContext taskContext;
     private volatile ChangeEventQueue<DataChangeEvent> queue;
@@ -279,21 +273,14 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
      * The schema-history writer (task.id==0) additionally dispatches the eligible-but-uncaptured leftover
      * set the Connector published alongside the shared snapshot-info record (design §6.2;
      * {@link SqlServerUncapturedSchemaCoordination} -- outside the shared facade's typed protocol, so read
-     * directly here rather than threading it through {@code SnapshotCoordinationFacade}).
+     * directly here rather than threading it through {@code SnapshotCoordinationFacade}). A single read is
+     * safe: this record is only ever published synchronously from {@code SqlServerConnector.start()}, strictly
+     * before any task exists (design §19 -- the async {@code taskConfigs()} republish path that would have
+     * broken that ordering was scoped out for Phase 0), so a missing record unambiguously means "no leftover".
      *
-     * <p>Gap fix: polls for a record tagged with this task's own {@code myEpoch} rather than doing a single
-     * unretried read. A single read was safe only as long as {@code SqlServerConnector} always finished
-     * publishing this record before any task could possibly exist -- true for the original synchronous
-     * {@code start()} path, but not for the async {@code taskConfigs()} restart-republish path
-     * ({@code SqlServerConnector#republishInBackground}): {@code taskConfigs()} now returns, and Kafka Connect
-     * can start a new task-0, before that background thread has necessarily gotten as far as writing this
-     * record. {@code SqlServerConnector#publishUncapturedEligibleTables} was changed to always write (even an
-     * empty table list) precisely so this poll has an unambiguous "has it been published for my epoch yet"
-     * signal to wait on, rather than being unable to tell "not yet" apart from "legitimately nothing to
-     * publish". This runs on the {@code SourceTask.start()} thread, not a background one -- safe to block
-     * here (unlike {@code Connector.taskConfigs()}, Kafka Connect does not wrap task startup in a hard
-     * synchronous timeout), and it mirrors {@code SqlServerSmartSnapshotChangeEventSourceCoordinator
-     * #awaitShardAssignment}'s own poll budget for the same underlying wait.
+     * <p>Gap 3: reject a record tagged with an epoch other than this task's own {@code myEpoch} -- a stale
+     * value left over from a since-superseded round (this record is compacted-topic "latest wins", not
+     * epoch-partitioned) must not be used just because it happens to be present when this task-0 reads.
      */
     private List<TableId> readUncapturedEligibleTables(Configuration config, SqlServerConnectorConfig connectorConfig, String taskId, int myEpoch) {
         if (!"0".equals(taskId)) {
@@ -302,34 +289,19 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
         KafkaLogSnapshotCoordination coordination = new KafkaLogSnapshotCoordination(config, connectorConfig, false);
         try {
             coordination.start();
-            for (int attempt = 0; attempt < UNCAPTURED_SCHEMA_POLL_RETRY_COUNT; attempt++) {
-                Map<String, Object> value = coordination.read(SqlServerUncapturedSchemaCoordination.key(connectorConfig.getLogicalName()));
-                if (value != null) {
-                    Integer recordEpoch = SqlServerUncapturedSchemaCoordination.epochOf(value);
-                    if (recordEpoch != null && recordEpoch == myEpoch) {
-                        List<TableId> tables = SnapshotCoordinationFacade.parseTables(value.get(SqlServerUncapturedSchemaCoordination.TABLES));
-                        LOGGER.info("Smart snapshot: [0] read {} eligible-but-uncaptured table(s) to additionally dispatch, epoch={}",
-                                tables.size(), myEpoch);
-                        return tables;
-                    }
-                }
-                if (attempt < UNCAPTURED_SCHEMA_POLL_RETRY_COUNT - 1) {
-                    LOGGER.info("Smart snapshot: [0] waiting for eligible-but-uncaptured record at epoch {} (attempt {}/{})",
-                            myEpoch, attempt + 1, UNCAPTURED_SCHEMA_POLL_RETRY_COUNT);
-                    try {
-                        Thread.sleep(UNCAPTURED_SCHEMA_POLL_INTERVAL_MS);
-                    }
-                    catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        return Collections.emptyList();
-                    }
-                }
+            Map<String, Object> value = coordination.read(SqlServerUncapturedSchemaCoordination.key(connectorConfig.getLogicalName()));
+            if (value == null) {
+                return Collections.emptyList();
             }
-            // Best-effort: never published for this epoch within the poll budget (e.g. the background
-            // republish is unusually slow, or genuinely failed) -- degrade to "no leftover" rather than
-            // blocking task startup indefinitely.
-            LOGGER.warn("Smart snapshot: [0] no eligible-but-uncaptured record found for epoch {} after polling; treating as none", myEpoch);
-            return Collections.emptyList();
+            Integer recordEpoch = SqlServerUncapturedSchemaCoordination.epochOf(value);
+            if (recordEpoch == null || recordEpoch != myEpoch) {
+                LOGGER.info("Smart snapshot: [0] eligible-but-uncaptured record is for epoch {} (mine is {}), ignoring as stale",
+                        recordEpoch, myEpoch);
+                return Collections.emptyList();
+            }
+            List<TableId> tables = SnapshotCoordinationFacade.parseTables(value.get(SqlServerUncapturedSchemaCoordination.TABLES));
+            LOGGER.info("Smart snapshot: [0] read {} eligible-but-uncaptured table(s) to additionally dispatch, epoch={}", tables.size(), myEpoch);
+            return tables;
         }
         finally {
             coordination.stop();
