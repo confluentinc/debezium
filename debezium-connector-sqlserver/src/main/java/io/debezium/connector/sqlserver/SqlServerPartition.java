@@ -23,9 +23,8 @@ public class SqlServerPartition extends AbstractPartition implements Partition {
     private static final String TASK_PARTITION_KEY = "task";
 
     private final String serverName;
-    // task.id, present only for a sharded smart-snapshot task (Phase 0, design §0.5: single database, so
-    // task.id doubles as the per-DB shard index); null for the non-sharded/legacy partition shape. Required
-    // so that multiple sharded tasks reading the same database don't share one offset-store partition.
+    // task.id, present only for a sharded smart-snapshot task (null for the non-sharded/legacy shape) so that
+    // multiple sharded tasks reading the same database don't share one offset-store partition.
     private final String taskId;
     private final Map<String, String> sourcePartition;
     private final List<Map<String, String>> supportedFormats;

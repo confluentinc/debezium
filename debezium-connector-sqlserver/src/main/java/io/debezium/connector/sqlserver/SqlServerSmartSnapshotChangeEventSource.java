@@ -25,20 +25,14 @@ import io.debezium.snapshot.SnapshotterService;
 import io.debezium.util.Clock;
 
 /**
- * Sharded snapshot task change-event source for the smart-snapshot {@code repeatable_read} design: reads
- * {@code L_db} and its own table shard from coordination (injected by
- * {@link SqlServerSmartSnapshotChangeEventSourceCoordinator} once it has polled the shared snapshot-info
- * record and computed this task's shard via {@code SnapshotCoordinationFacade.tablesForTask}) instead of
- * discovering tables/capturing its own anchor itself (design §11.0 -- only the Connector captures the
- * anchor). Overriding {@code determineCapturedTables} to assign the pre-computed shard to both
- * {@code capturedTables} and {@code capturedSchemaTables} means every task -- including the one whose shard
- * happens to land at index 0 -- dispatches schema-history CREATE TABLEs for only its own shard, from the
- * same live read it uses for its own data (design §6.2): the union across all shards is what makes
- * schema-history complete, not any single task dispatching everything.
+ * Sharded snapshot task change-event source: reads {@code L_db} and its own table shard from coordination
+ * (injected by {@link SqlServerSmartSnapshotChangeEventSourceCoordinator}) instead of discovering tables or
+ * capturing its own anchor. Overriding {@code determineCapturedTables} to assign the pre-computed shard to
+ * both {@code capturedTables} and {@code capturedSchemaTables} means each task dispatches schema-history
+ * CREATE TABLEs for only its own shard; the union across shards is what makes schema history complete.
  *
- * <p>Schema *locking* is intentionally left untouched: the inherited {@code lockTablesForSchemaSnapshot}/
- * {@code releaseSchemaSnapshotLocks} already do the per-table {@code TABLOCKX}-then-release dance that this
- * design wants (§6.1) -- there is no write barrier to skip, unlike the {@code snapshot}-isolation design.
+ * <p>Schema locking is left to the inherited {@code lockTablesForSchemaSnapshot}/{@code releaseSchemaSnapshotLocks}
+ * -- there is no cross-shard write barrier under repeatable_read.
  */
 public class SqlServerSmartSnapshotChangeEventSource extends SqlServerSnapshotChangeEventSource {
 
@@ -60,11 +54,9 @@ public class SqlServerSmartSnapshotChangeEventSource extends SqlServerSnapshotCh
     }
 
     /**
-     * Set by the coordinator once it has read {@code L_db} + this task's own shard (via
-     * {@code SnapshotCoordinationFacade.tablesForTask}) at the matching epoch from the coordination topic.
-     * {@code uncapturedEligibleTables} is non-empty only for the schema-history writer (task.id==0) and only
-     * under {@code store.only.captured.tables.ddl=false} -- the "eligible for schema but not data-captured"
-     * leftover set (design §6.2); every other task gets an empty list.
+     * Set by the coordinator once it has read {@code L_db} and this task's shard from coordination.
+     * {@code uncapturedEligibleTables} is non-empty only for task.id==0 under
+     * {@code store.only.captured.tables.ddl=false}; every other task gets an empty list.
      */
     public void setSmartSnapshotShard(Lsn lsn, List<TableId> tables, List<TableId> uncapturedEligibleTables) {
         this.smartSnapshotLsn = lsn;
@@ -93,7 +85,7 @@ public class SqlServerSmartSnapshotChangeEventSource extends SqlServerSnapshotCh
         }
 
         // L_db comes from coordination (captured once by the Connector), never from this task's own
-        // getMaxLsn() -- every shard must stream from the identical anchor (design §11.0).
+        // getMaxLsn() -- every shard must stream from the identical anchor.
         ctx.offset = new SqlServerOffsetContext(connectorConfig, TxLogPosition.valueOf(smartSnapshotLsn), null, false);
         LOGGER.info("Smart snapshot: [{}/{}] set offset LSN={}, shard={}",
                 ctx.partition.getDatabaseName(), connectorConfig.getTaskId(), smartSnapshotLsn, smartSnapshotTables);

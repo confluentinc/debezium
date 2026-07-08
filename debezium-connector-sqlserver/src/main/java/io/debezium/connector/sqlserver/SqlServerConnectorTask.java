@@ -177,12 +177,8 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
         Integer smartSnapshotEpoch = connectorConfig.getSmartSnapshotEpoch();
         ChangeEventSourceCoordinator<SqlServerPartition, SqlServerOffsetContext> coordinator;
         if (connectorConfig.isSmartSnapshotEnabled() && smartSnapshotEpoch != null) {
-            // Sharded smart-snapshot task. Phase 0 (design §0.5) restricts smart snapshot to a single
-            // database, so the connector-wide task.id doubles as the per-DB shard index -- no separate
-            // index property needed. The coordination topic itself is connector-wide (single topic per
-            // server, matching the current framework -- design §3.5's per-database topic naming no longer
-            // applies now that a single SnapshotCoordinationFacade instance is shared across the whole
-            // connector, same as Postgres).
+            // Sharded smart-snapshot task. Phase 0 is single-DB, so task.id doubles as the shard index
+            // (no separate property), against the one connector-wide coordination topic.
             String taskId = connectorConfig.getTaskId();
             this.smartSnapshotCoordination = new SnapshotCoordinationFacade(config, connectorConfig);
             List<TableId> uncapturedEligibleTables = readUncapturedEligibleTables(config, connectorConfig, taskId, smartSnapshotEpoch);
@@ -231,11 +227,9 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
     }
 
     /**
-     * Seed the collapsed/streaming task's offset from the shared coordination topic when no offset is
-     * committed yet (design §7.5). Seed-once-if-absent: a partition that already has a committed offset (a
-     * live streamed offset is always >= L_db) is left untouched. Sharded snapshot tasks carry their own
-     * epoch and must not be seeded here -- gate on {@code getSmartSnapshotEpoch() == null}, mirroring
-     * {@code PostgresConnectorTask.fetchOffsetFromCoordinationTopic}.
+     * Seeds the collapsed/streaming task's offset from the completed round's L_db when it has no committed
+     * offset yet. Seed-once-if-absent (a committed offset is always >= L_db, so it's left untouched); sharded
+     * snapshot tasks carry their own epoch and are excluded via {@code getSmartSnapshotEpoch() == null}.
      */
     private void seedStreamingOffsetsFromCoordination(SqlServerConnectorConfig connectorConfig,
                                                       Offsets<SqlServerPartition, SqlServerOffsetContext> offsets) {
@@ -270,17 +264,11 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
     }
 
     /**
-     * The schema-history writer (task.id==0) additionally dispatches the eligible-but-uncaptured leftover
-     * set the Connector published alongside the shared snapshot-info record (design §6.2;
-     * {@link SqlServerUncapturedSchemaCoordination} -- outside the shared facade's typed protocol, so read
-     * directly here rather than threading it through {@code SnapshotCoordinationFacade}). A single read is
-     * safe: this record is only ever published synchronously from {@code SqlServerConnector.start()}, strictly
-     * before any task exists (design §19 -- the async {@code taskConfigs()} republish path that would have
-     * broken that ordering was scoped out for Phase 0), so a missing record unambiguously means "no leftover".
-     *
-     * <p>Gap 3: reject a record tagged with an epoch other than this task's own {@code myEpoch} -- a stale
-     * value left over from a since-superseded round (this record is compacted-topic "latest wins", not
-     * epoch-partitioned) must not be used just because it happens to be present when this task-0 reads.
+     * On task.id==0, reads the {@link SqlServerUncapturedSchemaCoordination} record so the schema-history
+     * writer can additionally dispatch schema-eligible-but-uncaptured tables. A single read is safe because
+     * that record is published synchronously from {@code SqlServerConnector.start()} before any task exists,
+     * so a missing record means "no leftover". Rejects a record tagged with a different epoch as stale (the
+     * record is compacted "latest wins", not epoch-partitioned).
      */
     private List<TableId> readUncapturedEligibleTables(Configuration config, SqlServerConnectorConfig connectorConfig, String taskId, int myEpoch) {
         if (!"0".equals(taskId)) {

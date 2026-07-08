@@ -659,11 +659,9 @@ public class SqlServerConnectorConfig extends HistorizedRelationalDatabaseConnec
     }
 
     /**
-     * The smart-snapshot coordination epoch stamped on this task's config, or {@code null} when this task
-     * is not a sharded smart-snapshot task. Mirrors {@code PostgresConnectorConfig.getSmartSnapshotEpoch()}.
-     * Phase 0 (design §0.5, single database) is why this alone is sufficient to identify a sharded task --
-     * with exactly one database, the per-DB shard index and the connector-wide {@code task.id} (see
-     * {@link #getTaskId()}) coincide, so no separate per-DB index property is needed.
+     * The smart-snapshot coordination epoch stamped on this task's config, or {@code null} when this task is
+     * not a sharded smart-snapshot task. Sufficient on its own to identify a sharded task because Phase 0 is
+     * single-DB, so the shard index and {@code task.id} coincide.
      */
     public Integer getSmartSnapshotEpoch() {
         String epochStr = getConfig().getString(SnapshotCoordinationFacade.EPOCH);

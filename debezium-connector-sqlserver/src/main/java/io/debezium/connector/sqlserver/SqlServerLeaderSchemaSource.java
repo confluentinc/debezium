@@ -28,24 +28,18 @@ import io.debezium.spi.schema.DataCollectionId;
 import io.debezium.util.Clock;
 
 /**
- * Connector-side table discovery for smart snapshot (design §11.0/§15.7), reusing the *real* single-task
- * discovery pipeline (an unmodified {@code getSnapshottingTask -> prepare -> connectionCreated ->
- * determineCapturedTables} call chain inherited from {@link SqlServerSnapshotChangeEventSource}) instead of
- * a hand-rolled filter -- so smart snapshot respects {@code snapshot.include.collection.list} and forced
- * signal-table inclusion exactly like single-task mode does, not an approximation of it.
+ * Connector-side table discovery for smart snapshot, run at the Connector (not a task-0 leader like Postgres,
+ * because table-driven allocation needs the table count before {@code taskConfigs()} decides the task count).
+ * Reuses the real single-task discovery chain ({@code getSnapshottingTask -> prepare -> connectionCreated ->
+ * determineCapturedTables}) inherited from {@link SqlServerSnapshotChangeEventSource} rather than a hand-rolled
+ * filter, so it respects {@code snapshot.include.collection.list}, table filters, and signal-table inclusion
+ * identically to single-task mode.
  *
- * <p>Mirrors {@code PostgresSmartSnapshotLifecycleManager.PostgresLeaderSchemaSource} in spirit (call the real
- * method, don't reimplement it) but not in placement: Postgres's leader runs from task-0, reusing that task's
- * already-built {@code EventDispatcher}/{@code PostgresSchema}/etc. This design cannot do that -- table-driven
- * allocation needs the table count *before* {@code taskConfigs()} decides how many tasks to create, and task-0
- * doesn't exist yet at that point -- so this runs at the Connector instead. Verified by reading every method in
- * the call chain: only {@link SnapshotterService} is a real, actively-used dependency (`getSnapshottingTask()`
- * calls `.getSnapshotter()`), and it's cheaply standalone-constructible from just the connector config (see
- * {@link #buildSnapshotterService}) -- no task-level bean required. `Clock`, {@link SnapshotProgressListener},
- * {@link NotificationService}, and the schema/dispatcher fields are stored-but-never-invoked by this exact
- * chain, so they're `null`/no-op here rather than built-and-discarded real instances (building a real
- * {@code SqlServerDatabaseSchema} has a side effect -- it starts the schema-history backend -- even though
- * nothing in this call chain ever uses it).
+ * <p>Of that chain's dependencies, only {@link SnapshotterService} is actually invoked, and it's
+ * standalone-constructible from the connector config ({@link #buildSnapshotterService}); the schema, dispatcher,
+ * clock, progress listener, and notification service are never touched by this chain and so are passed
+ * {@code null}/no-op (notably, a real schema is not built -- constructing one would start the schema-history
+ * backend).
  */
 class SqlServerLeaderSchemaSource extends SqlServerSnapshotChangeEventSource {
 
@@ -67,9 +61,9 @@ class SqlServerLeaderSchemaSource extends SqlServerSnapshotChangeEventSource {
     }
 
     /**
-     * Runs the real discovery pipeline (design §15.7) for one database and returns both the data-captured
-     * set (what becomes the round's shard-splitting universe) and the eligible-but-uncaptured leftover set
-     * (design §6.2, only non-empty under {@code store.only.captured.tables.ddl=false}).
+     * Runs the discovery pipeline for one database and returns both the data-captured set (the round's
+     * shard-splitting universe) and the eligible-but-uncaptured leftover set (only non-empty under
+     * {@code store.only.captured.tables.ddl=false}).
      */
     @SuppressWarnings("unchecked")
     DiscoveryResult discover(SqlServerPartition partition) throws Exception {
@@ -87,17 +81,10 @@ class SqlServerLeaderSchemaSource extends SqlServerSnapshotChangeEventSource {
     }
 
     /**
-     * Standalone-constructs a real {@link SnapshotterService} from just the connector config -- no task-level
-     * bean required. Mirrors exactly what {@code BaseSourceTask.registerServiceProviders()} registers; the
-     * service only ever looks up the connector-config bean it's given here.
-     *
-     * <p>One refinement versus the original design §15.7 investigation: {@code getSnapshottingTask()}'s
-     * {@code Snapshotter.shouldSnapshotSchema()} (e.g. {@code InitialSnapshotter}) looks up a
-     * {@code DATABASE_SCHEMA} bean and calls {@code isHistorized()} on it -- a real dependency this class's
-     * javadoc didn't originally account for. A full {@link SqlServerDatabaseSchema} still isn't needed (and
-     * still isn't built, avoiding its schema-history-start side effect): {@code isHistorized()} is the only
-     * method ever called on it in this path, so a minimal stub answering `true` (SQL Server's schema is
-     * always historized) is registered instead.
+     * Standalone-constructs a {@link SnapshotterService} from just the connector config, registering the same
+     * providers {@code BaseSourceTask.registerServiceProviders()} does. The {@code DATABASE_SCHEMA} bean is a
+     * minimal stub: the Snapshotter's {@code shouldSnapshotSchema()} only ever calls {@code isHistorized()} on
+     * it, so a full schema (which would start the schema-history backend) isn't needed.
      */
     static SnapshotterService buildSnapshotterService(SqlServerConnectorConfig connectorConfig) {
         connectorConfig.getBeanRegistry().add(StandardBeanNames.CONNECTOR_CONFIG, connectorConfig);

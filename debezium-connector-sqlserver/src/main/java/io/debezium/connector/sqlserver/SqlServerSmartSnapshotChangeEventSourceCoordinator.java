@@ -36,26 +36,18 @@ import io.debezium.util.Clock;
 import io.debezium.util.LoggingContext;
 
 /**
- * Snapshot-only coordinator for a smart-snapshot shard task (design §4.4/§7): polls the shared snapshot-info
- * record published once by the Connector (design §3.4/§11.0), computes this task's own table shard via
- * {@link SnapshotCoordinationFacade#tablesForTask}, runs the shard's snapshot, writes its completion record,
- * then idles until Connect swaps it into the collapsed streaming layout. Never transitions to streaming
- * itself.
+ * Snapshot-only coordinator for a smart-snapshot shard task: polls the shared snapshot-info record published
+ * once by the Connector, computes this task's own table shard via {@link SnapshotCoordinationFacade#tablesForTask},
+ * runs the shard's snapshot, writes its completion record, then idles until Connect swaps it into the collapsed
+ * streaming layout. Never transitions to streaming itself.
  *
- * <p>Unlike {@code PostgresSmartSnapshotChangeEventSourceCoordinator}, there is no join-marker/rejoin-detection
- * or {@code restart_needed} signaling on an ordinary snapshot failure: under {@code repeatable_read} a
- * restarted shard task has nothing unrejoinable to protect (no exported snapshot, no held connection) -- it
- * simply re-reads its shard from scratch at the same epoch/L_db (design §7.1).
- *
- * <p>Retention staleness (design TL;DR "Task restart" exception, §13 F11 / §19): if {@code L_db} has aged past
- * CDC change-table retention for any table in this shard, blindly re-snapshotting is doomed -- the eventual
- * streaming handoff would still fail. For Phase 0 this fails the task with a non-retriable exception rather
- * than trying to auto-recover online (design §19): recovery is a manual connector restart, which re-runs
- * {@code SqlServerConnector.start()} -> {@code bumpEpochIfIncompleteRoundExists} (fresh {@code L_db} + epoch
- * bump) synchronously. The exception is deliberately non-retriable ({@link DebeziumException} with no
- * {@code SQLException}/{@code IOException} cause -- see {@code SqlServerErrorHandler#communicationExceptions}):
- * a *retriable* failure would restart only the task, which re-reads the same epoch/L_db from its config and
- * re-hits the same staleness, spinning forever -- only a *connector* restart bumps the epoch (Gap 1).
+ * <p>An ordinary snapshot failure just fails the task, which re-reads the same epoch/L_db and re-snapshots from
+ * scratch on restart -- always safe under {@code repeatable_read} (nothing held between attempts). The one
+ * special case is {@code L_db} aging past CDC change-table retention ({@link #isLDbStale}): re-snapshotting can
+ * never succeed then, so the task fails with a non-retriable exception. Recovery is a manual connector restart
+ * (which captures a fresh {@code L_db} and bumps the epoch). Non-retriable is required: a retriable failure
+ * restarts only the task, which re-reads the same stale {@code L_db} and spins -- only a connector restart
+ * bumps the epoch.
  */
 public class SqlServerSmartSnapshotChangeEventSourceCoordinator extends SqlServerChangeEventSourceCoordinator {
 
@@ -138,10 +130,8 @@ public class SqlServerSmartSnapshotChangeEventSourceCoordinator extends SqlServe
         ShardAssignment shard = awaitShardAssignment(partition);
 
         if (isLDbStale(partition, shard)) {
-            // Phase 0 (design §19): fail the task with a non-retriable exception rather than auto-recovering.
-            // Non-retriable is deliberate -- a retriable failure restarts only the task, which re-reads the
-            // same epoch/L_db and re-hits this same staleness forever; only a connector restart bumps the
-            // epoch (Gap 1) and captures a fresh L_db. The message tells the operator to restart the connector.
+            // Non-retriable by construction (no SQLException/IOException cause): a retriable failure would
+            // restart only the task and re-hit the same stale L_db forever; only a connector restart recovers.
             throw new DebeziumException(String.format(
                     "Smart snapshot: [%s/%s] L_db=%s (epoch %d) has aged past CDC change-table retention for this shard; "
                             + "a fresh snapshot anchor is required. Restart the CONNECTOR (not just this task) to capture a new "
@@ -160,17 +150,13 @@ public class SqlServerSmartSnapshotChangeEventSourceCoordinator extends SqlServe
             throw e; // shutdown, not a snapshot failure -- do not write completion
         }
         catch (Exception e) {
-            // No restart_needed signal here (unlike Postgres): a plain restart re-reads the same epoch/L_db
-            // and re-snapshots the shard from scratch, which is always safe under repeatable_read (§7.1).
+            // A plain restart re-reads the same epoch/L_db and re-snapshots -- safe under repeatable_read.
             throw new DebeziumException(
                     String.format("Smart snapshot: [%s/%s] epoch-%d snapshot failed", partition.getDatabaseName(), taskId, epoch), e);
         }
 
-        // Only record this shard as done for a genuinely COMPLETED (or SKIPPED -- a legitimate "nothing to do")
-        // snapshot, matching the base ChangeEventSourceCoordinator's own isCompletedOrSkipped() gate. A
-        // non-throwing ABORTED can't occur on this path today (abort surfaces as a thrown exception, handled
-        // above), but guard anyway: writing done for a non-completed result would let the monitor downscale a
-        // shard that never captured its data. Fail loudly instead.
+        // Record done only for a COMPLETED/SKIPPED result (matches the base coordinator's isCompletedOrSkipped()
+        // gate); anything else would let the monitor downscale a shard that captured no data, so fail loudly.
         if (!snapshotResult.isCompletedOrSkipped()) {
             throw new DebeziumException(String.format(
                     "Smart snapshot: [%s/%s] epoch-%d snapshot ended with unexpected status %s; not recording completion",
@@ -192,11 +178,9 @@ public class SqlServerSmartSnapshotChangeEventSourceCoordinator extends SqlServe
     }
 
     /**
-     * Poll the shared snapshot-info record for {@code consistentPosition}/{@code tables} at the matching
-     * epoch, then deterministically compute this task's own shard via
-     * {@link SnapshotCoordinationFacade#tablesForTask}. The Connector publishes this before any task is ever
-     * started (design §5 step 2-3), so under normal operation this resolves on the first read; the retry loop
-     * only matters if the task somehow starts before that write is visible (e.g. topic replication lag).
+     * Polls the shared snapshot-info record for this task's epoch, then deterministically computes its own
+     * shard via {@link SnapshotCoordinationFacade#tablesForTask}. The Connector publishes before any task
+     * starts, so this normally resolves on the first read; the retry loop only covers topic replication lag.
      */
     private ShardAssignment awaitShardAssignment(SqlServerPartition partition) throws InterruptedException {
         for (int attempt = 0; attempt < SNAPSHOT_INFO_POLL_RETRY_COUNT; attempt++) {
@@ -222,12 +206,9 @@ public class SqlServerSmartSnapshotChangeEventSourceCoordinator extends SqlServe
     }
 
     /**
-     * Retention check (design TL;DR "Task restart" exception, §13 F11 / §19): {@code L_db} has aged past CDC
-     * change-table retention if any of this shard's tables' capture instance has a min LSN beyond {@code
-     * L_db} -- i.e. the change table has already been purged past the point this round is trying to stream
-     * from. Checked once per shard task, on every (re)start, before re-snapshotting -- cheap (one query per
-     * table, no held connection) and catches the staleness before wasting a re-snapshot that would still be
-     * doomed at the eventual streaming handoff.
+     * True if {@code L_db} has aged past CDC change-table retention for any of this shard's tables (their
+     * capture instance's min LSN is beyond {@code L_db}) -- in which case re-snapshotting is futile because
+     * the streaming handoff from {@code L_db} would fail. Cheap (one query per table, nothing held).
      */
     private boolean isLDbStale(SqlServerPartition partition, ShardAssignment shard) {
         try (SqlServerConnection connection = connectionSupplier.get()) {

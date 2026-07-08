@@ -25,12 +25,10 @@ import io.debezium.util.Clock;
 import io.debezium.util.Metronome;
 
 /**
- * Smart-snapshot anchor capture for the SQL Server {@code repeatable_read} design: discovers the database's
- * captured tables and captures {@code L_db = fn_cdc_get_max_lsn()} once, with nothing held afterward -- no
- * barrier, no lock-holder connection, no exported snapshot. Called directly and synchronously from
- * Connector-side code ({@link SqlServerConnector#start}) rather than from a task-owned leader thread: a
- * one-shot query with nothing to keep alive has none of the long-lived-connection/DND concerns that
- * motivated Postgres's move to a task-0 leader thread, so the simpler Connector-managed shape is kept.
+ * Smart-snapshot anchor capture: discovers the database's captured tables and captures
+ * {@code L_db = fn_cdc_get_max_lsn()} once, holding nothing afterward (no barrier, lock-holder connection, or
+ * exported snapshot). Called synchronously from {@link SqlServerConnector#start} rather than a task-owned
+ * leader thread -- a one-shot query with nothing to keep alive doesn't need one.
  */
 public class SqlServerSnapshotLifecycleManager implements SmartSnapshotLifecycleManager {
 
@@ -45,11 +43,9 @@ public class SqlServerSnapshotLifecycleManager implements SmartSnapshotLifecycle
     private final Supplier<SqlServerConnection> connectionSupplier;
     private final Duration maxLsnWait;
     private final Duration maxLsnPollInterval;
-    // Eligible-for-schema tables (RelationalTableFilters#eligibleForSchemaDataCollectionFilter) that aren't
-    // in the data-capture set -- only non-empty under store.only.captured.tables.ddl=false (the default).
-    // Populated as a side effect of prepareSnapshot(); the schema-history writer (task.id==0) additionally
-    // dispatches these so smart snapshot doesn't silently under-populate schema-history relative to
-    // single-task mode (design §6.2).
+    // Schema-eligible tables outside the data-capture set (only non-empty under
+    // store.only.captured.tables.ddl=false). Populated by prepareSnapshot(); task.id==0 additionally dispatches
+    // these so schema history isn't under-populated relative to single-task mode.
     private volatile List<TableId> uncapturedEligibleTables = Collections.emptyList();
 
     public SqlServerSnapshotLifecycleManager(SqlServerConnectorConfig connectorConfig, String databaseName,
@@ -71,11 +67,8 @@ public class SqlServerSnapshotLifecycleManager implements SmartSnapshotLifecycle
     @Override
     public SnapshotSetup prepareSnapshot(boolean shouldStream) {
         SqlServerLeaderSchemaSource.DiscoveryResult discovery;
-        // Real discovery pipeline (design §15.7), not a hand-rolled filter: respects
-        // snapshot.include.collection.list and forced signal-table inclusion exactly like single-task mode,
-        // since it calls the same inherited determineCapturedTables() chain. Own connection, explicitly
-        // closed here -- SqlServerLeaderSchemaSource has no lifecycle management of its own (it's a one-off,
-        // not a task-managed ChangeEventSource), so nothing else would ever release it.
+        // Own connection, closed here via try-with-resources: SqlServerLeaderSchemaSource is a one-off with no
+        // lifecycle of its own, so nothing else would release it.
         try (SqlServerConnection discoveryConnection = connectionSupplier.get()) {
             MainConnectionProvidingConnectionFactory<SqlServerConnection> connectionFactory = new DefaultMainConnectionProvidingConnectionFactory<>(
                     () -> discoveryConnection);
@@ -111,10 +104,7 @@ public class SqlServerSnapshotLifecycleManager implements SmartSnapshotLifecycle
         }
     }
 
-    /**
-     * Tables eligible for schema-history tracking but not in the data-capture set (design §6.2 leftover
-     * set) -- only meaningful after {@link #prepareSnapshot} has run.
-     */
+    /** Schema-eligible tables outside the data-capture set; only meaningful after {@link #prepareSnapshot}. */
     public List<TableId> getUncapturedEligibleTables() {
         return uncapturedEligibleTables;
     }
@@ -145,7 +135,7 @@ public class SqlServerSnapshotLifecycleManager implements SmartSnapshotLifecycle
 
     @Override
     public void onAllTasksStartedTransaction() {
-        // no-op: repeatable_read holds no barrier to release (design §3.3)
+        // no-op: repeatable_read holds no barrier to release
     }
 
     @Override
