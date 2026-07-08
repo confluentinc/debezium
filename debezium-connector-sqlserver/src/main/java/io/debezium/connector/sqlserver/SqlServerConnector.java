@@ -60,6 +60,15 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
     // of taskConfigs()/stop() releases the coordinator) so taskConfigs()'s restart-path republish below can
     // reuse the already-started coordination client instead of standing up a second one.
     private volatile SnapshotCoordinationFacade smartSnapshotCoordinationFacade;
+    // Guards triggerRepublishIfEpochAdvanced()'s background thread: Kafka Connect's Worker.connectorTaskConfigs()
+    // wraps Connector.taskConfigs() in a hard, short timeout (defaults to 10s) and, on timeout, retries by
+    // calling taskConfigs() again while the previous invocation's work keeps running in the background -- so
+    // the republish itself must never run on the taskConfigs() call thread (see the javadoc below), and this
+    // pair of fields exists to stop two overlapping retries from launching two redundant discovery threads for
+    // the same target epoch.
+    private final Object epochRepublishLock = new Object();
+    private volatile int epochRepublishInFlightForEpoch;
+    private volatile Thread epochRepublishThread;
 
     @Override
     public String version() {
@@ -176,17 +185,31 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
      * check never passes, and each task fails after {@code SNAPSHOT_INFO_POLL_RETRY_COUNT} attempts. Since
      * {@code requestTaskReconfiguration()} re-invokes {@code taskConfigs()} but never {@code start()} again
      * (Kafka Connect lifecycle fact), the Connector -- which owns the JDBC discovery/anchor-capture logic --
-     * must do that republish itself, right here, whenever it notices the epoch it just handed out differs
-     * from what {@code snapshot_info} still carries; reusing the task count already fixed for this round
-     * ({@code smartSnapshotEffectiveMaxTasks}) rather than rediscovering it, since Connect is only running
-     * that many tasks regardless of what a fresh table count might suggest.
+     * must do that republish itself, whenever it notices the epoch it just handed out differs from what
+     * {@code snapshot_info} still carries.
+     *
+     * <p><b>Must never do that work on the calling thread.</b> {@code Connector.taskConfigs()} is invoked from
+     * Kafka Connect's herder/reconfiguration path, which -- unlike {@code Connector.start()} -- wraps the call
+     * in a short, hard timeout (Kafka Connect's {@code Worker.connectorTaskConfigs()}, default 10s) and, on
+     * timeout, retries with backoff while the original call keeps running in the background; enough retries
+     * eventually mark the whole connector FAILED. {@link SqlServerSnapshotLifecycleManager#prepareSnapshot}
+     * does a real JDBC round trip plus {@code awaitMaxLsn}'s own 10s-interval poll loop -- comfortably able to
+     * exceed that budget on the very first attempt, not just under a rare hiccup. So this only ever does the
+     * fast, cheap part (comparing epochs from already-cached coordination reads) inline, and hands the actual
+     * discovery+capture off to a background thread that {@code taskConfigs()} does not wait for; shard tasks
+     * already tolerate this, since {@code awaitShardAssignment} already polls for {@code snapshot_info} to
+     * show up rather than assuming it's there immediately.
      */
-    private void republishIfEpochAdvanced(List<Map<String, String>> configs, SqlServerConnectorConfig connectorConfig) {
+    private void triggerRepublishIfEpochAdvanced(List<Map<String, String>> configs, SqlServerConnectorConfig connectorConfig) {
         if (configs.isEmpty()) {
             return;
         }
         int newEpoch = Integer.parseInt(configs.get(0).get(SnapshotCoordinationFacade.EPOCH));
         SnapshotCoordinationFacade coordinationFacade = this.smartSnapshotCoordinationFacade;
+        if (coordinationFacade == null) {
+            // coordinator/facade already torn down concurrently (e.g. stop() raced this call) -- nothing to do
+            return;
+        }
         Map<String, Object> snapshotInfo = coordinationFacade.readSnapshotInfo();
         Integer publishedEpoch = SnapshotCoordinationFacade.epochOf(snapshotInfo);
         if (publishedEpoch != null && publishedEpoch == newEpoch) {
@@ -194,26 +217,97 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
             return;
         }
 
-        String database = connectorConfig.getDatabaseNames().get(0);
-        LOGGER.info("Smart snapshot: [{}] epoch advanced to {} (restart_needed), capturing a fresh L_db and republishing", database, newEpoch);
-
-        boolean shouldStream = connectorConfig.getSnapshotMode() != SqlServerConnectorConfig.SnapshotMode.INITIAL_ONLY;
-        SqlServerSnapshotLifecycleManager lifecycle = new SqlServerSnapshotLifecycleManager(connectorConfig, database, () -> connect(connectorConfig));
-        SnapshotSetup setup = lifecycle.prepareSnapshot(shouldStream);
-        if (setup.tables().isEmpty()) {
-            // Nothing left to capture (every previously-captured table dropped out from under us). The tasks
-            // already have configs for the new epoch and will time out waiting for snapshot-info -- surface
-            // that loudly rather than leaving a silent hang, since there's no discovered anchor to publish.
-            LOGGER.error("Smart snapshot: [{}] epoch {} republish found no captured tables; shard tasks will time out waiting for snapshot-info",
-                    database, newEpoch);
-            return;
+        synchronized (epochRepublishLock) {
+            if (epochRepublishInFlightForEpoch == newEpoch) {
+                // a prior taskConfigs() invocation (or a Connect-side timeout retry of the same one) already
+                // kicked off a republish for this exact epoch -- don't start a second, redundant discovery
+                return;
+            }
+            epochRepublishInFlightForEpoch = newEpoch;
         }
 
-        coordinationFacade.writeSnapshotInfo(setup.snapshotName(), setup.consistentPosition(), newEpoch, setup.tables(), smartSnapshotEffectiveMaxTasks);
-        LOGGER.info("Smart snapshot: [{}] republished L_db={} epoch={} numTasks={} for {} table(s)",
-                database, setup.consistentPosition(), newEpoch, smartSnapshotEffectiveMaxTasks, setup.tables().size());
+        String database = connectorConfig.getDatabaseNames().get(0);
+        LOGGER.info("Smart snapshot: [{}] epoch advanced to {} (restart_needed), capturing a fresh L_db and republishing in the background",
+                database, newEpoch);
 
-        publishUncapturedEligibleTables(Configuration.from(properties), connectorConfig, database, lifecycle.getUncapturedEligibleTables(), newEpoch);
+        Thread thread = new Thread(
+                () -> republishInBackground(connectorConfig, database, newEpoch, coordinationFacade),
+                "smart-snapshot-epoch-republish-" + newEpoch);
+        thread.setDaemon(true);
+        this.epochRepublishThread = thread;
+        thread.start();
+    }
+
+    private void republishInBackground(SqlServerConnectorConfig connectorConfig, String database, int newEpoch,
+                                       SnapshotCoordinationFacade coordinationFacade) {
+        try {
+            boolean shouldStream = connectorConfig.getSnapshotMode() != SqlServerConnectorConfig.SnapshotMode.INITIAL_ONLY;
+            SqlServerSnapshotLifecycleManager lifecycle = new SqlServerSnapshotLifecycleManager(connectorConfig, database, () -> connect(connectorConfig));
+            SnapshotSetup setup = lifecycle.prepareSnapshot(shouldStream);
+            if (setup.tables().isEmpty()) {
+                // Nothing left to capture (every previously-captured table dropped out from under us). The
+                // tasks already have configs for the new epoch and will time out waiting for snapshot-info --
+                // surface that loudly rather than leaving a silent hang, since there's no anchor to publish.
+                LOGGER.error("Smart snapshot: [{}] epoch {} republish found no captured tables; shard tasks will time out waiting for snapshot-info",
+                        database, newEpoch);
+                return;
+            }
+
+            // Guard against a slow republish finishing after a *later* epoch has already superseded it (e.g.
+            // two restart_needed signals arrived close together): re-check the live epoch right before
+            // writing, so a stale, now-superseded discovery can never overwrite a newer, already-published one.
+            Integer currentEpoch = coordinationFacade.readEpoch();
+            if (currentEpoch != null && currentEpoch != newEpoch) {
+                LOGGER.info("Smart snapshot: [{}] epoch {} republish superseded by newer epoch {} before completing; discarding this result",
+                        database, newEpoch, currentEpoch);
+                return;
+            }
+
+            coordinationFacade.writeSnapshotInfo(setup.snapshotName(), setup.consistentPosition(), newEpoch, setup.tables(), smartSnapshotEffectiveMaxTasks);
+            LOGGER.info("Smart snapshot: [{}] republished L_db={} epoch={} numTasks={} for {} table(s)",
+                    database, setup.consistentPosition(), newEpoch, smartSnapshotEffectiveMaxTasks, setup.tables().size());
+
+            publishUncapturedEligibleTables(Configuration.from(properties), connectorConfig, database, lifecycle.getUncapturedEligibleTables(), newEpoch);
+        }
+        catch (Exception e) {
+            // Runs off the herder thread -- nothing is waiting on this call, so there's nothing to propagate
+            // the failure to except the log; shard tasks will keep polling and eventually time out on their
+            // own if this really never recovers.
+            LOGGER.error("Smart snapshot: [{}] epoch {} background republish failed; shard tasks will time out waiting for snapshot-info",
+                    database, newEpoch, e);
+        }
+        finally {
+            synchronized (epochRepublishLock) {
+                if (epochRepublishInFlightForEpoch == newEpoch) {
+                    epochRepublishInFlightForEpoch = 0;
+                }
+            }
+        }
+    }
+
+    /**
+     * Best-effort shutdown for the background republish thread, mirroring
+     * {@code SmartSnapshotConnectorCoordinator#stopMonitorThread}'s bounded interrupt-then-join pattern:
+     * {@code awaitMaxLsn}'s poll loop responds to interruption, but a live JDBC call inside
+     * {@code prepareSnapshot} may not, so this is best-effort, not a guarantee the thread has actually exited
+     * by the time it returns.
+     */
+    private void stopEpochRepublishThread() {
+        Thread thread = this.epochRepublishThread;
+        if (thread == null) {
+            return;
+        }
+        thread.interrupt();
+        try {
+            thread.join(5_000);
+            if (thread.isAlive()) {
+                LOGGER.warn("Smart snapshot: epoch republish thread did not stop within 5s");
+            }
+        }
+        catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        this.epochRepublishThread = null;
     }
 
     static boolean smartSnapshotApplies(Configuration configuration) {
@@ -320,12 +414,13 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
             if (maxTasks > 1) {
                 List<Map<String, String>> configs = coordinator.taskConfigs(smartSnapshotEffectiveMaxTasks, properties);
                 if (configs != null) {
-                    republishIfEpochAdvanced(configs, config);
+                    triggerRepublishIfEpochAdvanced(configs, config);
                     return configs;
                 }
             }
             // either the round was already complete (configs==null) or maxTasks==1 -- smart snapshot is off
             // for this round; release and fall through to the ordinary path
+            stopEpochRepublishThread();
             coordinator.stop();
             smartSnapshotConnectorCoordinator = null;
             smartSnapshotCoordinationFacade = null;
@@ -374,6 +469,7 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
 
     @Override
     public void stop() {
+        stopEpochRepublishThread();
         if (smartSnapshotConnectorCoordinator != null) {
             smartSnapshotConnectorCoordinator.stop();
             smartSnapshotConnectorCoordinator = null;
