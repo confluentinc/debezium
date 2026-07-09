@@ -51,8 +51,8 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
 
     private Map<String, String> properties;
     private volatile SmartSnapshotConnectorCoordinator smartSnapshotConnectorCoordinator;
-    // ceil(tableCount / tablesPerTask), computed in start() and reused by taskConfigs() so the task count
-    // matches the NUM_TASKS published in the shared snapshot-info record.
+    // The task count (== tasks.max), captured in start() and reused by taskConfigs() so the count handed to
+    // the coordinator matches the NUM_TASKS published in the shared snapshot-info record.
     private volatile int smartSnapshotEffectiveMaxTasks;
 
     @Override
@@ -71,7 +71,7 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
 
         // Early gate; Connect's authoritative maxTasks arrives later via taskConfigs(int).
         Integer maxTask = config.getInteger("tasks.max");
-        if (maxTask != null && maxTask <= 1) {
+        if (maxTask == null || maxTask <= 1) {
             LOGGER.info("Smart snapshot is enabled but tasks.max <= 1, falling back to the ordinary snapshot path");
             return;
         }
@@ -118,7 +118,19 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
                 return;
             }
 
-            int effectiveMaxTasks = Math.max(1, ceilDiv(setup.tables().size(), connectorConfig.getSmartSnapshotTablesPerTask()));
+            // Task count comes from tasks.max (not derived from the table count). Require it to sit in
+            // [ceil(tables/2), tables] so each task gets 1-2 tables -- more would leave tasks idle, fewer
+            // would under-parallelize. Fails the connector with a clear message when misconfigured.
+            int tableCount = setup.tables().size();
+            int minTasks = ceilDiv(tableCount, 2);
+            if (maxTask < minTasks || maxTask > tableCount) {
+                throw new DebeziumException(String.format(
+                        "Smart snapshot: [%s] tasks.max=%d is out of range for %d captured table(s); it must be in [%d, %d] "
+                                + "(each task gets 1-2 tables). Adjust tasks.max or disable smart snapshot.",
+                        database, maxTask, tableCount, minTasks, tableCount));
+            }
+
+            int effectiveMaxTasks = maxTask;
             int epoch = coordinationFacade.readEpoch();
             coordinationFacade.writeSnapshotInfo(setup.snapshotName(), setup.consistentPosition(), epoch, setup.tables(), effectiveMaxTasks);
             LOGGER.info("Smart snapshot: [{}] published L_db={} epoch={} numTasks={} for {} table(s)",

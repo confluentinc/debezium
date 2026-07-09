@@ -78,14 +78,13 @@ public class SmartSnapshotShardedTaskIT extends AbstractAsyncEngineConnectorTest
 
     @Test
     public void twoShardFanOutDispatchesEachTasksOwnShard() throws Exception {
-        // tasks.max=2 + tables.per.task=1 over 2 tables -> 2 real shard tasks, each with its own
-        // Connector-assigned task.id (0 and 1), each independently computing its own shard via
+        // tasks.max=2 over 2 tables -> 2 real shard tasks, each with its own Connector-assigned task.id
+        // (0 and 1), each independently computing its own shard via
         // SnapshotCoordinationFacade.tablesForTask(allTables, taskId, numTasks).
         Configuration config = TestHelper.defaultConfig()
                 .with(CommonConnectorConfig.TOPIC_PREFIX, serverName)
                 .with(CommonConnectorConfig.SMART_SNAPSHOT_ENABLED, true)
                 .with(CommonConnectorConfig.SMART_SNAPSHOT_COORDINATION_BOOTSTRAP_SERVERS, KAFKA_BOOTSTRAP_SERVERS)
-                .with(CommonConnectorConfig.SMART_SNAPSHOT_TABLES_PER_TASK, 1)
                 .with("tasks.max", 2)
                 .build();
 
@@ -125,15 +124,14 @@ public class SmartSnapshotShardedTaskIT extends AbstractAsyncEngineConnectorTest
     public void writerAlsoDispatchesEligibleButUncapturedTables() throws Exception {
         // table3 is excluded from data capture (table.exclude.list) but is still eligible for schema tracking
         // under the default store.only.captured.tables.ddl=false -- the schema-history writer (task.id==0)
-        // must additionally dispatch it (design §6.2 leftover set), or smart snapshot would silently
-        // under-populate schema-history relative to single-task mode.
+        // must additionally dispatch it, or smart snapshot would silently under-populate schema-history
+        // relative to single-task mode. table1/table2 remain the 2 captured tables, so tasks.max=2 is valid.
         connection.execute("CREATE TABLE table3 (id int, name varchar(30), primary key(id))");
 
         Configuration config = TestHelper.defaultConfig()
                 .with(CommonConnectorConfig.TOPIC_PREFIX, serverName)
                 .with(CommonConnectorConfig.SMART_SNAPSHOT_ENABLED, true)
                 .with(CommonConnectorConfig.SMART_SNAPSHOT_COORDINATION_BOOTSTRAP_SERVERS, KAFKA_BOOTSTRAP_SERVERS)
-                .with(CommonConnectorConfig.SMART_SNAPSHOT_TABLES_PER_TASK, 1)
                 // SQL Server's table.exclude.list is schema.table (2-part), not database.schema.table -- the
                 // connector's tableIdMapper is `x -> x.schema() + "." + x.table()` (SqlServerConnectorConfig).
                 .with(RelationalDatabaseConnectorConfig.TABLE_EXCLUDE_LIST, "dbo\\.table3")
