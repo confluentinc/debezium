@@ -88,6 +88,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         PostgresOffsetContext previousOffset = previousOffsets.getTheOnlyOffset();
 
         // Epoch mismatch with previous offset → stale from previous round, clear it
+        // todo add note on when can it occur
         if (previousOffset != null) {
             // todo test this branch
             Integer offsetEpoch = previousOffset.getEpoch();
@@ -184,17 +185,31 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
             LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Snapshot completed. status={}", taskId, epoch, snapshotResult.getStatus());
         }
         catch (InterruptedException e) {
-            LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Interrupted while waiting, exiting gracefully", taskId, epoch, e);
+            // Interrupt means the task is being stopped/restarted; the snapshot did NOT complete.
+            // Do NOT fall through to writeCompleted() — marking an unfinished subset "done" would let the
+            // monitor downscale it and cause isTaskDone() to skip the snapshot on the next restart.
+            LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Interrupted during snapshot, exiting gracefully", taskId, epoch, e);
             Thread.currentThread().interrupt();
+            return;
         }
         catch (Exception e) {
+            // An interrupt does not always surface as InterruptedException: a JDBC/socket read or a Kafka
+            // producer call can throw a wrapped exception (PSQLException, ClosedByInterruptException,
+            // KafkaException) after the interrupt flag was set. Those land here, not in the block above.
+            // Treat them like the interrupt path: the task is stopping, the join marker already guarantees
+            // the rejoin path signals restart_needed on the next start, and writeRestartNeeded() is a blocking
+            // Kafka write that would likely fail under interrupt anyway.
+            if (Thread.currentThread().isInterrupted()) {
+                LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Interrupted during snapshot (surfaced as {}), exiting gracefully",
+                        taskId, epoch, e.getClass().getSimpleName(), e);
+                return;
+            }
+
             // A real snapshot failure (snapshot gone / SET TRANSACTION SNAPSHOT failed / read error).
             // Here we DO write restart_needed: the task already attached and may have emitted partial data,
             // so the epoch must bump to throw that work away. The topic is likely still up (the failure was
             // in the snapshot, not the write), so the signal should go through and the monitor acts on its
             // next poll. If the write also fails, writeRestartNeeded throws and the marker handles it on restart.
-
-            // todo should we check for interrupted here?
             LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Snapshot failed, signaling `restart_needed`", taskId, epoch, e);
             writeRestartNeeded();
             throw new DebeziumException(String.format("Smart snapshot: [role=task taskId=%s epoch=%d] Snapshot failed, signaling restart_needed", taskId, epoch), e);
@@ -203,7 +218,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         writeCompleted();
 
         // todo check if this is really required?
-        // todo catch interrupt ?
+        // or a better way to sleep
         idleUntilRestart(context);
     }
 

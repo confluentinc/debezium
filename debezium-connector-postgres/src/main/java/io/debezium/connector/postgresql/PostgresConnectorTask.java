@@ -71,6 +71,8 @@ import io.debezium.util.ThreadNameContext;
  */
 public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, PostgresOffsetContext> {
 
+    private static final java.util.concurrent.atomic.AtomicBoolean FIRED = new java.util.concurrent.atomic.AtomicBoolean();
+
     private static final Logger LOGGER = LoggerFactory.getLogger(PostgresConnectorTask.class);
     private static final String CONTEXT_NAME = "postgres-connector-task";
     private static final int POLL_MS = 10_000;
@@ -695,6 +697,8 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                     Thread.sleep(pollMs);
                     lifecycle.keepAlive();
                 }
+                // todo what if the thread is interrupted the previous loop would break
+                // if the thread is indeed interrupted the kafka read would anyways fail
                 if (allTasksStartedTransaction()) {
                     // releaseSnapshot(), slot persists; thread ends
                     lifecycle.onAllTasksStartedTransaction();
@@ -713,6 +717,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                 LOGGER.info("Smart snapshot: [role=leader epoch={}] Interrupted while waiting, stopping snapshot preparation", leaderEpoch);
                 Thread.currentThread().interrupt();
                 // todo verify the behaviour
+                // todo should we release snapshot here?
             }
             catch (Throwable throwable) {
                 // todo verify the behaviour

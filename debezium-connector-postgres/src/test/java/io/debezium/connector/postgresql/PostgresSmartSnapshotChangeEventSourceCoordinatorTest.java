@@ -187,6 +187,69 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
         verify(coordination).writeRestartNeeded(TASK_ID, EPOCH);
     }
 
+    @Test
+    public void interruptDuringSnapshotDoesNotWriteCompletion() throws Exception {
+        when(coordination.isTaskDone(TASK_ID, EPOCH)).thenReturn(false);
+        when(coordination.readTaskJoinEpoch(TASK_ID)).thenReturn(null);
+        when(coordination.readEpoch()).thenReturn(null);
+        when(coordination.readSnapshotInfo()).thenReturn(Collect.hashMapOf(
+                SnapshotCoordinationFacade.SNAPSHOT_NAME, "snap",
+                SnapshotCoordinationFacade.EPOCH, EPOCH,
+                SnapshotCoordinationFacade.CONSISTENT_POINT, "0/16B3748",
+                SnapshotCoordinationFacade.TABLES, "public.a",
+                SnapshotCoordinationFacade.NUM_TASKS, 2));
+        coordinator.interruptDuringSnapshot = true;
+
+        try {
+            execute();
+
+            assertThat(coordinator.doSnapshotCalled).isTrue();
+            // An interrupt means the snapshot did not finish: the subset must NOT be marked done, otherwise the
+            // monitor could downscale it and isTaskDone() would skip the snapshot on the next restart.
+            verify(coordination, never()).writeTaskDone(anyString(), anyInt());
+            // The task is stopping, not crashing mid-snapshot, so no restart is signalled either.
+            verify(coordination, never()).writeRestartNeeded(anyString(), anyInt());
+            // The interrupt status is preserved so the caller can shut down cleanly.
+            assertThat(Thread.currentThread().isInterrupted()).isTrue();
+        }
+        finally {
+            // Clear the interrupt flag so it does not leak into other tests on this thread.
+            Thread.interrupted();
+        }
+    }
+
+    @Test
+    public void wrappedInterruptDuringSnapshotDoesNotSignalRestart() throws Exception {
+        when(coordination.isTaskDone(TASK_ID, EPOCH)).thenReturn(false);
+        when(coordination.readTaskJoinEpoch(TASK_ID)).thenReturn(null);
+        when(coordination.readEpoch()).thenReturn(null);
+        when(coordination.readSnapshotInfo()).thenReturn(Collect.hashMapOf(
+                SnapshotCoordinationFacade.SNAPSHOT_NAME, "snap",
+                SnapshotCoordinationFacade.EPOCH, EPOCH,
+                SnapshotCoordinationFacade.CONSISTENT_POINT, "0/16B3748",
+                SnapshotCoordinationFacade.TABLES, "public.a",
+                SnapshotCoordinationFacade.NUM_TASKS, 2));
+        // Interrupt that surfaces as a wrapped exception (e.g. a JDBC/producer call) rather than
+        // InterruptedException: the interrupt flag is set, but the throw is a plain exception.
+        coordinator.snapshotError = new RuntimeException("read interrupted");
+        coordinator.setInterruptFlagBeforeError = true;
+
+        try {
+            // Should exit gracefully, not rethrow, because the interrupt flag is set.
+            execute();
+
+            assertThat(coordinator.doSnapshotCalled).isTrue();
+            // The join marker guarantees the rejoin path signals restart on the next start, so we neither
+            // write restart_needed nor mark the subset done here.
+            verify(coordination, never()).writeRestartNeeded(anyString(), anyInt());
+            verify(coordination, never()).writeTaskDone(anyString(), anyInt());
+        }
+        finally {
+            // Clear the interrupt flag so it does not leak into other tests on this thread.
+            Thread.interrupted();
+        }
+    }
+
     private static LoggingContext.PreviousContext mockLogContext() {
         return org.mockito.Mockito.mock(LoggingContext.PreviousContext.class);
     }
@@ -199,6 +262,8 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
 
         boolean doSnapshotCalled;
         RuntimeException snapshotError;
+        boolean interruptDuringSnapshot;
+        boolean setInterruptFlagBeforeError;
 
         TestCoordinator(Offsets<PostgresPartition, PostgresOffsetContext> previousOffsets, ErrorHandler errorHandler,
                         PostgresConnectorConfig connectorConfig, PostgresChangeEventSourceFactory changeEventSourceFactory,
@@ -219,7 +284,15 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
                                                                    PostgresOffsetContext previousOffset)
                 throws InterruptedException {
             doSnapshotCalled = true;
+            if (interruptDuringSnapshot) {
+                throw new InterruptedException("snapshot interrupted");
+            }
             if (snapshotError != null) {
+                // Simulate an interrupt that surfaces as a wrapped exception rather than InterruptedException:
+                // the interrupt flag is set but a plain exception is thrown from the snapshot call.
+                if (setInterruptFlagBeforeError) {
+                    Thread.currentThread().interrupt();
+                }
                 throw snapshotError;
             }
             return SnapshotResult.completed(null);
