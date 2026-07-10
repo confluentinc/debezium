@@ -71,6 +71,39 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         this.taskId = taskId;
     }
 
+    /**
+     * Catch-up streaming is always OFF for a smart snapshot task.
+     *
+     * <p>What catch-up streaming does (in the normal, non-smart connector): when the connector restarts in a
+     * schema-recovery mode (snapshot.mode = {@code recovery} or {@code schema_only_recovery}) and it already has
+     * a saved position and a live replication slot, it first streams the changes from that saved position up to
+     * "now", then re-takes the schema snapshot. This fills the gap so no changes are missed while the schema is
+     * being rebuilt. It only turns on for those two recovery modes.
+     *
+     * <p>Why a smart snapshot task never needs it:
+     * <ul>
+     *   <li>A smart snapshot task only takes a data snapshot of its slice of tables. It never streams. Streaming
+     *       happens later, on a single task, after all snapshot tasks finish and the connector scales back down.</li>
+     *   <li>Smart snapshot is used for the first data snapshot ({@code initial} / {@code when_needed}), not for the
+     *       recovery modes that catch-up streaming exists for.</li>
+     *   <li>Changes made while the snapshot runs are not lost anyway: the leader creates the replication slot before
+     *       the snapshot starts, so the slot holds on to those changes. When streaming begins after downscale it
+     *       resumes from that slot position and replays them. So the gap is already covered, without catch-up
+     *       streaming.</li>
+     * </ul>
+     *
+     * <p>Today catch-up streaming is already off here only by accident: this task is built with a {@code null}
+     * slot, and the base check needs a non-null slot to run. This override makes it off on purpose, so a later
+     * change that starts passing a real slot can't silently turn catch-up streaming on inside a snapshot-only task.
+     */
+    @Override
+    protected CatchUpStreamingResult executeCatchUpStreaming(ChangeEventSourceContext context,
+                                                             SnapshotChangeEventSource<PostgresPartition, PostgresOffsetContext> snapshotSource,
+                                                             PostgresPartition partition,
+                                                             PostgresOffsetContext previousOffset) {
+        return new CatchUpStreamingResult(false);
+    }
+
     @Override
     protected void executeChangeEventSources(
                                              CdcSourceTaskContext taskContext,
