@@ -21,6 +21,7 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import io.debezium.config.CommonConnectorConfig;
+import io.debezium.connector.postgresql.connection.Lsn;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.connector.postgresql.connection.PostgresConnection.PostgresValueConverterBuilder;
 import io.debezium.jdbc.DefaultMainConnectionProvidingConnectionFactory;
@@ -113,6 +114,30 @@ public class PostgresSmartSnapshotLifecycleManagerIT {
         assertThat(setup.consistentPosition()).isNotBlank();
         assertThat(setup.tables()).anyMatch(t -> "s1".equals(t.schema()) && "a".equals(t.table()));
         // still exactly the one pre-existing slot; the leader exported from it rather than creating another
+        assertThat(slotCount(SLOT)).isEqualTo(1);
+    }
+
+    // INITIAL mode on a pre-existing slot must start streaming at the snapshot's consistent point
+    // (current WAL), not at the slot's stale confirmed_flush_lsn. Here the slot is created and then WAL
+    // is advanced with inserts nobody consumes, so its confirmed_flush_lsn falls behind the current WAL.
+    // The buggy code returned slotLastFlushedLsn (behind the snapshot) which would replay pre-snapshot WAL.
+    @Test
+    public void existingSlotInInitialModeAnchorsAtSnapshotPointNotStaleSlotLsn() {
+        TestHelper.createDefaultReplicationSlot();
+        assertThat(slotExists(SLOT)).isTrue();
+
+        // advance the server WAL well past the slot's confirmed_flush_lsn
+        for (int i = 0; i < 50; i++) {
+            TestHelper.execute("INSERT INTO s1.a VALUES (" + (100 + i) + ", 'x');");
+        }
+
+        Lsn slotFlushed = TestHelper.getDefaultReplicationSlot().slotLastFlushedLsn();
+
+        SnapshotSetup setup = manager.prepareSnapshot(true); // default snapshot mode = INITIAL
+
+        Lsn consistent = Lsn.valueOf(setup.consistentPosition());
+        // INITIAL (shouldStreamEventsStartingFromSnapshot()==true) must anchor ahead of the stale slot LSN
+        assertThat(consistent.compareTo(slotFlushed)).isGreaterThan(0);
         assertThat(slotCount(SLOT)).isEqualTo(1);
     }
 

@@ -274,8 +274,14 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
                     holder.singleResultMapper(
                             rs -> rs.getString(1), "Smart snapshot: [role=leader epoch=" + epoch + "] Failed to export snapshot"));
 
+            // Mirror PostgresSnapshotChangeEventSource#getTransactionStartLsn: only resume from the slot's
+            // last flushed LSN when the snapshotter does NOT stream starting from the snapshot point (e.g.
+            // recovery modes). For modes that stream from the snapshot (initial, when_needed), stream from the
+            // snapshot's consistent point; the slot's confirmed_flush_lsn can be behind it and would otherwise
+            // resume streaming from before the snapshot.
             String currentSlotLsn;
-            if (slotInfo != null && slotInfo.slotLastFlushedLsn() != null) {
+            if (slotInfo != null && slotInfo.slotLastFlushedLsn() != null
+                    && !snapshotterService.getSnapshotter().shouldStreamEventsStartingFromSnapshot()) {
                 currentSlotLsn = slotInfo.slotLastFlushedLsn().asString();
             }
             else {
