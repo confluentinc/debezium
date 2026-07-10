@@ -36,7 +36,10 @@ public class SnapshotCoordinationFacade {
     public static final String EPOCH = "epoch";
     public static final String SNAPSHOT_NAME = "snapshot_name";
     public static final String CONSISTENT_POINT = "consistent_point";
-    public static final String TABLES = "tables";
+    // Explicit per-task table assignment: taskId (as a string) -> JSON array of quoted table FQNs.
+    // The leader publishes the whole plan in this single field so each task reads its own slice directly
+    // instead of re-deriving it from a flat table list.
+    public static final String ASSIGNMENTS = "assignments";
     public static final String NUM_TASKS = "num_tasks";
 
     private final SnapshotCoordination coordination;
@@ -110,11 +113,35 @@ public class SnapshotCoordinationFacade {
         value.put(SNAPSHOT_NAME, snapshotName);
         value.put(CONSISTENT_POINT, consistentPoint);
         value.put(EPOCH, epoch);
-        // value.put(TABLES, tables.stream().map(TableId::toString).collect(Collectors.joining(",")));
-        // JSON array of quoted FQNs — survives names with commas/dots (comma-join + split(",") is unsafe)
-        value.put(TABLES, joinTableIds(tables));
         value.put(NUM_TASKS, numTasks);
+        // Publish the explicit per-task slice rather than a flat table list.
+        value.put(ASSIGNMENTS, buildAssignments(tables, numTasks));
         write(snapshotInfoKey(), value);
+    }
+
+    /**
+     * Build the explicit taskId -> slice map. Each slice is a JSON array of quoted FQNs. The round-robin split
+     * runs here (on the leader) so it is computed once and published, not re-derived on every task.
+     */
+    public static Map<String, Object> buildAssignments(List<TableId> tables, int numTasks) {
+        Map<String, Object> assignments = new HashMap<>();
+        for (int i = 0; i < numTasks; i++) {
+            assignments.put(String.valueOf(i), joinTableIds(tablesForTask(tables, i, numTasks)));
+        }
+        return assignments;
+    }
+
+    /**
+     * Pull one task's slice out of the published ASSIGNMENTS map. Returns the raw JSON array of quoted FQNs
+     * (empty if the task has no entry) — feed it to {@link #parseTablesPostgres(Object)} to get TableIds.
+     */
+    @SuppressWarnings("unchecked")
+    public static Object assignmentForTask(Object assignmentsValue, int taskId) {
+        if (!(assignmentsValue instanceof Map)) {
+            return List.of();
+        }
+        Object taskTableAssignment = ((Map<String, Object>) assignmentsValue).get(String.valueOf(taskId));
+        return taskTableAssignment != null ? taskTableAssignment : List.of();
     }
 
     public static Object joinTableIds(List<TableId> tables) {

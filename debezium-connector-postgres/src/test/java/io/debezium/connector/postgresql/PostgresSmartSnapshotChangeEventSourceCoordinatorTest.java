@@ -156,7 +156,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
                 SnapshotCoordinationFacade.SNAPSHOT_NAME, "snap",
                 SnapshotCoordinationFacade.EPOCH, EPOCH,
                 SnapshotCoordinationFacade.CONSISTENT_POINT, "0/16B3748",
-                SnapshotCoordinationFacade.TABLES, "public.a",
+                SnapshotCoordinationFacade.ASSIGNMENTS, java.util.Map.of(TASK_ID, java.util.List.of("\"public\".\"a\"")),
                 SnapshotCoordinationFacade.NUM_TASKS, 2));
 
         execute();
@@ -178,7 +178,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
                 SnapshotCoordinationFacade.SNAPSHOT_NAME, "snap",
                 SnapshotCoordinationFacade.EPOCH, EPOCH,
                 SnapshotCoordinationFacade.CONSISTENT_POINT, "0/16B3748",
-                SnapshotCoordinationFacade.TABLES, "public.a",
+                SnapshotCoordinationFacade.ASSIGNMENTS, java.util.Map.of(TASK_ID, java.util.List.of("\"public\".\"a\"")),
                 SnapshotCoordinationFacade.NUM_TASKS, 2));
         coordinator.snapshotError = new RuntimeException("snapshot read failed");
 
@@ -196,7 +196,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
                 SnapshotCoordinationFacade.SNAPSHOT_NAME, "snap",
                 SnapshotCoordinationFacade.EPOCH, EPOCH,
                 SnapshotCoordinationFacade.CONSISTENT_POINT, "0/16B3748",
-                SnapshotCoordinationFacade.TABLES, "public.a",
+                SnapshotCoordinationFacade.ASSIGNMENTS, java.util.Map.of(TASK_ID, java.util.List.of("\"public\".\"a\"")),
                 SnapshotCoordinationFacade.NUM_TASKS, 2));
         coordinator.interruptDuringSnapshot = true;
 
@@ -227,7 +227,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
                 SnapshotCoordinationFacade.SNAPSHOT_NAME, "snap",
                 SnapshotCoordinationFacade.EPOCH, EPOCH,
                 SnapshotCoordinationFacade.CONSISTENT_POINT, "0/16B3748",
-                SnapshotCoordinationFacade.TABLES, "public.a",
+                SnapshotCoordinationFacade.ASSIGNMENTS, java.util.Map.of(TASK_ID, java.util.List.of("\"public\".\"a\"")),
                 SnapshotCoordinationFacade.NUM_TASKS, 2));
         // Interrupt that surfaces as a wrapped exception (e.g. a JDBC/producer call) rather than
         // InterruptedException: the interrupt flag is set, but the throw is a plain exception.

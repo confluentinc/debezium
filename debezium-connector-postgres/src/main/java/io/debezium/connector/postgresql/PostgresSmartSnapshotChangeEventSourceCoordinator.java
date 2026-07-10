@@ -157,9 +157,9 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
                                 SnapshotCoordinationFacade.SNAPSHOT_NAME);
                         slotLsnStr = String.valueOf(snapshotInfo.get(
                                 SnapshotCoordinationFacade.CONSISTENT_POINT));
-                        List<TableId> all = SnapshotCoordinationFacade.parseTablesPostgres(snapshotInfo.get(SnapshotCoordinationFacade.TABLES));
-                        int numTasks = ((Number) snapshotInfo.get(SnapshotCoordinationFacade.NUM_TASKS)).intValue();
-                        tableSubset = SnapshotCoordinationFacade.tablesForTask(all, Integer.parseInt(taskId), numTasks);
+                        Object taskTableAssignment = SnapshotCoordinationFacade.assignmentForTask(
+                                snapshotInfo.get(SnapshotCoordinationFacade.ASSIGNMENTS), Integer.parseInt(taskId));
+                        tableSubset = SnapshotCoordinationFacade.parseTablesPostgres(taskTableAssignment);
                         break;
                     }
                 }

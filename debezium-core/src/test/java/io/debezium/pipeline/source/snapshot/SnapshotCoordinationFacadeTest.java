@@ -216,7 +216,7 @@ public class SnapshotCoordinationFacadeTest {
     }
 
     @Test
-    public void writeSnapshotInfoStoresNameLsnTablesAndTaskCount() throws Exception {
+    public void writeSnapshotInfoStoresNameLsnAssignmentsAndTaskCount() throws Exception {
         List<TableId> tables = List.of(new TableId(null, "public", "a"), new TableId(null, "public", "b"));
 
         facade.writeSnapshotInfo("snap", "0/16B3748", 4, tables, 2);
@@ -227,7 +227,22 @@ public class SnapshotCoordinationFacadeTest {
                 .containsEntry("consistent_point", "0/16B3748")
                 .containsEntry("epoch", 4)
                 .containsEntry("num_tasks", 2)
-                .containsEntry("tables", SnapshotCoordinationFacade.joinTableIds(tables));
+                // explicit per-task slice: task-0 -> [a], task-1 -> [b] after the stable sort + round-robin
+                .containsEntry("assignments", SnapshotCoordinationFacade.buildAssignments(tables, 2));
+    }
+
+    @Test
+    public void assignmentForTaskReturnsTheTaskSliceAndEmptyForMissing() {
+        List<TableId> tables = List.of(new TableId(null, "public", "a"), new TableId(null, "public", "b"));
+        Map<String, Object> assignments = SnapshotCoordinationFacade.buildAssignments(tables, 2);
+
+        assertThat(SnapshotCoordinationFacade.parseTablesPostgres(SnapshotCoordinationFacade.assignmentForTask(assignments, 0)))
+                .containsExactly(new TableId(null, "public", "a"));
+        assertThat(SnapshotCoordinationFacade.parseTablesPostgres(SnapshotCoordinationFacade.assignmentForTask(assignments, 1)))
+                .containsExactly(new TableId(null, "public", "b"));
+        // a task with no published slice (e.g. more tasks than tables) gets an empty subset, not an error
+        assertThat(SnapshotCoordinationFacade.assignmentForTask(assignments, 5)).isEqualTo(List.of());
+        assertThat(SnapshotCoordinationFacade.assignmentForTask(null, 0)).isEqualTo(List.of());
     }
 
     @Test
