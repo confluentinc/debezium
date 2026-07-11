@@ -5,6 +5,7 @@
  */
 package io.debezium.connector.postgresql;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -31,20 +32,23 @@ import io.debezium.pipeline.spi.SnapshotResult;
 import io.debezium.relational.TableId;
 import io.debezium.schema.DatabaseSchema;
 import io.debezium.snapshot.SnapshotterService;
+import io.debezium.util.Clock;
 import io.debezium.util.LoggingContext;
+import io.debezium.util.Metronome;
+import io.debezium.util.Threads;
 
 public class PostgresSmartSnapshotChangeEventSourceCoordinator
         extends PostgresChangeEventSourceCoordinator {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(
             PostgresSmartSnapshotChangeEventSourceCoordinator.class);
-    private static final int SNAPSHOT_INFO_POLL_RETRY_COUNT = 30;
-    private static final int IDLE_WAIT_COUNT = 30;
-    private static final int IDLE_DELAY_MS = 10_000;
+    private static final int SNAPSHOT_INFO_POLL_INTERVAL_MS = 10_000;
 
     private final int epoch;
     private final SnapshotCoordinationFacade snapshotCoordination;
     private final String taskId;
+    // How long to wait for the leader to publish the snapshot info before failing this task.
+    private final long snapshotInfoWaitTimeoutMs;
 
     public PostgresSmartSnapshotChangeEventSourceCoordinator(
                                                              Offsets<PostgresPartition, PostgresOffsetContext> previousOffsets,
@@ -69,6 +73,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         this.epoch = epoch;
         this.snapshotCoordination = snapshotCoordination;
         this.taskId = taskId;
+        this.snapshotInfoWaitTimeoutMs = connectorConfig.getSmartSnapshotTaskSnapshotInfoWaitTimeoutMs();
     }
 
     /**
@@ -136,46 +141,60 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         // previousOffset here is non-null only if its epoch == this epoch (the epoch-mismatch block above
         // reset it otherwise). If it shows the snapshot already completed, this restart is just the task
         // being bounced AFTER finishing (a reconfiguration or the managed runtime stopping a "done" task)
-        // NOT a crash. Do not treat it as a rejoin; idle and let the connector downscale.
+        // NOT a crash. Do not treat it as a rejoin; return and let the connector downscale.
         boolean done = snapshotCoordination.isTaskDone(taskId, epoch);
         if (done) {
-            LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Already completed, idling", taskId, epoch);
-            idleUntilRestart(context);
+            LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Already completed, waiting for downscale", taskId, epoch);
             return;
         }
 
-        // Generic restart detection (DB-agnostic): (epoch, taskId) membership marker
-        Integer markerEpoch = snapshotCoordination.readTaskJoinEpoch(taskId);
-        if (markerEpoch != null && markerEpoch == epoch) {
-            // rejoining epoch which implies that snapshot transaction can't be rejoined signal full restart.
-            LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Rejoin detected, signaling `restart_needed`", taskId, epoch);
+        // Rejoin detection. Only a task that already STARTED ITS TRANSACTION cannot be resumed after a restart:
+        // it attached to the leader's exported snapshot (which may already be released) and, since
+        // task_started_transaction is written after the schema read but before any data rows are emitted, it may
+        // be mid-slice. That needs a clean round, so signal a full restart.
+        //
+        // A task that only wrote its join marker but never started its transaction did NOT attach and emitted no
+        // data. It can safely re-run at the SAME epoch, so we must NOT force a restart for it. Keying this on the
+        // join marker (as before) wrongly bumped the epoch when a task simply died while waiting for the snapshot
+        // to be prepared.
+        if (snapshotCoordination.isTaskStartedTransaction(taskId, epoch)) {
+            LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Rejoin after transaction start detected, signaling `restart_needed`", taskId, epoch);
             writeRestartNeeded();
-            idleUntilRestart(context);
             return;
         }
 
-        // Stale-epoch check: the Connector already moved to a newer epoch, wait for restart.
-        Integer savedEpoch = snapshotCoordination.readEpoch();
-        if (savedEpoch != null && savedEpoch > epoch) {
+        // Stale-epoch check: this task's config epoch is already behind the epoch the connector has persisted.
+        // That means the config is stale — a leftover task from an old round, or one assigned during a rebalance
+        // before it was reconfigured. Return and wait for the reconfiguration to hand it the current epoch.
+        //
+        // This must run BEFORE reading the snapshot info. snapshot_info is keyed by server, not by epoch, so a
+        // stale task could otherwise find a snapshot whose epoch matches its own stale epoch, attach to it (that
+        // snapshot has already been released) and fail. The in-loop epoch check below does NOT cover this: it runs
+        // after the snapshot-info match, so a first-iteration match would attach before it ever fires.
+        Integer readEpoch = snapshotCoordination.readEpoch();
+        if (readEpoch != null && readEpoch > epoch) {
             LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Saved epoch is greater than current epoch, waiting for restart. savedEpoch={} currentEpoch={}",
-                    taskId, epoch, savedEpoch, epoch);
-            idleUntilRestart(context);
+                    taskId, epoch, readEpoch, epoch);
             return;
         }
 
-        // Fresh join — write marker FIRST (before attaching), so any later restart is caught.
-        // If this write fails we just fail the task. We do NOT write restart_needed here: that is also a
-        // topic write, so it would fail too. And it isn't needed — we haven't attached yet, so the task did
-        // nothing. On restart there is no marker, so it starts fresh at the same epoch. Nothing to clean up.
-
-        // if the write fails let the task fail
+        // Write the join marker. It tells the leader this task is up so it can wait for all tasks to join before
+        // taking locks. It does NOT by itself trigger a restart on a later bounce — that is keyed on
+        // task_started_transaction above — so a task that dies here (joined but not yet attached) re-runs cleanly
+        // at the same epoch. If this write fails we just fail the task; the task has done nothing to clean up.
         snapshotCoordination.writeTaskJoin(taskId, epoch);
 
-        // Read snapshot_name + LSN from coordination topic
+        // Read snapshot_name + LSN from coordination topic. Wait up to snapshotInfoWaitTimeoutMs, which must be
+        // larger than the leader's join-wait + prepare time so we do not give up before the snapshot is published.
         String snapshotName = null;
         String slotLsnStr = null;
         List<TableId> tableSubset = null;
-        for (int attempt = 0; attempt < SNAPSHOT_INFO_POLL_RETRY_COUNT; attempt++) {
+        // The loop is interrupt-aware via metronome.pause() below, which throws InterruptedException (propagated by
+        // this method) if the task is being stopped.
+        Threads.Timer timer = Threads.timer(Clock.SYSTEM, Duration.ofMillis(snapshotInfoWaitTimeoutMs));
+        Metronome metronome = Metronome.parker(Duration.ofMillis(SNAPSHOT_INFO_POLL_INTERVAL_MS), Clock.SYSTEM);
+        int attempt = 0;
+        while (!timer.expired()) {
             Map<String, Object> snapshotInfo = snapshotCoordination.readSnapshotInfo();
             if (snapshotInfo != null
                     && snapshotInfo.get(SnapshotCoordinationFacade.SNAPSHOT_NAME) != null) {
@@ -197,8 +216,20 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
                     }
                 }
             }
-            LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Waiting for snapshot preparation (attempt {}/30)", taskId, epoch, attempt + 1);
-            Thread.sleep(IDLE_DELAY_MS);
+
+            // The connector may have moved on to a newer epoch (the leader gave up and restarted the round). If so,
+            // there is no point waiting out the full timeout for a snapshot at this epoch — return and let this task
+            // be reconfigured for the new epoch.
+            readEpoch = snapshotCoordination.readEpoch();
+            if (readEpoch != null && readEpoch > epoch) {
+                LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Connector advanced to a newer epoch while waiting for snapshot info, "
+                        + "waiting for restart. savedEpoch={}", taskId, epoch, readEpoch);
+                return;
+            }
+
+            LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Waiting for snapshot preparation (attempt {}, timeout {}ms)",
+                    taskId, epoch, ++attempt, snapshotInfoWaitTimeoutMs);
+            metronome.pause();
         }
         if (snapshotName == null) {
             throw new DebeziumException(String.format("Smart snapshot: [role=task taskId=%s epoch=%d] Timed out waiting for snapshot preparation", taskId, epoch));
@@ -229,9 +260,9 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
             // An interrupt does not always surface as InterruptedException: a JDBC/socket read or a Kafka
             // producer call can throw a wrapped exception (PSQLException, ClosedByInterruptException,
             // KafkaException) after the interrupt flag was set. Those land here, not in the block above.
-            // Treat them like the interrupt path: the task is stopping, the join marker already guarantees
-            // the rejoin path signals restart_needed on the next start, and writeRestartNeeded() is a blocking
-            // Kafka write that would likely fail under interrupt anyway.
+            // Treat them like the interrupt path: the task is stopping. On the next start the rejoin path handles
+            // cleanup (if it had started its transaction it signals restart; otherwise it re-runs cleanly), and
+            // writeRestartNeeded() is a blocking Kafka write that would likely fail under interrupt anyway.
             if (Thread.currentThread().isInterrupted()) {
                 LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Interrupted during snapshot (surfaced as {}), exiting gracefully",
                         taskId, epoch, e.getClass().getSimpleName(), e);
@@ -250,9 +281,9 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
 
         writeCompleted();
 
-        // todo check if this is really required?
-        // or a better way to sleep
-        idleUntilRestart(context);
+        // Snapshot-only task: nothing more to do here. Return and let the connector monitor detect all tasks done
+        // and downscale/reconfigure this task. The task stays alive (RUNNING, empty polls) until then.
+        LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Slice complete, waiting for downscale", taskId, epoch);
     }
 
     private void writeRestartNeeded() {
@@ -266,22 +297,6 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
             // Nothing is committed in the meantime, so this is safe.
             throw new DebeziumException(
                     String.format("Smart snapshot: [role=task taskId=%s epoch=%d] Failed to write restart_needed", taskId, epoch), e);
-        }
-    }
-
-    private void idleUntilRestart(ChangeEventSourceContext context) throws InterruptedException {
-        // can't wait forever for restart, what if the monitor thread on connector dies?
-        // wait for 5 mins
-        for (int i = 0; i < IDLE_WAIT_COUNT; i++) {
-            if (context.isRunning()) {
-                Thread.sleep(IDLE_DELAY_MS);
-                if (i % 3 == 0) { // log every 30 second
-                    LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Idling", taskId, epoch);
-                }
-            }
-            else {
-                return;
-            }
         }
     }
 

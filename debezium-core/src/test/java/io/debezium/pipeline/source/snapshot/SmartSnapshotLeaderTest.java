@@ -1,3 +1,8 @@
+/*
+ * Copyright Debezium Authors.
+ *
+ * Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.debezium.pipeline.source.snapshot;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -51,9 +56,20 @@ public class SmartSnapshotLeaderTest {
     }
 
     private SmartSnapshotLeader prep(int numTasks, boolean shouldStream) {
+        // generous timeouts so the wait loops exit on the mocked conditions, not on the clock
+        return prep(numTasks, shouldStream, 60_000L, 60_000L);
+    }
+
+    private SmartSnapshotLeader prep(int numTasks, boolean shouldStream, long joinWaitTimeoutMs, long startedTransactionTimeoutMs) {
         return new SmartSnapshotLeader(lifecycle, coordination, errorHandler, EPOCH, numTasks, shouldStream,
-                0L, () -> {
+                0L, joinWaitTimeoutMs, startedTransactionTimeoutMs, () -> {
                 });
+    }
+
+    private void allTasksJoined(int numTasks) {
+        for (int i = 0; i < numTasks; i++) {
+            when(coordination.isTaskJoined(String.valueOf(i), EPOCH)).thenReturn(true);
+        }
     }
 
     @Test
@@ -81,6 +97,7 @@ public class SmartSnapshotLeaderTest {
     @Test
     public void preparesPublishesAndReleasesWhenAllTasksJoin() {
         when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
+        allTasksJoined(2);
         when(lifecycle.prepareSnapshot(true)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", TABLES));
         when(coordination.isTaskStartedTransaction("0", EPOCH)).thenReturn(true);
         when(coordination.isTaskStartedTransaction("1", EPOCH)).thenReturn(true);
@@ -94,10 +111,44 @@ public class SmartSnapshotLeaderTest {
     }
 
     @Test
+    public void waitsForAllTasksToJoinBeforePreparing() {
+        when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
+        // task-0 joined, task-1 joins only on the second check -> the join wait runs one iteration first
+        when(coordination.isTaskJoined("0", EPOCH)).thenReturn(true);
+        when(coordination.isTaskJoined("1", EPOCH)).thenReturn(false, true);
+        when(lifecycle.prepareSnapshot(true)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", TABLES));
+        when(coordination.isTaskStartedTransaction("0", EPOCH)).thenReturn(true);
+        when(coordination.isTaskStartedTransaction("1", EPOCH)).thenReturn(true);
+
+        prep(2, true).run();
+
+        verify(lifecycle).prepareSnapshot(true);
+        verify(lifecycle).onAllTasksStartedTransaction();
+    }
+
+    @Test
+    public void joinTimeoutFailsTaskWithoutPreparingOrBumpingEpoch() {
+        when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
+        // task-1 never joins; with a 0ms join timeout the leader must not take any locks
+        when(coordination.isTaskJoined("0", EPOCH)).thenReturn(true);
+        when(coordination.isTaskJoined("1", EPOCH)).thenReturn(false);
+
+        prep(2, true, 0L, 60_000L).run();
+
+        verify(lifecycle, never()).prepareSnapshot(anyBoolean());
+        verify(coordination, never()).writeSnapshotInfo(any(), any(), eq(EPOCH), any(), eq(2));
+        // nothing was prepared/published, so no epoch bump -> fail the task instead
+        verify(coordination, never()).writeRestartNeeded(any(), eq(EPOCH));
+        verify(errorHandler).setProducerThrowable(any(DebeziumException.class));
+        verify(lifecycle, never()).releaseSnapshot();
+    }
+
+    @Test
     public void keepsSnapshotAliveWhileWaitingForTasks() {
         when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
+        allTasksJoined(1);
         when(lifecycle.prepareSnapshot(true)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", TABLES));
-        // not joined on the first check, joined afterwards -> the wait loop runs one iteration
+        // not started on the first check, started afterwards -> the wait loop runs one iteration
         when(coordination.isTaskStartedTransaction("0", EPOCH)).thenReturn(false, true);
 
         prep(1, true).run();
@@ -107,8 +158,27 @@ public class SmartSnapshotLeaderTest {
     }
 
     @Test
+    public void startedTransactionTimeoutReleasesAndSignalsRestart() {
+        when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
+        allTasksJoined(2);
+        when(lifecycle.prepareSnapshot(true)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", TABLES));
+        // tasks joined but never start their transaction; 0ms timeout ends the held critical section
+        when(coordination.isTaskStartedTransaction("0", EPOCH)).thenReturn(false);
+        when(coordination.isTaskStartedTransaction("1", EPOCH)).thenReturn(false);
+
+        prep(2, true, 60_000L, 0L).run();
+
+        verify(lifecycle).prepareSnapshot(true);
+        verify(coordination).writeSnapshotInfo("snap", "0/16B3748", EPOCH, TABLES, 2);
+        verify(lifecycle).releaseSnapshot();
+        verify(coordination).writeRestartNeeded("0", EPOCH);
+        verify(lifecycle, never()).onAllTasksStartedTransaction();
+    }
+
+    @Test
     public void onPreparationFailureReleasesAndFailsTheTask() {
         when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
+        allTasksJoined(2);
         when(lifecycle.prepareSnapshot(anyBoolean())).thenThrow(new RuntimeException("boom"));
 
         prep(2, true).run();
@@ -121,6 +191,7 @@ public class SmartSnapshotLeaderTest {
     @Test
     public void nonStreamingModePreparesWithoutSlot() {
         when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
+        allTasksJoined(1);
         when(lifecycle.prepareSnapshot(false)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", TABLES));
         when(coordination.isTaskStartedTransaction("0", EPOCH)).thenReturn(true);
 

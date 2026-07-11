@@ -102,7 +102,6 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
 
         when(previousOffsets.getTheOnlyPartition()).thenReturn(partition);
         when(taskContext.configureLoggingContext(anyString(), any())).thenReturn(mockLogContext());
-        when(context.isRunning()).thenReturn(false); // idleUntilRestart returns immediately
 
         coordinator = new TestCoordinator(previousOffsets, errorHandler, connectorConfig, changeEventSourceFactory,
                 metricsFactory, eventDispatcher, schema, snapshotterService, signalProcessor, notificationService,
@@ -125,14 +124,37 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
     }
 
     @Test
-    public void rejoinSignalsRestartWithoutSnapshotting() throws Exception {
+    public void rejoinAfterTransactionStartSignalsRestartWithoutSnapshotting() throws Exception {
         when(coordination.isTaskDone(TASK_ID, EPOCH)).thenReturn(false);
-        when(coordination.readTaskJoinEpoch(TASK_ID)).thenReturn(EPOCH); // marker for this epoch already present
+        // the task had already started its transaction this epoch -> it may be mid-slice, so a clean round is needed
+        when(coordination.isTaskStartedTransaction(TASK_ID, EPOCH)).thenReturn(true);
 
         execute();
 
         verify(coordination).writeRestartNeeded(TASK_ID, EPOCH);
         assertThat(coordinator.doSnapshotCalled).isFalse();
+    }
+
+    @Test
+    public void joinedButNotStartedTransactionReRunsWithoutRestart() throws Exception {
+        when(coordination.isTaskDone(TASK_ID, EPOCH)).thenReturn(false);
+        // a join marker for this epoch is present, but the task never started its transaction (e.g. it died while
+        // waiting for the snapshot). This must NOT force a restart; the task re-runs cleanly at the same epoch.
+        when(coordination.readTaskJoinEpoch(TASK_ID)).thenReturn(EPOCH);
+        when(coordination.isTaskStartedTransaction(TASK_ID, EPOCH)).thenReturn(false);
+        when(coordination.readEpoch()).thenReturn(null);
+        when(coordination.readSnapshotInfo()).thenReturn(Collect.hashMapOf(
+                SnapshotCoordinationFacade.SNAPSHOT_NAME, "snap",
+                SnapshotCoordinationFacade.EPOCH, EPOCH,
+                SnapshotCoordinationFacade.CONSISTENT_POINT, "0/16B3748",
+                SnapshotCoordinationFacade.ASSIGNMENTS, java.util.Map.of(TASK_ID, java.util.List.of("\"public\".\"a\"")),
+                SnapshotCoordinationFacade.NUM_TASKS, 2));
+
+        execute();
+
+        verify(coordination, never()).writeRestartNeeded(anyString(), anyInt());
+        assertThat(coordinator.doSnapshotCalled).isTrue();
+        verify(coordination).writeTaskDone(TASK_ID, EPOCH);
     }
 
     @Test
@@ -239,8 +261,8 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
             execute();
 
             assertThat(coordinator.doSnapshotCalled).isTrue();
-            // The join marker guarantees the rejoin path signals restart on the next start, so we neither
-            // write restart_needed nor mark the subset done here.
+            // On the next start the rejoin path handles cleanup: if this task had started its transaction it
+            // signals restart, otherwise it re-runs cleanly. So we neither write restart_needed nor mark done here.
             verify(coordination, never()).writeRestartNeeded(anyString(), anyInt());
             verify(coordination, never()).writeTaskDone(anyString(), anyInt());
         }

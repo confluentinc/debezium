@@ -228,6 +228,10 @@ public class SnapshotCoordinationFacade {
         return epochOf(coordination.read(taskJoinKey(taskId)));
     }
 
+    public boolean isTaskJoined(String taskId, int epoch) {
+        return existsAtEpoch(taskJoinKey(taskId), epoch);
+    }
+
     public void writeTaskDone(String taskId, int epoch) {
         write(taskDoneKey(taskId), Collect.hashMapOf(EPOCH, epoch));
     }

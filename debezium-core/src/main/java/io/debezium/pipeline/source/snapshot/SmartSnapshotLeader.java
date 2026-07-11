@@ -5,17 +5,17 @@
  */
 package io.debezium.pipeline.source.snapshot;
 
-import java.util.Map;
-import java.util.function.Function;
+import java.time.Duration;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
-import io.debezium.config.Configuration;
 import io.debezium.pipeline.ErrorHandler;
-import io.debezium.pipeline.spi.OffsetContext;
+import io.debezium.util.Clock;
+import io.debezium.util.Metronome;
+import io.debezium.util.Threads;
 
 /**
  * Runs on task-0 (the leader) on a background thread: prepares the shared snapshot (slot create / export
@@ -34,11 +34,15 @@ public class SmartSnapshotLeader implements Runnable {
     private final int numTasks;
     private final boolean shouldStream;
     private final long pollMs;
+    // Bounds the wait for every task to join BEFORE the snapshot is prepared (no locks held yet).
+    private final long joinWaitTimeoutMs;
+    // Bounds the wait for every task to start its transaction AFTER the snapshot is prepared (locks held).
+    private final long startedTransactionTimeoutMs;
     private final Runnable loggingContextSetup;
 
     public SmartSnapshotLeader(SmartSnapshotLifecycleManager lifecycle, SnapshotCoordinationFacade leaderSnapshotCoordination,
                                ErrorHandler errorHandler, int leaderEpoch, int numTasks, boolean shouldStream, long pollMs,
-                               Runnable loggingContextSetup) {
+                               long joinWaitTimeoutMs, long startedTransactionTimeoutMs, Runnable loggingContextSetup) {
         this.lifecycle = lifecycle;
         this.leaderSnapshotCoordination = leaderSnapshotCoordination;
         this.errorHandler = errorHandler;
@@ -46,13 +50,19 @@ public class SmartSnapshotLeader implements Runnable {
         this.numTasks = numTasks;
         this.shouldStream = shouldStream;
         this.pollMs = pollMs;
+        this.joinWaitTimeoutMs = joinWaitTimeoutMs;
+        this.startedTransactionTimeoutMs = startedTransactionTimeoutMs;
         this.loggingContextSetup = loggingContextSetup;
     }
 
     public SmartSnapshotLeader(SmartSnapshotLifecycleManager lifecycle, SnapshotCoordinationFacade leaderSnapshotCoordination,
-                               ErrorHandler errorHandler, int leaderEpoch, int numTasks, boolean shouldStream,
+                               ErrorHandler errorHandler, int leaderEpoch, int numTasks, boolean shouldStream, CommonConnectorConfig connectorConfig,
                                Runnable loggingContextSetup) {
-        this(lifecycle, leaderSnapshotCoordination, errorHandler, leaderEpoch, numTasks, shouldStream, POLL_MS, loggingContextSetup);
+        this(lifecycle, leaderSnapshotCoordination, errorHandler, leaderEpoch,
+                numTasks, shouldStream, POLL_MS,
+                connectorConfig.getSmartSnapshotLeaderJoinWaitTimeoutMs(),
+                connectorConfig.getSmartSnapshotLeaderStartedTransactionTimeoutMs(),
+                loggingContextSetup);
     }
 
     @Override
@@ -76,6 +86,16 @@ public class SmartSnapshotLeader implements Runnable {
                 return;
             }
 
+            // Wait for every task to join BEFORE taking any locks. No snapshot is prepared yet, so this wait
+            // costs the source database nothing; it just makes sure all tasks are up and already polling for
+            // the snapshot info. That way, once we lock the tables below, the tasks attach almost at once and
+            // the locked window (the critical section) stays as small as possible.
+            if (!waitForAllTasksJoined()) {
+                // Either a restart was signaled, or the tasks did not all join in time (waitForAllTasksJoined
+                // already signaled a restart). No locks are held, so just end the thread; the round restarts.
+                return;
+            }
+
             final SmartSnapshotLifecycleManager.SnapshotSetup setup = lifecycle.prepareSnapshot(shouldStream);
 
             // todo list of tables might require compression or enable compression on the coordination topic
@@ -84,26 +104,29 @@ public class SmartSnapshotLeader implements Runnable {
             LOGGER.info("Smart snapshot: [role=leader epoch={}] Prepared snapshot={}, LSN={}",
                     leaderEpoch, setup.snapshotName(), setup.consistentPosition());
 
-            // wait until every task has imported the snapshot and (optionally) locked its subset, then release and end the thread
-            while (!Thread.currentThread().isInterrupted() && !allTasksStartedTransaction() && !anyRestartNeeded()) {
-                Thread.sleep(pollMs);
-                lifecycle.keepAlive();
-            }
-            // todo what if the thread is interrupted the previous loop would break
-            // if the thread is indeed interrupted the kafka read would anyways fail
-            if (allTasksStartedTransaction()) {
+            // From here the table locks are held, so this wait is bounded: a task that joined but then died
+            // before starting its transaction can no longer pin the locks forever.
+            if (waitForAllTasksStartedTransaction()) {
                 // releaseSnapshot(), slot persists; thread ends
                 lifecycle.onAllTasksStartedTransaction();
+                LOGGER.info("Smart snapshot: [role=leader epoch={}] All tasks have started their transaction, stopping the leader thread", leaderEpoch);
             }
-            else if (anyRestartNeeded()) {
-                LOGGER.warn("Smart snapshot: [role=leader epoch={}] Detected `restart_needed` marker, releasing early", leaderEpoch);
-                // early abort: the connector monitor bumps epoch + reconfigures
+            else {
+                // Timed out or a restart was signaled. Drop the locks NOW to end the critical section, then make
+                // sure the round restarts so the monitor bumps the epoch and retries from scratch.
                 lifecycle.releaseSnapshot();
+                if (anyRestartNeeded()) {
+                    LOGGER.warn("Smart snapshot: [role=leader epoch={}] Detected `restart_needed` marker, released locks early", leaderEpoch);
+                }
+                else {
+                    LOGGER.warn("Smart snapshot: [role=leader epoch={}] Timed out after {}ms waiting for all tasks to start their "
+                            + "transaction, released locks and signaling restart", leaderEpoch, startedTransactionTimeoutMs);
+                    signalRestart();
+                }
             }
-            LOGGER.info("Smart snapshot: [role=leader epoch={}] All tasks have started their transaction, stopping the leader thread", leaderEpoch);
         }
         catch (InterruptedException e) {
-            // Path A: an interrupt-aware wait (Thread.sleep in the keep-alive loop) was interrupted
+            // Path A: an interrupt-aware wait (metronome.pause() in a wait loop) was interrupted
             // by the task-stop path. The flag was cleared when InterruptedException was thrown, so
             // restore it and end the thread.
             LOGGER.info("Smart snapshot: [role=leader epoch={}] Interrupted while waiting, stopping snapshot preparation", leaderEpoch);
@@ -148,6 +171,78 @@ public class SmartSnapshotLeader implements Runnable {
                 Thread.currentThread().interrupt();
             }
         }
+    }
+
+    /**
+     * Wait until every task has written its join marker, or until {@link #joinWaitTimeoutMs} elapses.
+     * Returns true if all tasks joined; false if the leader should stop without preparing (a restart was
+     * already signaled elsewhere, the timeout passed, or the thread was interrupted).
+     *
+     * <p>On timeout we do NOT bump the epoch: nothing has been prepared, published, or locked yet, so there
+     * is no partial work to throw away. We just fail the task; Kafka Connect restarts it and the join wait is
+     * retried. Proactively bumping the epoch here would only churn rounds for no benefit.
+     */
+    boolean waitForAllTasksJoined() throws InterruptedException {
+        Threads.Timer timer = Threads.timer(Clock.SYSTEM, Duration.ofMillis(joinWaitTimeoutMs));
+        Metronome metronome = Metronome.parker(Duration.ofMillis(pollMs), Clock.SYSTEM);
+        while (!timer.expired()) {
+            if (anyRestartNeeded()) {
+                LOGGER.warn("Smart snapshot: [role=leader epoch={}] Restart signaled while waiting for tasks to join, aborting round", leaderEpoch);
+                return false;
+            }
+            if (allTasksJoined()) {
+                LOGGER.info("Smart snapshot: [role=leader epoch={}] All {} tasks joined, preparing snapshot", leaderEpoch, numTasks);
+                return true;
+            }
+            metronome.pause();
+        }
+        LOGGER.warn("Smart snapshot: [role=leader epoch={}] Timed out after {}ms waiting for all tasks to join; nothing prepared yet, "
+                + "failing the task to retry without bumping the epoch", leaderEpoch, joinWaitTimeoutMs);
+        errorHandler.setProducerThrowable(new DebeziumException(
+                "Smart snapshot: [role=leader epoch=" + leaderEpoch + "] Timed out waiting for all tasks to join"));
+        return false;
+    }
+
+    /**
+     * Wait until every task has started its snapshot transaction, or until {@link #startedTransactionTimeoutMs}
+     * elapses. Table locks are held for the duration, so the timeout caps the critical section. Returns true if
+     * all tasks started; false on timeout, restart signal, or interruption. Calls keepAlive() each poll so the
+     * held connection/slot does not drop while waiting.
+     */
+    boolean waitForAllTasksStartedTransaction() throws InterruptedException {
+        Threads.Timer timer = Threads.timer(Clock.SYSTEM, Duration.ofMillis(startedTransactionTimeoutMs));
+        Metronome metronome = Metronome.parker(Duration.ofMillis(pollMs), Clock.SYSTEM);
+        while (!allTasksStartedTransaction() && !anyRestartNeeded()) {
+            if (timer.expired()) {
+                return false;
+            }
+            metronome.pause();
+            lifecycle.keepAlive();
+        }
+        return allTasksStartedTransaction();
+    }
+
+    /**
+     * Signal a restart of the round. restart_needed is keyed per task and the connector monitor scans every
+     * task's marker, so writing it under task-0 (the leader) is enough to make the monitor bump the epoch and
+     * reconfigure. Best-effort: if the write fails, task-0's rejoin path signals restart on its next start.
+     */
+    void signalRestart() {
+        try {
+            leaderSnapshotCoordination.writeRestartNeeded("0", leaderEpoch);
+        }
+        catch (Exception e) {
+            LOGGER.warn("Smart snapshot: [role=leader epoch={}] Failed to write restart_needed; task-0 rejoin path will retry", leaderEpoch, e);
+        }
+    }
+
+    boolean allTasksJoined() {
+        for (int i = 0; i < numTasks; i++) {
+            if (!leaderSnapshotCoordination.isTaskJoined(String.valueOf(i), leaderEpoch)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     boolean allTasksStartedTransaction() {
