@@ -246,8 +246,8 @@ public class SnapshotCoordinationFacade {
     }
 
     public static <O extends OffsetContext> O fetchOffsetFromCoordinationTopic(
-            Configuration config, CommonConnectorConfig connectorConfig, boolean isSmartSnapshotTask,
-            Function<String, O> buildOffsetFromConsistentPoint) {
+                                                                               Configuration config, CommonConnectorConfig connectorConfig, boolean isSmartSnapshotTask,
+                                                                               Function<String, O> buildOffsetFromConsistentPoint) {
         // Post-downscale streaming task: read consistent point from coordination topic only if the feature is still enabled
         // Otherwise, the snapshot taken in the smart snapshot mode is discarded
         if (!connectorConfig.isSmartSnapshotEnabled() || isSmartSnapshotTask) {

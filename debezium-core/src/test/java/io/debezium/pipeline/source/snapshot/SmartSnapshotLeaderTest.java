@@ -10,6 +10,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -22,6 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -186,6 +189,58 @@ public class SmartSnapshotLeaderTest {
         verify(lifecycle).releaseSnapshot();
         verify(errorHandler).setProducerThrowable(any(DebeziumException.class));
         verify(lifecycle, never()).onAllTasksStartedTransaction();
+    }
+
+    @Test
+    public void keepAliveFailureAfterPublishReleasesSignalsRestartAndFailsAfterCleanup() {
+        when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
+        allTasksJoined(2);
+        when(lifecycle.prepareSnapshot(true)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", TABLES));
+        // tasks never start their transaction, and keepAlive fails because the DB connection was killed
+        when(coordination.isTaskStartedTransaction("0", EPOCH)).thenReturn(false);
+        when(coordination.isTaskStartedTransaction("1", EPOCH)).thenReturn(false);
+        doThrow(new DebeziumException("snapshot-holder connection is dead")).when(lifecycle).keepAlive();
+
+        prep(2, true).run();
+
+        // the snapshot was already published, so the round is invalidated and the task is failed
+        verify(lifecycle).releaseSnapshot();
+        verify(coordination).writeRestartNeeded("0", EPOCH);
+        verify(errorHandler).setProducerThrowable(any(DebeziumException.class));
+        verify(lifecycle, never()).onAllTasksStartedTransaction();
+
+        // the deferred-failure fix: the leader closes its own coordination facade BEFORE failing the task,
+        // so the restart the failure triggers cannot interrupt that close mid-way
+        InOrder order = inOrder(coordination, errorHandler);
+        order.verify(coordination).stop();
+        order.verify(errorHandler).setProducerThrowable(any(DebeziumException.class));
+    }
+
+    @Test
+    public void interruptDuringJoinWaitReleasesSnapshot() {
+        when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
+        // never joined, so the join-wait loop reaches metronome.pause(), which throws on the pre-set interrupt.
+        // pollMs must be > 0 here: with a 0 period, parker.pause() returns without ever checking the interrupt.
+        when(coordination.isTaskJoined("0", EPOCH)).thenReturn(false);
+        SmartSnapshotLeader leader = new SmartSnapshotLeader(lifecycle, coordination, errorHandler, EPOCH, 2, true,
+                10L, 60_000L, 60_000L, () -> {
+                });
+
+        Thread.currentThread().interrupt();
+        try {
+            leader.run();
+
+            // Path A must release the held snapshot defensively, must not fail the task (clean shutdown),
+            // and must leave the interrupt flag restored
+            verify(lifecycle).releaseSnapshot();
+            verify(lifecycle, never()).onAllTasksStartedTransaction();
+            verify(errorHandler, never()).setProducerThrowable(any());
+            assertThat(Thread.currentThread().isInterrupted()).isTrue();
+        }
+        finally {
+            // clear so the interrupt does not leak into other tests on this thread
+            Thread.interrupted();
+        }
     }
 
     @Test

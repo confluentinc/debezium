@@ -25,7 +25,6 @@ import io.debezium.util.Threads;
 public class SmartSnapshotLeader implements Runnable {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SmartSnapshotLeader.class);
-    private static final int POLL_MS = 10_000;
 
     private final SmartSnapshotLifecycleManager lifecycle;
     private final SnapshotCoordinationFacade leaderSnapshotCoordination;
@@ -59,7 +58,7 @@ public class SmartSnapshotLeader implements Runnable {
                                ErrorHandler errorHandler, int leaderEpoch, int numTasks, boolean shouldStream, CommonConnectorConfig connectorConfig,
                                Runnable loggingContextSetup) {
         this(lifecycle, leaderSnapshotCoordination, errorHandler, leaderEpoch,
-                numTasks, shouldStream, POLL_MS,
+                numTasks, shouldStream, connectorConfig.getSmartSnapshotLeaderPollIntervalMs(),
                 connectorConfig.getSmartSnapshotLeaderJoinWaitTimeoutMs(),
                 connectorConfig.getSmartSnapshotLeaderStartedTransactionTimeoutMs(),
                 loggingContextSetup);
@@ -67,6 +66,14 @@ public class SmartSnapshotLeader implements Runnable {
 
     @Override
     public void run() {
+        // Tracks whether the snapshot has been published to the coordination topic. A failure AFTER this point
+        // (e.g. keepAlive throwing because the DB connection was killed) means tasks may have attached, so the
+        // round must be invalidated with a restart — unlike a failure before publishing, which has nothing to undo.
+        boolean snapshotPublished = false;
+        // The failure is signaled to the runtime only AFTER the finally has closed this thread's coordination
+        // facade. setProducerThrowable triggers a task restart whose stop path interrupts this thread; doing it
+        // before cleanup would interrupt our own Kafka client close mid-way and leave it half-closed.
+        Throwable failure = null;
         try {
             loggingContextSetup.run();
 
@@ -100,6 +107,7 @@ public class SmartSnapshotLeader implements Runnable {
 
             // todo list of tables might require compression or enable compression on the coordination topic
             leaderSnapshotCoordination.writeSnapshotInfo(setup.snapshotName(), setup.consistentPosition(), leaderEpoch, setup.tables(), numTasks);
+            snapshotPublished = true;
 
             LOGGER.info("Smart snapshot: [role=leader epoch={}] Prepared snapshot={}, LSN={}",
                     leaderEpoch, setup.snapshotName(), setup.consistentPosition());
@@ -128,11 +136,11 @@ public class SmartSnapshotLeader implements Runnable {
         catch (InterruptedException e) {
             // Path A: an interrupt-aware wait (metronome.pause() in a wait loop) was interrupted
             // by the task-stop path. The flag was cleared when InterruptedException was thrown, so
-            // restore it and end the thread.
+            // restore it and end the thread. Release any held snapshot defensively: the normal stop path
+            // already releases, but an interrupt arriving from anywhere else must not leak the held connections.
             LOGGER.info("Smart snapshot: [role=leader epoch={}] Interrupted while waiting, stopping snapshot preparation", leaderEpoch);
+            lifecycle.releaseSnapshot();
             Thread.currentThread().interrupt();
-            // todo verify the behaviour
-            // todo should we release snapshot here?
         }
         catch (Throwable throwable) {
             // todo verify the behaviour
@@ -148,13 +156,17 @@ public class SmartSnapshotLeader implements Runnable {
                 LOGGER.error("Smart snapshot: [role=leader epoch={}] Snapshot preparation aborted by shutdown, held connection closed", leaderEpoch, throwable);
                 return;
             }
-            LOGGER.error("Smart snapshot: [role=leader epoch={}] Snapshot preparation failed", leaderEpoch, throwable);
-            // Fail the task with the real error. We do NOT write restart_needed here: preparation failed,
-            // so the snapshot was never published and there is nothing to throw away. When task-0
-            // restarts it sees its own marker and writes restart_needed then,
-            // which cause connector to bump the epoch.
-            errorHandler
-                    .setProducerThrowable(new DebeziumException("Smart snapshot: [role=leader epoch=" + leaderEpoch + "] Snapshot preparation failed", throwable));
+            // If the snapshot was already published (e.g. keepAlive threw because the DB connection was killed
+            // during the started-transaction wait), tasks may have attached to it, so invalidate the round by
+            // signaling a restart — the monitor then bumps the epoch. Otherwise a re-prepared leader could publish
+            // a second snapshot at the SAME epoch while other tasks are still reading the first. A failure BEFORE
+            // publishing has nothing to throw away, so we skip the signal (task-0's rejoin path covers a restart).
+            if (snapshotPublished) {
+                signalRestart();
+            }
+            // Defer failing the task until AFTER the finally has closed this thread's coordination facade, so the
+            // restart it triggers cannot interrupt our own Kafka client close.
+            failure = throwable;
         }
         finally {
             boolean wasInterrupted = Thread.interrupted();
@@ -170,6 +182,14 @@ public class SmartSnapshotLeader implements Runnable {
             if (wasInterrupted) {
                 Thread.currentThread().interrupt();
             }
+        }
+
+        // Signaled only now — after this thread's coordination facade is closed — so the task restart it triggers
+        // does not race with (and interrupt) our own cleanup above.
+        if (failure != null) {
+            LOGGER.error("Smart snapshot: [role=leader epoch={}] Snapshot preparation failed", leaderEpoch, failure);
+            errorHandler.setProducerThrowable(new DebeziumException(
+                    "Smart snapshot: [role=leader epoch=" + leaderEpoch + "] Snapshot preparation failed", failure));
         }
     }
 
