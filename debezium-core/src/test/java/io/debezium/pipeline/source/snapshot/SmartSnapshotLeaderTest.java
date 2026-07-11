@@ -1,9 +1,4 @@
-/*
- * Copyright Debezium Authors.
- *
- * Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
- */
-package io.debezium.connector.postgresql;
+package io.debezium.pipeline.source.snapshot;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -26,19 +21,15 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import io.debezium.DebeziumException;
-import io.debezium.connector.postgresql.PostgresConnectorTask.SmartSnapshotLeader;
 import io.debezium.pipeline.ErrorHandler;
-import io.debezium.pipeline.source.snapshot.SmartSnapshotLifecycleManager;
-import io.debezium.pipeline.source.snapshot.SmartSnapshotLifecycleManager.SnapshotSetup;
-import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.relational.TableId;
 
 /**
- * Unit tests for the leader (task-0) snapshot-preparation orchestration extracted from
- * {@code PostgresConnectorTask}. A mock lifecycle + coordination let us assert the sequence without a
+ * Unit tests for the leader (task-0) snapshot-preparation orchestration extracted from.
+ * A mock lifecycle + coordination let us assert the sequence without a
  * database or Kafka. pollMs = 0 so the wait loop does not sleep.
  */
-public class PostgresConnectorTaskLeaderPreparationTest {
+public class SmartSnapshotLeaderTest {
 
     private static final int EPOCH = 3;
     private static final List<TableId> TABLES = List.of(
@@ -90,7 +81,7 @@ public class PostgresConnectorTaskLeaderPreparationTest {
     @Test
     public void preparesPublishesAndReleasesWhenAllTasksJoin() {
         when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
-        when(lifecycle.prepareSnapshot(true)).thenReturn(new SnapshotSetup("snap", "0/16B3748", TABLES));
+        when(lifecycle.prepareSnapshot(true)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", TABLES));
         when(coordination.isTaskStartedTransaction("0", EPOCH)).thenReturn(true);
         when(coordination.isTaskStartedTransaction("1", EPOCH)).thenReturn(true);
 
@@ -105,7 +96,7 @@ public class PostgresConnectorTaskLeaderPreparationTest {
     @Test
     public void keepsSnapshotAliveWhileWaitingForTasks() {
         when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
-        when(lifecycle.prepareSnapshot(true)).thenReturn(new SnapshotSetup("snap", "0/16B3748", TABLES));
+        when(lifecycle.prepareSnapshot(true)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", TABLES));
         // not joined on the first check, joined afterwards -> the wait loop runs one iteration
         when(coordination.isTaskStartedTransaction("0", EPOCH)).thenReturn(false, true);
 
@@ -130,7 +121,7 @@ public class PostgresConnectorTaskLeaderPreparationTest {
     @Test
     public void nonStreamingModePreparesWithoutSlot() {
         when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
-        when(lifecycle.prepareSnapshot(false)).thenReturn(new SnapshotSetup("snap", "0/16B3748", TABLES));
+        when(lifecycle.prepareSnapshot(false)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", TABLES));
         when(coordination.isTaskStartedTransaction("0", EPOCH)).thenReturn(true);
 
         prep(1, false).run();
@@ -172,7 +163,7 @@ public class PostgresConnectorTaskLeaderPreparationTest {
             return null;
         }).when(coordination).stop();
 
-        PostgresConnectorTask.stopSmartSnapshot(leader, lifecycle, coordination, 2000, "0", 1);
+        SmartSnapshotLeader.stopSmartSnapshot(leader, lifecycle, coordination, 2000, "0", 1);
 
         verify(lifecycle).releaseSnapshot();
         verify(coordination).stop();

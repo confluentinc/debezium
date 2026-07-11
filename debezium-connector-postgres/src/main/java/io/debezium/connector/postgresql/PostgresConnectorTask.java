@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.apache.kafka.clients.producer.RecordMetadata;
@@ -48,6 +49,7 @@ import io.debezium.pipeline.GuardrailValidator;
 import io.debezium.pipeline.metrics.DefaultChangeEventSourceMetricsFactory;
 import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.signal.SignalProcessor;
+import io.debezium.pipeline.source.snapshot.SmartSnapshotLeader;
 import io.debezium.pipeline.source.snapshot.SmartSnapshotLifecycleManager;
 import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.pipeline.spi.OffsetContext;
@@ -71,11 +73,8 @@ import io.debezium.util.ThreadNameContext;
  */
 public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, PostgresOffsetContext> {
 
-    private static final java.util.concurrent.atomic.AtomicBoolean FIRED = new java.util.concurrent.atomic.AtomicBoolean();
-
     private static final Logger LOGGER = LoggerFactory.getLogger(PostgresConnectorTask.class);
     private static final String CONTEXT_NAME = "postgres-connector-task";
-    private static final int POLL_MS = 10_000;
 
     private volatile PostgresTaskContext taskContext;
     private volatile ChangeEventQueue<DataChangeEvent> queue;
@@ -159,7 +158,9 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
             // A scenario can arise where offset topic contains marker for incompleted snapshot
             // then smart snapshot feature was enabled and the snapshot completed
             // In this particular scenario we should still check the offset topic
-            PostgresOffsetContext fromCoordinationTopic = fetchOffsetFromCoordinationTopic(config, connectorConfig, clock);
+            PostgresOffsetContext fromCoordinationTopic = SnapshotCoordinationFacade.fetchOffsetFromCoordinationTopic(
+                    config, connectorConfig, isSmartSnapshotTask,
+                    buildOffsetFromConsistentPoint(connectorConfig, jdbcConnection, clock));
             if (fromCoordinationTopic != null) {
                 // non-null only when smart snapshot actually completed
                 previousOffset = fromCoordinationTopic;
@@ -607,7 +608,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
             this.smartSnapshotLeaderThread = new Thread(
                     new SmartSnapshotLeader(
                             lifecycle, leaderSnapshotCoordination, this.errorHandler,
-                            leaderEpoch, numTasks, shouldStream, POLL_MS,
+                            leaderEpoch, numTasks, shouldStream,
                             () -> taskContext.configureLoggingContext("smart-snapshot-leader", leaderPartition)),
                     "smart-snapshot-leader");
             this.smartSnapshotLeaderThread.setDaemon(true);
@@ -633,264 +634,31 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
         return coordinator;
     }
 
-    /**
-     * Runs on task-0 (the leader) on a background thread: prepares the shared snapshot (slot create / export
-     * + lock), publishes it on the coordination topic, then waits until every task has imported it -- or one
-     * signals a restart -- before releasing the held connections. Extracted from an inline Runnable so the
-     * orchestration can be unit tested with a mock lifecycle + coordination (pollMs = 0 skips the real wait).
-     */
-    static class SmartSnapshotLeader implements Runnable {
-
-        private final SmartSnapshotLifecycleManager lifecycle;
-        private final SnapshotCoordinationFacade leaderSnapshotCoordination;
-        private final ErrorHandler errorHandler;
-        private final int leaderEpoch;
-        private final int numTasks;
-        private final boolean shouldStream;
-        private final long pollMs;
-        private final Runnable loggingContextSetup;
-
-        SmartSnapshotLeader(SmartSnapshotLifecycleManager lifecycle, SnapshotCoordinationFacade leaderSnapshotCoordination,
-                            ErrorHandler errorHandler, int leaderEpoch, int numTasks, boolean shouldStream, long pollMs,
-                            Runnable loggingContextSetup) {
-            this.lifecycle = lifecycle;
-            this.leaderSnapshotCoordination = leaderSnapshotCoordination;
-            this.errorHandler = errorHandler;
-            this.leaderEpoch = leaderEpoch;
-            this.numTasks = numTasks;
-            this.shouldStream = shouldStream;
-            this.pollMs = pollMs;
-            this.loggingContextSetup = loggingContextSetup;
-        }
-
-        @Override
-        public void run() {
-            try {
-                loggingContextSetup.run();
-
-                // background thread — safe to block on the topic read here
-                leaderSnapshotCoordination.start();
-
-                // a completed task-0 that got restarted must NOT re-prepare, if other task can't finish the coordinator would start a new round
-                if (leaderSnapshotCoordination.isTaskDone("0", leaderEpoch)) {
-                    LOGGER.info("Smart snapshot: [role=leader epoch={}] Snapshot already completed, skipping leader preparation", leaderEpoch);
-                    // thread ends; no re-export, no re-lock, {server} key untouched. Foreground idles until downscale.
-                    return;
-                }
-
-                // mid-prep restart already flagged
-                if (anyRestartNeeded()) {
-                    LOGGER.info("Smart snapshot: [role=leader epoch={}] Detected restart_needed marker, skipping snapshot preparation", leaderEpoch);
-                    return;
-                }
-
-                final SmartSnapshotLifecycleManager.SnapshotSetup setup = lifecycle.prepareSnapshot(shouldStream);
-
-                // todo list of tables might require compression or enable compression on the coordination topic
-                leaderSnapshotCoordination.writeSnapshotInfo(setup.snapshotName(), setup.consistentPosition(), leaderEpoch, setup.tables(), numTasks);
-
-                LOGGER.info("Smart snapshot: [role=leader epoch={}] Prepared snapshot={}, LSN={}",
-                        leaderEpoch, setup.snapshotName(), setup.consistentPosition());
-
-                // wait until every task has imported the snapshot and (optionally) locked its subset, then release and end the thread
-                while (!Thread.currentThread().isInterrupted() && !allTasksStartedTransaction() && !anyRestartNeeded()) {
-                    Thread.sleep(pollMs);
-                    lifecycle.keepAlive();
-                }
-                // todo what if the thread is interrupted the previous loop would break
-                // if the thread is indeed interrupted the kafka read would anyways fail
-                if (allTasksStartedTransaction()) {
-                    // releaseSnapshot(), slot persists; thread ends
-                    lifecycle.onAllTasksStartedTransaction();
-                }
-                else if (anyRestartNeeded()) {
-                    LOGGER.warn("Smart snapshot: [role=leader epoch={}] Detected `restart_needed` marker, releasing early", leaderEpoch);
-                    // early abort: the connector monitor bumps epoch + reconfigures
-                    lifecycle.releaseSnapshot();
-                }
-                LOGGER.info("Smart snapshot: [role=leader epoch={}] All tasks have started their transaction, stopping the leader thread", leaderEpoch);
-            }
-            catch (InterruptedException e) {
-                // Path A: an interrupt-aware wait (Thread.sleep in the keep-alive loop) was interrupted
-                // by the task-stop path. The flag was cleared when InterruptedException was thrown, so
-                // restore it and end the thread.
-                LOGGER.info("Smart snapshot: [role=leader epoch={}] Interrupted while waiting, stopping snapshot preparation", leaderEpoch);
-                Thread.currentThread().interrupt();
-                // todo verify the behaviour
-                // todo should we release snapshot here?
-            }
-            catch (Throwable throwable) {
-                // todo verify the behaviour
-                // Catching Throwable ensures that an Error (for example NoClassDefFoundError or OutOfMemoryError)
-                // also fails the task, instead of the
-                // thread dying silently and leaving the snapshot round stranded.
-                lifecycle.releaseSnapshot();
-                if (Thread.currentThread().isInterrupted()) {
-                    // Path B: the thread was blocked in a call that ignores interrupts (a JDBC call), so
-                    // the task-stop path aborted it by closing the connection. The exception here is that
-                    // abort (for example a SQLException), not an InterruptedException, but the interrupt
-                    // flag is still set, which tells us this is a shutdown rather than a real failure.
-                    LOGGER.error("Smart snapshot: [role=leader epoch={}] Snapshot preparation aborted by shutdown, held connection closed", leaderEpoch, throwable);
-                    return;
-                }
-                LOGGER.error("Smart snapshot: [role=leader epoch={}] Snapshot preparation failed", leaderEpoch, throwable);
-                // Fail the task with the real error. We do NOT write restart_needed here: preparation failed,
-                // so the snapshot was never published and there is nothing to throw away. When task-0
-                // restarts it sees its own marker and writes restart_needed then,
-                // which cause connector to bump the epoch.
-                errorHandler
-                        .setProducerThrowable(new DebeziumException("Smart snapshot: [role=leader epoch=" + leaderEpoch + "] Snapshot preparation failed", throwable));
-            }
-            finally {
-                boolean wasInterrupted = Thread.interrupted();
-                try {
-                    LOGGER.info("Smart snapshot: [role=leader epoch={}] Cleaning up snapshot coordination resources", leaderEpoch);
-                    // this is leader's private kafka based SnapshotCoordination
-                    leaderSnapshotCoordination.stop();
-                }
-                catch (Exception e) {
-                    LOGGER.warn("Smart snapshot: [role=leader epoch={}] Non-critical failure shutting down coordination log components. error={}", leaderEpoch,
-                            e.getMessage());
-                }
-                if (wasInterrupted) {
-                    Thread.currentThread().interrupt();
-                }
-            }
-        }
-
-        boolean allTasksStartedTransaction() {
-            for (int i = 0; i < numTasks; i++) {
-                if (!leaderSnapshotCoordination.isTaskStartedTransaction(String.valueOf(i), leaderEpoch)) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        boolean anyRestartNeeded() {
-            for (int i = 0; i < numTasks; i++) {
-                if (leaderSnapshotCoordination.isRestartNeeded(String.valueOf(i), leaderEpoch)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-    }
-
-    private PostgresOffsetContext fetchOffsetFromCoordinationTopic(
-                                                                   Configuration config, PostgresConnectorConfig connectorConfig,
-                                                                   Clock clock) {
-        // Post-downscale streaming task: read LSN from coordination topic only if the feature is still enabled
-        // Otherwise, the snapshot taken in the smart snapshot mode is discarded
-        if (!connectorConfig.isSmartSnapshotEnabled() || isSmartSnapshotTask) {
-            return null;
-        }
-
-        if (!SnapshotCoordinationFacade.hasCoordinationBootstrap(config, connectorConfig)) {
-            return null;
-        }
-
-        SnapshotCoordinationFacade facade = SnapshotCoordinationFacade.readOnly(config, connectorConfig);
-
-        try {
-            if (!facade.startForRead()) {
-                // topic doesn't exist / broker unreachable skip fast
-                return null;
-            }
-
-            Map<String, Object> completionInfo = facade.readCompletion();
-
-            if (completionInfo != null
-                    && completionInfo.get(SnapshotCoordinationFacade.CONSISTENT_POINT) != null) {
-                String lsnStr = String.valueOf(completionInfo.get(SnapshotCoordinationFacade.CONSISTENT_POINT));
-                Lsn lsn = Lsn.valueOf(lsnStr);
-                LOGGER.info("Smart snapshot: [role=task] Post-downscale streaming task, using LSN={} from coordination topic", lsn);
-                // Create synthetic offset — snapshot completed, start streaming from this LSN
-                PostgresOffsetContext syntheticOffset = PostgresOffsetContext.initialContext(connectorConfig, jdbcConnection, clock);
-                syntheticOffset.updateWalPosition(
-                        lsn, null,
-                        clock.currentTimeAsInstant(),
-                        null, null, null, null);
-                syntheticOffset.postSnapshotCompletion();
-                return syntheticOffset;
-            }
-            return null;
-        }
-        finally {
-            facade.stop();
-        }
+    Function<String, PostgresOffsetContext> buildOffsetFromConsistentPoint(
+                                                                           PostgresConnectorConfig connectorConfig,
+                                                                           PostgresConnection jdbcConnection, Clock clock) {
+        return cp -> {
+            Lsn lsn = Lsn.valueOf(cp);
+            LOGGER.info("Smart snapshot: [role=task] Post-downscale streaming task, using LSN={} from coordination topic", lsn);
+            // Create synthetic offset — snapshot completed, start streaming from this LSN
+            PostgresOffsetContext syntheticOffset = PostgresOffsetContext.initialContext(connectorConfig, jdbcConnection, clock);
+            syntheticOffset.updateWalPosition(
+                    lsn, null,
+                    clock.currentTimeAsInstant(),
+                    null, null, null, null);
+            syntheticOffset.postSnapshotCompletion();
+            return syntheticOffset;
+        };
     }
 
     private void doStopSmartSnapshot() {
         if (!isSmartSnapshotTask) {
             return;
         }
-        stopSmartSnapshot(smartSnapshotLeaderThread, smartSnapshotLifecycleManager, snapshotCoordination, 10_000, taskId, epoch);
+        SmartSnapshotLeader.stopSmartSnapshot(
+                smartSnapshotLeaderThread, smartSnapshotLifecycleManager,
+                snapshotCoordination, 10_000, taskId, epoch);
         smartSnapshotLeaderThread = null;
         smartSnapshotLifecycleManager = null;
-    }
-
-    /**
-     * Stops the smart snapshot related stuff for this task. This runs on the Kafka Connect task-stop
-     * thread, which is a different thread from the leader thread.
-     * <p>
-     * Only smart snapshot tasks set up any of these resources, so for every other task this method
-     * returns early. Even among smart snapshot tasks, the prep thread and lifecycle manager exist
-     * only on the leader (task-0); followers have just the coordination facade.
-     * <p>
-     * The steps must run in this order:
-     * 1. interrupt() wakes the prep thread if it is sleeping in the keep-alive loop.
-     * 2. releaseSnapshot() closes the held connections. If the prep thread is waiting on a
-     * database call that cannot be interrupted, closing the connection aborts that call so the
-     * thread can finish. interrupt() is done first so that the error raised by the aborted
-     * call is recognised as a shutdown rather than a real failure.
-     * 3. join() waits for the prep thread to actually finish, so that it is no longer using the
-     * coordination facade when we stop it in the next step. The wait is bounded so that stop
-     * can never block forever.
-     * 4. stop() closes the coordination facade last, because it wraps a Kafka client that is not
-     * safe to use on one thread and close on another at the same time.
-     */
-    static void stopSmartSnapshot(Thread leaderThread, SmartSnapshotLifecycleManager lifecycle,
-                                  SnapshotCoordinationFacade coordinationFacade, long joinMs, String taskId, int epoch) {
-        // 1. Signal the leader thread to stop and unblock it wherever it may be waiting.
-        // interrupt() wakes it from sleep(); releaseSnapshot() closes and aborts the held
-        // connections, ending any query it is waiting on.
-        if (leaderThread != null) {
-            LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Stopping snapshot preparation and releasing held connections", taskId, epoch);
-            leaderThread.interrupt();
-        }
-        if (lifecycle != null) {
-            lifecycle.releaseSnapshot();
-        }
-
-        boolean currentThreadWasInterrupted = false;
-
-        // 2. Wait for the prep thread to finish, so it is no longer using the coordination
-        // facade when we close it below. Bounded so stop can never block forever.
-        if (leaderThread != null) {
-            try {
-                leaderThread.join(joinMs);
-                if (leaderThread.isAlive()) {
-                    LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Leader thread did not stop within {} ms", taskId, epoch, joinMs);
-                }
-            }
-            catch (InterruptedException e) {
-                LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Task thread was interrupted while waiting for leader thread join", taskId, epoch);
-                currentThreadWasInterrupted = true;
-            }
-        }
-        if (coordinationFacade != null) {
-            try {
-                LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Stopping coordination facade", taskId, epoch);
-                coordinationFacade.stop();
-            }
-            catch (Exception e) {
-                LOGGER.error("Smart snapshot: [role=task taskId={} epoch={}] Failed to cleanly close coordination facade log. error={}", taskId, epoch, e.getMessage());
-            }
-        }
-
-        if (currentThreadWasInterrupted) {
-            Thread.currentThread().interrupt();
-        }
     }
 }

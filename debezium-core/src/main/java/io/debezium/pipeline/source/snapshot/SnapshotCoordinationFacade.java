@@ -11,11 +11,13 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
+import io.debezium.pipeline.spi.OffsetContext;
 import io.debezium.relational.TableId;
 import io.debezium.util.Collect;
 
@@ -237,6 +239,41 @@ public class SnapshotCoordinationFacade {
     public static Integer epochOf(Map<String, Object> value) {
         return (value != null &&
                 value.get(EPOCH) != null) ? ((Number) value.get(EPOCH)).intValue() : null;
+    }
+
+    public static <O extends OffsetContext> O fetchOffsetFromCoordinationTopic(
+            Configuration config, CommonConnectorConfig connectorConfig, boolean isSmartSnapshotTask,
+            Function<String, O> buildOffsetFromConsistentPoint) {
+        // Post-downscale streaming task: read consistent point from coordination topic only if the feature is still enabled
+        // Otherwise, the snapshot taken in the smart snapshot mode is discarded
+        if (!connectorConfig.isSmartSnapshotEnabled() || isSmartSnapshotTask) {
+            return null;
+        }
+
+        if (!SnapshotCoordinationFacade.hasCoordinationBootstrap(config, connectorConfig)) {
+            return null;
+        }
+
+        SnapshotCoordinationFacade facade = SnapshotCoordinationFacade.readOnly(config, connectorConfig);
+
+        try {
+            if (!facade.startForRead()) {
+                // topic doesn't exist / broker unreachable skip fast
+                return null;
+            }
+
+            Map<String, Object> completionInfo = facade.readCompletion();
+
+            if (completionInfo != null
+                    && completionInfo.get(SnapshotCoordinationFacade.CONSISTENT_POINT) != null) {
+                String cp = String.valueOf(completionInfo.get(SnapshotCoordinationFacade.CONSISTENT_POINT));
+                return buildOffsetFromConsistentPoint.apply(cp);
+            }
+            return null;
+        }
+        finally {
+            facade.stop();
+        }
     }
 
     private boolean existsAtEpoch(Map<String, String> key, int epoch) {
