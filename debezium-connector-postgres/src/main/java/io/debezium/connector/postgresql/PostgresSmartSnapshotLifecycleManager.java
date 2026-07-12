@@ -484,6 +484,20 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
         }
 
         /**
+         * The base {@link PostgresSnapshotChangeEventSource#connectionCreated} only opens the snapshot
+         * transaction when {@code shouldStreamEventsStartingFromSnapshot() && startingSlotInfo == null}.
+         * For the existing-slot path we pass a non-null startingSlotInfo, so the base gate would skip the
+         * import entirely and the leader would discover/lock tables at its own point-in-time instead of the
+         * exported snapshot. The leader always has an exported snapshot to import, so open the transaction
+         * unconditionally here.
+         */
+        @Override
+        protected void connectionCreated(RelationalSnapshotContext<PostgresPartition, PostgresOffsetContext> snapshotContext)
+                throws Exception {
+            setSnapshotTransactionIsolationLevel(snapshotContext.onDemand);
+        }
+
+        /**
          * Import the exported snapshot on the held connection, discover UNDER it, then lock it (held, no commit).
          */
         List<TableId> discoverAndLock(PostgresPartition partition, ChangeEventSourceContext running) throws Exception {
