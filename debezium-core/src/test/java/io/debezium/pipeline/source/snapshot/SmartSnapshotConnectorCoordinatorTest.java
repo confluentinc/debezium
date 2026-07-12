@@ -57,10 +57,12 @@ public class SmartSnapshotConnectorCoordinatorTest {
 
     private SmartSnapshotConnectorCoordinator coordinator;
 
+    private static final long RECONFIG_TIMEOUT_MS = 300_000L;
+
     @Before
     public void before() {
         MockitoAnnotations.openMocks(this);
-        coordinator = new SmartSnapshotConnectorCoordinator(facade, connectorContext, "srv", 30_000L, "connector-context");
+        coordinator = new SmartSnapshotConnectorCoordinator(facade, connectorContext, "srv", 30_000L, RECONFIG_TIMEOUT_MS, "connector-context");
     }
 
     @After
@@ -70,7 +72,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
 
     @Test
     public void taskConfigsActiveEmitsOneConfigPerTaskWithEpochAndCount() {
-        List<Map<String, String>> configs = coordinator.taskConfigs(2, baseProps());
+        List<Map<String, String>> configs = coordinator.taskConfigs(2, baseProps()).configs();
 
         assertThat(configs).hasSize(2);
         assertThat(configs.get(0)).containsEntry(ConfigurationNames.TASK_ID_PROPERTY_NAME, "0")
@@ -80,31 +82,39 @@ public class SmartSnapshotConnectorCoordinatorTest {
     }
 
     @Test
-    public void restartBumpsEpochOnNextTaskConfigs() {
-        coordinator.taskConfigs(2, baseProps()); // sets numTasks = 2, epoch = 0
+    public void restartBumpsEpochOnNextTaskConfigs() throws Exception {
+        coordinator.taskConfigs(2, baseProps()); // sets numTasks = 2, epoch = 1
         when(facade.isRestartNeeded("0", 1)).thenReturn(true);
+        // the runtime fulfills the restart reconfiguration by running taskConfigs, which bumps the epoch
+        doAnswer(inv -> {
+            coordinator.taskConfigs(2, baseProps());
+            return null;
+        }).when(connectorContext).requestTaskReconfiguration();
 
-        assertThat(coordinator.monitorIteration()).isFalse();
+        assertThat(coordinator.monitorIteration()).isFalse(); // restart fulfilled -> keep polling
         verify(connectorContext).requestTaskReconfiguration();
-
-        List<Map<String, String>> next = coordinator.taskConfigs(2, baseProps());
         verify(facade).writeEpoch(2); // new epoch persisted before configs handed out
+
+        List<Map<String, String>> next = coordinator.taskConfigs(2, baseProps()).configs();
         assertThat(next.get(0)).containsEntry(SnapshotCoordinationFacade.EPOCH, "2");
     }
 
     @Test
-    public void allTasksDoneCompletesAndTaskConfigsWritesCompletion() {
-        coordinator.taskConfigs(2, baseProps()); // numTasks = 2, epoch = 0
+    public void allTasksDoneCompletesAndTaskConfigsWritesCompletion() throws Exception {
+        coordinator.taskConfigs(2, baseProps()); // numTasks = 2, epoch = 1
         when(facade.isRestartNeeded(anyString(), eq(1))).thenReturn(false);
         when(facade.isTaskDone("0", 1)).thenReturn(true);
         when(facade.isTaskDone("1", 1)).thenReturn(true);
         when(facade.readSnapshotInfo()).thenReturn(Collect.hashMapOf(SnapshotCoordinationFacade.CONSISTENT_POINT, "0/16B3748"));
+        // the runtime fulfills the downscale by running taskConfigs, which writes completion and returns null
+        doAnswer(inv -> {
+            coordinator.taskConfigs(2, baseProps());
+            return null;
+        }).when(connectorContext).requestTaskReconfiguration();
 
-        assertThat(coordinator.monitorIteration()).isTrue();
+        assertThat(coordinator.monitorIteration()).isTrue(); // downscale fulfilled -> monitor stops
         verify(connectorContext).requestTaskReconfiguration();
         assertThat(coordinator.isComplete()).isTrue();
-
-        assertThat(coordinator.taskConfigs(2, baseProps())).isNull(); // downscale
         verify(facade).writeCompletion("0/16B3748", 1);
     }
 
@@ -163,11 +173,10 @@ public class SmartSnapshotConnectorCoordinatorTest {
         verify(facade, times(1)).writeEpoch(1);
     }
 
-    // monitorIteration() and taskConfigs() must serialize on the same lock so the
-    // state-machine transition can't interleave. Block monitorIteration inside its critical section (a coordination
-    // read blocks) and assert taskConfigs cannot proceed until it is released.
+    // Coordination reads are done outside the state lock, so a slow read on the monitor thread must NOT block
+    // taskConfigs on the connector thread.
     @Test
-    public void monitorIterationAndTaskConfigsAreMutuallyExclusive() throws Exception {
+    public void slowCoordinationReadDoesNotBlockTaskConfigs() throws Exception {
         coordinator.taskConfigs(2, baseProps()); // sets lastNumTasks=2, state ACTIVE
 
         CountDownLatch inRead = new CountDownLatch(1);
@@ -178,26 +187,30 @@ public class SmartSnapshotConnectorCoordinatorTest {
             return false;
         });
 
-        Thread monitor = new Thread(coordinator::monitorIteration, "monitor");
+        Thread monitor = new Thread(() -> {
+            try {
+                coordinator.monitorIteration();
+            }
+            catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }, "monitor");
         monitor.start();
-        // monitorIteration holds the lock, blocked in isRestartNeeded
+        // monitor is parked in the coordination read, holding no lock
         assertThat(inRead.await(5, TimeUnit.SECONDS)).isTrue();
 
+        // taskConfigs must proceed even though the monitor read is still blocked
         AtomicBoolean taskConfigsReturned = new AtomicBoolean(false);
         Thread cfg = new Thread(() -> {
             coordinator.taskConfigs(2, baseProps());
             taskConfigsReturned.set(true);
         }, "taskConfigs");
         cfg.start();
-
-        Thread.sleep(300);
-        // excluded while monitorIteration holds the state lock
-        assertThat(taskConfigsReturned).isFalse();
+        cfg.join(2000);
+        assertThat(taskConfigsReturned).isTrue();
 
         proceed.countDown();
         monitor.join(2000);
-        cfg.join(2000);
-        assertThat(taskConfigsReturned).isTrue();
     }
 
     // stopping flag, stop() runs while a monitor iteration is mid-flight, after it has
@@ -208,15 +221,22 @@ public class SmartSnapshotConnectorCoordinatorTest {
 
         CountDownLatch insideIteration = new CountDownLatch(1);
         CountDownLatch stopDone = new CountDownLatch(1);
-        // Park the monitor INSIDE its decision (this runs under the state lock) so we can run stop()
-        // concurrently, then let it finish and try to reconfigure.
+        // Park the monitor mid-iteration (in the coordination read) so we can run stop() concurrently, then let
+        // it finish deciding and reach the reconfigure step.
         when(facade.isRestartNeeded(anyString(), anyInt())).thenAnswer(inv -> {
             insideIteration.countDown();
             stopDone.await();
             return true; // decide a restart is needed
         });
 
-        Thread monitor = new Thread(coordinator::monitorIteration, "monitor");
+        Thread monitor = new Thread(() -> {
+            try {
+                coordinator.monitorIteration();
+            }
+            catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }, "monitor");
         monitor.start();
         assertThat(insideIteration.await(5, TimeUnit.SECONDS)).isTrue();
 
@@ -235,7 +255,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
     // (no leak), and stop() must see the freshly-published thread reference.
     @Test
     public void stopTerminatesRunningMonitorThread() throws Exception {
-        coordinator = new SmartSnapshotConnectorCoordinator(facade, connectorContext, "srv", 10L, "connector-context");
+        coordinator = new SmartSnapshotConnectorCoordinator(facade, connectorContext, "srv", 10L, RECONFIG_TIMEOUT_MS, "connector-context");
         when(connectorContext.offsetStorageReader()).thenReturn(offsetStorageReader);
         when(offsetStorageReader.offset(any())).thenReturn(null);
         when(facade.readSnapshotInfo()).thenReturn(null);
@@ -260,7 +280,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
     // monitor — it logs and keeps polling.
     @Test
     public void monitorThreadSurvivesAThrowingIteration() throws Exception {
-        coordinator = new SmartSnapshotConnectorCoordinator(facade, connectorContext, "srv", 10L, "connector-context");
+        coordinator = new SmartSnapshotConnectorCoordinator(facade, connectorContext, "srv", 10L, RECONFIG_TIMEOUT_MS, "connector-context");
         when(connectorContext.offsetStorageReader()).thenReturn(offsetStorageReader);
         when(offsetStorageReader.offset(any())).thenReturn(null);
         when(facade.readCompletion()).thenReturn(null);
@@ -303,37 +323,6 @@ public class SmartSnapshotConnectorCoordinatorTest {
         verify(connectorContext).raiseError(any(RuntimeException.class));
     }
 
-    // many "tasks" signal restart at the same epoch from many threads,
-    // but reconfiguration must fire exactly once for that epoch.
-    @Test
-    public void concurrentRestartSignalsReconfigureOncePerEpoch() throws Exception {
-        coordinator.taskConfigs(4, baseProps()); // epoch=1, numTasks=4, ACTIVE
-        when(facade.isRestartNeeded(anyString(), eq(1))).thenReturn(true);
-
-        int threads = 8;
-        CountDownLatch startLine = new CountDownLatch(1);
-        CountDownLatch finished = new CountDownLatch(threads);
-        for (int i = 0; i < threads; i++) {
-            new Thread(() -> {
-                try {
-                    startLine.await(); // release all threads at once for maximum contention
-                    coordinator.monitorIteration();
-                }
-                catch (InterruptedException ignored) {
-                    Thread.currentThread().interrupt();
-                }
-                finally {
-                    finished.countDown();
-                }
-            }, "monitor-" + i).start();
-        }
-        startLine.countDown();
-        assertThat(finished.await(5, TimeUnit.SECONDS)).isTrue();
-
-        // despite 8 concurrent iterations seeing restart_needed at epoch 1, reconfiguration fires once
-        verify(connectorContext, times(1)).requestTaskReconfiguration();
-    }
-
     // the monitor thread and the connector thread (taskConfigs)
     // both drive the state machine through restart -> epoch bump -> complete. requestTaskReconfiguration() is
     // wired to run taskConfigs on a SEPARATE thread, exactly like the Connect runtime, so both actors really
@@ -341,7 +330,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
     // final epoch (never the stale epoch 1), and the monitor stops.
     @Test
     public void monitorAndTaskConfigsRaceThroughRestartBumpAndComplete() throws Exception {
-        coordinator = new SmartSnapshotConnectorCoordinator(facade, connectorContext, "srv", 10L, "connector-context");
+        coordinator = new SmartSnapshotConnectorCoordinator(facade, connectorContext, "srv", 10L, RECONFIG_TIMEOUT_MS, "connector-context");
 
         // start() preconditions: fresh snapshot, saved epoch = 1
         when(connectorContext.offsetStorageReader()).thenReturn(offsetStorageReader);
@@ -387,8 +376,8 @@ public class SmartSnapshotConnectorCoordinatorTest {
             verify(facade, never()).writeCompletion(anyString(), eq(1)); // never at the stale epoch
             verify(connectorContext, atLeast(2)).requestTaskReconfiguration(); // restart + complete
 
-            // downscale is idempotent: a taskConfigs after completion returns null
-            assertThat(coordinator.taskConfigs(2, baseProps())).isNull();
+            // downscale is idempotent: a taskConfigs after completion still signals downscale
+            assertThat(coordinator.taskConfigs(2, baseProps()).isDownscale()).isTrue();
         }
         finally {
             connectorThread.shutdownNow();
@@ -398,45 +387,66 @@ public class SmartSnapshotConnectorCoordinatorTest {
     // If asking for a reconfiguration fails, the monitor must undo the state change and try again on the
     // next iteration — not get stuck. Restart path.
     @Test
-    public void restartReconfigurationFailureRollsBackAndRetries() {
+    public void restartReconfigurationFailureRollsBackAndRetries() throws Exception {
         coordinator.taskConfigs(2, baseProps()); // epoch = 1, numTasks = 2, state ACTIVE
         when(facade.isRestartNeeded("0", 1)).thenReturn(true);
-        // first reconfigure call throws, second one works
-        doThrow(new RuntimeException("kafka down")).doNothing()
+        // first reconfigure call throws; the second succeeds and is fulfilled by taskConfigs (bumps the epoch)
+        doThrow(new RuntimeException("kafka down"))
+                .doAnswer(inv -> {
+                    coordinator.taskConfigs(2, baseProps());
+                    return null;
+                })
                 .when(connectorContext).requestTaskReconfiguration();
 
-        // iteration 1: restart detected, reconfigure throws -> state rolled back to ACTIVE
+        // iteration 1: restart detected, reconfigure throws -> state rolled back to ACTIVE, nothing bumped
         assertThat(coordinator.monitorIteration()).isFalse();
         verify(connectorContext, times(1)).requestTaskReconfiguration();
+        verify(facade, never()).writeEpoch(2);
 
-        // iteration 2: restart detected again (epoch was rolled back too), reconfigure succeeds
+        // iteration 2: restart detected again (epoch was rolled back too), reconfigure succeeds and is fulfilled
         assertThat(coordinator.monitorIteration()).isFalse();
         verify(connectorContext, times(2)).requestTaskReconfiguration();
-
-        // proof the RESTART state stuck the second time: taskConfigs now bumps the epoch
-        List<Map<String, String>> next = coordinator.taskConfigs(2, baseProps());
-        verify(facade).writeEpoch(2);
-        assertThat(next.get(0)).containsEntry(SnapshotCoordinationFacade.EPOCH, "2");
+        verify(facade).writeEpoch(2); // epoch bumped 1 -> 2
     }
 
     // Same rollback behaviour on the completion path: a failed reconfigure must not leave "complete".
     @Test
-    public void completionReconfigurationFailureRollsBackAndRetries() {
+    public void completionReconfigurationFailureRollsBackAndRetries() throws Exception {
         coordinator.taskConfigs(2, baseProps()); // epoch = 1, numTasks = 2
         when(facade.isRestartNeeded(anyString(), eq(1))).thenReturn(false);
         when(facade.isTaskDone("0", 1)).thenReturn(true);
         when(facade.isTaskDone("1", 1)).thenReturn(true);
-        doThrow(new RuntimeException("kafka down")).doNothing()
+        // first reconfigure call throws; the second succeeds and is fulfilled by taskConfigs (downscales)
+        doThrow(new RuntimeException("kafka down"))
+                .doAnswer(inv -> {
+                    coordinator.taskConfigs(2, baseProps());
+                    return null;
+                })
                 .when(connectorContext).requestTaskReconfiguration();
 
         // first attempt fails -> not complete, state rolled back to ACTIVE
         assertThat(coordinator.monitorIteration()).isFalse();
         assertThat(coordinator.isComplete()).isFalse();
 
-        // second attempt succeeds -> complete
+        // second attempt succeeds and is fulfilled -> complete, monitor stops
         assertThat(coordinator.monitorIteration()).isTrue();
         assertThat(coordinator.isComplete()).isTrue();
         verify(connectorContext, times(2)).requestTaskReconfiguration();
+    }
+
+    // A reconfiguration that is never fulfilled must eventually fail the connector (so the runtime restarts it)
+    // instead of the monitor waiting forever.
+    @Test
+    public void unfulfilledReconfigurationTimesOutAndFailsConnector() throws Exception {
+        // short timeout + short poll so the blocking wait gives up quickly when the runtime never fulfills it
+        coordinator = new SmartSnapshotConnectorCoordinator(facade, connectorContext, "srv", 10L, 50L, "connector-context");
+        coordinator.taskConfigs(2, baseProps()); // epoch = 1, numTasks = 2
+        when(facade.isRestartNeeded("0", 1)).thenReturn(true);
+        // requestTaskReconfiguration is a no-op mock: the runtime never runs taskConfigs, so it is never fulfilled
+
+        assertThat(coordinator.monitorIteration()).isTrue(); // gave up waiting -> monitor stops
+        verify(connectorContext).requestTaskReconfiguration();
+        verify(connectorContext).raiseError(any(RuntimeException.class));
     }
 
     private static Map<String, String> baseProps() {

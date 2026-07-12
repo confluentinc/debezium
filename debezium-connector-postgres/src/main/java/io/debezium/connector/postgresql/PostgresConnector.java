@@ -96,7 +96,7 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
             SnapshotCoordinationFacade coordinationFacade = new SnapshotCoordinationFacade(config, connectorConfig);
             smartSnapshotConnectorCoordinator = new SmartSnapshotConnectorCoordinator(coordinationFacade, context(),
                     connectorConfig.getLogicalName(), connectorConfig.getSmartSnapshotMonitorPollIntervalMs(),
-                    connectorConfig.getContextName());
+                    connectorConfig.getSmartSnapshotReconfigurationTimeoutMs(), connectorConfig.getContextName());
 
             // this involves reading the coordination topic synchronously
             // ideally it should be quick
@@ -122,15 +122,12 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         SmartSnapshotConnectorCoordinator oldCoordinator = this.smartSnapshotConnectorCoordinator;
         if (smartSnapshotApplies(config) && oldCoordinator != null) {
             if (maxTasks > 1) {
-                List<Map<String, String>> configs = smartSnapshotConnectorCoordinator.taskConfigs(maxTasks, props);
-                if (configs != null) {
-                    return configs;
+                SmartSnapshotConnectorCoordinator.TaskConfigsResult result = smartSnapshotConnectorCoordinator.taskConfigs(maxTasks, props);
+                if (!result.isDownscale()) {
+                    return result.configs();
                 }
             }
-            // if we reach here it implies either of the following:
-            // 1. the smart snapshot was complete, just fall through to single config
-            // 2. maxTasks was 1
-            // for either of the cases cleanup the coordinator as it is no longer needed
+            // Downscale (snapshot complete) or maxTasks == 1: drop the coordinator and hand out a single config.
             smartSnapshotConnectorCoordinator = null;
             // set the coordinator to null first as stopping might throw
             oldCoordinator.stop();
