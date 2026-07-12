@@ -24,6 +24,7 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.config.ConfigurationNames;
@@ -106,6 +107,8 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
         coordinator = new TestCoordinator(previousOffsets, errorHandler, connectorConfig, changeEventSourceFactory,
                 metricsFactory, eventDispatcher, schema, snapshotterService, signalProcessor, notificationService,
                 EPOCH, coordination, TASK_ID);
+        // Don't sleep the default 10s poll interval when a test drives the snapshot-info wait loop.
+        coordinator.setSnapshotInfoPollIntervalMs(0);
     }
 
     private void execute() throws InterruptedException {
@@ -189,6 +192,29 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
         order.verify(coordination).readSnapshotInfo();
         order.verify(coordination).writeTaskDone(TASK_ID, EPOCH);
         verify(snapshotSource).setSnapshotCoordination(eq(EPOCH), eq("snap"), any(), any(), eq(coordination));
+    }
+
+    @Test
+    public void transientReadFailureWhileWaitingForSnapshotInfoIsTolerated() throws Exception {
+        when(coordination.isTaskDone(TASK_ID, EPOCH)).thenReturn(false);
+        when(coordination.readTaskJoinEpoch(TASK_ID)).thenReturn(null);
+        when(coordination.readEpoch()).thenReturn(null);
+        // the first snapshot-info read blips (broker hiccup); the poll loop must keep polling and pick up the
+        // snapshot on a later attempt, not fail the task on a single transient read failure.
+        when(coordination.readSnapshotInfo())
+                .thenThrow(new DebeziumException("read blip"))
+                .thenReturn(Collect.hashMapOf(
+                        SnapshotCoordinationFacade.SNAPSHOT_NAME, "snap",
+                        SnapshotCoordinationFacade.EPOCH, EPOCH,
+                        SnapshotCoordinationFacade.CONSISTENT_POINT, "0/16B3748",
+                        SnapshotCoordinationFacade.ASSIGNMENTS, java.util.Map.of(TASK_ID, java.util.List.of("\"public\".\"a\"")),
+                        SnapshotCoordinationFacade.NUM_TASKS, 2));
+
+        execute();
+
+        assertThat(coordinator.doSnapshotCalled).isTrue();
+        verify(coordination).writeTaskDone(TASK_ID, EPOCH);
+        verify(coordination, never()).writeRestartNeeded(anyString(), anyInt());
     }
 
     @Test

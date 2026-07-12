@@ -42,13 +42,15 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
 
     private static final Logger LOGGER = LoggerFactory.getLogger(
             PostgresSmartSnapshotChangeEventSourceCoordinator.class);
-    private static final int SNAPSHOT_INFO_POLL_INTERVAL_MS = 10_000;
+    private static final int DEFAULT_SNAPSHOT_INFO_POLL_INTERVAL_MS = 10_000;
 
     private final int epoch;
     private final SnapshotCoordinationFacade snapshotCoordination;
     private final String taskId;
     // How long to wait for the leader to publish the snapshot info before failing this task.
     private final long snapshotInfoWaitTimeoutMs;
+    // Interval between snapshot-info poll attempts. Visible for testing so a unit test does not sleep the default.
+    private long snapshotInfoPollIntervalMs = DEFAULT_SNAPSHOT_INFO_POLL_INTERVAL_MS;
 
     public PostgresSmartSnapshotChangeEventSourceCoordinator(
                                                              Offsets<PostgresPartition, PostgresOffsetContext> previousOffsets,
@@ -74,6 +76,11 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         this.snapshotCoordination = snapshotCoordination;
         this.taskId = taskId;
         this.snapshotInfoWaitTimeoutMs = connectorConfig.getSmartSnapshotTaskSnapshotInfoWaitTimeoutMs();
+    }
+
+    // Visible for testing: shorten the snapshot-info poll interval so tests do not sleep the default.
+    void setSnapshotInfoPollIntervalMs(long snapshotInfoPollIntervalMs) {
+        this.snapshotInfoPollIntervalMs = snapshotInfoPollIntervalMs;
     }
 
     /**
@@ -192,39 +199,48 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
         // The loop is interrupt-aware via metronome.pause() below, which throws InterruptedException (propagated by
         // this method) if the task is being stopped.
         Threads.Timer timer = Threads.timer(Clock.SYSTEM, Duration.ofMillis(snapshotInfoWaitTimeoutMs));
-        Metronome metronome = Metronome.parker(Duration.ofMillis(SNAPSHOT_INFO_POLL_INTERVAL_MS), Clock.SYSTEM);
+        Metronome metronome = Metronome.parker(Duration.ofMillis(snapshotInfoPollIntervalMs), Clock.SYSTEM);
         int attempt = 0;
         while (!timer.expired()) {
-            Map<String, Object> snapshotInfo = snapshotCoordination.readSnapshotInfo();
-            if (snapshotInfo != null
-                    && snapshotInfo.get(SnapshotCoordinationFacade.SNAPSHOT_NAME) != null) {
-                Integer snapshotInfoEpoch = SnapshotCoordinationFacade.epochOf(snapshotInfo);
-                if (snapshotInfoEpoch != null) {
-                    if (snapshotInfoEpoch != epoch) {
-                        LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Received snapshot info is for a different epoch. receivedEpoch={} currentEpoch={}",
-                                taskId, epoch, snapshotInfoEpoch, epoch);
-                    }
-                    else {
-                        snapshotName = (String) snapshotInfo.get(
-                                SnapshotCoordinationFacade.SNAPSHOT_NAME);
-                        slotLsnStr = String.valueOf(snapshotInfo.get(
-                                SnapshotCoordinationFacade.CONSISTENT_POINT));
-                        Object taskTableAssignment = SnapshotCoordinationFacade.assignmentForTask(
-                                snapshotInfo.get(SnapshotCoordinationFacade.ASSIGNMENTS), Integer.parseInt(taskId));
-                        tableSubset = SnapshotCoordinationFacade.parseTablesPostgres(taskTableAssignment);
-                        break;
+            // A transient coordination read failure here is treated like "not ready yet": log and keep polling
+            // until the timeout, instead of failing the task on a single broker blip.
+            try {
+                Map<String, Object> snapshotInfo = snapshotCoordination.readSnapshotInfo();
+                if (snapshotInfo != null
+                        && snapshotInfo.get(SnapshotCoordinationFacade.SNAPSHOT_NAME) != null) {
+                    Integer snapshotInfoEpoch = SnapshotCoordinationFacade.epochOf(snapshotInfo);
+                    if (snapshotInfoEpoch != null) {
+                        if (snapshotInfoEpoch != epoch) {
+                            LOGGER.info(
+                                    "Smart snapshot: [role=task taskId={} epoch={}] Received snapshot info is for a different epoch. receivedEpoch={} currentEpoch={}",
+                                    taskId, epoch, snapshotInfoEpoch, epoch);
+                        }
+                        else {
+                            snapshotName = (String) snapshotInfo.get(
+                                    SnapshotCoordinationFacade.SNAPSHOT_NAME);
+                            slotLsnStr = String.valueOf(snapshotInfo.get(
+                                    SnapshotCoordinationFacade.CONSISTENT_POINT));
+                            Object taskTableAssignment = SnapshotCoordinationFacade.assignmentForTask(
+                                    snapshotInfo.get(SnapshotCoordinationFacade.ASSIGNMENTS), Integer.parseInt(taskId));
+                            tableSubset = SnapshotCoordinationFacade.parseTablesPostgres(taskTableAssignment);
+                            break;
+                        }
                     }
                 }
-            }
 
-            // The connector may have moved on to a newer epoch (the leader gave up and restarted the round). If so,
-            // there is no point waiting out the full timeout for a snapshot at this epoch — return and let this task
-            // be reconfigured for the new epoch.
-            readEpoch = snapshotCoordination.readEpoch();
-            if (readEpoch != null && readEpoch > epoch) {
-                LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Connector advanced to a newer epoch while waiting for snapshot info, "
-                        + "waiting for restart. savedEpoch={}", taskId, epoch, readEpoch);
-                return;
+                // The connector may have moved on to a newer epoch (the leader gave up and restarted the round). If so,
+                // there is no point waiting out the full timeout for a snapshot at this epoch — return and let this task
+                // be reconfigured for the new epoch.
+                readEpoch = snapshotCoordination.readEpoch();
+                if (readEpoch != null && readEpoch > epoch) {
+                    LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Connector advanced to a newer epoch while waiting for snapshot info, "
+                            + "waiting for restart. savedEpoch={}", taskId, epoch, readEpoch);
+                    return;
+                }
+            }
+            catch (DebeziumException e) {
+                LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Transient coordination read failure while waiting for snapshot info, retrying",
+                        taskId, epoch, e);
             }
 
             LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Waiting for snapshot preparation (attempt {}, timeout {}ms)",

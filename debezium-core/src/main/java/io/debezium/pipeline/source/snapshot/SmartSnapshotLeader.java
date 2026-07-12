@@ -206,13 +206,20 @@ public class SmartSnapshotLeader implements Runnable {
         Threads.Timer timer = Threads.timer(Clock.SYSTEM, Duration.ofMillis(joinWaitTimeoutMs));
         Metronome metronome = Metronome.parker(Duration.ofMillis(pollMs), Clock.SYSTEM);
         while (!timer.expired()) {
-            if (anyRestartNeeded()) {
-                LOGGER.warn("Smart snapshot: [role=leader epoch={}] Restart signaled while waiting for tasks to join, aborting round", leaderEpoch);
-                return false;
+            // A transient coordination read failure here is treated like "not ready yet": log and keep polling
+            // until the timeout, instead of failing the task on a single broker blip.
+            try {
+                if (anyRestartNeeded()) {
+                    LOGGER.warn("Smart snapshot: [role=leader epoch={}] Restart signaled while waiting for tasks to join, aborting round", leaderEpoch);
+                    return false;
+                }
+                if (allTasksJoined()) {
+                    LOGGER.info("Smart snapshot: [role=leader epoch={}] All {} tasks joined, preparing snapshot", leaderEpoch, numTasks);
+                    return true;
+                }
             }
-            if (allTasksJoined()) {
-                LOGGER.info("Smart snapshot: [role=leader epoch={}] All {} tasks joined, preparing snapshot", leaderEpoch, numTasks);
-                return true;
+            catch (DebeziumException e) {
+                LOGGER.warn("Smart snapshot: [role=leader epoch={}] Transient coordination read failure while waiting for tasks to join, retrying", leaderEpoch, e);
             }
             metronome.pause();
         }
@@ -232,14 +239,25 @@ public class SmartSnapshotLeader implements Runnable {
     boolean waitForAllTasksStartedTransaction() throws InterruptedException {
         Threads.Timer timer = Threads.timer(Clock.SYSTEM, Duration.ofMillis(startedTransactionTimeoutMs));
         Metronome metronome = Metronome.parker(Duration.ofMillis(pollMs), Clock.SYSTEM);
-        while (!allTasksStartedTransaction() && !anyRestartNeeded()) {
-            if (timer.expired()) {
-                return false;
+        while (!timer.expired()) {
+            // Table locks are held here, so a transient coordination read failure must NOT abort the round: that
+            // would drop the locks and discard the prepared snapshot on a single broker blip. Log and keep polling.
+            try {
+                if (anyRestartNeeded()) {
+                    return false;
+                }
+                if (allTasksStartedTransaction()) {
+                    return true;
+                }
+            }
+            catch (DebeziumException e) {
+                LOGGER.warn("Smart snapshot: [role=leader epoch={}] Transient coordination read failure while waiting for tasks to start their transaction, retrying",
+                        leaderEpoch, e);
             }
             metronome.pause();
             lifecycle.keepAlive();
         }
-        return allTasksStartedTransaction();
+        return false;
     }
 
     /**

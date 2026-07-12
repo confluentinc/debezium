@@ -179,6 +179,41 @@ public class SmartSnapshotLeaderTest {
     }
 
     @Test
+    public void transientReadFailureDuringStartedTransactionWaitIsToleratedNotAborted() {
+        when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
+        allTasksJoined(2);
+        when(lifecycle.prepareSnapshot(true)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", TABLES));
+        // task-0's read blips once (broker hiccup) then reports started. While the table locks are held a transient
+        // read failure must be retried, NOT treated as a round abort that drops the locks and discards the snapshot.
+        when(coordination.isTaskStartedTransaction("0", EPOCH)).thenThrow(new DebeziumException("read blip")).thenReturn(true);
+        when(coordination.isTaskStartedTransaction("1", EPOCH)).thenReturn(true);
+
+        prep(2, true).run();
+
+        verify(lifecycle).onAllTasksStartedTransaction();
+        verify(lifecycle, never()).releaseSnapshot();
+        verify(coordination, never()).writeRestartNeeded(any(), eq(EPOCH));
+        verify(errorHandler, never()).setProducerThrowable(any());
+    }
+
+    @Test
+    public void transientReadFailureDuringJoinWaitIsTolerated() {
+        when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
+        when(coordination.isTaskJoined("0", EPOCH)).thenReturn(true);
+        // task-1's read blips once then reports joined; the join wait must retry instead of failing the task.
+        when(coordination.isTaskJoined("1", EPOCH)).thenThrow(new DebeziumException("read blip")).thenReturn(true);
+        when(lifecycle.prepareSnapshot(true)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", TABLES));
+        when(coordination.isTaskStartedTransaction("0", EPOCH)).thenReturn(true);
+        when(coordination.isTaskStartedTransaction("1", EPOCH)).thenReturn(true);
+
+        prep(2, true).run();
+
+        verify(lifecycle).prepareSnapshot(true);
+        verify(lifecycle).onAllTasksStartedTransaction();
+        verify(errorHandler, never()).setProducerThrowable(any());
+    }
+
+    @Test
     public void onPreparationFailureReleasesAndFailsTheTask() {
         when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
         allTasksJoined(2);

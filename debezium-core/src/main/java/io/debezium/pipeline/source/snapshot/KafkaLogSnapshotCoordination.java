@@ -28,7 +28,6 @@ import org.apache.kafka.common.errors.TopicExistsException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.kafka.common.utils.Time;
-import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.util.KafkaBasedLog;
 import org.apache.kafka.connect.util.TopicAdmin;
 import org.slf4j.Logger;
@@ -38,6 +37,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
+import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 
@@ -45,7 +45,8 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(KafkaLogSnapshotCoordination.class);
 
-    private final int PARTITION_COUNT = 1;
+    private static final int PARTITION_COUNT = 1;
+    private static final int READ_TIMEOUT_MS = 30_000;
 
     private volatile boolean started = false;
 
@@ -145,11 +146,22 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
     }
 
     /**
-     * todo document the data freshness
-     * the get is eventually consistent
+     * Synchronous read: catches the log up to the end before returning, so the value reflects
+     * everything written to the coordination topic up to this call.
      */
     @Override
     public Map<String, Object> read(Map<String, String> key) {
+        try {
+            log.readToEnd().get(READ_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        }
+        catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new DebeziumException("Interrupted while reading coordination topic", e);
+        }
+        catch (ExecutionException | TimeoutException e) {
+            LOGGER.error("Smart snapshot: [role=coordination] Failed to read coordination topic: ", e);
+            throw new DebeziumException("Error reading coordination topic", e);
+        }
         return cache.get(key);
     }
 
@@ -161,7 +173,7 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
             });
         }
         catch (IOException e) {
-            throw new RuntimeException("Smart snapshot: [role=coordination] Failed to parse coordination key", e);
+            throw new DebeziumException("Smart snapshot: [role=coordination] Failed to parse coordination key", e);
         }
         if (record.value() == null) { // tombstone
             cache.remove(key);
@@ -173,7 +185,7 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
             cache.put(key, data);
         }
         catch (IOException e) {
-            throw new ConnectException("Smart snapshot: [role=coordination] Failed to parse coordination value", e);
+            throw new DebeziumException("Smart snapshot: [role=coordination] Failed to parse coordination value", e);
         }
     }
 
@@ -234,11 +246,11 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
                 LOGGER.info("Smart snapshot: [role=coordination] Snapshot coordination topic '{}' already exists", topicName);
             }
             else {
-                throw new ConnectException("Smart snapshot: [role=coordination] Failed to create snapshot coordination topic '" + topicName + "'", e);
+                throw new DebeziumException("Smart snapshot: [role=coordination] Failed to create snapshot coordination topic '" + topicName + "'", e);
             }
         }
         catch (Exception e) {
-            throw new ConnectException("Smart snapshot: [role=coordination] Failed to create snapshot coordination topic '" + topicName + "'", e);
+            throw new DebeziumException("Smart snapshot: [role=coordination] Failed to create snapshot coordination topic '" + topicName + "'", e);
         }
     }
 
@@ -256,17 +268,5 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
             }
         }
         return clientConfig;
-    }
-
-    // todo check if this is useful
-    private Map<String, Object> readSync(Map<String, String> key) {
-        try {
-            log.readToEnd().get(30, TimeUnit.SECONDS);
-        }
-        catch (InterruptedException | ExecutionException | TimeoutException e) {
-            LOGGER.error("Failed to write root configuration to Kafka: ", e);
-            throw new ConnectException("Error writing root configuration to Kafka", e);
-        }
-        return cache.get(key);
     }
 }

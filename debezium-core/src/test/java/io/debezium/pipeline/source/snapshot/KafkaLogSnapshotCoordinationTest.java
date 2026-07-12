@@ -7,7 +7,6 @@ package io.debezium.pipeline.source.snapshot;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.awaitility.Awaitility.await;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -15,7 +14,6 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import org.junit.After;
 import org.junit.Before;
@@ -90,11 +88,25 @@ public class KafkaLogSnapshotCoordinationTest {
         KafkaLogSnapshotCoordination writer = newCoordination();
         writer.write(key, Collect.hashMapOf("epoch", 7));
 
-        // a second client tails the log from the beginning; read() reflects the value once its background
-        // consumer has populated the cache (read() is eventually consistent, unlike a forced readToEnd)
+        // a second client tails the log from the beginning; read() forces a readToEnd, so it reflects the value
         KafkaLogSnapshotCoordination reader = newCoordination();
-        await().atMost(30, TimeUnit.SECONDS).until(() -> reader.read(key) != null);
+        assertThat(reader.read(key)).isNotNull();
         assertThat(reader.read(key)).containsEntry("epoch", 7);
+    }
+
+    @Test
+    public void readCatchesUpToWritesMadeAfterTheReaderStarted() throws Exception {
+        Map<String, String> key = Collect.hashMapOf("server", SERVER, "type", "epoch");
+        // the reader starts first and catches up to an (empty) topic
+        KafkaLogSnapshotCoordination reader = newCoordination();
+
+        // a separate client writes AFTER the reader has already started tailing
+        KafkaLogSnapshotCoordination writer = newCoordination();
+        writer.write(key, Collect.hashMapOf("epoch", 9));
+
+        // read() forces a readToEnd, so it reflects the just-written value immediately -- no polling/await needed.
+        // The old eventually-consistent read could return null here until the background consumer caught up.
+        assertThat(reader.read(key)).containsEntry("epoch", 9);
     }
 
     @Test
@@ -104,10 +116,10 @@ public class KafkaLogSnapshotCoordinationTest {
         writer.write(key, Collect.hashMapOf("epoch", 1));
         writer.write(key, Collect.hashMapOf("epoch", 2));
 
-        // read() reflects the compacted latest-per-key once the consumer has tailed both records
+        // read() forces a readToEnd, so it reflects the compacted latest-per-key
         KafkaLogSnapshotCoordination reader = newCoordination();
-        await().atMost(30, TimeUnit.SECONDS)
-                .until(() -> reader.read(key) != null && Integer.valueOf(2).equals(reader.read(key).get("epoch")));
+        assertThat(reader.read(key)).isNotNull();
+        assertThat(reader.read(key).get("epoch")).isEqualTo(Integer.valueOf(2));
         assertThat(reader.read(key)).containsEntry("epoch", 2);
     }
 
