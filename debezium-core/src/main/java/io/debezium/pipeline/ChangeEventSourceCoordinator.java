@@ -298,10 +298,9 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
                                            SnapshottingTask snapshottingTask)
             throws InterruptedException {
 
-        // A full snapshot (initial or blocking) is not resumable from a persisted watermark, so we signal the
-        // control plane not to disturb the task, meaning no roll or upgrade, for as long as it runs. Incremental
-        // snapshots are resumable and are intentionally excluded here: they never funnel through doSnapshot, so
-        // they do not assert the do-not-disturb bit. See CC-42884.
+        // only mark DND for full snapshots (initial/blocking): they can't resume from a watermark, so a roll or
+        // upgrade would restart them from scratch. Incremental snapshots are excluded because they resume where
+        // they left off, much less expensive
         taskStateMetrics.setConnectTaskDnd(1);
         try {
             CatchUpStreamingResult catchUpStreamingResult = executeCatchUpStreaming(context, snapshotSource, partition, previousOffset);
