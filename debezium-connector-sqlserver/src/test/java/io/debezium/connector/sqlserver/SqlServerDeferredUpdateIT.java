@@ -259,7 +259,7 @@ public class SqlServerDeferredUpdateIT extends AbstractAsyncEngineConnectorTest 
     }
 
     private String topicName(String tableName) {
-        return "server1.testDB1.dbo." + tableName;
+        return TestHelper.TEST_SERVER_NAME + "." + TestHelper.TEST_DATABASE_1 + ".dbo." + tableName;
     }
 
     /**
