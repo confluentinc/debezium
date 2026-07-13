@@ -135,7 +135,7 @@ public class SnapshotCoordinationFacade {
 
     /**
      * Pull one task's slice out of the published ASSIGNMENTS map. Returns the raw JSON array of quoted FQNs
-     * (empty if the task has no entry) — feed it to {@link #parseTablesPostgres(Object)} to get TableIds.
+     * (empty if the task has no entry) — feed it to {@link #parseTables(Object, boolean)} to get TableIds.
      */
     @SuppressWarnings("unchecked")
     public static Object assignmentForTask(Object assignmentsValue, int taskId) {
@@ -152,17 +152,18 @@ public class SnapshotCoordinationFacade {
     }
 
     /**
-     * Decode the TABLES field (a JSON array of quoted FQNs from the snapshot-info record) back to TableIds.
+     * Decode a task's table assignment (a JSON array of quoted FQNs from the snapshot-info record) back to
+     * TableIds. {@code useCatalogScoped} controls how a 2-part identifier is interpreted: pass {@code false}
+     * for schema.table (Postgres style) and {@code true} for catalog.table (MySQL style).
      */
     @SuppressWarnings("unchecked")
-    public static List<TableId> parseTablesPostgres(Object tablesValue) {
+    public static List<TableId> parseTables(Object tablesValue, boolean useCatalogScoped) {
         if (!(tablesValue instanceof List)) {
             return List.of();
         }
         return ((List<String>) tablesValue).stream()
                 .filter(s -> s != null && !s.isBlank())
-                // Pass false to interpret 2-part identifiers as schema.table (Postgres style)
-                .map(s -> TableId.parse(s, false))
+                .map(s -> TableId.parse(s, useCatalogScoped))
                 .collect(Collectors.toList());
     }
 

@@ -50,13 +50,28 @@ public class SnapshotCoordinationFacadeTest {
 
     @Test
     public void parseTablesTrimsSkipsBlanksAndHandlesEmpty() {
-        assertThat(SnapshotCoordinationFacade.parseTablesPostgres(null)).isEmpty();
-        assertThat(SnapshotCoordinationFacade.parseTablesPostgres("")).isEmpty();
+        assertThat(SnapshotCoordinationFacade.parseTables(null, false)).isEmpty();
+        assertThat(SnapshotCoordinationFacade.parseTables("", false)).isEmpty();
         List<TableId> tables = List.of(
                 new TableId(null, "public", "a"),
                 new TableId(null, "public", "b"));
-        assertThat(SnapshotCoordinationFacade.parseTablesPostgres(SnapshotCoordinationFacade.joinTableIds(tables))).containsExactly(
+        assertThat(SnapshotCoordinationFacade.parseTables(SnapshotCoordinationFacade.joinTableIds(tables), false)).containsExactly(
                 tables.get(0), tables.get(1));
+    }
+
+    @Test
+    public void parseTablesInterpretsTwoPartAsCatalogWhenUseCatalogScoped() {
+        // MySQL-style identifiers are catalog.table (no schema). With useCatalogScoped=true a 2-part FQN must be
+        // read back as catalog.table, not schema.table.
+        List<TableId> tables = List.of(
+                new TableId("db1", null, "a"),
+                new TableId("db1", null, "b"));
+        List<TableId> parsed = SnapshotCoordinationFacade.parseTables(SnapshotCoordinationFacade.joinTableIds(tables), true);
+
+        assertThat(parsed).containsExactly(tables.get(0), tables.get(1));
+        assertThat(parsed.get(0).catalog()).isEqualTo("db1");
+        assertThat(parsed.get(0).schema()).isNull();
+        assertThat(parsed.get(0).table()).isEqualTo("a");
     }
 
     @Test
@@ -69,7 +84,7 @@ public class SnapshotCoordinationFacadeTest {
         Object serializedPayload = SnapshotCoordinationFacade.joinTableIds(discoveredTables);
 
         // Run through the parsing plane
-        List<TableId> parsedTables = SnapshotCoordinationFacade.parseTablesPostgres(serializedPayload);
+        List<TableId> parsedTables = SnapshotCoordinationFacade.parseTables(serializedPayload, false);
 
         assertEquals(1, parsedTables.size());
         TableId resultTable = parsedTables.get(0);
@@ -109,7 +124,7 @@ public class SnapshotCoordinationFacadeTest {
         assertEquals("\"chaos,schema\".\"report\"\"internal\"\"final\"", jsonStringArray.get(2)); // Double quotes escaped internally
 
         // 3. Test Deserialization: Parse it back using the TableIdParser hook
-        List<TableId> parsedTables = SnapshotCoordinationFacade.parseTablesPostgres(serializedJsonArray);
+        List<TableId> parsedTables = SnapshotCoordinationFacade.parseTables(serializedJsonArray, false);
 
         assertEquals(discoveredTables.size(), parsedTables.size());
 
@@ -236,9 +251,9 @@ public class SnapshotCoordinationFacadeTest {
         List<TableId> tables = List.of(new TableId(null, "public", "a"), new TableId(null, "public", "b"));
         Map<String, Object> assignments = SnapshotCoordinationFacade.buildAssignments(tables, 2);
 
-        assertThat(SnapshotCoordinationFacade.parseTablesPostgres(SnapshotCoordinationFacade.assignmentForTask(assignments, 0)))
+        assertThat(SnapshotCoordinationFacade.parseTables(SnapshotCoordinationFacade.assignmentForTask(assignments, 0), false))
                 .containsExactly(new TableId(null, "public", "a"));
-        assertThat(SnapshotCoordinationFacade.parseTablesPostgres(SnapshotCoordinationFacade.assignmentForTask(assignments, 1)))
+        assertThat(SnapshotCoordinationFacade.parseTables(SnapshotCoordinationFacade.assignmentForTask(assignments, 1), false))
                 .containsExactly(new TableId(null, "public", "b"));
         // a task with no published slice (e.g. more tasks than tables) gets an empty subset, not an error
         assertThat(SnapshotCoordinationFacade.assignmentForTask(assignments, 5)).isEqualTo(List.of());
