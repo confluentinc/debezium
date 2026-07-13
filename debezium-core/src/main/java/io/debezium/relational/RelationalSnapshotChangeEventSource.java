@@ -878,7 +878,7 @@ public abstract class RelationalSnapshotChangeEventSource<P extends Partition, O
 
         public Set<TableId> capturedTables;
         public Set<TableId> capturedSchemaTables;
-        public final Set<TableId> tablesWithSnapshotSelectOverride = new HashSet<>();
+        public Set<TableId> tablesWithSnapshotSelectOverride = new HashSet<>();
 
         public RelationalSnapshotContext(P partition, String catalogName, boolean onDemand) {
             super(partition);
