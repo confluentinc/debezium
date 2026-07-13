@@ -298,22 +298,32 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
                                            SnapshottingTask snapshottingTask)
             throws InterruptedException {
 
-        CatchUpStreamingResult catchUpStreamingResult = executeCatchUpStreaming(context, snapshotSource, partition, previousOffset);
-        if (catchUpStreamingResult.performedCatchUpStreaming) {
-            streamingConnected(false);
-            commitOffsetLock.lock();
-            streamingSource = null;
-            commitOffsetLock.unlock();
-        }
-        eventDispatcher.setEventListener(snapshotMetrics);
+        // A full snapshot (initial or blocking) is not resumable from a persisted watermark, so we signal the
+        // control plane not to disturb the task, meaning no roll or upgrade, for as long as it runs. Incremental
+        // snapshots are resumable and are intentionally excluded here: they never funnel through doSnapshot, so
+        // they do not assert the do-not-disturb bit. See CC-42884.
+        taskStateMetrics.setConnectTaskDnd(1);
+        try {
+            CatchUpStreamingResult catchUpStreamingResult = executeCatchUpStreaming(context, snapshotSource, partition, previousOffset);
+            if (catchUpStreamingResult.performedCatchUpStreaming) {
+                streamingConnected(false);
+                commitOffsetLock.lock();
+                streamingSource = null;
+                commitOffsetLock.unlock();
+            }
+            eventDispatcher.setEventListener(snapshotMetrics);
 
-        SnapshotResult<O> snapshotResult = snapshotSource.execute(context, partition, previousOffset, snapshottingTask);
-        LOGGER.info("Snapshot ended with {}", snapshotResult);
+            SnapshotResult<O> snapshotResult = snapshotSource.execute(context, partition, previousOffset, snapshottingTask);
+            LOGGER.info("Snapshot ended with {}", snapshotResult);
 
-        if (snapshotResult.getStatus() == SnapshotResultStatus.COMPLETED || schema.tableInformationComplete()) {
-            schema.assureNonEmptySchema(connectorConfig.failOnNoTables());
+            if (snapshotResult.getStatus() == SnapshotResultStatus.COMPLETED || schema.tableInformationComplete()) {
+                schema.assureNonEmptySchema(connectorConfig.failOnNoTables());
+            }
+            return snapshotResult;
         }
-        return snapshotResult;
+        finally {
+            taskStateMetrics.setConnectTaskDnd(0);
+        }
     }
 
     protected CatchUpStreamingResult executeCatchUpStreaming(ChangeEventSourceContext context,
