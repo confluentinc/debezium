@@ -66,6 +66,17 @@ public class SqlServerDatabaseSchema extends HistorizedRelationalDatabaseSchema 
         record(schemaChange, tableChanges);
     }
 
+    /**
+     * Registers a table's structure in the in-memory schema WITHOUT recording it to the persistent schema
+     * history. Used by non-leader smart-snapshot shards: task-0 is the sole writer of schema history, but every
+     * shard still needs its own tables registered in-memory (so {@link #tableFor(TableId)} is non-null) to build
+     * the snapshot SELECT and serialize its rows.
+     */
+    public void registerTableInMemory(Table table) {
+        buildAndRegisterSchema(table);
+        tables().overwriteTable(table);
+    }
+
     @Override
     protected DdlParser getDdlParser() {
         return null;
