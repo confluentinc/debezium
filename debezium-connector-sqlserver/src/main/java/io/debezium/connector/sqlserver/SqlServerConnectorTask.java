@@ -6,6 +6,7 @@
 package io.debezium.connector.sqlserver;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -29,12 +30,15 @@ import io.debezium.document.DocumentReader;
 import io.debezium.jdbc.DefaultMainConnectionProvidingConnectionFactory;
 import io.debezium.jdbc.MainConnectionProvidingConnectionFactory;
 import io.debezium.pipeline.ChangeEventSourceCoordinator;
+import io.debezium.pipeline.CommonOffsetContext;
 import io.debezium.pipeline.DataChangeEvent;
 import io.debezium.pipeline.ErrorHandler;
 import io.debezium.pipeline.EventDispatcher;
 import io.debezium.pipeline.GuardrailValidator;
 import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.signal.SignalProcessor;
+import io.debezium.pipeline.source.snapshot.SmartSnapshotLifecycleManager.SnapshotSetup;
+import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.pipeline.spi.Offsets;
 import io.debezium.relational.TableId;
 import io.debezium.schema.SchemaFactory;
@@ -61,6 +65,11 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
     private volatile SqlServerConnection metadataConnection;
     private volatile SqlServerErrorHandler errorHandler;
     private volatile SqlServerDatabaseSchema schema;
+    private volatile SnapshotCoordinationFacade smartSnapshotCoordination;
+    private volatile Thread smartSnapshotLeaderThread;
+    // task-0's leader thread stashes the eligible-but-uncaptured leftover set here before publishing
+    // snapshot_info; task-0's shard coordinator reads it (in-memory, same task) after seeing snapshot_info.
+    private volatile List<TableId> smartSnapshotUncapturedTables = List.of();
 
     @Override
     public String version() {
@@ -98,6 +107,8 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
         Offsets<SqlServerPartition, SqlServerOffsetContext> offsets = getPreviousOffsets(
                 new SqlServerPartition.Provider(connectorConfig),
                 new SqlServerOffsetContext.Loader(connectorConfig));
+
+        seedStreamingOffsetsFromCoordination(connectorConfig, offsets);
 
         // Manual Bean Registration
         connectorConfig.getBeanRegistry().add(StandardBeanNames.CONFIGURATION, config);
@@ -166,24 +177,174 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
         NotificationService<SqlServerPartition, SqlServerOffsetContext> notificationService = new NotificationService<>(getNotificationChannels(),
                 connectorConfig, SchemaFactory.get(), dispatcher::enqueueNotification);
 
-        ChangeEventSourceCoordinator<SqlServerPartition, SqlServerOffsetContext> coordinator = new SqlServerChangeEventSourceCoordinator(
-                offsets,
-                errorHandler,
-                SqlServerConnector.class,
-                connectorConfig,
-                new SqlServerChangeEventSourceFactory(connectorConfig, connectionFactory, metadataConnection, errorHandler, dispatcher, clock, schema,
-                        notificationService, snapshotterService),
-                new SqlServerMetricsFactory(offsets.getPartitions()),
-                dispatcher,
-                schema,
-                clock,
-                signalProcessor,
-                notificationService,
-                snapshotterService);
+        Integer smartSnapshotEpoch = connectorConfig.getSmartSnapshotEpoch();
+        ChangeEventSourceCoordinator<SqlServerPartition, SqlServerOffsetContext> coordinator;
+        if (connectorConfig.isSmartSnapshotEnabled() && smartSnapshotEpoch != null) {
+            // Sharded smart-snapshot task. Phase 0 is single-DB, so task.id doubles as the shard index.
+            String taskId = connectorConfig.getTaskId();
+            this.smartSnapshotCoordination = new SnapshotCoordinationFacade(config, connectorConfig);
+            // task-0 is the leader: discover + capture L_db + publish snapshot_info on a background thread
+            // (a DND-protected task, so a rebalance-induced connector restart never bounces the round).
+            if ("0".equals(taskId)) {
+                startSmartSnapshotLeader(config, connectorConfig, smartSnapshotEpoch);
+            }
+            coordinator = new SqlServerSmartSnapshotChangeEventSourceCoordinator(
+                    offsets,
+                    errorHandler,
+                    SqlServerConnector.class,
+                    connectorConfig,
+                    new SqlServerChangeEventSourceFactory(connectorConfig, connectionFactory, metadataConnection, errorHandler, dispatcher, clock, schema,
+                            notificationService, snapshotterService),
+                    new SqlServerMetricsFactory(offsets.getPartitions()),
+                    dispatcher,
+                    schema,
+                    clock,
+                    signalProcessor,
+                    notificationService,
+                    snapshotterService,
+                    smartSnapshotEpoch,
+                    smartSnapshotCoordination,
+                    taskId,
+                    () -> smartSnapshotUncapturedTables, // task-0's uncaptured leftover, stashed by its leader
+                    () -> new SqlServerConnection(connectorConfig, valueConverters, connectorConfig.getSkippedOperations(),
+                            connectorConfig.useSingleDatabase(), connectorConfig.getOptionRecompile()));
+        }
+        else {
+            coordinator = new SqlServerChangeEventSourceCoordinator(
+                    offsets,
+                    errorHandler,
+                    SqlServerConnector.class,
+                    connectorConfig,
+                    new SqlServerChangeEventSourceFactory(connectorConfig, connectionFactory, metadataConnection, errorHandler, dispatcher, clock, schema,
+                            notificationService, snapshotterService),
+                    new SqlServerMetricsFactory(offsets.getPartitions()),
+                    dispatcher,
+                    schema,
+                    clock,
+                    signalProcessor,
+                    notificationService,
+                    snapshotterService);
+        }
 
         coordinator.start(taskContext, this.queue, metadataProvider);
 
         return coordinator;
+    }
+
+    /**
+     * Spawns the task-0 leader background thread: discover tables + capture {@code L_db}, stash the
+     * uncaptured-eligible leftover in-memory, then publish {@code snapshot_info}. Validates the tasks.max
+     * range here (only the leader knows the table count). SQL Server holds nothing open, so -- unlike Postgres
+     * -- there is no wait-for-followers loop; the leader publishes and exits.
+     */
+    private void startSmartSnapshotLeader(Configuration config, SqlServerConnectorConfig connectorConfig, int epoch) {
+        final String database = connectorConfig.getDatabaseNames().get(0);
+        final int numTasks = Integer.parseInt(config.getString(SnapshotCoordinationFacade.NUM_TASKS));
+        final boolean shouldStream = connectorConfig.getSnapshotMode() != SqlServerConnectorConfig.SnapshotMode.INITIAL_ONLY;
+        final SqlServerSnapshotLifecycleManager lifecycle = new SqlServerSnapshotLifecycleManager(
+                connectorConfig, database, () -> SqlServerConnector.connect(connectorConfig));
+        this.smartSnapshotLeaderThread = new Thread(
+                () -> runSmartSnapshotLeader(config, connectorConfig, database, epoch, numTasks, shouldStream, lifecycle),
+                "smart-snapshot-leader");
+        this.smartSnapshotLeaderThread.setDaemon(true);
+        this.smartSnapshotLeaderThread.start();
+    }
+
+    private void runSmartSnapshotLeader(Configuration config, SqlServerConnectorConfig connectorConfig, String database,
+                                        int epoch, int numTasks, boolean shouldStream, SqlServerSnapshotLifecycleManager lifecycle) {
+        SnapshotCoordinationFacade leaderCoordination = new SnapshotCoordinationFacade(config, connectorConfig);
+        try {
+            leaderCoordination.start();
+            if (leaderCoordination.isTaskDone("0", epoch)) {
+                LOGGER.info("Smart snapshot: [leader epoch={}] round already complete, skipping preparation", epoch);
+                return;
+            }
+            if (anyRestartNeeded(leaderCoordination, numTasks, epoch)) {
+                LOGGER.info("Smart snapshot: [leader epoch={}] restart_needed already present, skipping preparation", epoch);
+                return;
+            }
+
+            SnapshotSetup setup = lifecycle.prepareSnapshot(shouldStream);
+
+            // tasks.max range validation (only the leader knows the table count): each task should get 1-2
+            // tables. Out of range (incl. zero captured tables) fails task-0 loudly; other tasks then time out.
+            int tableCount = setup.tables().size();
+            int minTasks = ceilDiv(tableCount, 2);
+            if (numTasks < minTasks || numTasks > tableCount) {
+                throw new DebeziumException(String.format(
+                        "Smart snapshot: [%s] tasks.max=%d is out of range for %d captured table(s); it must be in [%d, %d] "
+                                + "(each task gets 1-2 tables). Adjust tasks.max or disable smart snapshot.",
+                        database, numTasks, tableCount, minTasks, tableCount));
+            }
+
+            // Stash the uncaptured-eligible leftover BEFORE publishing snapshot_info, so task-0's shard
+            // coordinator (which reads it only after seeing snapshot_info) is guaranteed to observe it.
+            this.smartSnapshotUncapturedTables = lifecycle.getUncapturedEligibleTables();
+            leaderCoordination.writeSnapshotInfo(setup.snapshotName(), setup.consistentPosition(), epoch, setup.tables(), numTasks);
+            LOGGER.info("Smart snapshot: [leader epoch={}] published L_db={} numTasks={} for {} table(s)",
+                    epoch, setup.consistentPosition(), numTasks, tableCount);
+        }
+        catch (Throwable t) {
+            if (Thread.currentThread().isInterrupted()) {
+                LOGGER.info("Smart snapshot: [leader epoch={}] interrupted during preparation (shutdown)", epoch, t);
+            }
+            else {
+                LOGGER.error("Smart snapshot: [leader epoch={}] snapshot preparation failed", epoch, t);
+                errorHandler.setProducerThrowable(new DebeziumException("Smart snapshot: [leader epoch=" + epoch + "] snapshot preparation failed", t));
+            }
+        }
+        finally {
+            leaderCoordination.stop();
+        }
+    }
+
+    private static boolean anyRestartNeeded(SnapshotCoordinationFacade coordination, int numTasks, int epoch) {
+        for (int i = 0; i < numTasks; i++) {
+            if (coordination.isRestartNeeded(String.valueOf(i), epoch)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int ceilDiv(int numerator, int divisor) {
+        return (numerator + divisor - 1) / divisor;
+    }
+
+    /**
+     * Seeds the collapsed/streaming task's offset from the completed round's L_db when it has no committed
+     * offset yet. Sharded snapshot tasks carry their own epoch and are excluded via {@code getSmartSnapshotEpoch() == null}.
+     */
+    private void seedStreamingOffsetsFromCoordination(SqlServerConnectorConfig connectorConfig,
+                                                      Offsets<SqlServerPartition, SqlServerOffsetContext> offsets) {
+        if (!connectorConfig.isSmartSnapshotEnabled() || connectorConfig.getSmartSnapshotEpoch() != null
+                || !SnapshotCoordinationFacade.hasCoordinationBootstrap(connectorConfig.getConfig(), connectorConfig)) {
+            return;
+        }
+        SnapshotCoordinationFacade facade = SnapshotCoordinationFacade.readOnly(connectorConfig.getConfig(), connectorConfig);
+        try {
+            if (!facade.startForRead()) {
+                return; // topic missing/broker unreachable -- fast skip
+            }
+            // Completion is a separate snapshot_done record (its presence with a consistent_point == round
+            // finished); it is NOT a field on snapshot_info. Mirror PostgresConnectorTask#fetchOffsetFromCoordinationTopic.
+            Map<String, Object> completionInfo = facade.readCompletion();
+            if (completionInfo == null || completionInfo.get(SnapshotCoordinationFacade.CONSISTENT_POINT) == null) {
+                return;
+            }
+            Lsn lsn = Lsn.valueOf(String.valueOf(completionInfo.get(SnapshotCoordinationFacade.CONSISTENT_POINT)));
+            for (Map.Entry<SqlServerPartition, SqlServerOffsetContext> entry : new ArrayList<>(offsets.getOffsets().entrySet())) {
+                if (entry.getValue() != null) {
+                    continue;
+                }
+                LOGGER.info("Smart snapshot: [{}] seeding streaming offset from coordination, LSN={}", entry.getKey().getDatabaseName(), lsn);
+                SqlServerOffsetContext syntheticOffset = new SqlServerOffsetContext(connectorConfig, TxLogPosition.valueOf(lsn), null, true);
+                offsets.getOffsets().put(entry.getKey(), syntheticOffset);
+            }
+        }
+        finally {
+            facade.stop();
+        }
     }
 
     @Override
@@ -215,6 +376,13 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
 
     @Override
     protected void doStop() {
+        if (smartSnapshotLeaderThread != null) {
+            smartSnapshotLeaderThread.interrupt();
+        }
+        if (smartSnapshotCoordination != null) {
+            smartSnapshotCoordination.stop();
+        }
+
         try {
             if (dataConnection != null) {
                 dataConnection.close();
