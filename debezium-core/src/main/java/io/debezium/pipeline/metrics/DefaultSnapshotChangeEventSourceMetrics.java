@@ -27,13 +27,15 @@ public class DefaultSnapshotChangeEventSourceMetrics<P extends Partition> extend
         implements SnapshotChangeEventSourceMetrics<P>, SnapshotChangeEventSourceMetricsMXBean {
 
     private final SnapshotMeter snapshotMeter;
+    private final TaskStateMetrics taskStateMetrics;
 
     public <T extends CdcSourceTaskContext> DefaultSnapshotChangeEventSourceMetrics(T taskContext,
                                                                                     ChangeEventQueueMetrics changeEventQueueMetrics,
                                                                                     EventMetadataProvider metadataProvider,
                                                                                     TaskStateMetrics taskStateMetrics) {
         super(taskContext, "snapshot", changeEventQueueMetrics, metadataProvider);
-        snapshotMeter = new SnapshotMeter(taskContext.getClock(), taskStateMetrics);
+        this.taskStateMetrics = taskStateMetrics;
+        snapshotMeter = new SnapshotMeter(taskContext.getClock());
     }
 
     public <T extends CdcSourceTaskContext> DefaultSnapshotChangeEventSourceMetrics(T taskContext,
@@ -42,7 +44,8 @@ public class DefaultSnapshotChangeEventSourceMetrics<P extends Partition> extend
                                                                                     Map<String, String> tags,
                                                                                     TaskStateMetrics taskStateMetrics) {
         super(taskContext, changeEventQueueMetrics, metadataProvider, tags);
-        snapshotMeter = new SnapshotMeter(taskContext.getClock(), taskStateMetrics);
+        this.taskStateMetrics = taskStateMetrics;
+        snapshotMeter = new SnapshotMeter(taskContext.getClock());
     }
 
     @Override
@@ -184,5 +187,6 @@ public class DefaultSnapshotChangeEventSourceMetrics<P extends Partition> extend
     public void reset() {
         super.reset();
         snapshotMeter.reset();
+        taskStateMetrics.reset();
     }
 }

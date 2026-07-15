@@ -15,7 +15,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import io.debezium.annotation.ThreadSafe;
-import io.debezium.pipeline.metrics.TaskStateMetrics;
 import io.debezium.pipeline.metrics.traits.SnapshotMetricsMXBean;
 import io.debezium.relational.TableId;
 import io.debezium.spi.schema.DataCollectionId;
@@ -50,11 +49,9 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
     private final Set<String> capturedTables = Collections.synchronizedSet(new HashSet<>());
 
     private final Clock clock;
-    private final TaskStateMetrics taskStateMetrics;
 
-    public SnapshotMeter(Clock clock, TaskStateMetrics taskStateMetrics) {
+    public SnapshotMeter(Clock clock) {
         this.clock = clock;
-        this.taskStateMetrics = taskStateMetrics;
     }
 
     @Override
@@ -270,6 +267,5 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         chunkTo.set(null);
         tableFrom.set(null);
         tableTo.set(null);
-        taskStateMetrics.reset();
     }
 }

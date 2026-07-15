@@ -298,20 +298,20 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
                                            SnapshottingTask snapshottingTask)
             throws InterruptedException {
 
-        // only mark DND for full snapshots (initial/blocking): they can't resume from a watermark, so a roll or
-        // upgrade would restart them from scratch. Incremental snapshots are excluded because they resume where
-        // they left off, much less expensive
+        CatchUpStreamingResult catchUpStreamingResult = executeCatchUpStreaming(context, snapshotSource, partition, previousOffset);
+        if (catchUpStreamingResult.performedCatchUpStreaming) {
+            streamingConnected(false);
+            commitOffsetLock.lock();
+            streamingSource = null;
+            commitOffsetLock.unlock();
+        }
+        eventDispatcher.setEventListener(snapshotMetrics);
+
+        // only mark DND for the full snapshot execution (initial/blocking): it can't resume from a watermark, so a
+        // roll or upgrade would restart it from scratch. Catch-up streaming and incremental snapshots are excluded
+        // because they resume where they left off, much less expensive
         taskStateMetrics.setConnectTaskDnd(1);
         try {
-            CatchUpStreamingResult catchUpStreamingResult = executeCatchUpStreaming(context, snapshotSource, partition, previousOffset);
-            if (catchUpStreamingResult.performedCatchUpStreaming) {
-                streamingConnected(false);
-                commitOffsetLock.lock();
-                streamingSource = null;
-                commitOffsetLock.unlock();
-            }
-            eventDispatcher.setEventListener(snapshotMetrics);
-
             SnapshotResult<O> snapshotResult = snapshotSource.execute(context, partition, previousOffset, snapshottingTask);
             LOGGER.info("Snapshot ended with {}", snapshotResult);
 
