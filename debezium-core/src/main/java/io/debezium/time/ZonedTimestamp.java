@@ -94,7 +94,7 @@ public class ZonedTimestamp {
             return toIsoString((java.util.Date) value, defaultZone, adjuster);
         }
         throw new IllegalArgumentException(
-                "Unable to convert to OffsetDateTime from unexpected value '" + value + "' of type " + value.getClass().getName());
+                "Unable to convert to OffsetDateTime from unexpected value of type " + value.getClass().getName());
     }
 
     /**
