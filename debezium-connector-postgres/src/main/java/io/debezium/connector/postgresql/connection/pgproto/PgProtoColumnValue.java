@@ -33,6 +33,8 @@ import io.debezium.connector.postgresql.proto.PgProto;
 import io.debezium.data.SpecialValueDecimal;
 import io.debezium.time.Conversions;
 
+import static io.debezium.util.Loggings.maybeRedactSensitiveData;
+
 /**
  * Replication message column sent by <a href="https://github.com/debezium/postgres-decoderbufs">Postgres Decoderbufs</>
  *
@@ -331,7 +333,7 @@ public class PgProtoColumnValue extends AbstractColumnValue<PgProto.DatumMessage
             return Arrays.asList((Object[]) deserializedArray);
         }
         catch (SQLException e) {
-            LOGGER.warn("Unexpected exception trying to process PgArray column '{}'", value.getColumnName(), e);
+            LOGGER.warn("Unexpected exception trying to process PgArray column '{}'", value.getColumnName(), maybeRedactSensitiveData(e));
         }
         return null;
     }
