@@ -159,7 +159,7 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
         }
         if (key instanceof Struct) {
             if (window.remove((Struct) key) != null) {
-                LOGGER.info("Removed '{}' from window", key);
+                LOGGER.info("Removed key from window");
             }
         }
     }
