@@ -17,6 +17,8 @@ import org.apache.kafka.connect.data.Struct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static io.debezium.util.Loggings.maybeRedactSensitiveData;
+
 public final class Vectors {
     private static final String SPARSE_VECTOR_ERROR = "Cannot convert sparse vector {}, expected format is {i1:x,i2:y,i3:z,...}/dimensions";
     private static final Logger LOGGER = LoggerFactory.getLogger(Vectors.class);
@@ -26,7 +28,7 @@ public final class Vectors {
 
         value = value.trim();
         if (!value.startsWith("[") || !value.endsWith("]")) {
-            LOGGER.warn("Cannot convert vector {}, expected format is [x,y,z,...]", value);
+            LOGGER.warn("Cannot convert vector {}, expected format is [x,y,z,...]", maybeRedactSensitiveData(value));
             return null;
         }
 
@@ -45,7 +47,7 @@ public final class Vectors {
         value = value.trim();
         var parts = value.split("/");
         if (parts.length != 2) {
-            LOGGER.warn(SPARSE_VECTOR_ERROR, value);
+            LOGGER.warn(SPARSE_VECTOR_ERROR, maybeRedactSensitiveData(value));
             return null;
         }
 
@@ -53,7 +55,7 @@ public final class Vectors {
         final var dimensions = Short.parseShort(parts[1].trim());
 
         if (!strVector.startsWith("{") || !strVector.endsWith("}")) {
-            LOGGER.warn(SPARSE_VECTOR_ERROR, value);
+            LOGGER.warn(SPARSE_VECTOR_ERROR, maybeRedactSensitiveData(value));
             return null;
         }
 
@@ -64,7 +66,7 @@ public final class Vectors {
         for (String element : strValues) {
             parts = element.split(":");
             if (parts.length != 2) {
-                LOGGER.warn(SPARSE_VECTOR_ERROR, value);
+                LOGGER.warn(SPARSE_VECTOR_ERROR, maybeRedactSensitiveData(value));
                 return null;
             }
             vector.put(Short.parseShort(parts[0].trim()), elementMapper.apply(parts[1].trim()));
