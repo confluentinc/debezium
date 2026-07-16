@@ -671,7 +671,7 @@ public class PostgresValueConverter extends JdbcValueConverters {
                     r.deliver(ltrees);
                 }
                 catch (SQLException e) {
-                    logger.error("Failed to parse PgArray: " + pgArray, e);
+                    logger.error("Failed to parse PgArray with exception:" +  e);
                 }
             }
         });
@@ -967,7 +967,7 @@ public class PostgresValueConverter extends JdbcValueConverters {
                     r.deliver(Point.createValue(schema, pgPoint.x, pgPoint.y));
                 }
                 catch (SQLException e) {
-                    logger.warn("Error converting the string '{}' to a PGPoint type for the column '{}'", dataString, column);
+                    logger.warn("Error converting the string  to a PGPoint type for the column '{}'", column);
                 }
             }
             else if (data instanceof PgProto.Point) {

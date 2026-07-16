@@ -666,8 +666,8 @@ public class JdbcValueConverters implements ValueConverterProvider {
                 r.deliver(Date.toEpochDay(data, adjuster));
             }
             catch (IllegalArgumentException e) {
-                logger.warn("Unexpected JDBC DATE value for field {} with schema {}: class={}, value={}", fieldDefn.name(),
-                        fieldDefn.schema(), data.getClass(), data);
+                logger.warn("Unexpected JDBC DATE value for field {} with schema {}: class={}", fieldDefn.name(),
+                        fieldDefn.schema(), data.getClass());
             }
         });
     }
@@ -696,8 +696,8 @@ public class JdbcValueConverters implements ValueConverterProvider {
                 r.deliver(new java.util.Date(epochMillis));
             }
             catch (IllegalArgumentException e) {
-                logger.warn("Unexpected JDBC DATE value for field {} with schema {}: class={}, value={}", fieldDefn.name(),
-                        fieldDefn.schema(), data.getClass(), data);
+                logger.warn("Unexpected JDBC DATE value for field {} with schema {}: class={}", fieldDefn.name(),
+                        fieldDefn.schema(), data.getClass());
             }
         });
     }
@@ -831,8 +831,8 @@ public class JdbcValueConverters implements ValueConverterProvider {
      * @see #convertBinaryToBytes(Column, Field, Object)
      */
     protected byte[] unexpectedBinary(Object value, Field fieldDefn) {
-        logger.warn("Unexpected JDBC BINARY value for field {} with schema {}: class={}, value={}", fieldDefn.name(),
-                fieldDefn.schema(), value.getClass(), value);
+        logger.warn("Unexpected JDBC BINARY value for field {} with schema {}: class={}", fieldDefn.name(),
+                fieldDefn.schema(), value.getClass());
         return null;
     }
 
