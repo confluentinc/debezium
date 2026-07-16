@@ -625,7 +625,6 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                         null /* slotInfo */),
                 new DefaultChangeEventSourceMetricsFactory<>(),
                 dispatcher, schema, snapshotterService,
-                null /* slotInfo */,
                 signalProcessor,
                 notificationService,
                 epoch, snapshotCoordination, connectorConfig.getTaskId());

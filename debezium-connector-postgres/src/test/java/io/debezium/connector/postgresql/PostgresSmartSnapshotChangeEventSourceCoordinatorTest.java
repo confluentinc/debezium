@@ -28,6 +28,7 @@ import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.config.ConfigurationNames;
+import io.debezium.connector.common.CdcSourceTaskContext;
 import io.debezium.pipeline.ErrorHandler;
 import io.debezium.pipeline.EventDispatcher;
 import io.debezium.pipeline.metrics.spi.ChangeEventSourceMetricsFactory;
@@ -46,7 +47,7 @@ import io.debezium.util.LoggingContext;
 
 /**
  * Unit tests for the per-task decision ladder in
- * {@link PostgresSmartSnapshotChangeEventSourceCoordinator#executeChangeEventSources}. A test subclass stubs
+ * {PostgresSmartSnapshotChangeEventSourceCoordinator#executeChangeEventSources}. A test subclass stubs
  * the inherited {@code doSnapshot} so the branches (already-done / rejoin / stale-epoch / fresh-join /
  * snapshot-failure) can be exercised without a database or a real snapshot.
  */
@@ -321,8 +322,25 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
                         NotificationService<PostgresPartition, PostgresOffsetContext> notificationService, int epoch,
                         SnapshotCoordinationFacade coordination, String taskId) {
             super(previousOffsets, errorHandler, PostgresConnector.class, connectorConfig, changeEventSourceFactory,
-                    metricsFactory, eventDispatcher, schema, snapshotterService, null, signalProcessor,
+                    metricsFactory, eventDispatcher, schema, snapshotterService, signalProcessor,
                     notificationService, epoch, coordination, taskId);
+        }
+
+        // widen visibility so the test (same package, not a subclass) can shorten the poll interval
+        @Override
+        public void setSnapshotInfoPollIntervalMs(long ms) {
+            super.setSnapshotInfoPollIntervalMs(ms);
+        }
+
+        // widen visibility so the test can drive the orchestration (the method is protected on the core base)
+        @Override
+        public void executeChangeEventSources(CdcSourceTaskContext taskContext,
+                                              SnapshotChangeEventSource<PostgresPartition, PostgresOffsetContext> snapshotSource,
+                                              Offsets<PostgresPartition, PostgresOffsetContext> previousOffsets,
+                                              AtomicReference<LoggingContext.PreviousContext> previousLogContext,
+                                              ChangeEventSourceContext context)
+                throws InterruptedException {
+            super.executeChangeEventSources(taskContext, snapshotSource, previousOffsets, previousLogContext, context);
         }
 
         @Override
