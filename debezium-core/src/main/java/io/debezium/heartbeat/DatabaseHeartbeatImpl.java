@@ -60,6 +60,7 @@ public class DatabaseHeartbeatImpl extends HeartbeatImpl {
                 errorHandler.onError(e);
             }
             LOGGER.error("Could not execute heartbeat action (Error: " + e.getSQLState() + ")", maybeRedactSensitiveData(e));
+            LOGGER.trace("Could not execute heartbeat action (Error: " + e.getSQLState() + ")", e);
         }
         LOGGER.debug("Executed heartbeat action query");
 
