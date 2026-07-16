@@ -332,7 +332,7 @@ public class PgProtoColumnValue extends AbstractColumnValue<PgProto.DatumMessage
             return Arrays.asList((Object[]) deserializedArray);
         }
         catch (SQLException e) {
-            LOGGER.warn("Unexpected exception trying to process PgArray column '{}'", value.getColumnName(), e);
+            LOGGER.warn("Unexpected exception trying to process PgArray column '{}'", value.getColumnName());
         }
         return null;
     }

@@ -57,7 +57,8 @@ public class DatabaseHeartbeatImpl extends HeartbeatImpl {
             if (errorHandler != null) {
                 errorHandler.onError(e);
             }
-            LOGGER.error("Could not execute heartbeat action (Error: " + e.getSQLState() + ")", e);
+            LOGGER.error("Could not execute heartbeat action (Error: " + e.getSQLState() + ")");
+            LOGGER.trace("Could not execute heartbeat action", e);
         }
         LOGGER.debug("Executed heartbeat action query");
 
