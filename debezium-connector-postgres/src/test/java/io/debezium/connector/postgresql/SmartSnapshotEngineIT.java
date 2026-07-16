@@ -193,7 +193,8 @@ public class SmartSnapshotEngineIT extends AbstractAsyncEngineConnectorTest {
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, PostgresConnectorConfig.SnapshotMode.INITIAL.getValue())
                 .with(PostgresConnectorConfig.SCHEMA_INCLUDE_LIST, "s1")
                 .with(CommonConnectorConfig.SMART_SNAPSHOT_ENABLED, true)
-                .with(CommonConnectorConfig.SMART_SNAPSHOT_COORDINATION_BOOTSTRAP_SERVERS, kafka.brokerList())
+                .with("producer.override.bootstrap.servers", kafka.brokerList())
+                .with("admin.override.bootstrap.servers", kafka.brokerList())
                 // short monitor poll so the downscale/restart happens in seconds instead of the 30s default
                 .with(CommonConnectorConfig.SMART_SNAPSHOT_MONITOR_POLL_INTERVAL_MS, 2000);
     }
@@ -201,7 +202,8 @@ public class SmartSnapshotEngineIT extends AbstractAsyncEngineConnectorTest {
     private void seedStaleTransactionStartedMarker() {
         Configuration cfg = Configuration.create()
                 .with(CommonConnectorConfig.TOPIC_PREFIX, TestHelper.TEST_SERVER)
-                .with(CommonConnectorConfig.SMART_SNAPSHOT_COORDINATION_BOOTSTRAP_SERVERS, kafka.brokerList())
+                .with("producer.override.bootstrap.servers", kafka.brokerList())
+                .with("admin.override.bootstrap.servers", kafka.brokerList())
                 .build();
         SnapshotCoordinationFacade facade = new SnapshotCoordinationFacade(cfg, new PostgresConnectorConfig(cfg));
         facade.start();

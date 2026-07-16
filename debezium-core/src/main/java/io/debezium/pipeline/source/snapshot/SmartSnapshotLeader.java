@@ -77,8 +77,8 @@ public class SmartSnapshotLeader implements Runnable {
         try {
             loggingContextSetup.run();
 
-            // background thread — safe to block on the topic read here
-            leaderSnapshotCoordination.start();
+            // topic is provisioned by the connector before any task starts; fail fast if it is somehow missing
+            leaderSnapshotCoordination.startRequiringTopic();
 
             // a completed task-0 that got restarted must NOT re-prepare, if other task can't finish the coordinator would start a new round
             if (leaderSnapshotCoordination.isTaskDone("0", leaderEpoch)) {

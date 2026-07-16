@@ -126,7 +126,7 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
                                              ChangeEventSourceContext context)
             throws InterruptedException {
 
-        snapshotCoordination.start();
+        snapshotCoordination.startRequiringTopic();
 
         P partition = previousOffsets.getTheOnlyPartition();
         previousLogContext.set(taskContext.configureLoggingContext("snapshot", partition));

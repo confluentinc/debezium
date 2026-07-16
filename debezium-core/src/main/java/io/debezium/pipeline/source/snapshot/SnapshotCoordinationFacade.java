@@ -57,14 +57,15 @@ public class SnapshotCoordinationFacade {
         this.server = server;
     }
 
-    public static boolean hasCoordinationBootstrap(Configuration config, CommonConnectorConfig connectorConfig) {
-        return KafkaLogSnapshotCoordination.hasBootstrap(config, connectorConfig);
+    public static boolean hasCoordinationBootstrap(Configuration config) {
+        return KafkaLogSnapshotCoordination.hasBootstrap(config);
     }
 
     /**
-     * Read-only facade that does NOT create the coordination topic.
+     * Facade that does NOT create the coordination topic. Used by tasks (which fail fast if the topic is missing)
+     * and by read-only callers. Only the connector creates the topic.
      */
-    public static SnapshotCoordinationFacade readOnly(Configuration config, CommonConnectorConfig connectorConfig) {
+    public static SnapshotCoordinationFacade nonCreating(Configuration config, CommonConnectorConfig connectorConfig) {
         return new SnapshotCoordinationFacade(
                 new KafkaLogSnapshotCoordination(config, connectorConfig, false),
                 connectorConfig.getLogicalName());
@@ -76,6 +77,10 @@ public class SnapshotCoordinationFacade {
 
     public void start() {
         coordination.start();
+    }
+
+    public void startRequiringTopic() {
+        coordination.startRequiringTopic();
     }
 
     public void stop() {
@@ -255,11 +260,11 @@ public class SnapshotCoordinationFacade {
             return null;
         }
 
-        if (!SnapshotCoordinationFacade.hasCoordinationBootstrap(config, connectorConfig)) {
+        if (!SnapshotCoordinationFacade.hasCoordinationBootstrap(config)) {
             return null;
         }
 
-        SnapshotCoordinationFacade facade = SnapshotCoordinationFacade.readOnly(config, connectorConfig);
+        SnapshotCoordinationFacade facade = SnapshotCoordinationFacade.nonCreating(config, connectorConfig);
 
         try {
             if (!facade.startForRead()) {

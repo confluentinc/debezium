@@ -57,8 +57,10 @@ public class KafkaLogSnapshotCoordinationTest {
 
         connectorConfig = mock(CommonConnectorConfig.class);
         when(connectorConfig.getLogicalName()).thenReturn(SERVER);
-        when(connectorConfig.getSmartSnapshotCoordinationBootstrapServers()).thenReturn(cluster.brokerList());
-        config = Configuration.create().build();
+        config = Configuration.create()
+                .with("producer.override.bootstrap.servers", cluster.brokerList())
+                .with("admin.override.bootstrap.servers", cluster.brokerList())
+                .build();
     }
 
     @After

@@ -919,15 +919,6 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
             .withDescription("When enabled, optimizes snapshot behavior by delaying DND metric emission, "
                     + "increasing producer batch size, and using multiple snapshot threads.");
 
-    public static final Field SMART_SNAPSHOT_COORDINATION_BOOTSTRAP_SERVERS = Field.create("smart.snapshot.internal.coordination.kafka.bootstrap.servers")
-            .withDisplayName("Smart snapshot coordination Kafka bootstrap servers")
-            .withType(Type.STRING)
-            .withGroup(Field.createGroupEntry(Field.Group.CONNECTOR_SNAPSHOT, 24))
-            .withWidth(Width.LONG)
-            .withImportance(Importance.MEDIUM)
-            .withDescription("A list of host/port pairs for the Kafka cluster hosting the snapshot "
-                    + "coordination topic. Required when smart.snapshot.enabled=true and tasks.max > 1.");
-
     public static final Field SMART_SNAPSHOT_MONITOR_POLL_INTERVAL_MS = Field.createInternal("smart.snapshot.internal.monitor.poll.interval.ms")
             .withDisplayName("Smart snapshot monitor poll interval (ms)")
             .withType(Type.LONG)
@@ -1523,7 +1514,6 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
                     SNAPSHOT_MAX_THREADS,
                     SMART_SNAPSHOT_ENABLED,
                     DND_DELAY_MS,
-                    SMART_SNAPSHOT_COORDINATION_BOOTSTRAP_SERVERS,
                     SMART_SNAPSHOT_MONITOR_POLL_INTERVAL_MS,
                     SMART_SNAPSHOT_LEADER_JOIN_WAIT_TIMEOUT_MS,
                     SMART_SNAPSHOT_LEADER_STARTED_TRANSACTION_TIMEOUT_MS,
@@ -1589,7 +1579,6 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
     private final int snapshotMaxThreads;
     private final boolean smartSnapshotEnabled;
     private final long dndDelayMs;
-    private final String smartSnapshotCoordinationBootstrapServers;
     private final long smartSnapshotMonitorPollIntervalMs;
     private final long smartSnapshotLeaderJoinWaitTimeoutMs;
     private final long smartSnapshotLeaderStartedTransactionTimeoutMs;
@@ -1647,7 +1636,6 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
         this.snapshotMaxThreads = config.getInteger(SNAPSHOT_MAX_THREADS);
         this.smartSnapshotEnabled = config.getBoolean(SMART_SNAPSHOT_ENABLED);
         this.dndDelayMs = config.getLong(DND_DELAY_MS);
-        this.smartSnapshotCoordinationBootstrapServers = config.getString(SMART_SNAPSHOT_COORDINATION_BOOTSTRAP_SERVERS);
         this.smartSnapshotMonitorPollIntervalMs = config.getLong(SMART_SNAPSHOT_MONITOR_POLL_INTERVAL_MS);
         this.smartSnapshotLeaderJoinWaitTimeoutMs = config.getLong(SMART_SNAPSHOT_LEADER_JOIN_WAIT_TIMEOUT_MS);
         this.smartSnapshotLeaderStartedTransactionTimeoutMs = config.getLong(SMART_SNAPSHOT_LEADER_STARTED_TRANSACTION_TIMEOUT_MS);
@@ -1815,10 +1803,6 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
 
     public long getDndDelayMs() {
         return dndDelayMs;
-    }
-
-    public String getSmartSnapshotCoordinationBootstrapServers() {
-        return smartSnapshotCoordinationBootstrapServers;
     }
 
     public long getSmartSnapshotMonitorPollIntervalMs() {

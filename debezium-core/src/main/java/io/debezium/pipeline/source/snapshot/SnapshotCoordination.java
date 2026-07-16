@@ -26,5 +26,13 @@ public interface SnapshotCoordination {
         return true;
     }
 
+    /**
+     * Start, requiring the coordination topic to already exist. Tasks never create the topic (only the connector
+     * does), so this fails fast if the topic is missing instead of blocking or silently creating it.
+     */
+    default void startRequiringTopic() {
+        start();
+    }
+
     void stop();
 }

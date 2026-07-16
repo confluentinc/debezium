@@ -581,8 +581,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
         this.taskId = taskId;
         LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Starting task", taskId, epoch);
 
-        // todo should the leader thread creates its own coordination this would solve the gate required in start to make it idempotent
-        this.snapshotCoordination = new SnapshotCoordinationFacade(config, connectorConfig);
+        this.snapshotCoordination = SnapshotCoordinationFacade.nonCreating(config, connectorConfig);
         try {
             // end the setup txn (guardrail query, etc.) so the snapshot's SET is the first
             jdbcConnection.commit();
@@ -604,7 +603,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
             // only used for logging
             final PostgresPartition leaderPartition = new PostgresPartition(connectorConfig.getConnectorName(), "", "0");
-            SnapshotCoordinationFacade leaderSnapshotCoordination = new SnapshotCoordinationFacade(config, connectorConfig);
+            SnapshotCoordinationFacade leaderSnapshotCoordination = SnapshotCoordinationFacade.nonCreating(config, connectorConfig);
             this.smartSnapshotLeaderThread = new Thread(
                     new SmartSnapshotLeader(
                             lifecycle, leaderSnapshotCoordination, this.errorHandler,
