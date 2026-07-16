@@ -19,6 +19,8 @@ import io.debezium.function.BlockingConsumer;
 import io.debezium.jdbc.JdbcConnection;
 import io.debezium.schema.SchemaNameAdjuster;
 
+import static io.debezium.util.Loggings.maybeRedactSensitiveData;
+
 /**
  *  Implementation of the heartbeat feature that allows for a DB query to be executed with every heartbeat.
  */
@@ -57,7 +59,8 @@ public class DatabaseHeartbeatImpl extends HeartbeatImpl {
             if (errorHandler != null) {
                 errorHandler.onError(e);
             }
-            LOGGER.error("Could not execute heartbeat action (Error: " + e.getSQLState() + ")", e);
+            LOGGER.error("Could not execute heartbeat action (Error: " + e.getSQLState() + ")", maybeRedactSensitiveData(e));
+            LOGGER.trace("Could not execute heartbeat action (Error: " + e.getSQLState() + ")", e);
         }
         LOGGER.debug("Executed heartbeat action query");
 
