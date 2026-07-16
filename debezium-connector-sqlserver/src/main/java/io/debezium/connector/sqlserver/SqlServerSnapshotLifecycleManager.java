@@ -35,7 +35,9 @@ public class SqlServerSnapshotLifecycleManager implements SmartSnapshotLifecycle
     private static final Logger LOGGER = LoggerFactory.getLogger(SqlServerSnapshotLifecycleManager.class);
 
     // CDC capture job may not have populated a max LSN yet (freshly-enabled CDC) -- bounded retry, then fail.
-    private static final Duration DEFAULT_MAX_LSN_WAIT = Duration.ofMinutes(5);
+    // Package-private: sibling shards size their snapshot-info wait against this so a slow leader (still in
+    // awaitMaxLsn) doesn't time them out. See SqlServerSmartSnapshotChangeEventSourceCoordinator.
+    static final Duration DEFAULT_MAX_LSN_WAIT = Duration.ofMinutes(5);
     private static final Duration DEFAULT_MAX_LSN_POLL_INTERVAL = Duration.ofSeconds(10);
 
     private final SqlServerConnectorConfig connectorConfig;

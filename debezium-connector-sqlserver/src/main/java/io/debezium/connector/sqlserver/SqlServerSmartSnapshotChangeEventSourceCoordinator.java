@@ -6,6 +6,7 @@
 package io.debezium.connector.sqlserver;
 
 import java.sql.SQLException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -48,8 +49,16 @@ import io.debezium.util.LoggingContext;
 public class SqlServerSmartSnapshotChangeEventSourceCoordinator extends SqlServerChangeEventSourceCoordinator {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SqlServerSmartSnapshotChangeEventSourceCoordinator.class);
-    private static final int POLL_RETRY_COUNT = 30;
     private static final long POLL_INTERVAL_MS = 10_000;
+    // The leader publishes snapshot-info only after discovery + awaitMaxLsn (freshly-enabled CDC can leave
+    // fn_cdc_get_max_lsn() NULL for minutes). Siblings must out-wait that whole window, otherwise they time out
+    // before the leader publishes, fail, and churn epochs. Budget = leader max-LSN wait + a margin for discovery
+    // and topic replication lag.
+    private static final long SNAPSHOT_INFO_WAIT_MS =
+            SqlServerSnapshotLifecycleManager.DEFAULT_MAX_LSN_WAIT.toMillis() + Duration.ofMinutes(2).toMillis();
+    // Schema barrier: task-0 must read the full schema and dispatch every CREATE TABLE before signaling. Give it
+    // the same generous budget so a large schema set doesn't time siblings out at the barrier.
+    private static final long SCHEMA_WRITTEN_WAIT_MS = SNAPSHOT_INFO_WAIT_MS;
 
     private final int epoch;
     private final SnapshotCoordinationFacade snapshotCoordination;
@@ -105,6 +114,9 @@ public class SqlServerSmartSnapshotChangeEventSourceCoordinator extends SqlServe
                 LOGGER.info("Smart snapshot: [{}/{}] epoch mismatch (offset={}, config={}), clearing offset",
                         partition.getDatabaseName(), taskId, offsetEpoch, epoch);
                 previousOffsets.resetOffset(partition);
+                // Also drop the local reference so the stale offset can't be adopted as ctx.offset in
+                // determineSnapshotOffset (mirrors PostgresSmartSnapshotChangeEventSourceCoordinator).
+                previousOffset = null;
             }
         }
 
@@ -137,7 +149,19 @@ public class SqlServerSmartSnapshotChangeEventSourceCoordinator extends SqlServe
         // Fresh join -- write the marker before attaching, so any later restart is caught as a rejoin above.
         snapshotCoordination.writeTaskJoin(taskId, epoch);
 
-        ShardAssignment shard = awaitSnapshotInfo(partition);
+        ShardAssignment shard = awaitSnapshotInfo(partition, context);
+        if (shard == null) {
+            // Timed out (leader never published within its own discovery + max-LSN-wait budget -> likely dead)
+            // or shutting down. If still running, signal restart_needed so the monitor forces a full restart;
+            // idleUntilRestart returns immediately on shutdown.
+            if (context.isRunning()) {
+                LOGGER.warn("Smart snapshot: [{}/{}] timed out waiting for snapshot-info @epoch {}, signaling restart_needed",
+                        partition.getDatabaseName(), taskId, epoch);
+                writeRestartNeeded();
+            }
+            idleUntilRestart(context);
+            return;
+        }
 
         if (isLDbStale(partition, shard)) {
             LOGGER.warn("Smart snapshot: [{}/{}] L_db={} (epoch {}) aged past CDC retention, signaling restart_needed",
@@ -149,8 +173,8 @@ public class SqlServerSmartSnapshotChangeEventSourceCoordinator extends SqlServe
 
         // Schema barrier: a non-0 shard must not snapshot data until task-0 has written the full schema
         // history. task-0 produces this signal (in its source) and does not wait.
-        if (!isSchemaHistoryWriter) {
-            awaitSchemaWritten(partition, context);
+        if (!isSchemaHistoryWriter && !awaitSchemaWritten(partition, context)) {
+            return; // shutting down before the barrier cleared -- no snapshot, no completion
         }
 
         List<TableId> schemaHistoryTables = List.of();
@@ -205,11 +229,16 @@ public class SqlServerSmartSnapshotChangeEventSourceCoordinator extends SqlServe
 
     /**
      * Polls the shared snapshot-info record for this task's epoch, then deterministically computes its shard.
-     * The leader publishes before any task snapshots, so this normally resolves on the first read; the retry
-     * loop only covers topic replication lag.
+     * The leader publishes before any task snapshots, so this normally resolves on the first read; the wait
+     * budget ({@link #SNAPSHOT_INFO_WAIT_MS}) out-waits the leader's discovery + max-LSN wait so a slow start
+     * does not time siblings out.
+     *
+     * @return the shard assignment, or {@code null} if the task is shutting down or the budget is exhausted
+     *         (leader never published -- caller forces a restart).
      */
-    private ShardAssignment awaitSnapshotInfo(SqlServerPartition partition) throws InterruptedException {
-        for (int attempt = 0; attempt < POLL_RETRY_COUNT; attempt++) {
+    private ShardAssignment awaitSnapshotInfo(SqlServerPartition partition, ChangeEventSourceContext context) throws InterruptedException {
+        long deadline = System.nanoTime() + Duration.ofMillis(SNAPSHOT_INFO_WAIT_MS).toNanos();
+        while (context.isRunning()) {
             Map<String, Object> snapshotInfo = snapshotCoordination.readSnapshotInfo();
             if (snapshotInfo != null && snapshotInfo.get(SnapshotCoordinationFacade.CONSISTENT_POINT) != null) {
                 Integer infoEpoch = SnapshotCoordinationFacade.epochOf(snapshotInfo);
@@ -223,29 +252,37 @@ public class SqlServerSmartSnapshotChangeEventSourceCoordinator extends SqlServe
                     return new ShardAssignment(lsn, myShard, allTables);
                 }
             }
-            LOGGER.info("Smart snapshot: [{}/{}] waiting for snapshot-info (attempt {}/{})",
-                    partition.getDatabaseName(), taskId, attempt + 1, POLL_RETRY_COUNT);
+            if (System.nanoTime() - deadline >= 0) {
+                return null;
+            }
+            LOGGER.info("Smart snapshot: [{}/{}] waiting for snapshot-info @epoch {}", partition.getDatabaseName(), taskId, epoch);
             Thread.sleep(POLL_INTERVAL_MS);
         }
-        throw new DebeziumException(
-                String.format("Smart snapshot: [%s/%s] timed out waiting for snapshot-info", partition.getDatabaseName(), taskId));
+        return null;
     }
 
-    /** Blocks until task-0 has written the full schema history for this epoch (the schema barrier). */
-    private void awaitSchemaWritten(SqlServerPartition partition, ChangeEventSourceContext context) throws InterruptedException {
-        for (int attempt = 0; attempt < POLL_RETRY_COUNT && context.isRunning(); attempt++) {
+    /**
+     * Blocks until task-0 has written the full schema history for this epoch (the schema barrier).
+     *
+     * @return {@code true} once the signal is observed; {@code false} if the task is shutting down. Throws only
+     *         on a genuine timeout while still running (task-0 never signaled within the budget).
+     */
+    private boolean awaitSchemaWritten(SqlServerPartition partition, ChangeEventSourceContext context) throws InterruptedException {
+        long deadline = System.nanoTime() + Duration.ofMillis(SCHEMA_WRITTEN_WAIT_MS).toNanos();
+        while (context.isRunning()) {
             if (snapshotCoordination.isTaskStartedTransaction("0", epoch)) {
-                return;
+                return true;
             }
-            LOGGER.info("Smart snapshot: [{}/{}] waiting for task-0 schema history @epoch {} (attempt {}/{})",
-                    partition.getDatabaseName(), taskId, epoch, attempt + 1, POLL_RETRY_COUNT);
+            if (System.nanoTime() - deadline >= 0) {
+                throw new DebeziumException(
+                        String.format("Smart snapshot: [%s/%s] timed out waiting for task-0 schema history @epoch %d",
+                                partition.getDatabaseName(), taskId, epoch));
+            }
+            LOGGER.info("Smart snapshot: [{}/{}] waiting for task-0 schema history @epoch {}", partition.getDatabaseName(), taskId, epoch);
             Thread.sleep(POLL_INTERVAL_MS);
         }
-        if (!snapshotCoordination.isTaskStartedTransaction("0", epoch)) {
-            throw new DebeziumException(
-                    String.format("Smart snapshot: [%s/%s] timed out waiting for task-0 schema history @epoch %d",
-                            partition.getDatabaseName(), taskId, epoch));
-        }
+        // Shutting down -- return quietly, no snapshot and no spurious timeout error.
+        return false;
     }
 
     /**
