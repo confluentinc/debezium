@@ -40,8 +40,8 @@ public class PostgresTaskContext extends CdcSourceTaskContext {
     private ElapsedTimeStrategy refreshXmin;
     private Long lastXmin;
 
-    protected PostgresTaskContext(PostgresConnectorConfig config, PostgresSchema schema, TopicNamingStrategy<TableId> topicNamingStrategy) {
-        super(config, config.getCustomMetricTags(), schema::tableIds);
+    protected PostgresTaskContext(PostgresConnectorConfig config, String taskId, PostgresSchema schema, TopicNamingStrategy<TableId> topicNamingStrategy) {
+        super(config, taskId, config.getCustomMetricTags(), schema::tableIds);
 
         this.config = config;
         if (config.xminFetchInterval().toMillis() > 0) {
@@ -50,6 +50,10 @@ public class PostgresTaskContext extends CdcSourceTaskContext {
         this.topicNamingStrategy = topicNamingStrategy;
         assert schema != null;
         this.schema = schema;
+    }
+
+    protected PostgresTaskContext(PostgresConnectorConfig config, PostgresSchema schema, TopicNamingStrategy<TableId> topicNamingStrategy) {
+        this(config, "0", schema, topicNamingStrategy);
     }
 
     protected TopicNamingStrategy<TableId> topicNamingStrategy() {
@@ -104,13 +108,17 @@ public class PostgresTaskContext extends CdcSourceTaskContext {
                             "will be created after a connector restart, resulting in missed data change events.",
                     PostgresConnectorConfig.DROP_SLOT_ON_STOP.name());
         }
+        return createReplicationConnection(jdbcConnection, dropSlotOnStop);
+    }
+
+    protected ReplicationConnection createReplicationConnection(PostgresConnection jdbcConnection, boolean dropSlotOnClose) throws SQLException {
         return ReplicationConnection.builder(config())
                 .withSlot(config().slotName())
                 .withPublication(config().publicationName())
                 .withTableFilter(config().getTableFilters())
                 .withPublicationAutocreateMode(config().publicationAutocreateMode())
                 .withPlugin(config().plugin())
-                .dropSlotOnClose(dropSlotOnStop)
+                .dropSlotOnClose(dropSlotOnClose)
                 .createFailOverSlot(config().createFailOverSlot())
                 .streamParams(config().streamParams())
                 .statusUpdateInterval(config().statusUpdateInterval())
