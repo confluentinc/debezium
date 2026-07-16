@@ -7,9 +7,38 @@ package io.debezium.pipeline.source.snapshot;
 
 import java.util.List;
 
+import io.debezium.pipeline.source.spi.ChangeEventSource;
 import io.debezium.relational.TableId;
 
 public interface SmartSnapshotLifecycleManager extends AutoCloseable {
+
+    ChangeEventSource.ChangeEventSourceContext RUNNING_CONTEXT = new ChangeEventSource.ChangeEventSourceContext() {
+        @Override
+        public boolean isPaused() {
+            return false;
+        }
+
+        @Override
+        public boolean isRunning() {
+            return true;
+        }
+
+        @Override
+        public void resumeStreaming() {
+        }
+
+        @Override
+        public void waitSnapshotCompletion() {
+        }
+
+        @Override
+        public void streamingPaused() {
+        }
+
+        @Override
+        public void waitStreamingPaused() {
+        }
+    };
 
     class SnapshotSetup {
         private final String snapshotName;
