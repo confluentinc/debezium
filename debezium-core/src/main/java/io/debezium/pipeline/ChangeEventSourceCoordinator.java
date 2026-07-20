@@ -307,13 +307,22 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
         }
         eventDispatcher.setEventListener(snapshotMetrics);
 
-        SnapshotResult<O> snapshotResult = snapshotSource.execute(context, partition, previousOffset, snapshottingTask);
-        LOGGER.info("Snapshot ended with {}", snapshotResult);
+        // only mark DND for the full snapshot execution (initial/blocking): it can't resume from a watermark, so a
+        // roll or upgrade would restart it from scratch. Catch-up streaming and incremental snapshots are excluded
+        // because they resume where they left off, much less expensive
+        taskStateMetrics.setConnectTaskDnd(1);
+        try {
+            SnapshotResult<O> snapshotResult = snapshotSource.execute(context, partition, previousOffset, snapshottingTask);
+            LOGGER.info("Snapshot ended with {}", snapshotResult);
 
-        if (snapshotResult.getStatus() == SnapshotResultStatus.COMPLETED || schema.tableInformationComplete()) {
-            schema.assureNonEmptySchema(connectorConfig.failOnNoTables());
+            if (snapshotResult.getStatus() == SnapshotResultStatus.COMPLETED || schema.tableInformationComplete()) {
+                schema.assureNonEmptySchema(connectorConfig.failOnNoTables());
+            }
+            return snapshotResult;
         }
-        return snapshotResult;
+        finally {
+            taskStateMetrics.setConnectTaskDnd(0);
+        }
     }
 
     protected CatchUpStreamingResult executeCatchUpStreaming(ChangeEventSourceContext context,
