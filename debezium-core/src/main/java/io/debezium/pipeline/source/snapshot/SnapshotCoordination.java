@@ -16,23 +16,34 @@ public interface SnapshotCoordination {
 
     Map<String, Object> read(Map<String, String> key);
 
-    void start();
-
     /**
-     * Read-only start: return false (without creating anything or blocking) if there's nothing to read.
+     * Start reaching the coordination topic. {@code policy} decides what happens when the topic is missing:
+     * assume it exists, skip quietly, or fail fast (see {@link MissingTopicPolicy}).
+     *
+     * @return true if started; false only when the topic is missing and the policy is {@link MissingTopicPolicy#SKIP}
      */
-    default boolean startForRead() {
-        start();
-        return true;
-    }
-
-    /**
-     * Start, requiring the coordination topic to already exist. Tasks never create the topic (only the connector
-     * does), so this fails fast if the topic is missing instead of blocking or silently creating it.
-     */
-    default void startRequiringTopic() {
-        start();
-    }
+    boolean start(SnapshotCoordination.MissingTopicPolicy policy);
 
     void stop();
+
+    /**
+     * What {start(MissingTopicPolicy)} should do when the coordination topic is missing.
+     */
+    enum MissingTopicPolicy {
+
+        /**
+         * Assume the topic exists and just start. Used by the connector, which creates the topic itself.
+         */
+        ASSUME_EXISTS,
+
+        /**
+         * Return false without starting. Used by read-only lookups that skip quietly when there is nothing to read.
+         */
+        SKIP,
+
+        /**
+         * Throw. Used by tasks, which never create the topic and must fail fast if the connector has not provisioned it.
+         */
+        FAIL
+    }
 }

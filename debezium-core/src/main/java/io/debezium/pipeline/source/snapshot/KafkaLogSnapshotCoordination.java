@@ -48,6 +48,7 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
     private static final int PARTITION_COUNT = 1;
     private static final int READ_WRITE_TIMEOUT_MS = 30_000;
 
+    private static final String SNAPSHOT_COORDINATION_PREFIX = "internal-snapshot-coordination";
     private static final String PRODUCER_OVERRIDE_PREFIX = "producer.override.";
     private static final String ADMIN_OVERRIDE_PREFIX = "admin.override.";
 
@@ -68,15 +69,17 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
     private final Map<Map<String, String>, Map<String, Object>> cache = new ConcurrentHashMap<>();
 
     private final String topicName;
+    private final String clientIdSuffix;
+    private final boolean createTopic;
 
     public KafkaLogSnapshotCoordination(Configuration configuration, CommonConnectorConfig commonConnectorConfig) {
         this(configuration, commonConnectorConfig, true);
     }
 
     public KafkaLogSnapshotCoordination(Configuration configuration, CommonConnectorConfig commonConnectorConfig, boolean createTopic) {
-        // todo should this have the connector id instead? if yes how to fetch that?
-        this.topicName = commonConnectorConfig.getLogicalName() + ".snapshot-coordination";
-        String clientIdSuffix = commonConnectorConfig.getLogicalName() + "-coordination-connector";
+        this.topicName = commonConnectorConfig.getLogicalName() + "." + SNAPSHOT_COORDINATION_PREFIX;
+        this.clientIdSuffix = commonConnectorConfig.getLogicalName() + "-coordination-connector";
+        this.createTopic = createTopic;
         this.clientConfig = new HashMap<>(clientConfigFromOverrides(configuration, PRODUCER_OVERRIDE_PREFIX));
         // Admin client uses admin.override.* to match how Kafka Connect creates the connector's output topics.
         // TODO confirm admin.override.* (especially bootstrap.servers) is populated in Confluent Cloud for the
@@ -88,21 +91,15 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
         producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
         producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
         producerProps.put(ProducerConfig.ACKS_CONFIG, "all");
-        producerProps.put(ProducerConfig.CLIENT_ID_CONFIG, "snapshot-coordination-producer-" + clientIdSuffix);
+        producerProps.put(ProducerConfig.CLIENT_ID_CONFIG, SNAPSHOT_COORDINATION_PREFIX + "-producer-" + clientIdSuffix);
 
         Map<String, Object> consumerProps = new HashMap<>(clientConfig);
         consumerProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
-        consumerProps.put(ConsumerConfig.CLIENT_ID_CONFIG, "snapshot-coordination-consumer-" + clientIdSuffix);
+        consumerProps.put(ConsumerConfig.CLIENT_ID_CONFIG, SNAPSHOT_COORDINATION_PREFIX + "-consumer-" + clientIdSuffix);
 
         Map<String, Object> adminProps = new HashMap<>(adminClientConfig);
-        adminProps.put(AdminClientConfig.CLIENT_ID_CONFIG, "snapshot-coordination-admin-" + clientIdSuffix);
-
-        // Create the topic (connector only) before allocating the long-lived TopicAdmin, so a failure here
-        // can't leak that admin client.
-        if (createTopic) {
-            createTopicIfMissing(topicName, clientIdSuffix);
-        }
+        adminProps.put(AdminClientConfig.CLIENT_ID_CONFIG, SNAPSHOT_COORDINATION_PREFIX + "-admin-" + clientIdSuffix);
 
         this.topicAdmin = new TopicAdmin(adminProps);
         this.log = new KafkaBasedLog<>(
@@ -119,32 +116,26 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
     }
 
     @Override
-    public boolean startForRead() {
-        // if the caller only wants to reach the coordination topic
-        if (!topicExists()) {
-            return false;
-        }
-        start();
-        return true;
-    }
-
-    @Override
-    public void start() {
+    public boolean start(MissingTopicPolicy policy) {
         if (started) {
-            return;
+            return true;
+        }
+        if (createTopic) {
+            // connector only: provision the topic before tailing it
+            createTopicIfMissing(topicName);
+        }
+        else if (policy != MissingTopicPolicy.ASSUME_EXISTS && !topicExists()) {
+            if (policy == MissingTopicPolicy.FAIL) {
+                throw new DebeziumException("Smart snapshot: [role=coordination] Coordination topic '" + topicName
+                        + "' does not exist. Tasks do not create it; the connector must provision it before tasks start.");
+            }
+            // SKIP: nothing to read, do not start
+            return false;
         }
         // reads beginning to end, then starts background tailing thread
         log.start();
         started = true;
-    }
-
-    @Override
-    public void startRequiringTopic() {
-        if (!topicExists()) {
-            throw new DebeziumException("Smart snapshot: [role=coordination] Coordination topic '" + topicName
-                    + "' does not exist. Tasks do not create it; the connector must provision it before tasks start.");
-        }
-        start();
+        return true;
     }
 
     @Override
@@ -176,7 +167,11 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
     @Override
     public Map<String, Object> read(Map<String, String> key) {
         try {
+            // catches the consumer up from its current position to the
+            // current end offset (just the backlog since it last read),
+            // then completes the future, it doesn't re-read from the beginning each call.
             log.readToEnd().get(READ_WRITE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            return cache.get(key);
         }
         catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -186,13 +181,15 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
             LOGGER.error("Smart snapshot: [role=coordination] Failed to read coordination topic: ", e);
             throw new DebeziumException("Error reading coordination topic", e);
         }
-        return cache.get(key);
     }
 
     @SuppressWarnings("unchecked")
     private void onRecordConsumed(Throwable error, ConsumerRecord<String, String> record) {
-        if (error != null || record == null) {
+        if (error != null) {
             LOGGER.error("Smart snapshot: [role=coordination] Error consuming from coordination topic '{}'", topicName, error);
+            return;
+        }
+        if (record == null) {
             return;
         }
         Map<String, String> key;
@@ -219,7 +216,7 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
 
     private boolean topicExists() {
         Map<String, Object> adminConfig = new HashMap<>(adminClientConfig);
-        adminConfig.put(AdminClientConfig.CLIENT_ID_CONFIG, "snapshot-coordination-exists-check");
+        adminConfig.put(AdminClientConfig.CLIENT_ID_CONFIG, SNAPSHOT_COORDINATION_PREFIX + "-exists-check-" + clientIdSuffix);
         adminConfig.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, 5000);
         adminConfig.put(AdminClientConfig.DEFAULT_API_TIMEOUT_MS_CONFIG, 5000);
         try (AdminClient admin = AdminClient.create(adminConfig)) {
@@ -245,9 +242,9 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
         return fromOverride != null && !fromOverride.isEmpty();
     }
 
-    private void createTopicIfMissing(String topicName, String clientIdSuffix) {
+    private void createTopicIfMissing(String topicName) {
         Map<String, Object> adminConfig = new HashMap<>(adminClientConfig);
-        adminConfig.put(AdminClientConfig.CLIENT_ID_CONFIG, clientIdSuffix + "-admin");
+        adminConfig.put(AdminClientConfig.CLIENT_ID_CONFIG, SNAPSHOT_COORDINATION_PREFIX + "-create-" + clientIdSuffix);
 
         try (AdminClient admin = AdminClient.create(adminConfig)) {
             // Omit the replication factor so the broker default applies, rather than forcing an unsafe RF=1.
