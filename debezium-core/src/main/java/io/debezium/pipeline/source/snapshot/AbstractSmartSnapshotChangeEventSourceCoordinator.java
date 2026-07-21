@@ -126,7 +126,7 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
                                              ChangeEventSourceContext context)
             throws InterruptedException {
 
-        snapshotCoordination.startRequiringTopic();
+        snapshotCoordination.start(SnapshotCoordination.MissingTopicPolicy.FAIL);
 
         P partition = previousOffsets.getTheOnlyPartition();
         previousLogContext.set(taskContext.configureLoggingContext("snapshot", partition));
@@ -220,7 +220,7 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
                         else {
                             snapshotName = (String) snapshotInfo.get(SnapshotCoordinationFacade.SNAPSHOT_NAME);
                             consistentPoint = String.valueOf(snapshotInfo.get(SnapshotCoordinationFacade.CONSISTENT_POINT));
-                            assignmentForTask = SnapshotCoordinationFacade.assignmentForTask(
+                            assignmentForTask = SmartSnapshotTableAssignments.assignmentForTask(
                                     snapshotInfo.get(SnapshotCoordinationFacade.ASSIGNMENTS), Integer.parseInt(taskId));
                             ready = true;
                             break;
