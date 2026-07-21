@@ -81,7 +81,7 @@ public class SmartSnapshotLeaderTest {
 
         prep(2, true).run();
 
-        verify(coordination).start();
+        verify(coordination).startRequiringTopic();
         verify(lifecycle, never()).prepareSnapshot(anyBoolean());
         verify(coordination, never()).writeSnapshotInfo(any(), any(), eq(EPOCH), any(), eq(2));
     }
@@ -92,7 +92,7 @@ public class SmartSnapshotLeaderTest {
 
         prep(2, true).run();
 
-        verify(coordination).start();
+        verify(coordination).startRequiringTopic();
         verify(lifecycle, never()).prepareSnapshot(anyBoolean());
         verify(coordination, never()).writeSnapshotInfo(any(), any(), eq(EPOCH), any(), eq(2));
     }
