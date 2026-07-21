@@ -29,6 +29,8 @@ import io.debezium.junit.logging.LogInterceptor;
 import io.debezium.kafka.KafkaCluster;
 import io.debezium.pipeline.source.snapshot.SmartSnapshotConnectorCoordinator;
 import io.debezium.pipeline.source.snapshot.SmartSnapshotLeader;
+import io.debezium.pipeline.source.snapshot.SnapshotCoordination;
+import io.debezium.pipeline.source.snapshot.SnapshotCoordination.MissingTopicPolicy;
 import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.util.Testing;
 
@@ -206,7 +208,7 @@ public class SmartSnapshotEngineIT extends AbstractAsyncEngineConnectorTest {
                 .with("admin.override.bootstrap.servers", kafka.brokerList())
                 .build();
         SnapshotCoordinationFacade facade = new SnapshotCoordinationFacade(cfg, new PostgresConnectorConfig(cfg));
-        facade.start();
+        facade.start(SnapshotCoordination.MissingTopicPolicy.ASSUME_EXISTS);
         facade.writeTaskStartedTransaction("0", 1);
         facade.stop();
     }

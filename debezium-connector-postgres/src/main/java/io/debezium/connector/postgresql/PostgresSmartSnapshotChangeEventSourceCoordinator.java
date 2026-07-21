@@ -17,6 +17,7 @@ import io.debezium.pipeline.metrics.spi.ChangeEventSourceMetricsFactory;
 import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.signal.SignalProcessor;
 import io.debezium.pipeline.source.snapshot.AbstractSmartSnapshotChangeEventSourceCoordinator;
+import io.debezium.pipeline.source.snapshot.SmartSnapshotTableAssignments;
 import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.pipeline.source.spi.SnapshotChangeEventSource;
 import io.debezium.pipeline.spi.Offsets;
@@ -67,7 +68,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
                                         Object assignmentForTask,
                                         SnapshotCoordinationFacade snapshotCoordination) {
         // Postgres identifiers are schema.table, so parse the assignment with useCatalogScoped=false.
-        List<TableId> tableSubset = SnapshotCoordinationFacade.parseTables(assignmentForTask, false);
+        List<TableId> tableSubset = SmartSnapshotTableAssignments.parseTables(assignmentForTask, false);
         PostgresSmartSnapshotChangeEventSource smartSource = (PostgresSmartSnapshotChangeEventSource) snapshotSource;
         // this was captured by the background thread on the leader task
         smartSource.setSnapshotCoordination(epoch, snapshotName, Lsn.valueOf(consistentPoint), tableSubset, snapshotCoordination);

@@ -128,7 +128,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
 
         assertThat(coordinator.isComplete()).isTrue();
         // returns before touching the coordination topic
-        verify(facade, never()).start();
+        verify(facade, never()).start(any());
     }
 
     @Test
@@ -140,7 +140,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
         coordinator.start();
 
         assertThat(coordinator.isComplete()).isTrue();
-        verify(facade).start();
+        verify(facade).start(SnapshotCoordination.MissingTopicPolicy.ASSUME_EXISTS);
     }
 
     @Test
