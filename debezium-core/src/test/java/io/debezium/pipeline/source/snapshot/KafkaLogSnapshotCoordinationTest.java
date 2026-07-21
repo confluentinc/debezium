@@ -83,7 +83,7 @@ public class KafkaLogSnapshotCoordinationTest {
     private KafkaLogSnapshotCoordination newCoordination() {
         KafkaLogSnapshotCoordination coordination = new KafkaLogSnapshotCoordination(config, connectorConfig);
         started.add(coordination);
-        coordination.start();
+        coordination.start(SnapshotCoordination.MissingTopicPolicy.ASSUME_EXISTS);
         return coordination;
     }
 
@@ -152,22 +152,22 @@ public class KafkaLogSnapshotCoordinationTest {
     public void startIsIdempotent() throws Exception {
         Map<String, String> key = Collect.hashMapOf("server", SERVER, "type", "epoch");
         KafkaLogSnapshotCoordination coordination = newCoordination();
-        coordination.start(); // second start must be a no-op, not re-initialise or throw
+        coordination.start(SnapshotCoordination.MissingTopicPolicy.ASSUME_EXISTS); // second start must be a no-op, not re-initialise or throw
 
         coordination.write(key, Collect.hashMapOf("epoch", 5));
         assertThat(coordination.read(key)).containsEntry("epoch", 5);
     }
 
     @Test
-    public void startRequiringTopicThrowsWhenTopicMissing() {
+    public void startWithFailPolicyThrowsWhenTopicMissing() {
         // A task never creates the topic; if the connector has not provisioned it yet, the task must fail fast
         // rather than block or silently auto-create it.
         KafkaLogSnapshotCoordination task = newNonCreatingCoordination();
-        assertThatThrownBy(task::startRequiringTopic).isInstanceOf(DebeziumException.class);
+        assertThatThrownBy(() -> task.start(SnapshotCoordination.MissingTopicPolicy.FAIL)).isInstanceOf(DebeziumException.class);
     }
 
     @Test
-    public void startRequiringTopicSucceedsWhenTopicExists() throws Exception {
+    public void startWithFailPolicySucceedsWhenTopicExists() throws Exception {
         Map<String, String> key = Collect.hashMapOf("server", SERVER, "type", "epoch");
         // the connector-style instance creates the topic and publishes a value
         KafkaLogSnapshotCoordination creator = newCoordination();
@@ -175,14 +175,27 @@ public class KafkaLogSnapshotCoordinationTest {
 
         // a task-style (non-creating) instance now starts against the existing topic and sees the value
         KafkaLogSnapshotCoordination task = newNonCreatingCoordination();
-        assertThatCode(task::startRequiringTopic).doesNotThrowAnyException();
+        assertThatCode(() -> task.start(SnapshotCoordination.MissingTopicPolicy.FAIL)).doesNotThrowAnyException();
         assertThat(task.read(key)).containsEntry("epoch", 3);
     }
 
     @Test
-    public void startForReadReturnsFalseWhenTopicMissing() {
+    public void startWithSkipPolicyReturnsFalseWhenTopicMissing() {
         // read-only lookup (e.g. post-downscale offset fetch) must skip quietly when there is nothing to read
         KafkaLogSnapshotCoordination coordination = newNonCreatingCoordination();
-        assertThat(coordination.startForRead()).isFalse();
+        assertThat(coordination.start(SnapshotCoordination.MissingTopicPolicy.SKIP)).isFalse();
+    }
+
+    @Test
+    public void startWithSkipPolicyStartsAndReadsWhenTopicExists() throws Exception {
+        Map<String, String> key = Collect.hashMapOf("server", SERVER, "type", "epoch");
+        // the connector-style instance creates the topic and publishes a value
+        KafkaLogSnapshotCoordination creator = newCoordination();
+        creator.write(key, Collect.hashMapOf("epoch", 4));
+
+        // a read-only (non-creating) instance starts against the existing topic: SKIP returns true and it can read
+        KafkaLogSnapshotCoordination reader = newNonCreatingCoordination();
+        assertThat(reader.start(SnapshotCoordination.MissingTopicPolicy.SKIP)).isTrue();
+        assertThat(reader.read(key)).containsEntry("epoch", 4);
     }
 }
