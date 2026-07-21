@@ -6,13 +6,10 @@
 
 package io.debezium.pipeline.source.snapshot;
 
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
@@ -23,7 +20,7 @@ import io.debezium.util.Collect;
 
 public class SnapshotCoordinationFacade {
 
-    // A record on the coordination topic can carry a "type" so two records for the same server
+    // A record on the coordination topic can carry a "type" so two records for the same server id
     // don't overwrite each other.
     private static final String TYPE = "type";
     private static final String TYPE_SNAPSHOT_INFO = "snapshot_info";
@@ -71,16 +68,8 @@ public class SnapshotCoordinationFacade {
                 connectorConfig.getLogicalName());
     }
 
-    public boolean startForRead() {
-        return coordination.startForRead();
-    }
-
-    public void start() {
-        coordination.start();
-    }
-
-    public void startRequiringTopic() {
-        coordination.startRequiringTopic();
+    public boolean start(SnapshotCoordination.MissingTopicPolicy policy) {
+        return coordination.start(policy);
     }
 
     public void stop() {
@@ -122,67 +111,8 @@ public class SnapshotCoordinationFacade {
         value.put(EPOCH, epoch);
         value.put(NUM_TASKS, numTasks);
         // Publish the explicit per-task slice rather than a flat table list.
-        value.put(ASSIGNMENTS, buildAssignments(tables, numTasks));
+        value.put(ASSIGNMENTS, SmartSnapshotTableAssignments.buildAssignments(tables, numTasks));
         write(snapshotInfoKey(), value);
-    }
-
-    /**
-     * Build the explicit taskId -> slice map. Each slice is a JSON array of quoted FQNs. The round-robin split
-     * runs here (on the leader) so it is computed once and published, not re-derived on every task.
-     */
-    public static Map<String, Object> buildAssignments(List<TableId> tables, int numTasks) {
-        Map<String, Object> assignments = new HashMap<>();
-        for (int i = 0; i < numTasks; i++) {
-            assignments.put(String.valueOf(i), joinTableIds(tablesForTask(tables, i, numTasks)));
-        }
-        return assignments;
-    }
-
-    /**
-     * Pull one task's slice out of the published ASSIGNMENTS map. Returns the raw JSON array of quoted FQNs
-     * (empty if the task has no entry) — feed it to {@link #parseTables(Object, boolean)} to get TableIds.
-     */
-    @SuppressWarnings("unchecked")
-    public static Object assignmentForTask(Object assignmentsValue, int taskId) {
-        if (!(assignmentsValue instanceof Map)) {
-            return List.of();
-        }
-        Object taskTableAssignment = ((Map<String, Object>) assignmentsValue).get(String.valueOf(taskId));
-        return taskTableAssignment != null ? taskTableAssignment : List.of();
-    }
-
-    public static Object joinTableIds(List<TableId> tables) {
-        // JSON array of quoted FQNs — survives names with commas/dots (comma-join + split(",") is unsafe)
-        return tables.stream().map(TableId::toDoubleQuotedString).collect(Collectors.toList());
-    }
-
-    /**
-     * Decode a task's table assignment (a JSON array of quoted FQNs from the snapshot-info record) back to
-     * TableIds. {@code useCatalogScoped} controls how a 2-part identifier is interpreted: pass {@code false}
-     * for schema.table (Postgres style) and {@code true} for catalog.table (MySQL style).
-     */
-    @SuppressWarnings("unchecked")
-    public static List<TableId> parseTables(Object tablesValue, boolean useCatalogScoped) {
-        if (!(tablesValue instanceof List)) {
-            return List.of();
-        }
-        return ((List<String>) tablesValue).stream()
-                .filter(s -> s != null && !s.isBlank())
-                .map(s -> TableId.parse(s, useCatalogScoped))
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Deterministic per-task subset: stable sort by name, round-robin by task id.
-     */
-    public static List<TableId> tablesForTask(List<TableId> allTables, int taskId, int numTasks) {
-        List<TableId> sorted = new ArrayList<>(allTables);
-        sorted.sort(Comparator.comparing(TableId::toString));
-        List<TableId> mine = new ArrayList<>();
-        for (int i = taskId; i < sorted.size(); i += numTasks) { // i = taskId, taskId+numTasks, ...
-            mine.add(sorted.get(i));
-        }
-        return mine;
     }
 
     public void writeCompletion(String consistentPoint, int epoch) {
@@ -267,7 +197,7 @@ public class SnapshotCoordinationFacade {
         SnapshotCoordinationFacade facade = SnapshotCoordinationFacade.nonCreating(config, connectorConfig);
 
         try {
-            if (!facade.startForRead()) {
+            if (!facade.start(SnapshotCoordination.MissingTopicPolicy.SKIP)) {
                 // topic doesn't exist / broker unreachable skip fast
                 return null;
             }
