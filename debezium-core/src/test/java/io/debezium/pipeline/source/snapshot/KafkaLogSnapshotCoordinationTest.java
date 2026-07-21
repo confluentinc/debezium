@@ -7,6 +7,7 @@ package io.debezium.pipeline.source.snapshot;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -21,6 +22,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestRule;
 
+import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.junit.SkipTestRule;
@@ -30,8 +32,9 @@ import io.debezium.util.Testing;
 
 /**
  * Tests for {@link KafkaLogSnapshotCoordination} against an embedded Kafka broker (same style as
- * {@code KafkaClusterTest}). Covers the compacted read/write round trip, latest-value-per-key, and the
- * idempotent topic creation / start that the multi-task snapshot relies on.
+ * {@code KafkaClusterTest}). Covers the compacted read/write round trip, latest-value-per-key, the
+ * idempotent topic creation / start that the multi-task snapshot relies on, and the fail-fast /
+ * read-only start paths for non-creating (task) instances.
  */
 public class KafkaLogSnapshotCoordinationTest {
 
@@ -81,6 +84,13 @@ public class KafkaLogSnapshotCoordinationTest {
         KafkaLogSnapshotCoordination coordination = new KafkaLogSnapshotCoordination(config, connectorConfig);
         started.add(coordination);
         coordination.start();
+        return coordination;
+    }
+
+    // Non-creating instance (createTopic=false), like a task: it must never create the coordination topic itself.
+    private KafkaLogSnapshotCoordination newNonCreatingCoordination() {
+        KafkaLogSnapshotCoordination coordination = new KafkaLogSnapshotCoordination(config, connectorConfig, false);
+        started.add(coordination);
         return coordination;
     }
 
@@ -146,5 +156,33 @@ public class KafkaLogSnapshotCoordinationTest {
 
         coordination.write(key, Collect.hashMapOf("epoch", 5));
         assertThat(coordination.read(key)).containsEntry("epoch", 5);
+    }
+
+    @Test
+    public void startRequiringTopicThrowsWhenTopicMissing() {
+        // A task never creates the topic; if the connector has not provisioned it yet, the task must fail fast
+        // rather than block or silently auto-create it.
+        KafkaLogSnapshotCoordination task = newNonCreatingCoordination();
+        assertThatThrownBy(task::startRequiringTopic).isInstanceOf(DebeziumException.class);
+    }
+
+    @Test
+    public void startRequiringTopicSucceedsWhenTopicExists() throws Exception {
+        Map<String, String> key = Collect.hashMapOf("server", SERVER, "type", "epoch");
+        // the connector-style instance creates the topic and publishes a value
+        KafkaLogSnapshotCoordination creator = newCoordination();
+        creator.write(key, Collect.hashMapOf("epoch", 3));
+
+        // a task-style (non-creating) instance now starts against the existing topic and sees the value
+        KafkaLogSnapshotCoordination task = newNonCreatingCoordination();
+        assertThatCode(task::startRequiringTopic).doesNotThrowAnyException();
+        assertThat(task.read(key)).containsEntry("epoch", 3);
+    }
+
+    @Test
+    public void startForReadReturnsFalseWhenTopicMissing() {
+        // read-only lookup (e.g. post-downscale offset fetch) must skip quietly when there is nothing to read
+        KafkaLogSnapshotCoordination coordination = newNonCreatingCoordination();
+        assertThat(coordination.startForRead()).isFalse();
     }
 }
