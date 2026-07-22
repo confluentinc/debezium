@@ -29,6 +29,7 @@ import io.debezium.jdbc.MainConnectionProvidingConnectionFactory;
 import io.debezium.junit.SkipTestRule;
 import io.debezium.pipeline.EventDispatcher;
 import io.debezium.pipeline.notification.NotificationService;
+import io.debezium.pipeline.source.snapshot.SmartSnapshotHeldConnectionRegistry;
 import io.debezium.pipeline.source.snapshot.SmartSnapshotLifecycleManager.SnapshotSetup;
 import io.debezium.processors.PostProcessorRegistryServiceProvider;
 import io.debezium.relational.TableId;
@@ -171,7 +172,10 @@ public class PostgresSmartSnapshotLifecycleManagerIT {
     public void releaseSnapshotAbortsAnInFlightQueryOnAHeldConnection() throws Exception {
         PostgresConnection held = connectionFactory.newConnection();
         held.connection().setAutoCommit(false);
-        setField(manager, "snapshotHolderConnection", held);
+        // Register the held connection with the manager's connection registry so releaseSnapshot() closes (and
+        // aborts) it, the same way the leader registers the snapshot-holder connection during prepareSnapshot().
+        SmartSnapshotHeldConnectionRegistry heldConnections = (SmartSnapshotHeldConnectionRegistry) getField(manager, "heldConnections");
+        heldConnections.registerConnection("snapshot holder", held);
 
         CountDownLatch queryStarted = new CountDownLatch(1);
         AtomicReference<Throwable> queryOutcome = new AtomicReference<>();
@@ -308,10 +312,10 @@ public class PostgresSmartSnapshotLifecycleManagerIT {
         }
     }
 
-    private static void setField(Object target, String name, Object value) throws Exception {
+    private static Object getField(Object target, String name) throws Exception {
         Field field = PostgresSmartSnapshotLifecycleManager.class.getDeclaredField(name);
         field.setAccessible(true);
-        field.set(target, value);
+        return field.get(target);
     }
 
     private PostgresSmartSnapshotLifecycleManager buildManager(io.debezium.config.Configuration config) throws Exception {

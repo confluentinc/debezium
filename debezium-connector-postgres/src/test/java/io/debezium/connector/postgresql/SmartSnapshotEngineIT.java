@@ -113,7 +113,7 @@ public class SmartSnapshotEngineIT extends AbstractAsyncEngineConnectorTest {
         SourceRecords records = consumeRecordsByTopicUntil(untilMarker);
 
         // the epoch-bump restart actually happened
-        assertThat(logInterceptor.containsMessage("Epoch restart. old=1 new=2")).isTrue();
+        assertThat(logInterceptor.containsMessage("Restart needed, epoch bumped from 1 to 2")).isTrue();
 
         // and the connector recovered: after dedup-by-key, s1.a has the base rows plus the post-restart row
         // (record-level duplicates from the re-snapshot are expected and collapse under key dedup)
@@ -154,7 +154,7 @@ public class SmartSnapshotEngineIT extends AbstractAsyncEngineConnectorTest {
                 + "WHERE datname = current_database() AND state = 'idle in transaction' AND pid <> pg_backend_pid();");
 
         // keepAlive throws -> leader releases + signals restart -> monitor bumps the epoch
-        awaitLog(monitorLog, "Epoch restart");
+        awaitLog(monitorLog, "Restart needed, epoch bumped");
 
         // Prove the retried round captured BOTH tables. A snapshot row (e.g. s1.b id=2) is not a safe gate: the
         // two tables are snapshotted by different tasks in parallel, so their rows interleave arbitrarily and one
