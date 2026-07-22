@@ -7,9 +7,18 @@
 package io.debezium.connector.postgresql;
 
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.kafka.common.config.Config;
@@ -19,6 +28,7 @@ import org.junit.Test;
 
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
+import io.debezium.pipeline.source.snapshot.SmartSnapshotConnectorCoordinator;
 
 public class PostgresConnectorTest {
     PostgresConnector connector;
@@ -66,6 +76,74 @@ public class PostgresConnectorTest {
     @Test
     public void smartSnapshotDoesNotApplyWhenDisabled() {
         assertThat(PostgresConnector.smartSnapshotApplies(smartConfig(false, "initial")), is(false));
+    }
+
+    // Snapshot ongoing: hand out the coordinator's per-task configs and keep the coordinator running.
+    @Test
+    public void taskConfigsReturnsCoordinatorConfigsWhileSnapshotting() {
+        SmartSnapshotConnectorCoordinator coordinator = mock(SmartSnapshotConnectorCoordinator.class);
+        List<Map<String, String>> perTask = List.of(new HashMap<>(smartProps()), new HashMap<>(smartProps()));
+        when(coordinator.taskConfigs(2, smartProps())).thenReturn(perTask);
+        when(coordinator.isComplete()).thenReturn(false);
+        connector.initForTesting(smartProps(), coordinator);
+
+        List<Map<String, String>> configs = connector.taskConfigs(2);
+
+        assertThat(configs, is(perTask));
+        assertThat(connector.smartSnapshotConnectorCoordinator(), is(coordinator)); // still running
+        verify(coordinator, never()).stop();
+    }
+
+    // Snapshot complete: hand out the coordinator's single downscale config, then drop and stop the coordinator.
+    @Test
+    public void taskConfigsDownscalesAndStopsCoordinatorWhenComplete() {
+        SmartSnapshotConnectorCoordinator coordinator = mock(SmartSnapshotConnectorCoordinator.class);
+        List<Map<String, String>> single = Collections.singletonList(new HashMap<>(smartProps()));
+        when(coordinator.taskConfigs(2, smartProps())).thenReturn(single);
+        when(coordinator.isComplete()).thenReturn(true);
+        connector.initForTesting(smartProps(), coordinator);
+
+        List<Map<String, String>> configs = connector.taskConfigs(2);
+
+        assertThat(configs, is(single));
+        assertThat(connector.smartSnapshotConnectorCoordinator(), is(nullValue())); // dropped
+        verify(coordinator).stop();
+    }
+
+    // maxTasks == 1: nothing to parallelize, so drop the coordinator and hand out a single config.
+    @Test
+    public void taskConfigsStopsCoordinatorAndHandsOutSingleConfigForOneTask() {
+        SmartSnapshotConnectorCoordinator coordinator = mock(SmartSnapshotConnectorCoordinator.class);
+        connector.initForTesting(smartProps(), coordinator);
+
+        List<Map<String, String>> configs = connector.taskConfigs(1);
+
+        assertThat(configs.size(), is(1));
+        assertThat(configs.get(0), is(smartProps()));
+        assertThat(connector.smartSnapshotConnectorCoordinator(), is(nullValue()));
+        verify(coordinator).stop();
+        verify(coordinator, never()).taskConfigs(anyInt(), any());
+    }
+
+    // Feature not applicable (no coordinator): hand out a single config.
+    @Test
+    public void taskConfigsHandsOutSingleConfigWhenNoCoordinator() {
+        connector.initForTesting(smartProps(), null);
+
+        List<Map<String, String>> configs = connector.taskConfigs(2);
+
+        assertThat(configs.size(), is(1));
+        assertThat(configs.get(0), is(smartProps()));
+    }
+
+    @Test
+    public void taskConfigsReturnsEmptyWhenNotStarted() {
+        connector.initForTesting(null, null);
+        assertThat(connector.taskConfigs(2), is(Collections.emptyList()));
+    }
+
+    private static Map<String, String> smartProps() {
+        return smartConfig(true, "initial").asMap();
     }
 
     private static Configuration smartConfig(boolean enabled, String snapshotMode) {
