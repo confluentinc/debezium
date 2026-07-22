@@ -57,6 +57,18 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
     public PostgresConnector() {
     }
 
+    // visible for testing: seed the state that start() would normally set, so taskConfigs() can be exercised
+    // without a live database or coordination topic.
+    void initForTesting(Map<String, String> props, SmartSnapshotConnectorCoordinator coordinator) {
+        this.props = props;
+        this.smartSnapshotConnectorCoordinator = coordinator;
+    }
+
+    // visible for testing
+    SmartSnapshotConnectorCoordinator smartSnapshotConnectorCoordinator() {
+        return smartSnapshotConnectorCoordinator;
+    }
+
     @Override
     public String version() {
         return Module.version();
@@ -119,20 +131,24 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
             return Collections.emptyList();
 
         Configuration config = Configuration.from(props);
-        SmartSnapshotConnectorCoordinator oldCoordinator = this.smartSnapshotConnectorCoordinator;
-        if (smartSnapshotApplies(config) && oldCoordinator != null) {
-            if (maxTasks > 1) {
-                SmartSnapshotConnectorCoordinator.TaskConfigsResult result = smartSnapshotConnectorCoordinator.taskConfigs(maxTasks, props);
-                if (!result.isDownscale()) {
-                    return result.configs();
-                }
+        SmartSnapshotConnectorCoordinator coordinator = this.smartSnapshotConnectorCoordinator;
+        if (smartSnapshotApplies(config) && coordinator != null && maxTasks > 1) {
+            List<Map<String, String>> taskConfigs = coordinator.taskConfigs(maxTasks, props);
+            if (!coordinator.isComplete()) {
+                return taskConfigs;
             }
-            // Downscale (snapshot complete) or maxTasks == 1: drop the coordinator and hand out a single config.
+            // Snapshot complete: the coordinator returned the single streaming config. Drop and stop the coordinator.
+            // Set it to null first as stopping might throw.
             smartSnapshotConnectorCoordinator = null;
-            // set the coordinator to null first as stopping might throw
-            oldCoordinator.stop();
+            coordinator.stop();
+            return taskConfigs;
         }
 
+        // Feature not applicable, or maxTasks == 1: stop the coordinator if present and hand out a single config.
+        if (coordinator != null) {
+            smartSnapshotConnectorCoordinator = null;
+            coordinator.stop();
+        }
         return Collections.singletonList(new HashMap<>(props));
     }
 
