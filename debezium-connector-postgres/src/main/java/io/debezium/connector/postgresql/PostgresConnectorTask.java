@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.apache.kafka.clients.producer.RecordMetadata;
@@ -31,6 +32,7 @@ import io.debezium.config.Field;
 import io.debezium.connector.base.ChangeEventQueue;
 import io.debezium.connector.common.BaseSourceTask;
 import io.debezium.connector.common.DebeziumHeaderProducer;
+import io.debezium.connector.postgresql.connection.Lsn;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.connector.postgresql.connection.PostgresConnection.PostgresValueConverterBuilder;
 import io.debezium.connector.postgresql.connection.PostgresDefaultValueConverter;
@@ -47,6 +49,9 @@ import io.debezium.pipeline.GuardrailValidator;
 import io.debezium.pipeline.metrics.DefaultChangeEventSourceMetricsFactory;
 import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.signal.SignalProcessor;
+import io.debezium.pipeline.source.snapshot.SmartSnapshotLeader;
+import io.debezium.pipeline.source.snapshot.SmartSnapshotLifecycleManager;
+import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.pipeline.spi.OffsetContext;
 import io.debezium.pipeline.spi.Offsets;
 import io.debezium.pipeline.spi.Partition;
@@ -79,6 +84,21 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
     private volatile ErrorHandler errorHandler;
     private volatile PostgresSchema schema;
+    private volatile SnapshotCoordinationFacade snapshotCoordination;
+    // a data snapshotting task in the smart snapshot mode
+    private volatile boolean isSmartSnapshotTask;
+    // primarily for logging purpose
+    private volatile int epoch = -1;
+    private volatile String taskId;
+    private volatile SmartSnapshotLifecycleManager smartSnapshotLifecycleManager;
+
+    /*
+     * This thread manages creation of snapshot and writing the snapshot info to the coordination topic
+     * for the tasks to discover the snapshot details and attach to it
+     * This involves slot creation or snapshot creation
+     * called in start() during the task startup
+     */
+    private volatile Thread smartSnapshotLeaderThread;
 
     private Partition.Provider<PostgresPartition> partitionProvider = null;
     private OffsetContext.Loader<PostgresOffsetContext> offsetContextLoader = null;
@@ -121,13 +141,32 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
         final PostgresValueConverter valueConverter = valueConverterBuilder.build(typeRegistry);
 
         schema = new PostgresSchema(connectorConfig, defaultValueConverter, topicNamingStrategy, valueConverter);
-        this.taskContext = new PostgresTaskContext(connectorConfig, schema, topicNamingStrategy);
+
+        isSmartSnapshotTask = isSmartSnapshotTask(config, connectorConfig);
+
+        this.taskContext = isSmartSnapshotTask
+                ? new PostgresTaskContext(connectorConfig, connectorConfig.getTaskId(), schema, topicNamingStrategy)
+                : new PostgresTaskContext(connectorConfig, schema, topicNamingStrategy);
         this.partitionProvider = new PostgresPartition.Provider(connectorConfig, config);
         this.offsetContextLoader = new PostgresOffsetContext.Loader(connectorConfig);
-        final Offsets<PostgresPartition, PostgresOffsetContext> previousOffsets = getPreviousOffsets(
-                this.partitionProvider, this.offsetContextLoader);
         final Clock clock = Clock.system();
-        final PostgresOffsetContext previousOffset = previousOffsets.getTheOnlyOffset();
+        Offsets<PostgresPartition, PostgresOffsetContext> previousOffsets = getPreviousOffsets(
+                this.partitionProvider, this.offsetContextLoader);
+        PostgresOffsetContext previousOffset = previousOffsets.getTheOnlyOffset();
+
+        if (previousOffset == null || previousOffset.isInitialSnapshotRunning()) {
+            // A scenario can arise where offset topic contains marker for incompleted snapshot
+            // then smart snapshot feature was enabled and the snapshot completed
+            // In this particular scenario we should still check the offset topic
+            PostgresOffsetContext fromCoordinationTopic = SnapshotCoordinationFacade.fetchOffsetFromCoordinationTopic(
+                    config, connectorConfig, isSmartSnapshotTask,
+                    buildOffsetFromConsistentPoint(connectorConfig, jdbcConnection, clock));
+            if (fromCoordinationTopic != null) {
+                // non-null only when smart snapshot actually completed
+                previousOffset = fromCoordinationTopic;
+                previousOffsets = Offsets.of(previousOffsets.getTheOnlyPartition(), previousOffset);
+            }
+        }
 
         // Manual Bean Registration
         beanRegistryJdbcConnection = connectionFactory.newConnection();
@@ -174,17 +213,8 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
         }
 
         try {
-            SlotState slotInfo = getSlotState(connectorConfig);
-
-            SlotCreationResult slotCreatedInfo = tryToCreateSlot(snapshotter, connectorConfig, slotInfo);
-
-            try {
-                jdbcConnection.commit();
-            }
-            catch (SQLException e) {
-                throw new DebeziumException(e);
-            }
-
+            // creation of queue, errorHandler, metadataProvider, signalProcessor, dispatcher, notificationService
+            // is moved ahead of slot creation as there is no dependency
             queue = new ChangeEventQueue.Builder<DataChangeEvent>()
                     .pollInterval(connectorConfig.getPollInterval())
                     .maxBatchSize(connectorConfig.getMaxBatchSize())
@@ -235,6 +265,23 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
             NotificationService<PostgresPartition, PostgresOffsetContext> notificationService = new NotificationService<>(getNotificationChannels(),
                     connectorConfig, SchemaFactory.get(), dispatcher::enqueueNotification);
+
+            if (isSmartSnapshotTask) {
+                return startSmartSnapshotTask(
+                        config, connectorConfig, connectionFactory, snapshotterService, previousOffsets,
+                        dispatcher, notificationService, signalProcessor, metadataProvider, clock, schema);
+            }
+
+            SlotState slotInfo = getSlotState(connectorConfig);
+
+            SlotCreationResult slotCreatedInfo = tryToCreateSlot(snapshotter, connectorConfig, slotInfo);
+
+            try {
+                jdbcConnection.commit();
+            }
+            catch (SQLException e) {
+                throw new DebeziumException(e);
+            }
 
             ChangeEventSourceCoordinator<PostgresPartition, PostgresOffsetContext> coordinator = new PostgresChangeEventSourceCoordinator(
                     previousOffsets,
@@ -318,14 +365,27 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
         return slotInfo;
     }
 
+    @FunctionalInterface
+    public interface ReplicationConnectionSupplier {
+        ReplicationConnection get() throws SQLException;
+    }
+
     public ReplicationConnection createReplicationConnection(PostgresTaskContext taskContext, int maxRetries, Duration retryDelay)
+            throws ConnectException {
+        return createReplicationConnectionWithRetry(
+                () -> taskContext.createReplicationConnection(jdbcConnection), maxRetries, retryDelay);
+    }
+
+    // shared retry loop — used by the task's instance method AND the lifecycle
+    public static ReplicationConnection createReplicationConnectionWithRetry(
+                                                                             ReplicationConnectionSupplier supplier, int maxRetries, Duration retryDelay)
             throws ConnectException {
         final Metronome metronome = Metronome.parker(retryDelay, Clock.SYSTEM);
         short retryCount = 0;
         ReplicationConnection replicationConnection = null;
         while (retryCount <= maxRetries) {
             try {
-                return taskContext.createReplicationConnection(jdbcConnection);
+                return supplier.get();
             }
             catch (SQLException ex) {
                 retryCount++;
@@ -364,6 +424,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
     @Override
     protected void doStop() {
+        doStopSmartSnapshot();
         // The replication connection is regularly closed at the end of streaming phase
         // in case of error it can happen that the connector is terminated before the stremaing
         // phase is started. It can lead to a leaked connection.
@@ -412,6 +473,18 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
     @Override
     public void commit() throws InterruptedException {
+        if (isSmartSnapshotTask) {
+            // In the existing single-task flow (feature disabled), commit() → performCommit()
+            // → coordinator.commitOffset() → checks streamingSource != null. During snapshot,
+            // streamingSource is null (only created in initStreamEvents() after snapshot completes),
+            // so commitOffset() is a no-op during snapshot there too.
+            //
+            // Smart snapshot tasks never enter streaming — streamingSource stays null permanently.
+            // Skipping commit() avoids the unnecessary performCommit() overhead (lock acquisition,
+            // offset reading) during snapshot. Per-task offsets still reach connect-offsets via
+            // Connect's normal SourceRecord flow.
+            return;
+        }
         shouldPerformCommit.set(true);
     }
 
@@ -475,5 +548,115 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                 LOGGER.warn("WAL_LEVEL check failed but this is ignored as CDC was not requested");
             }
         }
+    }
+
+    private boolean isSmartSnapshotTask(Configuration config, CommonConnectorConfig connectorConfig) {
+        String numTasksStr = config.getString(SnapshotCoordinationFacade.NUM_TASKS);
+        boolean isParallelRound = numTasksStr != null && !"1".equals(numTasksStr);
+
+        // if the feature is enabled and taskId is null in ideal scenario the task should be streaming
+        // if it is a data snapshot task with feature enabled, it continues with single task data snapshot
+        return connectorConfig.isSmartSnapshotEnabled() && connectorConfig.getTaskId() != null && isParallelRound;
+    }
+
+    private ChangeEventSourceCoordinator<PostgresPartition, PostgresOffsetContext> startSmartSnapshotTask(
+                                                                                                          Configuration config,
+                                                                                                          PostgresConnectorConfig connectorConfig,
+                                                                                                          MainConnectionProvidingConnectionFactory<PostgresConnection> connectionFactory,
+                                                                                                          SnapshotterService snapshotterService,
+                                                                                                          Offsets<PostgresPartition, PostgresOffsetContext> previousOffsets,
+                                                                                                          PostgresEventDispatcher<TableId> dispatcher,
+                                                                                                          NotificationService<PostgresPartition, PostgresOffsetContext> notificationService,
+                                                                                                          SignalProcessor<PostgresPartition, PostgresOffsetContext> signalProcessor,
+                                                                                                          PostgresEventMetadataProvider metadataProvider, Clock clock,
+                                                                                                          PostgresSchema schema) {
+        final String taskId = connectorConfig.getTaskId();
+        if (config.getString(SnapshotCoordinationFacade.EPOCH) == null || config.getString(SnapshotCoordinationFacade.NUM_TASKS) == null) {
+            // if taskId is null, we would never enter this branch
+            throw new DebeziumException(
+                    String.format("Smart snapshot: [role=task taskId=%s] Failing as required configs [epoch, num_tasks] are missing.", taskId));
+        }
+
+        this.epoch = Integer.parseInt(config.getString(SnapshotCoordinationFacade.EPOCH));
+        this.taskId = taskId;
+        LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Starting task", taskId, epoch);
+
+        this.snapshotCoordination = SnapshotCoordinationFacade.nonCreating(config, connectorConfig);
+        try {
+            // end the setup txn (guardrail query, etc.) so the snapshot's SET is the first
+            jdbcConnection.commit();
+        }
+        catch (SQLException e) {
+            throw new DebeziumException(e);
+        }
+
+        // task-0 is the leader: discover tables, prepare the snapshot (slot/export + lock-all) on a background thread.
+        if ("0".equals(taskId)) {
+            final int leaderEpoch = epoch;
+            final boolean shouldStream = !PostgresConnectorConfig.SnapshotMode.INITIAL_ONLY.getValue()
+                    .equals(connectorConfig.getSnapshotMode().getValue());
+            final int numTasks = Integer.parseInt(config.getString(SnapshotCoordinationFacade.NUM_TASKS));
+            final PostgresSmartSnapshotLifecycleManager lifecycle = new PostgresSmartSnapshotLifecycleManager(
+                    connectorConfig, connectionFactory, taskContext, snapshotterService,
+                    schema, dispatcher, notificationService, clock, leaderEpoch);
+            this.smartSnapshotLifecycleManager = lifecycle;
+
+            // only used for logging
+            final PostgresPartition leaderPartition = new PostgresPartition(connectorConfig.getConnectorName(), "", "0");
+            SnapshotCoordinationFacade leaderSnapshotCoordination = SnapshotCoordinationFacade.nonCreating(config, connectorConfig);
+            this.smartSnapshotLeaderThread = new Thread(
+                    new SmartSnapshotLeader(
+                            lifecycle, leaderSnapshotCoordination, this.errorHandler,
+                            leaderEpoch, numTasks, shouldStream, connectorConfig,
+                            () -> taskContext.configureLoggingContext("smart-snapshot-leader", leaderPartition)),
+                    "smart-snapshot-leader");
+            this.smartSnapshotLeaderThread.setDaemon(true);
+            this.smartSnapshotLeaderThread.start();
+        }
+
+        // The leader task background thread handles slot creation & replication connection creation, skip those
+        coordinator = new PostgresSmartSnapshotChangeEventSourceCoordinator(
+                previousOffsets, errorHandler, PostgresConnector.class, connectorConfig,
+                new PostgresChangeEventSourceFactory(connectorConfig, snapshotterService,
+                        connectionFactory, errorHandler, dispatcher, clock, schema, taskContext,
+                        null /* replicationConnection */,
+                        null /* slotCreatedInfo */,
+                        null /* slotInfo */),
+                new DefaultChangeEventSourceMetricsFactory<>(),
+                dispatcher, schema, snapshotterService,
+                signalProcessor,
+                notificationService,
+                epoch, snapshotCoordination, connectorConfig.getTaskId());
+
+        coordinator.start(taskContext, this.queue, metadataProvider);
+        return coordinator;
+    }
+
+    Function<String, PostgresOffsetContext> buildOffsetFromConsistentPoint(
+                                                                           PostgresConnectorConfig connectorConfig,
+                                                                           PostgresConnection jdbcConnection, Clock clock) {
+        return cp -> {
+            Lsn lsn = Lsn.valueOf(cp);
+            LOGGER.info("Smart snapshot: [role=task] Post-downscale streaming task, using LSN={} from coordination topic", lsn);
+            // Create synthetic offset — snapshot completed, start streaming from this LSN
+            PostgresOffsetContext syntheticOffset = PostgresOffsetContext.initialContext(connectorConfig, jdbcConnection, clock);
+            syntheticOffset.updateWalPosition(
+                    lsn, null,
+                    clock.currentTimeAsInstant(),
+                    null, null, null, null);
+            syntheticOffset.postSnapshotCompletion();
+            return syntheticOffset;
+        };
+    }
+
+    private void doStopSmartSnapshot() {
+        if (!isSmartSnapshotTask) {
+            return;
+        }
+        SmartSnapshotLeader.stopSmartSnapshot(
+                smartSnapshotLeaderThread, smartSnapshotLifecycleManager,
+                snapshotCoordination, 10_000, taskId, epoch);
+        smartSnapshotLeaderThread = null;
+        smartSnapshotLifecycleManager = null;
     }
 }
