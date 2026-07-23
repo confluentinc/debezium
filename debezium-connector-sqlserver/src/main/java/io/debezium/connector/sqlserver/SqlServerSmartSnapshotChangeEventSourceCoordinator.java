@@ -25,7 +25,9 @@ import io.debezium.pipeline.EventDispatcher;
 import io.debezium.pipeline.metrics.spi.ChangeEventSourceMetricsFactory;
 import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.signal.SignalProcessor;
+import io.debezium.pipeline.source.snapshot.SnapshotCoordination.MissingTopicPolicy;
 import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
+import io.debezium.pipeline.source.snapshot.SmartSnapshotTableAssignments;
 import io.debezium.pipeline.source.spi.ChangeEventSource.ChangeEventSourceContext;
 import io.debezium.pipeline.source.spi.ChangeEventSourceFactory;
 import io.debezium.pipeline.source.spi.SnapshotChangeEventSource;
@@ -101,7 +103,8 @@ public class SqlServerSmartSnapshotChangeEventSourceCoordinator extends SqlServe
                                              ChangeEventSourceContext context)
             throws InterruptedException {
 
-        snapshotCoordination.start();
+        // Shard tasks never create the coordination topic -- the connector provisions it; fail fast if absent.
+        snapshotCoordination.start(MissingTopicPolicy.FAIL);
 
         SqlServerPartition partition = previousOffsets.getTheOnlyPartition();
         previousLogContext.set(taskContext.configureLoggingContext("snapshot", partition));
@@ -227,11 +230,22 @@ public class SqlServerSmartSnapshotChangeEventSourceCoordinator extends SqlServe
         }
     }
 
+    /** Reconstruct the full captured set from the leader's per-task assignments (task-0 schema history). */
+    private static List<TableId> unionAssignments(Object assignments, int numTasks) {
+        List<TableId> all = new ArrayList<>();
+        for (int i = 0; i < numTasks; i++) {
+            all.addAll(SmartSnapshotTableAssignments.parseTables(
+                    SmartSnapshotTableAssignments.assignmentForTask(assignments, i), true));
+        }
+        return all;
+    }
+
     /**
-     * Polls the shared snapshot-info record for this task's epoch, then deterministically computes its shard.
-     * The leader publishes before any task snapshots, so this normally resolves on the first read; the wait
-     * budget ({@link #SNAPSHOT_INFO_WAIT_MS}) out-waits the leader's discovery + max-LSN wait so a slow start
-     * does not time siblings out.
+     * Polls the shared snapshot-info record for this task's epoch, then reads its pre-computed shard from the
+     * per-task {@code assignments} the leader published (the leader owns table-to-task assignment). The leader
+     * publishes before any task snapshots, so this normally resolves on the first read; the wait budget
+     * ({@link #SNAPSHOT_INFO_WAIT_MS}) out-waits the leader's discovery + max-LSN wait so a slow start does not
+     * time siblings out.
      *
      * @return the shard assignment, or {@code null} if the task is shutting down or the budget is exhausted
      *         (leader never published -- caller forces a restart).
@@ -244,9 +258,15 @@ public class SqlServerSmartSnapshotChangeEventSourceCoordinator extends SqlServe
                 Integer infoEpoch = SnapshotCoordinationFacade.epochOf(snapshotInfo);
                 if (infoEpoch != null && infoEpoch == epoch) {
                     Lsn lsn = Lsn.valueOf(String.valueOf(snapshotInfo.get(SnapshotCoordinationFacade.CONSISTENT_POINT)));
-                    List<TableId> allTables = SnapshotCoordinationFacade.parseTablesPostgres(snapshotInfo.get(SnapshotCoordinationFacade.TABLES));
+                    Object assignments = snapshotInfo.get(SnapshotCoordinationFacade.ASSIGNMENTS);
                     int numTasks = ((Number) snapshotInfo.get(SnapshotCoordinationFacade.NUM_TASKS)).intValue();
-                    List<TableId> myShard = SnapshotCoordinationFacade.tablesForTask(allTables, Integer.parseInt(taskId), numTasks);
+                    // Read this task's own pre-assigned slice (leader-owned assignment); SQL Server FQNs are
+                    // catalog-scoped 3-part identifiers.
+                    List<TableId> myShard = SmartSnapshotTableAssignments.parseTables(
+                            SmartSnapshotTableAssignments.assignmentForTask(assignments, Integer.parseInt(taskId)), true);
+                    // task-0 owns the full schema history, so it needs the whole captured set -- reconstruct it
+                    // by unioning every task's assignment (the leader no longer publishes a flat table list).
+                    List<TableId> allTables = isSchemaHistoryWriter ? unionAssignments(assignments, numTasks) : myShard;
                     LOGGER.info("Smart snapshot: [{}/{}] got L_db={}, shard={}, epoch={}",
                             partition.getDatabaseName(), taskId, lsn, myShard, epoch);
                     return new ShardAssignment(lsn, myShard, allTables);

@@ -20,6 +20,7 @@ import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.connector.sqlserver.util.TestHelper;
 import io.debezium.embedded.async.AbstractAsyncEngineConnectorTest;
+import io.debezium.pipeline.source.snapshot.SnapshotCoordination.MissingTopicPolicy;
 import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.util.Testing;
@@ -27,12 +28,13 @@ import io.debezium.util.Testing;
 /**
  * Real Connector-driven multi-task smart-snapshot fan-out against a real SQL Server + Kafka broker.
  * {@code SqlServerConnector.start()} stands up the coordinator; task-0's leader thread discovers tables,
- * captures {@code L_db}, and publishes {@code snapshot_info}; each task computes its own shard via
- * {@link SnapshotCoordinationFacade#tablesForTask} and snapshots it, with task-0 owning the full schema
- * history behind a barrier the other shards wait on.
+ * captures {@code L_db}, and publishes {@code snapshot_info} with a per-task table assignment; each task reads
+ * its own pre-assigned shard and snapshots it, with task-0 owning the full schema history behind a barrier the
+ * other shards wait on.
  *
  * <p>Requires a real Kafka broker (default {@code 127.0.0.1:9092}, override via
- * {@code test.smart.snapshot.coordination.bootstrap.servers}).
+ * {@code test.smart.snapshot.coordination.bootstrap.servers}); the coordination topic reuses
+ * {@code producer.override.bootstrap.servers}.
  */
 public class SmartSnapshotShardedTaskIT extends AbstractAsyncEngineConnectorTest {
 
@@ -74,12 +76,13 @@ public class SmartSnapshotShardedTaskIT extends AbstractAsyncEngineConnectorTest
 
     @Test
     public void twoShardFanOutDispatchesEachTasksOwnShard() throws Exception {
-        // tasks.max=2 over 2 tables -> 2 real shard tasks (task.id 0 and 1), each computing its own shard via
-        // tablesForTask. task-0 is the leader (publishes snapshot_info) and the schema-history writer.
+        // tasks.max=2 over 2 tables -> 2 real shard tasks (task.id 0 and 1), each reading its own leader-assigned
+        // shard from snapshot_info. task-0 is the leader (publishes snapshot_info) and the schema-history writer.
         Configuration config = TestHelper.defaultConfig()
                 .with(CommonConnectorConfig.TOPIC_PREFIX, serverName)
                 .with(CommonConnectorConfig.SMART_SNAPSHOT_ENABLED, true)
-                .with(CommonConnectorConfig.SMART_SNAPSHOT_COORDINATION_BOOTSTRAP_SERVERS, KAFKA_BOOTSTRAP_SERVERS)
+                .with("producer.override.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS)
+                .with("admin.override.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS)
                 .with("tasks.max", 2)
                 .build();
 
@@ -98,7 +101,7 @@ public class SmartSnapshotShardedTaskIT extends AbstractAsyncEngineConnectorTest
         SqlServerConnectorConfig connectorConfig = new SqlServerConnectorConfig(config);
         SnapshotCoordinationFacade facade = new SnapshotCoordinationFacade(config, connectorConfig);
         try {
-            facade.start();
+            facade.start(MissingTopicPolicy.ASSUME_EXISTS);
             Integer epoch = facade.readEpoch();
             assertThat(epoch).isEqualTo(1);
             Awaitility.await().atMost(30, TimeUnit.SECONDS).untilAsserted(() -> {
@@ -123,7 +126,8 @@ public class SmartSnapshotShardedTaskIT extends AbstractAsyncEngineConnectorTest
         Configuration config = TestHelper.defaultConfig()
                 .with(CommonConnectorConfig.TOPIC_PREFIX, serverName)
                 .with(CommonConnectorConfig.SMART_SNAPSHOT_ENABLED, true)
-                .with(CommonConnectorConfig.SMART_SNAPSHOT_COORDINATION_BOOTSTRAP_SERVERS, KAFKA_BOOTSTRAP_SERVERS)
+                .with("producer.override.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS)
+                .with("admin.override.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS)
                 // SQL Server's table.exclude.list is schema.table (2-part), not database.schema.table.
                 .with(RelationalDatabaseConnectorConfig.TABLE_EXCLUDE_LIST, "dbo\\.table3")
                 .with("tasks.max", 2)
@@ -156,14 +160,15 @@ public class SmartSnapshotShardedTaskIT extends AbstractAsyncEngineConnectorTest
         Configuration config = TestHelper.defaultConfig()
                 .with(CommonConnectorConfig.TOPIC_PREFIX, serverName)
                 .with(CommonConnectorConfig.SMART_SNAPSHOT_ENABLED, true)
-                .with(CommonConnectorConfig.SMART_SNAPSHOT_COORDINATION_BOOTSTRAP_SERVERS, KAFKA_BOOTSTRAP_SERVERS)
+                .with("producer.override.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS)
+                .with("admin.override.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS)
                 .with(CommonConnectorConfig.SMART_SNAPSHOT_MONITOR_POLL_INTERVAL_MS, 1000)
                 .with("tasks.max", 2)
                 .build();
 
         SqlServerConnectorConfig connectorConfig = new SqlServerConnectorConfig(config);
         SnapshotCoordinationFacade seed = new SnapshotCoordinationFacade(config, connectorConfig);
-        seed.start();
+        seed.start(MissingTopicPolicy.ASSUME_EXISTS);
         seed.writeRestartNeeded("0", 1);
         seed.stop();
 
@@ -172,7 +177,7 @@ public class SmartSnapshotShardedTaskIT extends AbstractAsyncEngineConnectorTest
 
         SnapshotCoordinationFacade facade = new SnapshotCoordinationFacade(config, connectorConfig);
         try {
-            facade.start();
+            facade.start(MissingTopicPolicy.ASSUME_EXISTS);
             Awaitility.await().atMost(60, TimeUnit.SECONDS).untilAsserted(() -> assertThat(facade.readEpoch()).isEqualTo(2));
             Awaitility.await().atMost(60, TimeUnit.SECONDS).untilAsserted(() -> {
                 assertThat(facade.isTaskDone("0", 2)).isTrue();

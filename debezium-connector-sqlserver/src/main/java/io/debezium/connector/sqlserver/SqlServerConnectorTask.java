@@ -38,6 +38,7 @@ import io.debezium.pipeline.GuardrailValidator;
 import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.signal.SignalProcessor;
 import io.debezium.pipeline.source.snapshot.SmartSnapshotLifecycleManager.SnapshotSetup;
+import io.debezium.pipeline.source.snapshot.SnapshotCoordination.MissingTopicPolicy;
 import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.pipeline.spi.Offsets;
 import io.debezium.relational.TableId;
@@ -254,7 +255,8 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
                                         int epoch, int numTasks, boolean shouldStream, SqlServerSnapshotLifecycleManager lifecycle) {
         SnapshotCoordinationFacade leaderCoordination = new SnapshotCoordinationFacade(config, connectorConfig);
         try {
-            leaderCoordination.start();
+            // Leader runs inside task-0; the connector already created the topic, so fail fast if it is absent.
+            leaderCoordination.start(MissingTopicPolicy.FAIL);
             if (leaderCoordination.isTaskDone("0", epoch)) {
                 LOGGER.info("Smart snapshot: [leader epoch={}] round already complete, skipping preparation", epoch);
                 return;
@@ -318,12 +320,12 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
     private void seedStreamingOffsetsFromCoordination(SqlServerConnectorConfig connectorConfig,
                                                       Offsets<SqlServerPartition, SqlServerOffsetContext> offsets) {
         if (!connectorConfig.isSmartSnapshotEnabled() || connectorConfig.getSmartSnapshotEpoch() != null
-                || !SnapshotCoordinationFacade.hasCoordinationBootstrap(connectorConfig.getConfig(), connectorConfig)) {
+                || !SnapshotCoordinationFacade.hasCoordinationBootstrap(connectorConfig.getConfig())) {
             return;
         }
-        SnapshotCoordinationFacade facade = SnapshotCoordinationFacade.readOnly(connectorConfig.getConfig(), connectorConfig);
+        SnapshotCoordinationFacade facade = SnapshotCoordinationFacade.nonCreating(connectorConfig.getConfig(), connectorConfig);
         try {
-            if (!facade.startForRead()) {
+            if (!facade.start(MissingTopicPolicy.SKIP)) {
                 return; // topic missing/broker unreachable -- fast skip
             }
             // Completion is a separate snapshot_done record (its presence with a consistent_point == round

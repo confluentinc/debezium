@@ -69,7 +69,7 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
             return;
         }
         SqlServerConnectorConfig connectorConfig = new SqlServerConnectorConfig(config);
-        if (!SnapshotCoordinationFacade.hasCoordinationBootstrap(config, connectorConfig)) {
+        if (!SnapshotCoordinationFacade.hasCoordinationBootstrap(config)) {
             LOGGER.info("Smart snapshot: no coordination bootstrap configured, skipping smart snapshot setup");
             return;
         }
@@ -86,7 +86,8 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
         SnapshotCoordinationFacade coordinationFacade = new SnapshotCoordinationFacade(config, connectorConfig);
         SmartSnapshotConnectorCoordinator coordinator = new SmartSnapshotConnectorCoordinator(
                 coordinationFacade, context(), connectorConfig.getLogicalName(),
-                connectorConfig.getSmartSnapshotMonitorPollIntervalMs(), SqlServerConnector.class.getName());
+                connectorConfig.getSmartSnapshotMonitorPollIntervalMs(),
+                connectorConfig.getSmartSnapshotReconfigurationTimeoutMs(), SqlServerConnector.class.getName());
         coordinator.start();
         if (coordinator.isComplete()) {
             LOGGER.info("Smart snapshot: [{}] round already complete, skipping", database);
@@ -208,7 +209,7 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
     private void validateSmartSnapshotIsolationMode(Map<String, ConfigValue> configValues, Configuration config,
                                                     SqlServerConnectorConfig connectorConfig) {
         if (!connectorConfig.isSmartSnapshotEnabled()
-                || !SnapshotCoordinationFacade.hasCoordinationBootstrap(config, connectorConfig)
+                || !SnapshotCoordinationFacade.hasCoordinationBootstrap(config)
                 || connectorConfig.getSnapshotIsolationMode() == SqlServerConnectorConfig.SnapshotIsolationMode.REPEATABLE_READ) {
             return;
         }
