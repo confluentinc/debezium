@@ -8,9 +8,17 @@ package io.debezium.connector.sqlserver;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.sql.SQLException;
+import java.time.Duration;
+import java.util.Collections;
+import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.serialization.StringDeserializer;
 import org.awaitility.Awaitility;
 import org.junit.After;
 import org.junit.Before;
@@ -23,18 +31,24 @@ import io.debezium.embedded.async.AbstractAsyncEngineConnectorTest;
 import io.debezium.pipeline.source.snapshot.SnapshotCoordination.MissingTopicPolicy;
 import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
-import io.debezium.util.Testing;
+import io.debezium.storage.kafka.history.KafkaSchemaHistory;
 
 /**
  * Real Connector-driven multi-task smart-snapshot fan-out against a real SQL Server + Kafka broker.
  * {@code SqlServerConnector.start()} stands up the coordinator; task-0's leader thread discovers tables,
  * captures {@code L_db}, and publishes {@code snapshot_info} with a per-task table assignment; each task reads
- * its own pre-assigned shard and snapshots it, with task-0 owning the full schema history behind a barrier the
- * other shards wait on.
+ * its own pre-assigned shard and snapshots it.
+ *
+ * <p>task-0 is the sole schema-history writer (it introspects the database and writes CREATE TABLE for the full
+ * eligible set under a task-agnostic source); every other shard blocks on task-0's schema-ready marker and then
+ * recovers its table structure from the schema-history topic (never introspecting the database), so all shards
+ * use the identical schema task-0 captured. This requires a real, shared schema-history store, so these tests
+ * use {@link KafkaSchemaHistory} (file-based history caches records per instance and cannot be shared across
+ * tasks).
  *
  * <p>Requires a real Kafka broker (default {@code 127.0.0.1:9092}, override via
  * {@code test.smart.snapshot.coordination.bootstrap.servers}); the coordination topic reuses
- * {@code producer.override.bootstrap.servers}.
+ * {@code producer.override.bootstrap.servers}, and the schema history uses the same broker.
  */
 public class SmartSnapshotShardedTaskIT extends AbstractAsyncEngineConnectorTest {
 
@@ -42,8 +56,8 @@ public class SmartSnapshotShardedTaskIT extends AbstractAsyncEngineConnectorTest
             "test.smart.snapshot.coordination.bootstrap.servers", "127.0.0.1:9092");
 
     private SqlServerConnection connection;
-    // unique per run so a leftover coordination topic/completion record from a prior run can't be mistaken
-    // for this run's state (Kafka topics persist across executions against a long-lived broker).
+    // unique per run so a leftover coordination/schema-history topic from a prior run can't be mistaken for this
+    // run's state (Kafka topics persist across executions against a long-lived broker).
     private String serverName;
 
     @Before
@@ -64,7 +78,6 @@ public class SmartSnapshotShardedTaskIT extends AbstractAsyncEngineConnectorTest
         TestHelper.enableTableCdc(connection, "table2");
 
         initializeConnectorTestFramework();
-        Testing.Files.delete(TestHelper.SCHEMA_HISTORY_PATH);
     }
 
     @After
@@ -74,17 +87,61 @@ public class SmartSnapshotShardedTaskIT extends AbstractAsyncEngineConnectorTest
         }
     }
 
-    @Test
-    public void twoShardFanOutDispatchesEachTasksOwnShard() throws Exception {
-        // tasks.max=2 over 2 tables -> 2 real shard tasks (task.id 0 and 1), each reading its own leader-assigned
-        // shard from snapshot_info. task-0 is the leader (publishes snapshot_info) and the schema-history writer.
-        Configuration config = TestHelper.defaultConfig()
+    private String schemaHistoryTopic() {
+        return serverName + ".schema-history";
+    }
+
+    /** Common smart-snapshot config: Kafka-backed schema history (shared across tasks) on the same broker. */
+    private Configuration.Builder smartConfig() {
+        return TestHelper.defaultConfig()
                 .with(CommonConnectorConfig.TOPIC_PREFIX, serverName)
                 .with(CommonConnectorConfig.SMART_SNAPSHOT_ENABLED, true)
                 .with("producer.override.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS)
                 .with("admin.override.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS)
-                .with("tasks.max", 2)
-                .build();
+                .with(SqlServerConnectorConfig.SCHEMA_HISTORY, KafkaSchemaHistory.class)
+                .with(KafkaSchemaHistory.BOOTSTRAP_SERVERS, KAFKA_BOOTSTRAP_SERVERS)
+                .with(KafkaSchemaHistory.TOPIC, schemaHistoryTopic())
+                .with("tasks.max", 2);
+    }
+
+    /** Consumes the whole schema-history topic and concatenates the record values (DDL / table-change JSON). */
+    private String schemaHistoryText() {
+        Properties props = new Properties();
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA_BOOTSTRAP_SERVERS);
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, "it-schema-history-reader-" + UUID.randomUUID());
+        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
+
+        StringBuilder sb = new StringBuilder();
+        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(props)) {
+            consumer.subscribe(Collections.singletonList(schemaHistoryTopic()));
+            long deadline = System.currentTimeMillis() + 15_000;
+            int emptyPolls = 0;
+            boolean any = false;
+            while (System.currentTimeMillis() < deadline && emptyPolls < 3) {
+                ConsumerRecords<String, String> recs = consumer.poll(Duration.ofMillis(500));
+                if (recs.isEmpty()) {
+                    emptyPolls = any ? emptyPolls + 1 : emptyPolls;
+                    continue;
+                }
+                any = true;
+                emptyPolls = 0;
+                for (ConsumerRecord<String, String> r : recs) {
+                    sb.append(r.value()).append('\n');
+                }
+            }
+        }
+        return sb.toString();
+    }
+
+    @Test
+    public void twoShardFanOutDispatchesEachTasksOwnShard() throws Exception {
+        // tasks.max=2 over 2 tables -> 2 real shard tasks (task.id 0 and 1), each reading its own leader-assigned
+        // shard from snapshot_info. task-0 is the leader (publishes snapshot_info) and the schema-history writer;
+        // task-1 recovers its shard's structure from the schema-history topic (proven by its data appearing).
+        Configuration config = smartConfig().build();
 
         start(SqlServerConnector.class, config);
         assertConnectorIsRunning();
@@ -94,9 +151,9 @@ public class SmartSnapshotShardedTaskIT extends AbstractAsyncEngineConnectorTest
         assertThat(records.recordsForTopic(serverName + ".testDB1.dbo.table2")).hasSize(5);
 
         // task-0 owns the full schema history: both tables' CREATE TABLE come from it.
-        String schemaHistoryContent = java.nio.file.Files.readString(TestHelper.SCHEMA_HISTORY_PATH);
-        assertThat(schemaHistoryContent).contains("table1");
-        assertThat(schemaHistoryContent).contains("table2");
+        String schemaHistory = schemaHistoryText();
+        assertThat(schemaHistory).contains("table1");
+        assertThat(schemaHistory).contains("table2");
 
         SqlServerConnectorConfig connectorConfig = new SqlServerConnectorConfig(config);
         SnapshotCoordinationFacade facade = new SnapshotCoordinationFacade(config, connectorConfig);
@@ -123,14 +180,9 @@ public class SmartSnapshotShardedTaskIT extends AbstractAsyncEngineConnectorTest
         // CREATE TABLE must appear even though no task snapshots its data.
         connection.execute("CREATE TABLE table3 (id int, name varchar(30), primary key(id))");
 
-        Configuration config = TestHelper.defaultConfig()
-                .with(CommonConnectorConfig.TOPIC_PREFIX, serverName)
-                .with(CommonConnectorConfig.SMART_SNAPSHOT_ENABLED, true)
-                .with("producer.override.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS)
-                .with("admin.override.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS)
+        Configuration config = smartConfig()
                 // SQL Server's table.exclude.list is schema.table (2-part), not database.schema.table.
                 .with(RelationalDatabaseConnectorConfig.TABLE_EXCLUDE_LIST, "dbo\\.table3")
-                .with("tasks.max", 2)
                 .build();
 
         start(SqlServerConnector.class, config);
@@ -143,10 +195,10 @@ public class SmartSnapshotShardedTaskIT extends AbstractAsyncEngineConnectorTest
         // capture it as a shard and this would fail).
         assertThat(records.recordsForTopic(serverName + ".testDB1.dbo.table3")).isNull();
 
-        String schemaHistoryContent = java.nio.file.Files.readString(TestHelper.SCHEMA_HISTORY_PATH);
-        assertThat(schemaHistoryContent).contains("table1");
-        assertThat(schemaHistoryContent).contains("table2");
-        assertThat(schemaHistoryContent).contains("table3");
+        String schemaHistory = schemaHistoryText();
+        assertThat(schemaHistory).contains("table1");
+        assertThat(schemaHistory).contains("table2");
+        assertThat(schemaHistory).contains("table3");
 
         stopConnector();
     }
@@ -157,13 +209,8 @@ public class SmartSnapshotShardedTaskIT extends AbstractAsyncEngineConnectorTest
         // (before completion), so the first tick after the coordinator starts forces a full restart -> epoch
         // bumps to 2, the leader re-publishes at epoch 2, and both shards complete at epoch 2. This is the
         // "one task failure -> full restart" mechanism, driven deterministically.
-        Configuration config = TestHelper.defaultConfig()
-                .with(CommonConnectorConfig.TOPIC_PREFIX, serverName)
-                .with(CommonConnectorConfig.SMART_SNAPSHOT_ENABLED, true)
-                .with("producer.override.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS)
-                .with("admin.override.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS)
+        Configuration config = smartConfig()
                 .with(CommonConnectorConfig.SMART_SNAPSHOT_MONITOR_POLL_INTERVAL_MS, 1000)
-                .with("tasks.max", 2)
                 .build();
 
         SqlServerConnectorConfig connectorConfig = new SqlServerConnectorConfig(config);
