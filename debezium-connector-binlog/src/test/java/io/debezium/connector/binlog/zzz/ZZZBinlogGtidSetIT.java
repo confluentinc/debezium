@@ -145,12 +145,9 @@ public abstract class ZZZBinlogGtidSetIT<C extends SourceConnector> extends Abst
                 .withDbHistoryPath(SCHEMA_HISTORY_PATH);
         database.createAndInitialize();
 
-        // Stream-only start (no snapshot) against a server with a non-empty purged GTID set.
+        // No-snapshot (never) start against a server with a non-empty purged GTID set.
         config = database.defaultConfig()
-                .with(BinlogConnectorConfig.SNAPSHOT_MODE, SnapshotMode.CONFIGURATION_BASED)
-                .with(BinlogConnectorConfig.SNAPSHOT_MODE_CONFIGURATION_BASED_SNAPSHOT_DATA, Boolean.FALSE)
-                .with(BinlogConnectorConfig.SNAPSHOT_MODE_CONFIGURATION_BASED_SNAPSHOT_SCHEMA, Boolean.FALSE)
-                .with(BinlogConnectorConfig.SNAPSHOT_MODE_CONFIGURATION_BASED_START_STREAM, Boolean.TRUE)
+                .with(BinlogConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER)
                 .with(BinlogConnectorConfig.INCLUDE_SCHEMA_CHANGES, false)
                 .with(BinlogConnectorConfig.TABLE_INCLUDE_LIST, database.qualifiedTableName("customers"))
                 .build();
