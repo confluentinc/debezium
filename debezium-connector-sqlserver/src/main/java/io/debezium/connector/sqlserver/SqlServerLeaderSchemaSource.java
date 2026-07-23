@@ -28,12 +28,11 @@ import io.debezium.spi.schema.DataCollectionId;
 import io.debezium.util.Clock;
 
 /**
- * Connector-side table discovery for smart snapshot, run at the Connector (not a task-0 leader like Postgres,
- * because table-driven allocation needs the table count before {@code taskConfigs()} decides the task count).
- * Reuses the real single-task discovery chain ({@code getSnapshottingTask -> prepare -> connectionCreated ->
- * determineCapturedTables}) inherited from {@link SqlServerSnapshotChangeEventSource} rather than a hand-rolled
- * filter, so it respects {@code snapshot.include.collection.list}, table filters, and signal-table inclusion
- * identically to single-task mode.
+ * Table discovery for smart snapshot, run by the task-0 leader thread. Reuses the real single-task discovery
+ * chain ({@code getSnapshottingTask -> prepare -> connectionCreated -> determineCapturedTables}) inherited from
+ * {@link SqlServerSnapshotChangeEventSource} rather than a hand-rolled filter, so it respects
+ * {@code snapshot.include.collection.list}, table filters, and signal-table inclusion identically to single-task
+ * mode.
  *
  * <p>Of that chain's dependencies, only {@link SnapshotterService} is actually invoked, and it's
  * standalone-constructible from the connector config ({@link #buildSnapshotterService}); the schema, dispatcher,

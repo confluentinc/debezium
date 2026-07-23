@@ -25,10 +25,10 @@ import io.debezium.util.Clock;
 import io.debezium.util.Metronome;
 
 /**
- * Smart-snapshot anchor capture: discovers the database's captured tables and captures
- * {@code L_db = fn_cdc_get_max_lsn()} once, holding nothing afterward (no barrier, lock-holder connection, or
- * exported snapshot). Called synchronously from {@link SqlServerConnector#start} rather than a task-owned
- * leader thread -- a one-shot query with nothing to keep alive doesn't need one.
+ * Smart-snapshot anchor capture, run once per round by the task-0 leader thread: discovers the database's
+ * captured tables and captures {@code L_db = fn_cdc_get_max_lsn()}, holding nothing afterward (no barrier,
+ * lock-holder connection, or exported snapshot), so the {@code onAllTasksStartedTransaction}/{@code keepAlive}/
+ * {@code releaseSnapshot} lifecycle hooks are no-ops.
  */
 public class SqlServerSnapshotLifecycleManager implements SmartSnapshotLifecycleManager {
 

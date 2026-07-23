@@ -87,27 +87,22 @@ public class SqlServerSmartSnapshotChangeEventSource extends SqlServerSnapshotCh
     protected void determineCapturedTables(RelationalSnapshotContext<SqlServerPartition, SqlServerOffsetContext> ctx,
                                            Set<Pattern> dataCollectionsToBeSnapshotted, SnapshottingTask snapshottingTask)
             throws Exception {
-        // Data: always this task's shard. Schema (drives readTableStructure): task-0 reads structure for ALL
-        // schema-eligible tables (it writes them all to history); other tasks read only their shard's structure.
         ctx.capturedTables = new LinkedHashSet<>(smartSnapshotTables);
+        // task-0 captures the schema of the full eligible set (it owns history); others only their own shard.
         ctx.capturedSchemaTables = isSchemaHistoryWriter ? new LinkedHashSet<>(schemaHistoryTables)
                 : new LinkedHashSet<>(smartSnapshotTables);
     }
 
     @Override
     protected Collection<TableId> getTablesForSchemaChange(RelationalSnapshotContext<SqlServerPartition, SqlServerOffsetContext> ctx) {
-        // Only task-0 writes CREATE TABLE to the shared schema-history topic (the full eligible set); other
-        // shards write nothing (avoids duplicate/concurrent writes to one history topic).
+        // Only task-0 writes schema history; other shards recover it instead (see readTableStructure).
         return isSchemaHistoryWriter ? ctx.capturedSchemaTables : Collections.emptyList();
     }
 
     /**
-     * task-0 introspects the database (it is the schema authority and sole history writer). Every other shard
-     * skips database structure introspection entirely and instead recovers its table structure from the schema
-     * history topic that task-0 already wrote (the coordinator's barrier guarantees task-0 has flushed it before
-     * this runs). This makes all shards use the identical schema task-0 captured at {@code L_db}. A shard still
-     * needs the CDC change-table metadata for column filtering during the data read, which is one cheap
-     * metadata call (not a structure introspection).
+     * task-0 introspects the database; every other shard recovers its table structure from the history topic
+     * task-0 wrote, so all shards use the identical schema task-0 captured at {@code L_db}. The barrier
+     * (coordinator) guarantees task-0 has durably written it before this runs.
      */
     @Override
     protected void readTableStructure(ChangeEventSourceContext sourceContext,
@@ -118,18 +113,13 @@ public class SqlServerSmartSnapshotChangeEventSource extends SqlServerSnapshotCh
             super.readTableStructure(sourceContext, ctx, offsetContext, snapshottingTask);
             return;
         }
-        // Recover the full schema (all tables task-0 wrote) from the history topic into the in-memory schema;
-        // this also builds each table's record value schema. ctx.offset (= L_db) is already set by
-        // determineSnapshotOffset, which runs before readTableStructure.
-        // Schema-history recovery is source-scoped (AbstractSchemaHistory only applies records whose source
-        // matches a recovery-offset source key). task-0 writes the history under a task-agnostic source
-        // ({server,database}, see getCreateTableEvent), so recover under that same task-agnostic source -- not
-        // this shard's own task-scoped source, which would match nothing.
+        // Recovery is source-scoped, and task-0 writes history under a task-agnostic source (see
+        // getCreateTableEvent), so recover under that same source -- this shard's task-scoped source matches
+        // nothing. ctx.offset (= L_db) was set by determineSnapshotOffset, which runs before this.
         SqlServerPartition historyPartition = new SqlServerPartition(
                 connectorConfig.getLogicalName(), ctx.partition.getDatabaseName(), false, null);
         databaseSchema.recover(Offsets.of(historyPartition, ctx.offset));
-        // Copy this shard's recovered tables into the snapshot context, which is what createDataEvents reads to
-        // build the SELECT column list.
+        // createDataEvents reads the shard's Table from the snapshot context, not the persistent schema.
         for (TableId tableId : smartSnapshotTables) {
             Table table = databaseSchema.tableFor(tableId);
             if (table == null) {
@@ -139,8 +129,7 @@ public class SqlServerSmartSnapshotChangeEventSource extends SqlServerSnapshotCh
             }
             ctx.tables.overwriteTable(table);
         }
-        // Populate the CDC change-table map used by the column filter during the data read.
-        registerChangeTables(ctx);
+        registerChangeTables(ctx); // CDC capture-instance metadata for the data-read column filter
         LOGGER.info("Smart snapshot: [{}/{}] recovered {} shard table structure(s) from task-0's schema history",
                 ctx.partition.getDatabaseName(), connectorConfig.getTaskId(), smartSnapshotTables.size());
     }
@@ -151,18 +140,13 @@ public class SqlServerSmartSnapshotChangeEventSource extends SqlServerSnapshotCh
                                                      SnapshottingTask snapshottingTask)
             throws Exception {
         if (isSchemaHistoryWriter) {
-            // task-0: emit CREATE TABLE for the full eligible set to the shared schema-history topic (see
-            // getTablesForSchemaChange), then signal schema-ready so the other shards can proceed.
             super.createSchemaChangeEventsForTables(sourceContext, ctx, snapshottingTask);
-            snapshotCoordination.writeTaskStartedTransaction("0", epoch);
+            snapshotCoordination.writeTaskStartedTransaction("0", epoch); // signal schema-ready; unblocks other shards
             LOGGER.info("Smart snapshot: [{}/0] schema history written for {} table(s), signaled schema-ready @epoch {}",
                     ctx.partition.getDatabaseName(), ctx.capturedSchemaTables.size(), epoch);
             return;
         }
-        // Non-leader shards write NOTHING to schema history (task-0 is the sole writer). Their table structure
-        // was already recovered into the in-memory schema in readTableStructure, so there is nothing to emit
-        // here -- just perform the base method's snapshot-start side effect.
-        tryStartingSnapshot(ctx);
+        tryStartingSnapshot(ctx); // structure already recovered in readTableStructure; nothing to emit
     }
 
     /**
