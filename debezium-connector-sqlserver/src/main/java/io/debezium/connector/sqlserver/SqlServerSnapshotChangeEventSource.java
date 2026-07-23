@@ -188,13 +188,7 @@ public class SqlServerSnapshotChangeEventSource extends RelationalSnapshotChange
                 .collect(Collectors.toSet());
 
         // Save changeTables for sql select later.
-        final Map<TableId, SqlServerChangeTable> changeTables = jdbcConnection
-                .getChangeTables(snapshotContext.partition.getDatabaseName())
-                .stream()
-                .collect(Collectors.toMap(SqlServerChangeTable::getSourceTableId, changeTable -> changeTable,
-                        (changeTable1, changeTable2) -> changeTable1.getStartLsn().compareTo(changeTable2.getStartLsn()) > 0
-                                ? changeTable1
-                                : changeTable2));
+        final Map<TableId, SqlServerChangeTable> changeTables = registerChangeTables(snapshotContext);
 
         // reading info only for the schemas we're interested in as per the set of captured tables;
         // while the passed table name filter alone would skip all non-included tables, reading the schema
@@ -230,8 +224,27 @@ public class SqlServerSnapshotChangeEventSource extends RelationalSnapshotChange
                 }
             });
         }
+    }
 
+    /**
+     * Fetches the CDC change-table (capture-instance) metadata for the partition and records it in
+     * {@link #changeTablesByPartition} for later column filtering during the data read. Factored out of
+     * {@link #readTableStructure} so a smart-snapshot shard that sources its table structure from the schema
+     * history (rather than introspecting the database) can still populate the column filter with one cheap
+     * metadata call.
+     */
+    protected Map<TableId, SqlServerChangeTable> registerChangeTables(
+                                                                      RelationalSnapshotContext<SqlServerPartition, SqlServerOffsetContext> snapshotContext)
+            throws SQLException {
+        final Map<TableId, SqlServerChangeTable> changeTables = jdbcConnection
+                .getChangeTables(snapshotContext.partition.getDatabaseName())
+                .stream()
+                .collect(Collectors.toMap(SqlServerChangeTable::getSourceTableId, changeTable -> changeTable,
+                        (changeTable1, changeTable2) -> changeTable1.getStartLsn().compareTo(changeTable2.getStartLsn()) > 0
+                                ? changeTable1
+                                : changeTable2));
         changeTablesByPartition.put(snapshotContext.partition, changeTables);
+        return changeTables;
     }
 
     @Override
