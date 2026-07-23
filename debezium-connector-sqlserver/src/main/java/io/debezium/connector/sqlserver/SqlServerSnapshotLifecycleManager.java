@@ -79,9 +79,6 @@ public class SqlServerSnapshotLifecycleManager implements SmartSnapshotLifecycle
             SqlServerPartition partition = new SqlServerPartition(connectorConfig.getLogicalName(), databaseName);
             discovery = leaderSchemaSource.discover(partition);
         }
-        catch (SQLException e) {
-            throw new DebeziumException("Smart snapshot: [" + databaseName + "] failed to discover tables", e);
-        }
         catch (RuntimeException e) {
             throw e;
         }

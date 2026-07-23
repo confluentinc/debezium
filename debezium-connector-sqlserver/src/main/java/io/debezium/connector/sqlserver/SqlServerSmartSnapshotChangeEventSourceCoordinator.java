@@ -41,8 +41,8 @@ import io.debezium.util.LoggingContext;
 
 /**
  * Snapshot-only coordinator for a smart-snapshot shard task: polls the shared {@code snapshot_info} published
- * by the task-0 leader, computes its own shard via {@link SnapshotCoordinationFacade#tablesForTask}, snapshots
- * it, then writes its completion marker and idles until Connect downscales to streaming.
+ * by the task-0 leader, reads its own leader-assigned shard from it, snapshots that shard, then writes its
+ * completion marker and idles until Connect downscales to streaming.
  *
  * <p>Failure / rejoin / stale-{@code L_db} all signal {@code restart_needed}; the framework monitor then bumps
  * the epoch and reconfigures, so one task failure triggers a full-round restart (mirrors Postgres). A non-0
