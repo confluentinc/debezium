@@ -268,15 +268,15 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
 
             SnapshotSetup setup = lifecycle.prepareSnapshot(shouldStream);
 
-            // tasks.max range validation (only the leader knows the table count): each task should get 1-2
-            // tables. Out of range (incl. zero captured tables) fails task-0 loudly; other tasks then time out.
+            // Advisory only (the leader is the first place the table count is known): warn if tasks.max is
+            // outside the recommended [ceil(t/2), t] band (roughly 1-2 tables per task) but proceed regardless --
+            // fewer tasks just means more tables each, more tasks just means some idle with an empty shard.
             int tableCount = setup.tables().size();
             int minTasks = ceilDiv(tableCount, 2);
             if (numTasks < minTasks || numTasks > tableCount) {
-                throw new DebeziumException(String.format(
-                        "Smart snapshot: [%s] tasks.max=%d is out of range for %d captured table(s); it must be in [%d, %d] "
-                                + "(each task gets 1-2 tables). Adjust tasks.max or disable smart snapshot.",
-                        database, numTasks, tableCount, minTasks, tableCount));
+                LOGGER.warn("Smart snapshot: [{}] tasks.max={} is outside the recommended range for {} captured "
+                        + "table(s); recommended range is [{}, {}] (about 1-2 tables per task) for best snapshot "
+                        + "parallelism. Proceeding anyway.", database, numTasks, tableCount, minTasks, tableCount);
             }
 
             // Stash the uncaptured-eligible leftover BEFORE publishing snapshot_info, so task-0's shard
