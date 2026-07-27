@@ -53,8 +53,8 @@ public class BinlogStreamingChangeEventSourceMetrics<T extends BinlogDatabaseSch
     }
 
     @Override
-    public boolean isConnected() {
-        return this.client.isConnected();
+    public long getConnected() {
+        return this.client.isConnected() ? 1L : 0L;
     }
 
     @Override

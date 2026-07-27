@@ -1459,7 +1459,7 @@ public abstract class AbstractConnectorTest implements Testing {
         try {
             ObjectName streamingMetricsObjectName = task != null ? getStreamingMetricsObjectName(connector, server, contextName, task)
                     : getStreamingMetricsObjectName(connector, server, contextName);
-            return (boolean) mbeanServer.getAttribute(streamingMetricsObjectName, "Connected");
+            return (long) mbeanServer.getAttribute(streamingMetricsObjectName, "Connected") == 1L;
         }
         catch (JMException ignored) {
         }
@@ -1471,7 +1471,7 @@ public abstract class AbstractConnectorTest implements Testing {
 
         try {
             ObjectName streamingMetricsObjectName = getStreamingMetricsObjectName(connector, server, task, null, props);
-            return (boolean) mbeanServer.getAttribute(streamingMetricsObjectName, "Connected");
+            return (long) mbeanServer.getAttribute(streamingMetricsObjectName, "Connected") == 1L;
         }
         catch (JMException ignored) {
         }

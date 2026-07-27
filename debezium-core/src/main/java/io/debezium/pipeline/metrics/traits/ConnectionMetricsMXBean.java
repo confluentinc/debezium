@@ -10,5 +10,9 @@ package io.debezium.pipeline.metrics.traits;
  */
 public interface ConnectionMetricsMXBean {
 
-    boolean isConnected();
+    /**
+     * @return 1 if connected, 0 if not. Exposed as an integer rather than a boolean since the
+     * JMX-to-telemetry pipeline cannot ship a native boolean attribute as a GAUGE_INT64 metric.
+     */
+    long getConnected();
 }

@@ -137,7 +137,7 @@ public class MongoMetricsIT extends AbstractMongoConnectorIT {
         final ObjectName objectName = getStreamingMetricsObjectName("mongodb", "mongo1");
 
         assertThat(mBeanServer.getAttribute(objectName, "SourceEventPosition")).isNotNull();
-        assertThat(mBeanServer.getAttribute(objectName, "Connected")).isEqualTo(true);
+        assertThat(mBeanServer.getAttribute(objectName, "Connected")).isEqualTo(1L);
         assertThat(mBeanServer.getAttribute(objectName, "CapturedTables")).isEqualTo(new String[]{});
         assertThat(mBeanServer.getAttribute(objectName, "LastEvent")).isNotNull();
         assertThat(mBeanServer.getAttribute(objectName, "TotalNumberOfEventsSeen")).isEqualTo(6L);
