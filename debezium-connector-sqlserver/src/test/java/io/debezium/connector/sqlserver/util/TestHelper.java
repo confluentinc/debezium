@@ -546,7 +546,7 @@ public class TestHelper {
         try {
             Awaitility.await("Streaming never started").atMost(Duration.ofSeconds(60)).until(() -> {
                 try {
-                    return (long) mbeanServer.getAttribute(objectName, "Connected") == 1L;
+                    return (boolean) mbeanServer.getAttribute(objectName, "Connected");
                 }
                 catch (InstanceNotFoundException e) {
                     // Metrics has not started yet

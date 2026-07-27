@@ -36,8 +36,8 @@ class SqlServerStreamingTaskMetrics extends AbstractSqlServerTaskMetrics<SqlServ
     }
 
     @Override
-    public long getConnected() {
-        return connectionMeter.getConnected();
+    public boolean isConnected() {
+        return connectionMeter.isConnected();
     }
 
     @Override

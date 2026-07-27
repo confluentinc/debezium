@@ -236,7 +236,7 @@ public class PostgresEndToEndPerf {
                 .until(() -> {
                     final MBeanServer server = ManagementFactory.getPlatformMBeanServer();
                     try {
-                        return (long) server.getAttribute(getMbeanName(), "Connected") == 1L;
+                        return (boolean) server.getAttribute(getMbeanName(), "Connected");
                     }
                     catch (JMException ignored) {
                     }

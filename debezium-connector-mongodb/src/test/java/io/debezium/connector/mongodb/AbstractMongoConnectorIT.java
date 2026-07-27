@@ -363,7 +363,7 @@ public abstract class AbstractMongoConnectorIT extends AbstractAsyncEngineConnec
                 .pollInterval(100, TimeUnit.MILLISECONDS)
                 .atMost(waitTimeForRecords() * 30, TimeUnit.SECONDS)
                 .ignoreException(InstanceNotFoundException.class)
-                .until(() -> (long) mbeanServer.getAttribute(objectName, "Connected") == 1L);
+                .until(() -> (boolean) mbeanServer.getAttribute(objectName, "Connected"));
     }
 
     private static ObjectName getMetricsObjectNameWithTags(String connector, Map<String, String> tags) {
