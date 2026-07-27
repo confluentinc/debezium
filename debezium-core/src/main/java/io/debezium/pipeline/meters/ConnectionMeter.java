@@ -19,8 +19,8 @@ public class ConnectionMeter implements ConnectionMetricsMXBean {
     private final AtomicBoolean connected = new AtomicBoolean();
 
     @Override
-    public boolean isConnected() {
-        return this.connected.get();
+    public long getConnected() {
+        return this.connected.get() ? 1L : 0L;
     }
 
     public void connected(boolean connected) {
