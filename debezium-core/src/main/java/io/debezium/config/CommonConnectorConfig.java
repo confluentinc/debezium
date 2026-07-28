@@ -1665,7 +1665,9 @@ public abstract class CommonConnectorConfig {
         }
         List<org.apache.kafka.connect.data.Field> fields = event.schema().fields();
         if (fields.size() != 3) {
-            LOGGER.warn("The signal event '{}' should have 3 fields but has {}", maybeRedactSensitiveData(event), fields.size());
+            LOGGER.warn("The signal event '{}' should have exactly 3 fields (id, type, data) but found {}. "
+                    + "When column.include.list or column.exclude.list is configured, ensure the signal data "
+                    + "collection's id, type and data columns are not filtered out.", maybeRedactSensitiveData(event), fields.size());
             return Optional.empty();
         }
         return Optional.of(new String[]{
