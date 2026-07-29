@@ -21,7 +21,7 @@ public interface MongoDbStreamingChangeEventSourceMetricsMXBean extends Streamin
      * the streaming_is_connected telemetry metric to be sourced from, without changing the type of
      * the existing Connected attribute (which is already relied upon by Confluent Platform users).
      */
-    long getConnectedCode();
+    int getConnectedCode();
 
     long getNumberOfDisconnects();
 
