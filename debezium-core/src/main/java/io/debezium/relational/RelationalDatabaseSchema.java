@@ -66,6 +66,9 @@ public abstract class RelationalDatabaseSchema implements DatabaseSchema<TableId
         final boolean includeListMode = !Strings.isNullOrEmpty(
                 config.getConfig().getString(RelationalDatabaseConnectorConfig.COLUMN_INCLUDE_LIST));
         if (columnFilter != null && includeListMode && !Strings.isNullOrBlank(config.getSignalingDataCollectionId())) {
+            LOG.info("column.include.list is configured with a signal data collection ('{}'); retaining its required columns {} "
+                    + "in the schema so source-channel signals are not dropped.",
+                    config.getSignalingDataCollectionId(), SIGNAL_REQUIRED_COLUMNS);
             return (catalogName, schemaName, tableName, columnName) -> (SIGNAL_REQUIRED_COLUMNS.contains(columnName.toLowerCase())
                     && config.isSignalDataCollection(new TableId(catalogName, schemaName, tableName)))
                     || columnFilter.matches(catalogName, schemaName, tableName, columnName);
