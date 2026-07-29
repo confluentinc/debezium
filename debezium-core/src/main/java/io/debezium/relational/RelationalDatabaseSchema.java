@@ -5,6 +5,7 @@
  */
 package io.debezium.relational;
 
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -63,13 +64,12 @@ public abstract class RelationalDatabaseSchema implements DatabaseSchema<TableId
      * ({@code id}, {@code type}, {@code data}) are always included when {@code column.include.list} is used.
      */
     static ColumnNameFilter overrideColumnFilter(RelationalDatabaseConnectorConfig config, ColumnNameFilter columnFilter) {
-        final boolean includeListMode = !Strings.isNullOrEmpty(
-                config.getConfig().getString(RelationalDatabaseConnectorConfig.COLUMN_INCLUDE_LIST));
+        final boolean includeListMode = !Strings.isNullOrEmpty(config.columnIncludeList());
         if (columnFilter != null && includeListMode && !Strings.isNullOrBlank(config.getSignalingDataCollectionId())) {
-            LOG.info("column.include.list is configured with a signal data collection ('{}'); retaining its required columns {} "
-                    + "in the schema so source-channel signals are not dropped.",
-                    config.getSignalingDataCollectionId(), SIGNAL_REQUIRED_COLUMNS);
-            return (catalogName, schemaName, tableName, columnName) -> (SIGNAL_REQUIRED_COLUMNS.contains(columnName.toLowerCase())
+            LOG.info("Column include list is configured with a signal data collection; the required signal columns {} "
+                    + "of that collection ('{}') will always be included in the schema.",
+                    SIGNAL_REQUIRED_COLUMNS, config.getSignalingDataCollectionId());
+            return (catalogName, schemaName, tableName, columnName) -> (SIGNAL_REQUIRED_COLUMNS.contains(columnName.toLowerCase(Locale.ROOT))
                     && config.isSignalDataCollection(new TableId(catalogName, schemaName, tableName)))
                     || columnFilter.matches(catalogName, schemaName, tableName, columnName);
         }
