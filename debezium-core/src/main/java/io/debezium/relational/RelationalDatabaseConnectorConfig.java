@@ -700,6 +700,10 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
         return getConfig().getString(TABLE_INCLUDE_LIST);
     }
 
+    public String columnIncludeList() {
+        return getConfig().getString(COLUMN_INCLUDE_LIST);
+    }
+
     public ColumnNameFilter getColumnFilter() {
         return columnFilter;
     }
