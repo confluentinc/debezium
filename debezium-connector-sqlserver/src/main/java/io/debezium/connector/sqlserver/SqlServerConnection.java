@@ -182,8 +182,8 @@ public class SqlServerConnection extends JdbcConnection {
         this.optionRecompile = optionRecompile;
     }
 
-    static String buildGetAllChangesForTableQuery(SqlServerConnectorConfig.DataQueryMode dataQueryMode,
-                                                  Set<Envelope.Operation> skippedOperations) {
+    private String buildGetAllChangesForTableQuery(SqlServerConnectorConfig.DataQueryMode dataQueryMode,
+                                                   Set<Envelope.Operation> skippedOperations) {
         boolean isDirectMode = dataQueryMode == SqlServerConnectorConfig.DataQueryMode.DIRECT;
         String result = "";
         List<String> where = new LinkedList<>();
@@ -254,7 +254,7 @@ public class SqlServerConnection extends JdbcConnection {
         return result;
     }
 
-    private static boolean hasSkippedOperations(Set<Envelope.Operation> skippedOperations) {
+    private boolean hasSkippedOperations(Set<Envelope.Operation> skippedOperations) {
         if (!skippedOperations.isEmpty()) {
             for (Envelope.Operation operation : skippedOperations) {
                 switch (operation) {
