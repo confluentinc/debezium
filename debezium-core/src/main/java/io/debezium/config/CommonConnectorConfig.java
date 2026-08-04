@@ -967,20 +967,9 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
             .withValidation(Field::isPositiveLong)
             .withDescription("How long, in milliseconds, the leader holds the table locks waiting for every task to "
                     + "start its snapshot transaction. If they do not all start in time, the leader releases the locks "
-                    + "and restarts the round, so a stuck task cannot hold the locks forever. Internal, mainly for testing.");
-
-    public static final Field SMART_SNAPSHOT_RECONFIGURATION_TIMEOUT_MS = Field
-            .createInternal("smart.snapshot.internal.reconfiguration.timeout.ms")
-            .withDisplayName("Smart snapshot reconfiguration fulfillment timeout (ms)")
-            .withType(Type.LONG)
-            .withWidth(Width.MEDIUM)
-            .withImportance(Importance.LOW)
-            .withDefault(300000L)
-            .withValidation(Field::isPositiveLong)
-            .withDescription("How long, in milliseconds, the monitor waits for the runtime to fulfill a task "
-                    + "reconfiguration request (for a restart or a downscale) before failing the connector so it "
-                    + "restarts and retries. Guards against a reconfiguration request being silently dropped "
-                    + "(for example during a rebalance). Internal, mainly for testing.");
+                    + "and then signals a restart of the round (a restart_needed marker keyed to task 0, which the "
+                    + "connector monitor picks up to bump the epoch and retry), so a stuck task cannot hold the locks "
+                    + "forever. Internal, mainly for testing.");
 
     public static final Field SMART_SNAPSHOT_LEADER_POLL_INTERVAL_MS = Field.createInternal("smart.snapshot.internal.leader.poll.interval.ms")
             .withDisplayName("Smart snapshot leader poll interval (ms)")
@@ -1518,7 +1507,6 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
                     SMART_SNAPSHOT_LEADER_JOIN_WAIT_TIMEOUT_MS,
                     SMART_SNAPSHOT_LEADER_STARTED_TRANSACTION_TIMEOUT_MS,
                     SMART_SNAPSHOT_LEADER_POLL_INTERVAL_MS,
-                    SMART_SNAPSHOT_RECONFIGURATION_TIMEOUT_MS,
                     SMART_SNAPSHOT_TASK_SNAPSHOT_INFO_WAIT_TIMEOUT_MS,
                     SNAPSHOT_MODE_CUSTOM_NAME,
                     SNAPSHOT_MODE_CONFIGURATION_BASED_SNAPSHOT_DATA,
@@ -1583,7 +1571,6 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
     private final long smartSnapshotLeaderJoinWaitTimeoutMs;
     private final long smartSnapshotLeaderStartedTransactionTimeoutMs;
     private final long smartSnapshotLeaderPollIntervalMs;
-    private final long smartSnapshotReconfigurationTimeoutMs;
     private final long smartSnapshotTaskSnapshotInfoWaitTimeoutMs;
 
     private final String snapshotModeCustomName;
@@ -1640,7 +1627,6 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
         this.smartSnapshotLeaderJoinWaitTimeoutMs = config.getLong(SMART_SNAPSHOT_LEADER_JOIN_WAIT_TIMEOUT_MS);
         this.smartSnapshotLeaderStartedTransactionTimeoutMs = config.getLong(SMART_SNAPSHOT_LEADER_STARTED_TRANSACTION_TIMEOUT_MS);
         this.smartSnapshotLeaderPollIntervalMs = config.getLong(SMART_SNAPSHOT_LEADER_POLL_INTERVAL_MS);
-        this.smartSnapshotReconfigurationTimeoutMs = config.getLong(SMART_SNAPSHOT_RECONFIGURATION_TIMEOUT_MS);
         this.smartSnapshotTaskSnapshotInfoWaitTimeoutMs = config.getLong(SMART_SNAPSHOT_TASK_SNAPSHOT_INFO_WAIT_TIMEOUT_MS);
         this.snapshotModeCustomName = config.getString(SNAPSHOT_MODE_CUSTOM_NAME);
         this.queryFetchSize = config.getInteger(QUERY_FETCH_SIZE);
@@ -1819,10 +1805,6 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
 
     public long getSmartSnapshotLeaderPollIntervalMs() {
         return smartSnapshotLeaderPollIntervalMs;
-    }
-
-    public long getSmartSnapshotReconfigurationTimeoutMs() {
-        return smartSnapshotReconfigurationTimeoutMs;
     }
 
     public long getSmartSnapshotTaskSnapshotInfoWaitTimeoutMs() {
