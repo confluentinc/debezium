@@ -18,6 +18,21 @@ import io.debezium.relational.TableId;
  * table-to-task assignment logic for a smart snapshot: the leader splits the discovered tables across
  * tasks (stable sort + round-robin) and publishes the plan; each task reads its own slice back. This is deliberately
  * separate from {@link SnapshotCoordinationFacade}, whose job is coordination-topic I/O rather than assignment math.
+ * <p>
+ * The plan is published as the {@code assignments} field of the {@code snapshot_info} record: a map of task id
+ * (as a string) to that task's slice, each slice a JSON array of double-quoted table FQNs. For example, five
+ * Postgres tables across three tasks — sorted as {@code inventory.public.customers}, {@code ...orders},
+ * {@code ...products}, {@code ...shipments}, {@code ...suppliers} — yields:
+ *
+ * <pre>
+ * "assignments": {
+ *   "0": ["\"inventory\".\"public\".\"customers\"", "\"inventory\".\"public\".\"shipments\""],
+ *   "1": ["\"inventory\".\"public\".\"orders\"", "\"inventory\".\"public\".\"suppliers\""],
+ *   "2": ["\"inventory\".\"public\".\"products\""]
+ * }
+ * </pre>
+ *
+ * A task with no tables still gets an entry, with an empty array.
  */
 public final class SmartSnapshotTableAssignments {
 
