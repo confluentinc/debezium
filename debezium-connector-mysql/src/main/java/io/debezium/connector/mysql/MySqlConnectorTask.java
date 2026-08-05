@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.apache.kafka.connect.source.SourceRecord;
@@ -21,6 +22,7 @@ import io.debezium.bean.StandardBeanNames;
 import io.debezium.config.Configuration;
 import io.debezium.config.Field;
 import io.debezium.connector.base.ChangeEventQueue;
+import io.debezium.connector.binlog.BinlogConnectorConfig;
 import io.debezium.connector.binlog.BinlogEventMetadataProvider;
 import io.debezium.connector.binlog.BinlogSourceTask;
 import io.debezium.connector.binlog.jdbc.BinlogConnectorConnection;
@@ -37,9 +39,15 @@ import io.debezium.pipeline.DataChangeEvent;
 import io.debezium.pipeline.ErrorHandler;
 import io.debezium.pipeline.EventDispatcher;
 import io.debezium.pipeline.GuardrailValidator;
+import io.debezium.pipeline.metrics.TaskStateMetrics;
 import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.signal.SignalProcessor;
+import io.debezium.pipeline.source.snapshot.SmartSnapshotLeader;
+import io.debezium.pipeline.source.snapshot.SmartSnapshotLifecycleManager;
+import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
+import io.debezium.pipeline.source.snapshot.incremental.SignalBasedIncrementalSnapshotContext;
 import io.debezium.pipeline.spi.Offsets;
+import io.debezium.pipeline.txmetadata.TransactionContext;
 import io.debezium.relational.TableId;
 import io.debezium.schema.SchemaFactory;
 import io.debezium.schema.SchemaNameAdjuster;
@@ -67,6 +75,15 @@ public class MySqlConnectorTask extends BinlogSourceTask<MySqlPartition, MySqlOf
     private volatile BinlogConnectorConnection beanRegistryJdbcConnection;
     private volatile ErrorHandler errorHandler;
     private volatile MySqlDatabaseSchema schema;
+
+    // Smart snapshot state (only set when this is a smart snapshot data task).
+    private volatile SnapshotCoordinationFacade snapshotCoordination;
+    private volatile boolean isSmartSnapshotTask;
+    private volatile int epoch = -1;
+    private volatile String taskId;
+    private volatile SmartSnapshotLifecycleManager smartSnapshotLifecycleManager;
+    // The leader (task-0) background thread that prepares the shared snapshot and publishes it.
+    private volatile Thread smartSnapshotLeaderThread;
 
     @Override
     public String version() {
@@ -99,6 +116,18 @@ public class MySqlConnectorTask extends BinlogSourceTask<MySqlPartition, MySqlOf
         Offsets<MySqlPartition, MySqlOffsetContext> previousOffsets = getPreviousOffsets(
                 new MySqlPartition.Provider(connectorConfig, config),
                 new MySqlOffsetContext.Loader(connectorConfig));
+
+        this.isSmartSnapshotTask = isSmartSnapshotTask(config, connectorConfig);
+
+        // Post-downscale streaming task: no Kafka-Connect offset yet, so seed it from the coordination topic
+        // (snapshot completed, positioned at P) so streaming resumes from where the parallel snapshot ended.
+        if (connectorConfig.isSmartSnapshotEnabled() && previousOffsets.getTheOnlyOffset() == null) {
+            MySqlOffsetContext fromCoordinationTopic = SnapshotCoordinationFacade.fetchOffsetFromCoordinationTopic(
+                    config, connectorConfig, isSmartSnapshotTask, buildOffsetFromConsistentPoint(connectorConfig));
+            if (fromCoordinationTopic != null) {
+                previousOffsets = Offsets.of(previousOffsets.getTheOnlyPartition(), fromCoordinationTopic);
+            }
+        }
 
         final boolean tableIdCaseInsensitive = connection.isTableIdCaseSensitive();
         this.schema = new MySqlDatabaseSchema(connectorConfig, valueConverters, topicNamingStrategy, schemaNameAdjuster, tableIdCaseInsensitive);
@@ -223,28 +252,36 @@ public class MySqlConnectorTask extends BinlogSourceTask<MySqlPartition, MySqlOf
         NotificationService<MySqlPartition, MySqlOffsetContext> notificationService = new NotificationService<>(getNotificationChannels(),
                 connectorConfig, SchemaFactory.get(), dispatcher::enqueueNotification);
 
-        ChangeEventSourceCoordinator<MySqlPartition, MySqlOffsetContext> coordinator = new ChangeEventSourceCoordinator<>(
-                previousOffsets,
-                errorHandler,
-                MySqlConnector.class,
-                connectorConfig,
-                new MySqlChangeEventSourceFactory(
-                        connectorConfig,
-                        connectionFactory,
-                        errorHandler,
-                        dispatcher,
-                        clock,
-                        schema,
-                        taskContext,
-                        streamingMetrics,
-                        queue,
-                        snapshotterService),
-                new MySqlChangeEventSourceMetricsFactory(streamingMetrics),
-                dispatcher,
-                schema,
-                signalProcessor,
-                notificationService,
-                snapshotterService);
+        ChangeEventSourceCoordinator<MySqlPartition, MySqlOffsetContext> coordinator;
+        if (isSmartSnapshotTask) {
+            coordinator = startSmartSnapshotTask(config, connectorConfig, connectionFactory, snapshotterService,
+                    previousOffsets, dispatcher, notificationService, signalProcessor, metadataProvider, clock,
+                    schema, streamingMetrics);
+        }
+        else {
+            coordinator = new ChangeEventSourceCoordinator<>(
+                    previousOffsets,
+                    errorHandler,
+                    MySqlConnector.class,
+                    connectorConfig,
+                    new MySqlChangeEventSourceFactory(
+                            connectorConfig,
+                            connectionFactory,
+                            errorHandler,
+                            dispatcher,
+                            clock,
+                            schema,
+                            taskContext,
+                            streamingMetrics,
+                            queue,
+                            snapshotterService),
+                    new MySqlChangeEventSourceMetricsFactory(streamingMetrics),
+                    dispatcher,
+                    schema,
+                    signalProcessor,
+                    notificationService,
+                    snapshotterService);
+        }
 
         coordinator.start(taskContext, this.queue, metadataProvider);
 
@@ -254,6 +291,92 @@ public class MySqlConnectorTask extends BinlogSourceTask<MySqlPartition, MySqlOf
     @Override
     protected String connectorName() {
         return Module.name();
+    }
+
+    private boolean isSmartSnapshotTask(Configuration config, MySqlConnectorConfig connectorConfig) {
+        String numTasksStr = config.getString(SnapshotCoordinationFacade.NUM_TASKS);
+        boolean isParallelRound = numTasksStr != null && !"1".equals(numTasksStr);
+        // If the feature is on and taskId is null this is (or will downscale to) the streaming task; only a
+        // data-snapshot task in a parallel round is a smart snapshot task.
+        return connectorConfig.isSmartSnapshotEnabled() && connectorConfig.getTaskId() != null && isParallelRound;
+    }
+
+    /**
+     * Builds a synthetic completed offset at P for the post-downscale streaming task, decoding the
+     * coordination topic's {@code file:pos:gtids} consistent point.
+     */
+    private Function<String, MySqlOffsetContext> buildOffsetFromConsistentPoint(MySqlConnectorConfig connectorConfig) {
+        return cp -> {
+            String[] p = cp.split(":", 3);
+            String file = p[0];
+            long pos = Long.parseLong(p[1]);
+            String gtids = (p.length > 2 && !p[2].isEmpty()) ? p[2] : null;
+            MySqlOffsetContext offset = new MySqlOffsetContext(
+                    null, true, new TransactionContext(),
+                    connectorConfig.isReadOnlyConnection()
+                            ? new MySqlReadOnlyIncrementalSnapshotContext<>()
+                            : new SignalBasedIncrementalSnapshotContext<>(),
+                    new SourceInfo(connectorConfig)); // snapshotCompleted=true -> ctor calls postSnapshotCompletion()
+            offset.setBinlogStartPoint(file, pos);
+            offset.setCompletedGtidSet(gtids);
+            LOGGER.info("Smart snapshot: [role=task] Post-downscale streaming task, seeding from P=({}:{}) gtid={}", file, pos, gtids);
+            return offset;
+        };
+    }
+
+    private ChangeEventSourceCoordinator<MySqlPartition, MySqlOffsetContext> startSmartSnapshotTask(
+                                                                                                    Configuration config,
+                                                                                                    MySqlConnectorConfig connectorConfig,
+                                                                                                    MainConnectionProvidingConnectionFactory<BinlogConnectorConnection> connectionFactory,
+                                                                                                    SnapshotterService snapshotterService,
+                                                                                                    Offsets<MySqlPartition, MySqlOffsetContext> previousOffsets,
+                                                                                                    EventDispatcher<MySqlPartition, TableId> dispatcher,
+                                                                                                    NotificationService<MySqlPartition, MySqlOffsetContext> notificationService,
+                                                                                                    SignalProcessor<MySqlPartition, MySqlOffsetContext> signalProcessor,
+                                                                                                    BinlogEventMetadataProvider metadataProvider,
+                                                                                                    Clock clock,
+                                                                                                    MySqlDatabaseSchema schema,
+                                                                                                    MySqlStreamingChangeEventSourceMetrics streamingMetrics) {
+        this.taskId = connectorConfig.getTaskId();
+        if (config.getString(SnapshotCoordinationFacade.EPOCH) == null || config.getString(SnapshotCoordinationFacade.NUM_TASKS) == null) {
+            throw new DebeziumException(String.format(
+                    "Smart snapshot: [role=task taskId=%s] Failing as required configs [epoch, num_tasks] are missing.", taskId));
+        }
+        this.epoch = Integer.parseInt(config.getString(SnapshotCoordinationFacade.EPOCH));
+        LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Starting task", taskId, epoch);
+
+        this.snapshotCoordination = SnapshotCoordinationFacade.nonCreating(config, connectorConfig);
+
+        // task-0 is the leader: on a background thread lock, capture P, write the full schema history, publish.
+        if ("0".equals(taskId)) {
+            final int leaderEpoch = epoch;
+            final boolean shouldStream = !BinlogConnectorConfig.SnapshotMode.INITIAL_ONLY.getValue()
+                    .equals(connectorConfig.getSnapshotMode().getValue());
+            final int numTasks = Integer.parseInt(config.getString(SnapshotCoordinationFacade.NUM_TASKS));
+            final MySqlSnapshotChangeEventSourceMetrics leaderMetrics = new MySqlSnapshotChangeEventSourceMetrics(
+                    taskContext, queue, metadataProvider, new TaskStateMetrics(taskContext));
+            final MySqlSmartSnapshotLifecycleManager lifecycle = new MySqlSmartSnapshotLifecycleManager(
+                    connectorConfig, connectionFactory, schema, dispatcher, clock, leaderMetrics,
+                    notificationService, snapshotterService, leaderEpoch);
+            this.smartSnapshotLifecycleManager = lifecycle;
+
+            final SnapshotCoordinationFacade leaderCoordination = SnapshotCoordinationFacade.nonCreating(config, connectorConfig);
+            this.smartSnapshotLeaderThread = new Thread(
+                    new SmartSnapshotLeader(lifecycle, leaderCoordination, this.errorHandler,
+                            leaderEpoch, numTasks, shouldStream, connectorConfig,
+                            () -> taskContext.configureLoggingContext("smart-snapshot-leader")),
+                    "smart-snapshot-leader");
+            this.smartSnapshotLeaderThread.setDaemon(true);
+            this.smartSnapshotLeaderThread.start();
+        }
+
+        return new MySqlSmartSnapshotChangeEventSourceCoordinator(
+                previousOffsets, errorHandler, MySqlConnector.class, connectorConfig,
+                new MySqlChangeEventSourceFactory(connectorConfig, connectionFactory, errorHandler, dispatcher,
+                        clock, schema, taskContext, streamingMetrics, queue, snapshotterService),
+                new MySqlChangeEventSourceMetricsFactory(streamingMetrics),
+                dispatcher, schema, snapshotterService, signalProcessor, notificationService,
+                epoch, snapshotCoordination, taskId);
     }
 
     private MySqlValueConverters getValueConverters(MySqlConnectorConfig configuration) {
@@ -280,6 +403,14 @@ public class MySqlConnectorTask extends BinlogSourceTask<MySqlPartition, MySqlOf
 
     @Override
     protected void doStop() {
+        if (isSmartSnapshotTask) {
+            SmartSnapshotLeader.stopSmartSnapshot(
+                    smartSnapshotLeaderThread, smartSnapshotLifecycleManager,
+                    snapshotCoordination, 10_000, taskId, epoch);
+            smartSnapshotLeaderThread = null;
+            smartSnapshotLifecycleManager = null;
+        }
+
         shutdownQueue(queue);
 
         try {
