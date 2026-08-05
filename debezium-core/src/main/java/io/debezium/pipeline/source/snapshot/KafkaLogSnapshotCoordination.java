@@ -66,20 +66,24 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
     // uses to create the connector's output topics)
     private final Map<String, Object> adminClientConfig;
 
+    // In-memory materialized view of the compacted coordination topic: coordination key (the decoded record key,
+    // e.g. {server=..., type=snapshot_info}) -> the latest value for that key. Populated by onRecordConsumed as
+    // KafkaBasedLog tails the topic and by write(), and read by read() after catching the log up to the end. A
+    // tombstone removes the entry.
     private final Map<Map<String, String>, Map<String, Object>> cache = new ConcurrentHashMap<>();
 
     private final String topicName;
     private final String clientIdSuffix;
-    private final boolean createTopic;
+    private final boolean shouldCreateTopic;
 
     public KafkaLogSnapshotCoordination(Configuration configuration, CommonConnectorConfig commonConnectorConfig) {
         this(configuration, commonConnectorConfig, true);
     }
 
-    public KafkaLogSnapshotCoordination(Configuration configuration, CommonConnectorConfig commonConnectorConfig, boolean createTopic) {
+    public KafkaLogSnapshotCoordination(Configuration configuration, CommonConnectorConfig commonConnectorConfig, boolean shouldCreateTopic) {
         this.topicName = commonConnectorConfig.getLogicalName() + "." + SNAPSHOT_COORDINATION_PREFIX;
         this.clientIdSuffix = commonConnectorConfig.getLogicalName() + "-coordination-connector";
-        this.createTopic = createTopic;
+        this.shouldCreateTopic = shouldCreateTopic;
         this.clientConfig = new HashMap<>(clientConfigFromOverrides(configuration, PRODUCER_OVERRIDE_PREFIX));
         // Admin client uses admin.override.* to match how Kafka Connect creates the connector's output topics.
         // TODO confirm admin.override.* (especially bootstrap.servers) is populated in Confluent Cloud for the
@@ -120,9 +124,9 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
         if (started) {
             return true;
         }
-        if (createTopic) {
+        if (shouldCreateTopic) {
             // connector only: provision the topic before tailing it
-            createTopicIfMissing(topicName);
+            createTopic(topicName);
         }
         else if (policy != MissingTopicPolicy.ASSUME_EXISTS && !topicExists()) {
             if (policy == MissingTopicPolicy.FAIL) {
@@ -242,7 +246,11 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
         return fromOverride != null && !fromOverride.isEmpty();
     }
 
-    private void createTopicIfMissing(String topicName) {
+    /**
+     * Create the coordination topic. Not a check-then-create: it issues createTopics and treats
+     * {@link TopicExistsException} as success, so it is safe to call whenever the connector starts.
+     */
+    private void createTopic(String topicName) {
         Map<String, Object> adminConfig = new HashMap<>(adminClientConfig);
         adminConfig.put(AdminClientConfig.CLIENT_ID_CONFIG, SNAPSHOT_COORDINATION_PREFIX + "-create-" + clientIdSuffix);
 
