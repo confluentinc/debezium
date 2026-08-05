@@ -63,6 +63,19 @@ public class MySqlChangeEventSourceFactory extends BinlogChangeEventSourceFactor
     @Override
     public SnapshotChangeEventSource<MySqlPartition, MySqlOffsetContext> getSnapshotChangeEventSource(SnapshotProgressListener<MySqlPartition> snapshotProgressListener,
                                                                                                       NotificationService<MySqlPartition, MySqlOffsetContext> notificationService) {
+        if (configuration.isSmartSnapshotEnabled() && configuration.getTaskId() != null) {
+            return new MySqlSmartSnapshotChangeEventSource(
+                    configuration,
+                    connectionFactory,
+                    taskContext.getSchema(),
+                    dispatcher,
+                    clock,
+                    (MySqlSnapshotChangeEventSourceMetrics) snapshotProgressListener,
+                    this::modifyAndFlushLastRecord,
+                    this::preSnapshot,
+                    notificationService,
+                    snapshotterService);
+        }
         return new MySqlSnapshotChangeEventSource(
                 configuration,
                 connectionFactory,
