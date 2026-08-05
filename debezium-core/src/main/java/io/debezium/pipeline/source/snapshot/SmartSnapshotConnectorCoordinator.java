@@ -25,7 +25,6 @@ import io.debezium.util.Clock;
 import io.debezium.util.Collect;
 import io.debezium.util.LoggingContext;
 import io.debezium.util.Metronome;
-import io.debezium.util.Threads;
 
 public class SmartSnapshotConnectorCoordinator {
 
@@ -35,23 +34,20 @@ public class SmartSnapshotConnectorCoordinator {
     private final ConnectorContext connectorContext;
     private final String serverName;
     private final long monitorPollIntervalMs;
-    // How long a fired reconfiguration request may stay unfulfilled before we give up and fail the connector.
-    private final long reconfigurationTimeoutMs;
     // Connector type (MDC connectorType) used to establish the Debezium logging context on the monitor
     // thread. The monitor runs on its own thread, which does not inherit the connector thread's MDC, so
     // without setting it the log-pattern fields (connector type/name) would be blank on monitor lines.
     private final String connectorType;
 
-    // Guards the shared state (smartSnapshotState + currentEpoch + lastNumTasks), read by both the monitor thread
-    // and the connector thread. The monitor thread is the only writer of the state and epoch. Coordination-topic
-    // I/O and requestTaskReconfiguration are done outside this lock.
+    // Guards the shared state (smartSnapshotState + currentEpoch + lastNumTasks). Two threads touch it: the monitor
+    // thread started here, which is the only writer, and whichever runtime thread calls taskConfigs() (the herder
+    // thread in Connect, the engine thread when embedded), which only reads. The lock keeps taskConfigs() from
+    // seeing a half-applied transition, e.g. the new state with the old epoch. Coordination-topic I/O and
+    // requestTaskReconfiguration are done outside this lock so a slow Kafka read never blocks taskConfigs().
     private final Object stateLock = new Object();
 
     // The monitor thread. start() sets it and stop() reads it, so it is volatile.
     private volatile Thread monitorThread;
-
-    // Set to true by stop() so the monitor does not reconfigure while the connector is shutting down.
-    private volatile boolean stopping = false;
 
     // Current coordination round. Read from the topic in start(), bumped by the monitor thread on a restart,
     // and handed to tasks in taskConfigs().
@@ -60,16 +56,21 @@ public class SmartSnapshotConnectorCoordinator {
     // Number of tasks, set by taskConfigs(). The monitor needs it to know how many per-task keys to check.
     private volatile int lastNumTasks;
 
-    // Set to true by taskConfigs() every time it hands out configs, and cleared by the monitor just before it
-    // requests a reconfiguration. The monitor waits for it to turn true again to confirm the runtime applied the
-    // request (i.e. actually called taskConfigs()).
-    private volatile boolean reconfigurationApplied = false;
-
     enum SmartSnapshotState {
         // snapshot is ongoing
         ACTIVE,
         // snapshot is complete
         COMPLETE
+    }
+
+    /**
+     * What the monitor loop does after an iteration.
+     */
+    enum MonitorAction {
+        // nothing to do, or a restart was requested: keep watching the coordination topic
+        CONTINUE_POLLING,
+        // the monitor has no work left: the snapshot downscaled, or the connector was failed
+        STOP
     }
 
     private volatile SmartSnapshotState smartSnapshotState = SmartSnapshotState.ACTIVE;
@@ -78,13 +79,11 @@ public class SmartSnapshotConnectorCoordinator {
                                              ConnectorContext connectorContext,
                                              String serverName,
                                              long monitorPollIntervalMs,
-                                             long reconfigurationTimeoutMs,
                                              String connectorType) {
         this.snapshotCoordination = snapshotCoordination;
         this.connectorContext = connectorContext;
         this.serverName = serverName;
         this.monitorPollIntervalMs = monitorPollIntervalMs;
-        this.reconfigurationTimeoutMs = reconfigurationTimeoutMs;
         this.connectorType = connectorType;
     }
 
@@ -94,6 +93,10 @@ public class SmartSnapshotConnectorCoordinator {
         boolean offsetExists = (existingOffset != null);
         boolean snapshotInProgress = offsetExists && isSnapshotInProgress(existingOffset);
 
+        // An offset with no in-progress snapshot marker means this connector already finished its snapshot and is
+        // streaming, so there is nothing to parallelize. This is what covers turning the feature on for a connector
+        // that snapshotted before smart snapshot existed (or while it was disabled): there is no completion marker
+        // on the coordination topic to find, only the streaming offset.
         if (offsetExists && !snapshotInProgress) {
             LOGGER.info("Smart snapshot: [role=connector] Existing streaming offset present, skipping smart snapshot");
             this.smartSnapshotState = SmartSnapshotState.COMPLETE;
@@ -138,10 +141,6 @@ public class SmartSnapshotConnectorCoordinator {
                 this.lastNumTasks = maxTasks;
             }
             epoch = currentEpoch.get();
-            // Tell the monitor its reconfiguration request was applied (the runtime called taskConfigs()). Done under
-            // the lock, together with reading the state, so it reliably means "taskConfigs observed the state the
-            // monitor set before it requested" — see the clear in handleRestart/handleDownscale.
-            reconfigurationApplied = true;
         }
 
         if (complete) {
@@ -169,8 +168,7 @@ public class SmartSnapshotConnectorCoordinator {
             while (true) {
                 try {
                     metronome.pause();
-                    if (monitorIteration()) {
-                        // snapshot downscaled, or the connector was failed; either way the monitor is done.
+                    if (monitorIteration() == MonitorAction.STOP) {
                         return;
                     }
                 }
@@ -190,29 +188,24 @@ public class SmartSnapshotConnectorCoordinator {
 
         // If the monitor thread dies from something the loop did not catch, fail the connector so the runtime
         // restarts it instead of hanging forever.
-        thread.setUncaughtExceptionHandler((t, err) -> {
-            LOGGER.error("Smart snapshot: [role=monitor epoch={}] Monitor thread died unexpectedly, failing the connector", currentEpoch.get(), err);
-            connectorContext.raiseError(new RuntimeException("Smart snapshot: monitor thread died", err));
-        });
+        thread.setUncaughtExceptionHandler((t, err) -> failConnector("monitor thread died unexpectedly", err));
 
         this.monitorThread = thread;
         thread.start();
     }
 
     /**
-     * One monitor iteration: decide whether a restart or downscale is needed and, if so, drive the whole
-     * reconfiguration (make it durable, change the state, request it, and wait for the runtime to apply it).
-     * Returns true when the monitor should stop (downscale applied, or the connector was failed); false to keep
-     * polling.
+     * One monitor iteration: decide whether a restart or downscale is needed and, if so, drive the transition (make
+     * it durable, change the state, and request the reconfiguration).
      */
-    boolean monitorIteration() throws InterruptedException {
+    MonitorAction monitorIteration() {
         int epoch;
         int numTasks;
         synchronized (stateLock) {
             // taskConfigs() (which sets lastNumTasks) runs only after start() returns, but the monitor is already
             // polling. Skip until the task count is known, otherwise we would downscale before any task started.
             if (lastNumTasks <= 0) {
-                return false;
+                return MonitorAction.CONTINUE_POLLING;
             }
             epoch = currentEpoch.get();
             numTasks = lastNumTasks;
@@ -222,16 +215,13 @@ public class SmartSnapshotConnectorCoordinator {
         boolean restartNeeded = anyTaskNeedsRestart(epoch, numTasks);
         boolean allDone = !restartNeeded && allTasksDone(epoch, numTasks);
 
-        if (stopping) {
-            return false;
-        }
         if (restartNeeded) {
             return handleRestart(epoch);
         }
         if (allDone) {
             return handleDownscale(epoch);
         }
-        return false;
+        return MonitorAction.CONTINUE_POLLING;
     }
 
     /**
@@ -247,34 +237,20 @@ public class SmartSnapshotConnectorCoordinator {
      * tasks onto N+1. In the meantime any task still on N sees the persisted epoch is ahead of its own and idles (see
      * the stale-epoch check on the task side), so it does no work at the wrong epoch.
      *
-     * @return false when the restart is applied (keep polling the new round); true when the connector was failed.
      */
-    private boolean handleRestart(int epoch) throws InterruptedException {
+    private MonitorAction handleRestart(int epoch) {
         int newEpoch = epoch + 1;
-        try {
-            // Persist the new epoch before the runtime hands it to the tasks.
-            persistEpoch(newEpoch);
-        }
-        catch (RuntimeException e) {
-            return failConnector("failed to persist epoch " + newEpoch, e);
-        }
-        synchronized (stateLock) {
-            currentEpoch.set(newEpoch);
-            smartSnapshotState = SmartSnapshotState.ACTIVE;
-            // Clear the applied flag together with the state change, so a taskConfigs() that ran on the old state
-            // cannot leave a stale true; only a taskConfigs() that observes this new epoch can set it again.
-            reconfigurationApplied = false;
-        }
-        LOGGER.info("Smart snapshot: [role=monitor epoch={}] Restart needed, epoch bumped from {} to {}", newEpoch, epoch, newEpoch);
-        // Re-check after the writes above: stop() may have set stopping while we were persisting. Do not
-        // reconfigure while shutting down; the persisted epoch makes the next start resume cleanly.
-        if (stopping) {
-            return false;
-        }
-        if (!requestReconfiguration("restart", newEpoch)) {
-            return failConnector("could not request restart reconfiguration", null);
-        }
-        return awaitReconfiguration(false, newEpoch);
+        LOGGER.info("Smart snapshot: [role=monitor epoch={}] Restart needed, bumping epoch from {} to {}", epoch, epoch, newEpoch);
+        boolean requested = applyTransition("restart", newEpoch,
+                // Persist the new epoch before the runtime hands it to the tasks.
+                () -> persistEpoch(newEpoch),
+                () -> {
+                    currentEpoch.set(newEpoch);
+                    smartSnapshotState = SmartSnapshotState.ACTIVE;
+                });
+        // Restart requested: keep polling, now on the new epoch. Other wise the connector has been failed and the
+        // runtime will restart it, so this monitor is done.
+        return requested ? MonitorAction.CONTINUE_POLLING : MonitorAction.STOP;
     }
 
     /**
@@ -282,90 +258,60 @@ public class SmartSnapshotConnectorCoordinator {
      * task. The marker is made durable before the request so that if anything fails the connector restarts cleanly
      * and skips the snapshot.
      *
-     * @return true when the downscale is applied (monitor stops) or the connector was failed.
      */
-    private boolean handleDownscale(int epoch) throws InterruptedException {
+    private MonitorAction handleDownscale(int epoch) {
+        LOGGER.info("Smart snapshot: [role=monitor epoch={}] All tasks done, snapshot complete, downscaling", epoch);
+        applyTransition("downscale", epoch,
+                // Write the completion marker before marking complete, so a write failure just retries on the next
+                // iteration with the state still ACTIVE.
+                this::writeCompletion,
+                () -> smartSnapshotState = SmartSnapshotState.COMPLETE);
+        // Whether the downscale was requested or the connector was failed, the snapshot is over: nothing left to
+        // watch for. On a failure the completion marker is already durable, so the restart skips the snapshot.
+        return MonitorAction.STOP;
+    }
+
+    /**
+     * Drive one state transition: make it durable, apply the state change under the state lock, then ask the runtime
+     * to reconfigure the tasks. The durable write always comes first, so a failure anywhere after it leaves the
+     * connector able to resume from the coordination topic on the next start.
+     * <p>
+     * {@code requestTaskReconfiguration()} only submits the request; the runtime applies it later, asynchronously, by
+     * calling {@link #taskConfigs}. We do not wait for that to happen — a request the runtime drops is recovered on
+     * the next connector restart, because taskConfigs() then hands out configs that differ from the stored ones (a
+     * new epoch, or the single downscaled config) and the runtime republishes them.
+     *
+     * @return true if the reconfiguration was requested; false if the connector was failed instead
+     */
+    private boolean applyTransition(String action, int epoch, Runnable durableWrite, Runnable stateChange) {
         try {
-            // Write the completion marker before marking complete, so a write failure just retries on the next
-            // iteration with the state still ACTIVE.
-            writeCompletion();
+            durableWrite.run();
         }
         catch (RuntimeException e) {
-            return failConnector("failed to write completion marker", e);
+            failConnector("failed to make " + action + " durable at epoch " + epoch, e);
+            return false;
         }
         synchronized (stateLock) {
-            smartSnapshotState = SmartSnapshotState.COMPLETE;
-            // Clear the applied flag together with the state change (see handleRestart) so only a taskConfigs() that
-            // observes COMPLETE can set it again.
-            reconfigurationApplied = false;
+            stateChange.run();
         }
-        LOGGER.info("Smart snapshot: [role=monitor epoch={}] All tasks done, snapshot complete, downscaling", epoch);
-        // Re-check after the write above: stop() may have set stopping while we were writing completion. Do not
-        // reconfigure while shutting down; the completion marker makes the next start skip the snapshot.
-        if (stopping) {
-            return false;
-        }
-        if (!requestReconfiguration("downscale", epoch)) {
-            return failConnector("could not request downscale reconfiguration", null);
-        }
-        return awaitReconfiguration(true, epoch);
-    }
-
-    /**
-     * Ask the runtime to reconfigure the tasks. The caller has already cleared {@link #reconfigurationApplied} under
-     * the state lock, so the wait can detect when the runtime honors the request by calling taskConfigs().
-     *
-     * @return true if the request was submitted, false if it failed to submit.
-     */
-    private boolean requestReconfiguration(String action, int epoch) {
-        LOGGER.info("Smart snapshot: [role=monitor epoch={}] {} needed, requesting task reconfiguration", epoch, action);
+        LOGGER.info("Smart snapshot: [role=monitor epoch={}] Requesting task reconfiguration for {}", epoch, action);
         try {
             connectorContext.requestTaskReconfiguration();
-            return true;
         }
         catch (RuntimeException e) {
-            // requestTaskReconfiguration() only submits the request; the runtime applies it later, asynchronously,
-            // by calling taskConfigs(). So this catch handles only a synchronous submit failure. A request that is
-            // submitted but never applied is handled separately by awaitReconfiguration() timing out.
-            LOGGER.warn("Smart snapshot: [role=monitor epoch={}] Task reconfiguration request failed to submit", epoch, e);
+            failConnector("could not request " + action + " reconfiguration", e);
             return false;
         }
-    }
-
-    /**
-     * Wait for the runtime to apply the reconfiguration, i.e. for taskConfigs() to run and set
-     * {@link #reconfigurationApplied}. If nothing happens within {@link #reconfigurationTimeoutMs} the request was
-     * likely dropped, so fail the connector to restart and retry.
-     *
-     * @return true if the monitor should stop (downscale applied, or the connector was failed); false to keep
-     *         polling (restart applied, or shutting down).
-     */
-    private boolean awaitReconfiguration(boolean downscale, int epoch) throws InterruptedException {
-        Metronome metronome = Metronome.sleeper(Duration.ofMillis(monitorPollIntervalMs), Clock.SYSTEM);
-        Threads.Timer timer = Threads.timer(Clock.SYSTEM, Duration.ofMillis(reconfigurationTimeoutMs));
-        while (!timer.expired()) {
-            if (stopping) {
-                return false;
-            }
-            if (reconfigurationApplied) {
-                LOGGER.info("Smart snapshot: [role=monitor epoch={}] {} applied", epoch, downscale ? "downscale" : "restart");
-                return downscale;
-            }
-            metronome.pause();
-        }
-        return failConnector("task reconfiguration was not applied within " + reconfigurationTimeoutMs + " ms", null);
+        return true;
     }
 
     /**
      * Fail the connector so the runtime restarts it. Recovery is clean because the epoch and the completion marker
      * are made durable before they are acted on.
-     *
-     * @return true, so the caller stops the monitor.
      */
-    private boolean failConnector(String reason, Throwable cause) {
+    private void failConnector(String reason, Throwable cause) {
         LOGGER.error("Smart snapshot: [role=monitor epoch={}] {}, failing the connector", currentEpoch.get(), reason, cause);
         connectorContext.raiseError(new RuntimeException("Smart snapshot: " + reason, cause));
-        return true;
     }
 
     private boolean anyTaskNeedsRestart(int epoch, int numTasks) {
@@ -391,8 +337,6 @@ public class SmartSnapshotConnectorCoordinator {
     }
 
     public void stop() {
-        // avoid reconfiguration while stopping
-        stopping = true;
         stopMonitorThread();
         snapshotCoordination.stop();
     }
