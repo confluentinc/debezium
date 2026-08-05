@@ -10,7 +10,7 @@ import java.util.List;
 import io.debezium.pipeline.source.spi.ChangeEventSource;
 import io.debezium.relational.TableId;
 
-public interface SmartSnapshotLifecycleManager extends AutoCloseable {
+public interface SmartSnapshotLifecycleManager {
 
     ChangeEventSource.ChangeEventSourceContext RUNNING_CONTEXT = new ChangeEventSource.ChangeEventSourceContext() {
         @Override
@@ -75,7 +75,8 @@ public interface SmartSnapshotLifecycleManager extends AutoCloseable {
     void onAllTasksStartedTransaction();
 
     /**
-     * Close all held connections and release locks.
+     * Close all held connections and release locks. Idempotent and a no-op when nothing is held: it is called
+     * from the leader thread's finally block and from the task-stop thread, possibly both.
      */
     void releaseSnapshot();
 
@@ -85,9 +86,4 @@ public interface SmartSnapshotLifecycleManager extends AutoCloseable {
      * leader task fails fast. No-op if nothing is held.
      */
     void keepAlive();
-
-    @Override
-    default void close() {
-        releaseSnapshot();
-    }
 }

@@ -110,7 +110,9 @@ public class SmartSnapshotLeaderTest {
         verify(lifecycle).prepareSnapshot(true);
         verify(coordination).writeSnapshotInfo("snap", "0/16B3748", EPOCH, TABLES, 2);
         verify(lifecycle).onAllTasksStartedTransaction();
-        verify(lifecycle, never()).releaseSnapshot();
+        // one release for every path out of run(), including the success path: the held connections are dropped
+        // as soon as the leader thread ends rather than lingering until the task is stopped
+        verify(lifecycle).releaseSnapshot();
     }
 
     @Test
@@ -143,7 +145,14 @@ public class SmartSnapshotLeaderTest {
         // nothing was prepared/published, so no epoch bump -> fail the task instead
         verify(coordination, never()).writeRestartNeeded(any(), eq(EPOCH));
         verify(errorHandler).setProducerThrowable(any(DebeziumException.class));
-        verify(lifecycle, never()).releaseSnapshot();
+        // nothing was held, so this release is a no-op; it runs because run() releases on every path
+        verify(lifecycle).releaseSnapshot();
+
+        // the join timeout is reported only after this thread's coordination facade is closed, so the restart it
+        // triggers cannot interrupt that close mid-way (same deferral as the post-publish failure path)
+        InOrder order = inOrder(coordination, errorHandler);
+        order.verify(coordination).stop();
+        order.verify(errorHandler).setProducerThrowable(any(DebeziumException.class));
     }
 
     @Test
@@ -191,7 +200,6 @@ public class SmartSnapshotLeaderTest {
         prep(2, true).run();
 
         verify(lifecycle).onAllTasksStartedTransaction();
-        verify(lifecycle, never()).releaseSnapshot();
         verify(coordination, never()).writeRestartNeeded(any(), eq(EPOCH));
         verify(errorHandler, never()).setProducerThrowable(any());
     }
