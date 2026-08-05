@@ -432,7 +432,7 @@ public abstract class BinlogSnapshotChangeEventSource<P extends BinlogPartition,
         };
     }
 
-    private boolean twoPhaseSchemaSnapshot() {
+    protected boolean twoPhaseSchemaSnapshot() {
         if (!isGloballyLocked() && connectorConfig.getSnapshotLockingStrategy().preventsTableLocks()) {
             // Prevent obtaining individual table-level read locks
             // using 'FLUSH TABLE <tableName> WITH READ LOCK'
@@ -619,12 +619,23 @@ public abstract class BinlogSnapshotChangeEventSource<P extends BinlogPartition,
                 LOGGER.trace("Event {} will be skipped since it's not related to blocking snapshot captured table {}", event, snapshotContext.capturedTables);
                 continue;
             }
-            snapshotContext.offset.event(tableId, getClock().currentTime());
-            dispatcher.dispatchSchemaChangeEvent(snapshotContext.partition, snapshotContext.offset, tableId, (receiver) -> receiver.schemaChangeEvent(event));
+            emitSchemaChangeEvent(snapshotContext, event, tableId);
         }
 
         // Make schema available for snapshot source
         databaseSchema.tableIds().forEach(x -> snapshotContext.tables.overwriteTable(databaseSchema.tableFor(x)));
+    }
+
+    /**
+     * Emit one snapshot schema-change event. The default persists it (schema history + public schema-change
+     * topic) via the dispatcher. Smart-snapshot follower/foreground tasks override this to apply the schema in
+     * memory only, so the leader task remains the single writer of the schema history.
+     */
+    protected void emitSchemaChangeEvent(RelationalSnapshotContext<P, O> snapshotContext,
+                                         SchemaChangeEvent event, TableId tableId)
+            throws InterruptedException {
+        snapshotContext.offset.event(tableId, getClock().currentTime());
+        dispatcher.dispatchSchemaChangeEvent(snapshotContext.partition, snapshotContext.offset, tableId, (receiver) -> receiver.schemaChangeEvent(event));
     }
 
     @Override
