@@ -31,10 +31,7 @@ import io.debezium.pipeline.spi.Partition;
 import io.debezium.pipeline.spi.SnapshotResult;
 import io.debezium.schema.DatabaseSchema;
 import io.debezium.snapshot.SnapshotterService;
-import io.debezium.util.Clock;
 import io.debezium.util.LoggingContext;
-import io.debezium.util.Metronome;
-import io.debezium.util.Threads;
 
 /**
  * The task-side coordinator for a smart snapshot data task. This is the DB-agnostic orchestration:
@@ -87,6 +84,25 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
         this.snapshotCoordination = snapshotCoordination;
         this.taskId = taskId;
         this.snapshotInfoWaitTimeoutMs = connectorConfig.getSmartSnapshotTaskSnapshotInfoWaitTimeoutMs();
+
+        // These two timeouts are coupled: a task must not give up before the leader has had time to wait for all
+        // tasks to join AND prepare the snapshot. Both field descriptions say so, but nothing enforces it, so a
+        // misconfiguration would otherwise show up only as tasks timing out while the leader is still working.
+        // Warn loudly at startup instead of failing: the defaults are correct and these are internal, test-facing
+        // knobs, so a test that deliberately shortens one must still be able to run.
+        long leaderJoinWaitTimeoutMs = connectorConfig.getSmartSnapshotLeaderJoinWaitTimeoutMs();
+        if (snapshotInfoWaitTimeoutMs <= leaderJoinWaitTimeoutMs) {
+            LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Misconfigured timeouts: the task snapshot-info wait ({}ms) is not larger than the "
+                    + "leader join wait ({}ms), so tasks may give up before the leader publishes the snapshot info. "
+                    + "Increase '{}' above '{}' plus the expected snapshot preparation time.",
+                    taskId, epoch, snapshotInfoWaitTimeoutMs, leaderJoinWaitTimeoutMs,
+                    CommonConnectorConfig.SMART_SNAPSHOT_TASK_SNAPSHOT_INFO_WAIT_TIMEOUT_MS.name(),
+                    CommonConnectorConfig.SMART_SNAPSHOT_LEADER_JOIN_WAIT_TIMEOUT_MS.name());
+        }
+    }
+
+    private String logPrefix() {
+        return "Smart snapshot: [role=task taskId=" + taskId + " epoch=" + epoch + "]";
     }
 
     // Visible for testing: shorten the snapshot-info poll interval so tests do not sleep the default.
@@ -192,64 +208,57 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
 
         // Read snapshot info from the coordination topic. Wait up to snapshotInfoWaitTimeoutMs, which must be
         // larger than the leader's join-wait + prepare time so we do not give up before the snapshot is published.
-        String snapshotName = null;
-        String consistentPoint = null;
-        Object assignmentForTask = null;
-        // The loop is interrupt-aware via metronome.pause() below, which throws InterruptedException (propagated by
-        // this method) if the task is being stopped.
-        Threads.Timer timer = Threads.timer(Clock.SYSTEM, Duration.ofMillis(snapshotInfoWaitTimeoutMs));
-        Metronome metronome = Metronome.parker(Duration.ofMillis(snapshotInfoPollIntervalMs), Clock.SYSTEM);
-        int attempt = 0;
-        boolean ready = false;
-        while (!timer.expired()) {
-            // A transient coordination read failure here is treated like "not ready yet": log and keep polling
-            // until the timeout, instead of failing the task on a single broker blip.
-            try {
-                Map<String, Object> snapshotInfo = snapshotCoordination.readSnapshotInfo();
-                // Readiness keys on the consistent point, which every connector publishes (Postgres also publishes
-                // a snapshot name, MySQL does not). Do not key on the snapshot name.
-                if (snapshotInfo != null
-                        && snapshotInfo.get(SnapshotCoordinationFacade.CONSISTENT_POINT) != null) {
-                    Integer snapshotInfoEpoch = SnapshotCoordinationFacade.epochOf(snapshotInfo);
-                    if (snapshotInfoEpoch != null) {
-                        if (snapshotInfoEpoch != epoch) {
-                            LOGGER.info(
-                                    "Smart snapshot: [role=task taskId={} epoch={}] Received snapshot info is for a different epoch. receivedEpoch={} currentEpoch={}",
-                                    taskId, epoch, snapshotInfoEpoch, epoch);
-                        }
-                        else {
-                            snapshotName = (String) snapshotInfo.get(SnapshotCoordinationFacade.SNAPSHOT_NAME);
-                            consistentPoint = String.valueOf(snapshotInfo.get(SnapshotCoordinationFacade.CONSISTENT_POINT));
-                            assignmentForTask = SmartSnapshotTableAssignments.assignmentForTask(
-                                    snapshotInfo.get(SnapshotCoordinationFacade.ASSIGNMENTS), Integer.parseInt(taskId));
-                            ready = true;
-                            break;
+        // The shared poll loop handles the transient-read retry, the throttled "still waiting" logging and the
+        // interrupt-aware park (it throws InterruptedException, propagated by this method, when the task is stopped).
+        AtomicReference<Map<String, Object>> published = new AtomicReference<>();
+        SmartSnapshotPolling.Outcome outcome = SmartSnapshotPolling.pollUntil(
+                logPrefix(), "snapshot preparation",
+                Duration.ofMillis(snapshotInfoWaitTimeoutMs), Duration.ofMillis(snapshotInfoPollIntervalMs),
+                () -> {
+                    Map<String, Object> snapshotInfo = snapshotCoordination.readSnapshotInfo();
+                    // Readiness keys on the consistent point, which every connector publishes (Postgres also
+                    // publishes a snapshot name, MySQL does not). Do not key on the snapshot name.
+                    if (snapshotInfo != null && snapshotInfo.get(SnapshotCoordinationFacade.CONSISTENT_POINT) != null) {
+                        Integer snapshotInfoEpoch = SnapshotCoordinationFacade.epochOf(snapshotInfo);
+                        if (snapshotInfoEpoch != null) {
+                            if (snapshotInfoEpoch != epoch) {
+                                LOGGER.info(
+                                        "Smart snapshot: [role=task taskId={} epoch={}] Received snapshot info is for a different epoch. receivedEpoch={} currentEpoch={}",
+                                        taskId, epoch, snapshotInfoEpoch, epoch);
+                            }
+                            else {
+                                published.set(snapshotInfo);
+                                return SmartSnapshotPolling.PollResult.READY;
+                            }
                         }
                     }
-                }
 
-                // The connector may have moved on to a newer epoch (the leader gave up and restarted the round). If so,
-                // there is no point waiting out the full timeout for a snapshot at this epoch — return and let this task
-                // be reconfigured for the new epoch.
-                readEpoch = snapshotCoordination.readEpoch();
-                if (readEpoch != null && readEpoch > epoch) {
-                    LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Connector advanced to a newer epoch while waiting for snapshot info, "
-                            + "waiting for restart. savedEpoch={}", taskId, epoch, readEpoch);
-                    return;
-                }
-            }
-            catch (DebeziumException e) {
-                LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Transient coordination read failure while waiting for snapshot info, retrying",
-                        taskId, epoch, e);
-            }
+                    // The connector may have moved on to a newer epoch (the leader gave up and restarted the round).
+                    // If so, there is no point waiting out the full timeout for a snapshot at this epoch — stop
+                    // waiting and let this task be reconfigured for the new epoch.
+                    Integer newerEpoch = snapshotCoordination.readEpoch();
+                    if (newerEpoch != null && newerEpoch > epoch) {
+                        LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Connector advanced to a newer epoch while waiting for snapshot info, "
+                                + "waiting for restart. savedEpoch={}", taskId, epoch, newerEpoch);
+                        return SmartSnapshotPolling.PollResult.ABORT;
+                    }
+                    return SmartSnapshotPolling.PollResult.CONTINUE;
+                },
+                null);
 
-            LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Waiting for snapshot preparation (attempt {}, timeout {}ms)",
-                    taskId, epoch, ++attempt, snapshotInfoWaitTimeoutMs);
-            metronome.pause();
+        if (outcome == SmartSnapshotPolling.Outcome.ABORTED) {
+            // The connector is on a newer epoch; this task waits to be reconfigured.
+            return;
         }
-        if (!ready) {
+        if (outcome == SmartSnapshotPolling.Outcome.TIMED_OUT) {
             throw new DebeziumException(String.format("Smart snapshot: [role=task taskId=%s epoch=%d] Timed out waiting for snapshot preparation", taskId, epoch));
         }
+
+        Map<String, Object> snapshotInfo = published.get();
+        String snapshotName = (String) snapshotInfo.get(SnapshotCoordinationFacade.SNAPSHOT_NAME);
+        String consistentPoint = String.valueOf(snapshotInfo.get(SnapshotCoordinationFacade.CONSISTENT_POINT));
+        Object assignmentForTask = SmartSnapshotTableAssignments.assignmentForTask(
+                snapshotInfo.get(SnapshotCoordinationFacade.ASSIGNMENTS), Integer.parseInt(taskId));
 
         LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Read snapshot info, executing snapshot-only. snapshot={}, position={}",
                 taskId, epoch, snapshotName, consistentPoint);
