@@ -87,7 +87,7 @@ public class KafkaLogSnapshotCoordinationTest {
         return coordination;
     }
 
-    // Non-creating instance (createTopic=false), like a task: it must never create the coordination topic itself.
+    // Non-creating instance (shouldCreateTopic=false), like a task: it must never create the coordination topic itself.
     private KafkaLogSnapshotCoordination newNonCreatingCoordination() {
         KafkaLogSnapshotCoordination coordination = new KafkaLogSnapshotCoordination(config, connectorConfig, false);
         started.add(coordination);
