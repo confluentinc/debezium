@@ -86,7 +86,7 @@ public class MySqlConnector extends BinlogConnector<MySqlConnectorConfig> {
             SnapshotCoordinationFacade coordinationFacade = new SnapshotCoordinationFacade(config, connectorConfig);
             smartSnapshotConnectorCoordinator = new SmartSnapshotConnectorCoordinator(coordinationFacade, context(),
                     connectorConfig.getLogicalName(), connectorConfig.getSmartSnapshotMonitorPollIntervalMs(),
-                    connectorConfig.getSmartSnapshotReconfigurationTimeoutMs(), connectorConfig.getContextName());
+                    connectorConfig.getContextName());
 
             smartSnapshotConnectorCoordinator.start();
 
