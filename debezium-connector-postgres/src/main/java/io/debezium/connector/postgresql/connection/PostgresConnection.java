@@ -92,7 +92,7 @@ public class PostgresConnection extends JdbcConnection {
     /**
      * Obtaining a replication slot may fail if there's a pending transaction.  We're retrying to get a slot
      * under 5 min: if slot is not captured within 5 min, the connector fails, rather than trying internally,
-     * Those failure is eventually retried by the operator, but task does not stays in unassigned for longe
+     * Those failure is eventually retried by the operator, but task does not stays in unassigned for long
      */
     private static final int MAX_ATTEMPTS_FOR_OBTAINING_REPLICATION_SLOT = 140;
 
