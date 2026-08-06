@@ -39,4 +39,17 @@ public class ApproximateStructSizeCalculatorTest {
         actual = ApproximateStructSizeCalculator.getApproximateRecordSize(sourceRecord);
         assertEquals(actual, 115);
     }
+
+    @Test
+    public void testGetApproximateRecordSizeWithNullSourceOffset() {
+        // A tombstone heartbeat carries a null source offset (used to delete a finished-partition
+        // key from the offset store); the size calculation must not NPE on it.
+        Schema valueSchema = SchemaBuilder.struct().field("dec", Decimal.builder(10).build()).build();
+        SourceRecord sourceRecord = new SourceRecord(null, null, "dummy",
+                valueSchema, new Struct(valueSchema).put("dec", new BigDecimal("10099999.29")));
+        long actual = ApproximateStructSizeCalculator.getApproximateRecordSize(sourceRecord);
+        // Same as testGetApproximateRecordSizeWithBytesStruct minus the partition/offset entries
+        // (which contribute 100 bytes each when non-empty; here they are null -> 0).
+        assertEquals(actual, 105);
+    }
 }

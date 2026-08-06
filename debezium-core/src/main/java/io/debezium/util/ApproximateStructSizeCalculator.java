@@ -27,12 +27,18 @@ public class ApproximateStructSizeCalculator {
 
     public static long getApproximateRecordSize(SourceRecord changeEvent) {
         // assuming 100 bytes per entry of partition / offset / header
-        long value = changeEvent.sourcePartition().size() * 100L + changeEvent.sourceOffset().size() * 100L + changeEvent.headers().size() * 100L;
+        // sourcePartition()/sourceOffset() may be null for tombstone records (e.g. a null source
+        // offset emitted to delete a finished-partition key), so guard against NPE here.
+        long value = size(changeEvent.sourcePartition()) * 100L + size(changeEvent.sourceOffset()) * 100L + changeEvent.headers().size() * 100L;
         value += 8; // timestamp
 
         // key and value, ignoring schemas, assuming they are constant, shared on the heap
         return value + getStructSize((Struct) changeEvent.key()) + getStructSize((Struct) changeEvent.value())
                 + changeEvent.topic().getBytes().length;
+    }
+
+    private static long size(Map<String, ?> map) {
+        return (map == null) ? 0L : map.size();
     }
 
     private static long getStructSize(Struct struct) {
