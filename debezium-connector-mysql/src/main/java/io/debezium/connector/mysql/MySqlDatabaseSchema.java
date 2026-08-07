@@ -191,7 +191,7 @@ public class MySqlDatabaseSchema extends HistorizedRelationalDatabaseSchema {
         // - or DDLs for monitored objects
         if (!databaseHistory.storeOnlyCapturedTables() || isGlobalSetVariableStatement(schemaChange.getDdl(), schemaChange.getDatabase())
                 || schemaChange.getTables().stream().map(Table::id).anyMatch(filters.dataCollectionFilter()::isIncluded)) {
-            LOGGER.debug("Recorded DDL statements for database '{}': {}", schemaChange.getDatabase(), schemaChange.getDdl());
+            LOGGER.debug("Recorded DDL statements for database '{}'", schemaChange.getDatabase());
             record(schemaChange, schemaChange.getTableChanges());
         }
     }
