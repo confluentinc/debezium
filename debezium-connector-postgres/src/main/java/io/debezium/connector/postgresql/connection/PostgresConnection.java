@@ -20,6 +20,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.apache.kafka.connect.errors.ConnectException;
 import org.postgresql.core.BaseConnection;
@@ -606,6 +607,19 @@ public class PostgresConnection extends JdbcConnection {
     }
 
     @Override
+    protected String resolveCatalogName(String catalogName) {
+        // pgjdbc >= 42.7.11 started populating DatabaseMetaData#getTables()'s TABLE_CAT column with the
+        // database name, where earlier versions always returned null there. TableId equality (used e.g. by
+        // PostgresSchema#refresh(TableId) to re-resolve a table's schema after a change event) includes the
+        // catalog component, so tables discovered via readSchema() shifted from a 2-part (schema.table)
+        // identifier to a 3-part (catalog.schema.table) one, while TableId instances already held elsewhere
+        // in the connector remained 2-part. That mismatch made every post-startup schema refresh believe the
+        // table no longer existed. PostgreSQL has no meaningful multi-catalog concept within a single
+        // connection, so catalog is ignored here for backward compatibility with existing TableId usage.
+        return null;
+    }
+
+    @Override
     protected int resolveNativeType(String typeName) {
         return getTypeRegistry().get(typeName).getRootType().getOid();
     }
@@ -776,11 +790,20 @@ public class PostgresConnection extends JdbcConnection {
      * @throws SQLException if a database exception occurred
      */
     public Set<TableId> getAllTableIds(String catalogName) throws SQLException {
+        // readTableNames() reads DatabaseMetaData#getTables()'s TABLE_CAT column directly, bypassing
+        // resolveCatalogName() above. pgjdbc >= 42.7.11 populates that column with the database name
+        // where earlier versions left it null, so without normalizing here the TableIds returned by this
+        // method (used for snapshot table discovery) would carry a catalog while other TableId instances
+        // in this connector (e.g. createTableId() below, and readSchema()'s TableIds once resolveCatalogName
+        // normalizes them) remain catalog-less, breaking equality-based lookups such as PostgresSchema#tableFor.
         return readTableNames(
                 catalogName,
                 null,
                 null,
-                new String[]{ "TABLE", "PARTITIONED TABLE" });
+                new String[]{ "TABLE", "PARTITIONED TABLE" })
+                        .stream()
+                        .map(id -> new TableId(null, id.schema(), id.table()))
+                        .collect(Collectors.toSet());
     }
 
     @Override
