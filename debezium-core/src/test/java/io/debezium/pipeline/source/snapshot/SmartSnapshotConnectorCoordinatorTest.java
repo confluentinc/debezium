@@ -27,6 +27,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.kafka.connect.source.SourceConnectorContext;
 import org.apache.kafka.connect.storage.OffsetStorageReader;
@@ -115,6 +116,32 @@ public class SmartSnapshotConnectorCoordinatorTest {
         verify(connectorContext).requestTaskReconfiguration();
         assertThat(coordinator.isComplete()).isTrue();
         verify(facade).writeCompletion("0/16B3748", 1);
+    }
+
+    // The downscaled (post-snapshot) streaming config must carry a task.id like the ordinary single-task path,
+    // otherwise metrics that key on getTaskId() (e.g. SchemaHistoryMetrics in multi-partition mode) NPE on a null
+    // "task" tag. It must NOT carry epoch/num_tasks -- it is a normal streaming task, not a smart-snapshot shard.
+    @Test
+    public void downscaledStreamingConfigStampsTaskIdWithoutEpoch() throws Exception {
+        coordinator.taskConfigs(2, baseProps()); // numTasks = 2, epoch = 1
+        when(facade.isRestartNeeded(anyString(), eq(1))).thenReturn(false);
+        when(facade.isTaskDone("0", 1)).thenReturn(true);
+        when(facade.isTaskDone("1", 1)).thenReturn(true);
+        when(facade.readSnapshotInfo()).thenReturn(Collect.hashMapOf(SnapshotCoordinationFacade.CONSISTENT_POINT, "0/16B3748"));
+        AtomicReference<List<Map<String, String>>> downscaled = new AtomicReference<>();
+        doAnswer(inv -> {
+            downscaled.set(coordinator.taskConfigs(2, baseProps()));
+            return null;
+        }).when(connectorContext).requestTaskReconfiguration();
+
+        assertThat(coordinator.monitorIteration()).isTrue(); // completes + downscales
+        assertThat(coordinator.isComplete()).isTrue();
+
+        assertThat(downscaled.get()).hasSize(1);
+        assertThat(downscaled.get().get(0))
+                .containsEntry(ConfigurationNames.TASK_ID_PROPERTY_NAME, "0")
+                .doesNotContainKey(SnapshotCoordinationFacade.EPOCH)
+                .doesNotContainKey(SnapshotCoordinationFacade.NUM_TASKS);
     }
 
     @Test

@@ -145,7 +145,12 @@ public class SmartSnapshotConnectorCoordinator {
 
         if (complete) {
             LOGGER.info("Smart snapshot: [role=connector epoch={}] Snapshot complete, downscaling to a single task", epoch);
-            return Collections.singletonList(new HashMap<>(baseProps));
+            // Stamp task.id like the ordinary single-task path so the streaming task has a non-null task id;
+            // metrics that key on getTaskId() (e.g. SchemaHistoryMetrics in multi-partition mode) NPE otherwise.
+            // Deliberately NO epoch/num_tasks: this is a normal streaming task, not a smart-snapshot shard.
+            Map<String, String> streamingTaskConfig = new HashMap<>(baseProps);
+            streamingTaskConfig.put(ConfigurationNames.TASK_ID_PROPERTY_NAME, "0");
+            return Collections.singletonList(streamingTaskConfig);
         }
 
         List<Map<String, String>> taskConfigs = new ArrayList<>();
