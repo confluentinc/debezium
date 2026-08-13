@@ -174,6 +174,47 @@ public class SmartSnapshotShardedTaskIT extends AbstractAsyncEngineConnectorTest
     }
 
     @Test
+    public void twoShardFanOutUnderReadCommitted() throws Exception {
+        // read_committed is the most popular SQL Server isolation mode. Smart snapshot supports it in Phase 0
+        // alongside repeatable_read: cross-task consistency comes from the single L_db anchor + CDC catch-up +
+        // last-writer-wins PK upsert, not from the snapshot isolation level, so the parallel fan-out must
+        // produce the identical result under read_committed. Same 2-shard fan-out as
+        // twoShardFanOutDispatchesEachTasksOwnShard, only with snapshot.isolation.mode=read_committed -- this
+        // is what proves the isolation-mode gate relaxation is correct end-to-end (not just at config-validate).
+        Configuration config = smartConfig()
+                .with(SqlServerConnectorConfig.SNAPSHOT_ISOLATION_MODE, "read_committed")
+                .build();
+
+        start(SqlServerConnector.class, config);
+        assertConnectorIsRunning();
+
+        SourceRecords records = consumeRecordsByTopic(10);
+        assertThat(records.recordsForTopic(serverName + ".testDB1.dbo.table1")).hasSize(5);
+        assertThat(records.recordsForTopic(serverName + ".testDB1.dbo.table2")).hasSize(5);
+
+        String schemaHistory = schemaHistoryText();
+        assertThat(schemaHistory).contains("table1");
+        assertThat(schemaHistory).contains("table2");
+
+        SqlServerConnectorConfig connectorConfig = new SqlServerConnectorConfig(config);
+        SnapshotCoordinationFacade facade = new SnapshotCoordinationFacade(config, connectorConfig);
+        try {
+            facade.start(MissingTopicPolicy.ASSUME_EXISTS);
+            Integer epoch = facade.readEpoch();
+            assertThat(epoch).isEqualTo(1);
+            Awaitility.await().atMost(30, TimeUnit.SECONDS).untilAsserted(() -> {
+                assertThat(facade.isTaskDone("0", epoch)).isTrue();
+                assertThat(facade.isTaskDone("1", epoch)).isTrue();
+            });
+        }
+        finally {
+            facade.stop();
+        }
+
+        stopConnector();
+    }
+
+    @Test
     public void task0WritesFullSchemaHistoryIncludingUncapturedEligibleTables() throws Exception {
         // table3 is excluded from data capture (table.exclude.list) but is still schema-eligible under the
         // default store.only.captured.tables.ddl=false. task-0 owns the FULL schema history, so table3's

@@ -180,9 +180,12 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
         if (connectorConfig.getDatabaseNames().size() != 1) {
             return false;
         }
-        // Phase 0: only repeatable_read. The single-anchor + CDC-catch-up model is not validated for the other
-        // isolation modes, and read_uncommitted is unsafe (dirty rows can't be reconciled from L_db).
-        if (connectorConfig.getSnapshotIsolationMode() != SqlServerConnectorConfig.SnapshotIsolationMode.REPEATABLE_READ) {
+        // Phase 0: repeatable_read (the default) and read_committed. Cross-task consistency comes from the
+        // single L_db anchor + CDC catch-up + last-writer-wins PK upsert, not from the snapshot isolation
+        // level, so read_committed -- which still never reads uncommitted data -- is safe here.
+        // read_uncommitted is unsafe (dirty rows that can be rolled back can't be reconciled from L_db);
+        // snapshot/exclusive are not validated for the single-anchor model. See isSmartSnapshotSupportedIsolationMode.
+        if (!isSmartSnapshotSupportedIsolationMode(connectorConfig.getSnapshotIsolationMode())) {
             return false;
         }
         switch (connectorConfig.getSnapshotMode()) {
@@ -202,22 +205,35 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
     }
 
     /**
+     * Snapshot isolation modes for which smart snapshot (multi-task) is supported in Phase 0: {@code
+     * repeatable_read} (the connector default) and {@code read_committed}. Both never read uncommitted data,
+     * so the single-{@code L_db}-anchor + CDC-catch-up + last-writer-wins PK upsert model reconciles any rows
+     * that change during the parallel scan. {@code read_uncommitted} is excluded (dirty rows that can be
+     * rolled back can't be reconciled from {@code L_db}); {@code snapshot}/{@code exclusive} are not validated.
+     */
+    static boolean isSmartSnapshotSupportedIsolationMode(SqlServerConnectorConfig.SnapshotIsolationMode mode) {
+        return mode == SqlServerConnectorConfig.SnapshotIsolationMode.REPEATABLE_READ
+                || mode == SqlServerConnectorConfig.SnapshotIsolationMode.READ_COMMITTED;
+    }
+
+    /**
      * Fail config validation when smart-snapshot multi-task is configured (feature enabled + a coordination
-     * bootstrap set) with an isolation mode other than repeatable_read, which Phase 0 does not support --
-     * surfaced at connector-create time rather than silently falling back to single-task.
+     * bootstrap set) with an isolation mode Phase 0 does not support (anything other than repeatable_read or
+     * read_committed) -- surfaced at connector-create time rather than silently falling back to single-task.
      */
     private void validateSmartSnapshotIsolationMode(Map<String, ConfigValue> configValues, Configuration config,
                                                     SqlServerConnectorConfig connectorConfig) {
         if (!connectorConfig.isSmartSnapshotEnabled()
                 || !SnapshotCoordinationFacade.hasCoordinationBootstrap(config)
-                || connectorConfig.getSnapshotIsolationMode() == SqlServerConnectorConfig.SnapshotIsolationMode.REPEATABLE_READ) {
+                || isSmartSnapshotSupportedIsolationMode(connectorConfig.getSnapshotIsolationMode())) {
             return;
         }
         ConfigValue isolationValue = configValues.get(SqlServerConnectorConfig.SNAPSHOT_ISOLATION_MODE.name());
         if (isolationValue != null) {
             isolationValue.addErrorMessage("Smart snapshot (multi-task) currently supports only the '"
-                    + SqlServerConnectorConfig.SnapshotIsolationMode.REPEATABLE_READ.getValue()
-                    + "' snapshot isolation mode; got '" + connectorConfig.getSnapshotIsolationMode().getValue() + "'.");
+                    + SqlServerConnectorConfig.SnapshotIsolationMode.REPEATABLE_READ.getValue() + "' and '"
+                    + SqlServerConnectorConfig.SnapshotIsolationMode.READ_COMMITTED.getValue()
+                    + "' snapshot isolation modes; got '" + connectorConfig.getSnapshotIsolationMode().getValue() + "'.");
         }
     }
 

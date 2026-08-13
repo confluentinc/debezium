@@ -91,16 +91,17 @@ public class SqlServerConnectorTest {
         assertThat(SqlServerConnector.smartSnapshotApplies(smartConfig(true, "initial", "db1", "db2"))).isFalse();
     }
 
-    // Phase 0: only repeatable_read engages; other isolation modes fall back to single-task
-    // (read_uncommitted is unsafe for the L_db + CDC-catch-up model).
+    // Phase 0: repeatable_read (default) and read_committed engage; snapshot/read_uncommitted/exclusive fall
+    // back to single-task (read_uncommitted is unsafe for the L_db + CDC-catch-up model, snapshot/exclusive
+    // are not validated for the single-anchor model).
     @Test
-    public void smartSnapshotOnlyAppliesUnderRepeatableRead() {
+    public void smartSnapshotAppliesUnderRepeatableReadAndReadCommitted() {
         assertThat(SqlServerConnector.smartSnapshotApplies(
                 smartConfig(true, "initial", "db1").edit().with(SqlServerConnectorConfig.SNAPSHOT_ISOLATION_MODE, "repeatable_read").build())).isTrue();
         assertThat(SqlServerConnector.smartSnapshotApplies(
-                smartConfig(true, "initial", "db1").edit().with(SqlServerConnectorConfig.SNAPSHOT_ISOLATION_MODE, "snapshot").build())).isFalse();
+                smartConfig(true, "initial", "db1").edit().with(SqlServerConnectorConfig.SNAPSHOT_ISOLATION_MODE, "read_committed").build())).isTrue();
         assertThat(SqlServerConnector.smartSnapshotApplies(
-                smartConfig(true, "initial", "db1").edit().with(SqlServerConnectorConfig.SNAPSHOT_ISOLATION_MODE, "read_committed").build())).isFalse();
+                smartConfig(true, "initial", "db1").edit().with(SqlServerConnectorConfig.SNAPSHOT_ISOLATION_MODE, "snapshot").build())).isFalse();
         assertThat(SqlServerConnector.smartSnapshotApplies(
                 smartConfig(true, "initial", "db1").edit().with(SqlServerConnectorConfig.SNAPSHOT_ISOLATION_MODE, "read_uncommitted").build())).isFalse();
     }
