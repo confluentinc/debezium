@@ -3370,6 +3370,47 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
     }
 
     @Test
+    @FixFor("CC-43614")
+    public void shouldStreamEnumArrayWhenMixedCaseTypeCreatedAfterStart() throws Exception {
+        // Deterministic reproduction of CC-43614 (INC-12529) end-to-end. A custom enum needs both a schema
+        // and a converter; converter() used to infer enum-ness from the side-effect that the resolved JDBC
+        // id was VARCHAR instead of asking isEnumType() directly like schemaBuilder() does.
+        //
+        // The trigger, shared with CC-43503 (customer types NotificationJumpLevel / SnakePageSectionKey), is
+        // a mixed-case (quoted) enum type name created AFTER the connector has started: it is not in the
+        // startup bulk-load type map, so it is resolved via the lazy fallback path, and pgjdbc's
+        // getSQLType() folds the unquoted name to lower case, fails to find "MoodType", and reports the JDBC
+        // id as OTHER rather than VARCHAR. Debezium's own catalogue query still recognises it as an enum
+        // (isEnumType()==true), so the array/element schema builds fine, but the pre-fix converter() returned
+        // a null element converter that was stored inside the array converter and threw an NPE on the first
+        // non-null value.
+        TestHelper.execute("CREATE TABLE enum_array_lazy (pk SERIAL, PRIMARY KEY (pk));");
+        startConnector(config -> config
+                .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, false)
+                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NO_DATA)
+                .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "public.enum_array_lazy"), false);
+
+        waitForStreamingToStart();
+
+        // Create the enum with a mixed-case (quoted) name AFTER startup so it resolves via the lazy path
+        // and pgjdbc reports its JDBC id as OTHER.
+        TestHelper.execute("CREATE TYPE \"MoodType\" AS ENUM ('happy', 'sad', 'ok');");
+        TestHelper.execute("ALTER TABLE enum_array_lazy ADD COLUMN moods \"MoodType\"[];");
+
+        consumer = testConsumer(1);
+
+        // First non-null value: pre-fix this throws NullPointerException in PostgresValueConverter.
+        executeAndWait("INSERT INTO enum_array_lazy (moods) VALUES ('{happy, sad}');");
+
+        SourceRecord insertRec = assertRecordInserted("public.enum_array_lazy", PK_FIELD, 1);
+        assertSourceInfo(insertRec, "postgres", "public", "enum_array_lazy");
+
+        Struct after = ((Struct) insertRec.value()).getStruct(Envelope.FieldName.AFTER);
+        assertThat(after.getArray("moods")).isEqualTo(Arrays.asList("happy", "sad"));
+        assertThat(consumer.isEmpty()).isTrue();
+    }
+
+    @Test
     @FixFor("DBZ-1969")
     public void shouldStreamTimeArrayTypesAsKnownTypes() throws Exception {
         TestHelper.execute("CREATE TABLE time_array_table (pk SERIAL, "
