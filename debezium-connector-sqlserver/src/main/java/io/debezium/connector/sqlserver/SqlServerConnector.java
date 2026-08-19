@@ -25,9 +25,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.debezium.DebeziumException;
+import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.connector.common.RelationalBaseSourceConnector;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
+import io.debezium.relational.SignalDataCollectionValidator;
 import io.debezium.relational.TableId;
 import io.debezium.util.ThreadNameContext;
 import io.debezium.util.Threads;
@@ -163,6 +165,8 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
                         LOGGER.error(errorMessage);
                         userValue.addErrorMessage(errorMessage);
                     }
+                    SignalDataCollectionValidator.validate(connection, sqlServerConfig,
+                            configValues.get(CommonConnectorConfig.SIGNAL_DATA_COLLECTION.name()));
                 }
                 catch (Exception e) {
                     if (isCredentialProviderConfigured) {
