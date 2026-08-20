@@ -728,6 +728,14 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
         return columnsFiltered;
     }
 
+    public String columnExcludeList() {
+        return getConfig().getString(COLUMN_EXCLUDE_LIST);
+    }
+
+    public String columnIncludeList() {
+        return getConfig().getString(COLUMN_INCLUDE_LIST);
+    }
+
     public Boolean isFullColumnScanRequired() {
         return getConfig().getBoolean(SNAPSHOT_FULL_COLUMN_SCAN_FORCE);
     }

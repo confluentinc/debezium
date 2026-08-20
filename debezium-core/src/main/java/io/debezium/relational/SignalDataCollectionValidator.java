@@ -94,13 +94,44 @@ public class SignalDataCollectionValidator {
         long effectiveColumnCount = physicalColumns.stream()
                 .filter(column -> columnFilter.matches(resolved.catalog(), resolved.schema(), resolved.table(), column))
                 .count();
-        if (effectiveColumnCount != 3) {
-            String reason = connectorConfig.isColumnsFiltered()
-                    ? " after applying column.include.list/column.exclude.list"
-                    : "";
-            return "Signal data collection '" + rawValue + "' must have exactly 3 columns" + reason + " but has " + effectiveColumnCount + ".";
+        if (effectiveColumnCount == 3) {
+            return null;
         }
 
-        return null;
+        return describeColumnCountProblem(connectorConfig, rawValue, physicalColumns.size(), effectiveColumnCount);
+    }
+
+    /**
+     * Produces a message that pinpoints which of the distinct column-count failure modes occurred, so it can be
+     * told apart at a glance (and grepped for in bulk) without re-deriving the diagnosis from the raw numbers:
+     * <ul>
+     * <li>no filtering configured, so the table's raw physical shape is simply wrong (too few or too many columns);</li>
+     * <li>a filter is configured but matches none of the table's columns (the common, easy-to-hit mistake of a
+     * {@code column.include.list} scoped to unrelated tables - silently drops every signal, per CC-42217/CC-43408);</li>
+     * <li>a filter is configured and matches some but not all of the 3 required columns (partial coverage); or</li>
+     * <li>a filter is configured and matches more than 3 columns (too broad, e.g. a wildcard pattern).</li>
+     * </ul>
+     */
+    private static String describeColumnCountProblem(RelationalDatabaseConnectorConfig connectorConfig, String rawValue,
+                                                     int physicalColumnCount, long effectiveColumnCount) {
+        if (!connectorConfig.isColumnsFiltered()) {
+            return "Signal data collection '" + rawValue + "' has " + physicalColumnCount + " columns but requires exactly 3 (id/type/data); "
+                    + "no column.include.list/column.exclude.list is configured, so all " + physicalColumnCount
+                    + " columns reach Debezium's schema unfiltered.";
+        }
+
+        String activeProperty = Strings.isNullOrBlank(connectorConfig.columnIncludeList()) ? "column.exclude.list" : "column.include.list";
+
+        if (effectiveColumnCount == 0) {
+            return "Signal data collection '" + rawValue + "' has 0 of its " + physicalColumnCount + " columns surviving " + activeProperty
+                    + " - none are included, so every signal will be silently dropped at runtime. Add this table's id/type/data columns "
+                    + "explicitly to " + activeProperty + ".";
+        }
+        if (effectiveColumnCount < 3) {
+            return "Signal data collection '" + rawValue + "' has " + effectiveColumnCount + " of " + physicalColumnCount + " columns surviving "
+                    + activeProperty + ", but requires exactly 3 - verify " + activeProperty + " covers all of this table's id/type/data columns.";
+        }
+        return "Signal data collection '" + rawValue + "' has " + effectiveColumnCount + " columns surviving " + activeProperty
+                + ", but requires exactly 3 - narrow " + activeProperty + " to just this table's id/type/data columns.";
     }
 }
