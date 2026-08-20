@@ -29,9 +29,9 @@ import io.debezium.relational.RelationalDatabaseConnectorConfig.SignalDataCollec
 
 /**
  * Unit tests for {@link SignalDataCollectionValidator} covering the config gates, the three ordered checks
- * (existence, accepted FQN shape, column count), the WARN/FAIL action split, and the exception-swallowing
- * guarantee. {@link JdbcConnection} and {@link RelationalDatabaseConnectorConfig} are mocked so no live database
- * or concrete connector config is required.
+ * (existence, accepted FQN shape, column count), the {@code column.include.list}/{@code .exclude.list} skip, the
+ * WARN/FAIL action split, and the exception-swallowing guarantee. {@link JdbcConnection} and
+ * {@link RelationalDatabaseConnectorConfig} are mocked so no live database or concrete connector config is required.
  */
 public class SignalDataCollectionValidatorTest {
 
@@ -95,6 +95,22 @@ public class SignalDataCollectionValidatorTest {
         SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
 
         verifyNoInteractions(signalDataCollectionValue);
+    }
+
+    @Test
+    public void shouldSkipColumnCountCheckWhenColumnsAreFiltered() throws SQLException {
+        // column.include.list/exclude.list changes the signal table's effective column set (Debezium narrows it
+        // to id/type/data under a matching include-list, per CC-42217/CC-43408), so a raw physical count of, say,
+        // 5 is not a defect here - it must not be flagged.
+        TableId resolved = new TableId("testDB", "dbo", "debezium_signal");
+        when(connection.resolveSignalDataCollectionTableId(RAW_VALUE)).thenReturn(Set.of(resolved));
+        when(connectorConfig.isSignalDataCollection(resolved)).thenReturn(true);
+        when(connectorConfig.isColumnsFiltered()).thenReturn(true);
+
+        SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
+
+        verifyNoInteractions(signalDataCollectionValue);
+        verify(connection, never()).getColumnCount(any());
     }
 
     @Test

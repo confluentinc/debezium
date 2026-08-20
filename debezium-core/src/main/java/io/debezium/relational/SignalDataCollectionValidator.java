@@ -82,6 +82,13 @@ public class SignalDataCollectionValidator {
             return "signal.data.collection must be '" + matches.iterator().next() + "' (got '" + rawValue + "').";
         }
 
+        if (connectorConfig.isColumnsFiltered()) {
+            // column.include.list/exclude.list changes the signal table's *effective* column set (Debezium
+            // narrows it to just id/type/data when a matching include-list is configured, per CC-42217/CC-43408),
+            // so the table's raw physical column count is no longer a reliable signal of correctness here.
+            return null;
+        }
+
         int columnCount = connection.getColumnCount(resolved);
         if (columnCount != 3) {
             return "Signal data collection '" + rawValue + "' must have exactly 3 columns but has " + columnCount + ".";
