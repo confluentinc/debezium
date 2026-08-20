@@ -540,6 +540,24 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
                     + " If you are excluding a lot of tables the default behavior should work well.")
             .withDefault(false);
 
+    public static final Field SIGNAL_DATA_COLLECTION_VALIDATION_ENABLED = Field.create("signal.data.collection.validation.enabled")
+            .withDisplayName("Signal data collection validation enabled")
+            .withType(Type.BOOLEAN)
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTOR_ADVANCED, 28))
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.LOW)
+            .withDescription("Enables validate-time checks on 'signal.data.collection': table existence, accepted FQN shape, and column count.")
+            .withDefault(false);
+
+    public static final Field SIGNAL_DATA_COLLECTION_VALIDATION_ACTION = Field.create("signal.data.collection.validation.action")
+            .withDisplayName("Signal data collection validation action")
+            .withEnum(SignalDataCollectionValidationAction.class, SignalDataCollectionValidationAction.WARN)
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTOR_ADVANCED, 29))
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.LOW)
+            .withDescription("Action to take when 'signal.data.collection' validation detects an issue: "
+                    + "'warn' (the default) logs a warning and does not block validate(); 'fail' additionally attaches a config error.");
+
     public static final Field UNAVAILABLE_VALUE_PLACEHOLDER = Field.create("unavailable.value.placeholder")
             .withDisplayName("Unavailable value placeholder")
             .withType(Type.STRING)
@@ -586,6 +604,8 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
                     PROPAGATE_DATATYPE_SOURCE_TYPE,
                     SNAPSHOT_FULL_COLUMN_SCAN_FORCE,
                     SNAPSHOT_TABLES_ORDER_BY_ROW_COUNT,
+                    SIGNAL_DATA_COLLECTION_VALIDATION_ENABLED,
+                    SIGNAL_DATA_COLLECTION_VALIDATION_ACTION,
                     DatabaseHeartbeatImpl.HEARTBEAT_ACTION_QUERY)
             .create();
 
@@ -741,6 +761,16 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
         return tableIdMapper;
     }
 
+    public boolean isSignalDataCollectionValidationEnabled() {
+        return getConfig().getBoolean(SIGNAL_DATA_COLLECTION_VALIDATION_ENABLED);
+    }
+
+    public SignalDataCollectionValidationAction getSignalDataCollectionValidationAction() {
+        return SignalDataCollectionValidationAction.parse(
+                getConfig().getString(SIGNAL_DATA_COLLECTION_VALIDATION_ACTION),
+                SIGNAL_DATA_COLLECTION_VALIDATION_ACTION.defaultValueAsString());
+    }
+
     private static int validateTableBlacklist(Configuration config, Field field, ValidationOutput problems) {
         String includeList = config.getString(TABLE_INCLUDE_LIST);
         String excludeList = config.getString(TABLE_EXCLUDE_LIST);
@@ -893,5 +923,46 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
 
     public FieldNamer<Column> getFieldNamer() {
         return fieldNamer;
+    }
+
+    /**
+     * Action to take when {@link #SIGNAL_DATA_COLLECTION_VALIDATION_ENABLED} detects an issue with
+     * {@code signal.data.collection}.
+     */
+    public enum SignalDataCollectionValidationAction implements EnumeratedValue {
+        WARN("warn"),
+        FAIL("fail");
+
+        private final String value;
+
+        SignalDataCollectionValidationAction(String value) {
+            this.value = value;
+        }
+
+        @Override
+        public String getValue() {
+            return value;
+        }
+
+        public static SignalDataCollectionValidationAction parse(String value) {
+            if (value == null) {
+                return null;
+            }
+            value = value.trim();
+            for (SignalDataCollectionValidationAction option : SignalDataCollectionValidationAction.values()) {
+                if (option.getValue().equalsIgnoreCase(value)) {
+                    return option;
+                }
+            }
+            return null;
+        }
+
+        public static SignalDataCollectionValidationAction parse(String value, String defaultValue) {
+            SignalDataCollectionValidationAction action = parse(value);
+            if (action == null && defaultValue != null) {
+                action = parse(defaultValue);
+            }
+            return action;
+        }
     }
 }
