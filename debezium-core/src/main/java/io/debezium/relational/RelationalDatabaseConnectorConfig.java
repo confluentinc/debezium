@@ -540,7 +540,7 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
                     + " If you are excluding a lot of tables the default behavior should work well.")
             .withDefault(false);
 
-    public static final Field SIGNAL_DATA_COLLECTION_VALIDATION_ENABLED = Field.createInternal("signal.data.collection.validation.enabled")
+    public static final Field SIGNAL_DATA_COLLECTION_VALIDATION_ENABLED = Field.create("signal.data.collection.validation.enabled")
             .withDisplayName("Signal data collection validation enabled")
             .withType(Type.BOOLEAN)
             .withGroup(Field.createGroupEntry(Field.Group.CONNECTOR_ADVANCED, 28))
@@ -549,7 +549,7 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
             .withDescription("Enables validate-time checks on 'signal.data.collection': table existence, accepted FQN shape, and column count.")
             .withDefault(false);
 
-    public static final Field SIGNAL_DATA_COLLECTION_VALIDATION_ACTION = Field.createInternal("signal.data.collection.validation.action")
+    public static final Field SIGNAL_DATA_COLLECTION_VALIDATION_ACTION = Field.create("signal.data.collection.validation.action")
             .withDisplayName("Signal data collection validation action")
             .withEnum(SignalDataCollectionValidationAction.class, SignalDataCollectionValidationAction.WARN)
             .withGroup(Field.createGroupEntry(Field.Group.CONNECTOR_ADVANCED, 29))
