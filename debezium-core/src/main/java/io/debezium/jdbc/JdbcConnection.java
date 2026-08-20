@@ -1165,20 +1165,20 @@ public class JdbcConnection implements AutoCloseable {
     }
 
     /**
-     * Counts the columns of the given table, for use by validate-time signal table checks.
+     * Returns the column names of the given table, for use by validate-time signal table checks.
      *
      * @param tableId the table to inspect
-     * @return the number of columns
+     * @return the table's column names
      * @throws SQLException if an error occurs while accessing the database metadata
      */
-    public int getColumnCount(TableId tableId) throws SQLException {
+    public List<String> getColumnNames(TableId tableId) throws SQLException {
         DatabaseMetaData metadata = connection().getMetaData();
         try (ResultSet rs = metadata.getColumns(tableId.catalog(), tableId.schema(), tableId.table(), null)) {
-            int columnCount = 0;
+            List<String> columnNames = new ArrayList<>();
             while (rs.next()) {
-                columnCount++;
+                columnNames.add(rs.getString(4));
             }
-            return columnCount;
+            return columnNames;
         }
     }
 

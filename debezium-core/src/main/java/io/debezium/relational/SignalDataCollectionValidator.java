@@ -6,6 +6,7 @@
 package io.debezium.relational;
 
 import java.sql.SQLException;
+import java.util.List;
 import java.util.Set;
 
 import org.apache.kafka.common.config.ConfigValue;
@@ -15,6 +16,7 @@ import org.slf4j.LoggerFactory;
 import io.debezium.jdbc.JdbcConnection;
 import io.debezium.pipeline.signal.channels.SourceSignalChannel;
 import io.debezium.relational.RelationalDatabaseConnectorConfig.SignalDataCollectionValidationAction;
+import io.debezium.relational.Tables.ColumnNameFilter;
 import io.debezium.util.Strings;
 
 /**
@@ -82,16 +84,21 @@ public class SignalDataCollectionValidator {
             return "signal.data.collection must be '" + matches.iterator().next() + "' (got '" + rawValue + "').";
         }
 
-        if (connectorConfig.isColumnsFiltered()) {
-            // column.include.list/exclude.list changes the signal table's *effective* column set (Debezium
-            // narrows it to just id/type/data when a matching include-list is configured, per CC-42217/CC-43408),
-            // so the table's raw physical column count is no longer a reliable signal of correctness here.
-            return null;
-        }
-
-        int columnCount = connection.getColumnCount(resolved);
-        if (columnCount != 3) {
-            return "Signal data collection '" + rawValue + "' must have exactly 3 columns but has " + columnCount + ".";
+        // column.include.list/exclude.list changes which of the signal table's columns actually reach Debezium's
+        // schema; counting raw physical columns would be wrong once filtering is configured (a column.include.list
+        // that only covers other, unrelated tables reduces the signal table to zero effective columns - a real
+        // failure, not something to skip). Reuse the connector's own ColumnNameFilter so the count we validate is
+        // exactly the one Debezium's schema builder will use, whether or not filtering is configured.
+        ColumnNameFilter columnFilter = connectorConfig.getColumnFilter();
+        List<String> physicalColumns = connection.getColumnNames(resolved);
+        long effectiveColumnCount = physicalColumns.stream()
+                .filter(column -> columnFilter.matches(resolved.catalog(), resolved.schema(), resolved.table(), column))
+                .count();
+        if (effectiveColumnCount != 3) {
+            String reason = connectorConfig.isColumnsFiltered()
+                    ? " after applying column.include.list/column.exclude.list"
+                    : "";
+            return "Signal data collection '" + rawValue + "' must have exactly 3 columns" + reason + " but has " + effectiveColumnCount + ".";
         }
 
         return null;
