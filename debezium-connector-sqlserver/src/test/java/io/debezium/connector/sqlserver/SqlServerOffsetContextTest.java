@@ -10,8 +10,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.Before;
+import org.junit.Test;
 
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
@@ -31,7 +31,7 @@ public class SqlServerOffsetContextTest {
 
     private SqlServerConnectorConfig connectorConfig;
 
-    @BeforeEach
+    @Before
     public void beforeEach() {
         connectorConfig = new SqlServerConnectorConfig(
                 Configuration.create()
@@ -41,7 +41,7 @@ public class SqlServerOffsetContextTest {
 
     @Test
     @FixFor("dbz#2012")
-    void shouldRoundTripCommandIdThroughTheOffset() {
+    public void shouldRoundTripCommandIdThroughTheOffset() {
         SqlServerOffsetContext offsetContext = offsetContextWithCommandId(7);
 
         assertThat(offsetContext.getOffset().get(SourceInfo.COMMAND_ID_KEY)).isEqualTo(7);
@@ -61,7 +61,7 @@ public class SqlServerOffsetContextTest {
 
     @Test
     @FixFor("dbz#2012")
-    void shouldLeaveCommandIdUnknownWhenAbsentFromOffset() {
+    public void shouldLeaveCommandIdUnknownWhenAbsentFromOffset() {
         Map<String, Object> legacyOffset = baseOffset();
         assertThat(legacyOffset).doesNotContainKey(SourceInfo.COMMAND_ID_KEY);
 
@@ -75,7 +75,7 @@ public class SqlServerOffsetContextTest {
 
     @Test
     @FixFor("dbz#2012")
-    void shouldLoadCommandIdWhateverNumericTypeTheOffsetStoreReturns() {
+    public void shouldLoadCommandIdWhateverNumericTypeTheOffsetStoreReturns() {
         Map<String, Object> withInteger = baseOffset();
         withInteger.put(SourceInfo.COMMAND_ID_KEY, Integer.valueOf(9));
 
