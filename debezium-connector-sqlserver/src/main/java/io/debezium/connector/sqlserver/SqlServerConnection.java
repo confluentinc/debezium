@@ -485,10 +485,6 @@ public class SqlServerConnection extends JdbcConnection {
             statement.setBytes(paramIndex++, fromLsn.getBinary());
         }
 
-        if (config.getDataQueryMode() == SqlServerConnectorConfig.DataQueryMode.DIRECT) {
-            statement.setBytes(paramIndex++, fromLsn.getBinary());
-        }
-
         return statement.executeQuery();
     }
 
