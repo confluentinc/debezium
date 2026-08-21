@@ -103,7 +103,7 @@
         <version.build-helper.plugin>1.9.1</version.build-helper.plugin>
 
         <!-- Kafka and it's dependencies MUST reflect what the Kafka version uses -->
-        <version.kafka>3.9.1</version.kafka>
+        <version.kafka>3.9.2</version.kafka>
         <!-- NOTE: These two versions are maintained separately due to decoupling jackson and databind for downstream -->
         <version.jackson>2.16.2</version.jackson>
         <version.jackson.databind>2.16.2</version.jackson.databind>
@@ -135,7 +135,7 @@
         <version.apicurio>2.6.2.Final</version.apicurio>
 
         <!-- Database drivers, should align with databases -->
-        <version.postgresql.driver>42.7.11</version.postgresql.driver>
+        <version.postgresql.driver>42.7.12</version.postgresql.driver>
         <version.mysql.driver>9.1.0</version.mysql.driver>
         <version.mysql.binlog>0.40.2</version.mysql.binlog>
         <version.mongo.driver>5.2.0</version.mongo.driver>
