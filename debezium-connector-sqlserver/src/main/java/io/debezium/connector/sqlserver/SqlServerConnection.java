@@ -71,6 +71,7 @@ public class SqlServerConnection extends JdbcConnection {
     private static final String DATABASE_NAME_PLACEHOLDER = "#db";
     private static final String TABLE_NAME_PLACEHOLDER = "#table";
     private static final String FUNCTION_NAME_PLACEHOLDER = "#function";
+    private static final String PREFIX_CDC_DATA = "[cdc_data].";
     private static final String GET_ALL_CHANGES_FUNCTION_PREFIX = "fn_cdc_get_all_changes_";
     private static final String GET_MAX_LSN = "SELECT #db.sys.fn_cdc_get_max_lsn()";
     private static final String GET_MAX_TRANSACTION_LSN = "SELECT MAX(start_lsn) FROM #db.cdc.lsn_time_mapping WHERE tran_id <> 0x00";
@@ -183,14 +184,13 @@ public class SqlServerConnection extends JdbcConnection {
     private String buildGetAllChangesForTableQuery(SqlServerConnectorConfig.DataQueryMode dataQueryMode,
                                                    Set<Envelope.Operation> skippedOperations) {
         boolean isDirectMode = dataQueryMode == SqlServerConnectorConfig.DataQueryMode.DIRECT;
-        String result;
+        String result = "";
         List<String> where = new LinkedList<>();
         switch (dataQueryMode) {
             case FUNCTION:
                 result = GET_ALL_CHANGES_FOR_TABLE_SELECT + " " + GET_ALL_CHANGES_FOR_TABLE_FROM_FUNCTION + " ";
                 break;
             case DIRECT:
-            default:
                 result = GET_ALL_CHANGES_FOR_TABLE_SELECT_DIRECT + " " + GET_ALL_CHANGES_FOR_TABLE_FROM_DIRECT + " ";
                 break;
         }
@@ -227,7 +227,7 @@ public class SqlServerConnection extends JdbcConnection {
                         break;
                 }
             });
-            String colPrefix = isDirectMode ? "[cdc_data]." : "";
+            String colPrefix = isDirectMode ? PREFIX_CDC_DATA : "";
             where.add(colPrefix + "[__$operation] NOT IN (" + String.join(",", skippedOps) + ")");
         }
 
@@ -410,7 +410,9 @@ public class SqlServerConnection extends JdbcConnection {
                                         Lsn intervalToLsn, int maxRows)
             throws SQLException {
         String databaseName = changeTable.getSourceTableId().catalog();
+        boolean isDirectMode = config.getDataQueryMode() == SqlServerConnectorConfig.DataQueryMode.DIRECT;
         String capturedColumns = changeTable.getCapturedColumns().stream().map(this::quoteIdentifier)
+                .map(column -> isDirectMode ? PREFIX_CDC_DATA + column : column)
                 .collect(Collectors.joining(", "));
 
         String query = replaceDatabaseNamePlaceholder(getAllChangesForTable, databaseName)
