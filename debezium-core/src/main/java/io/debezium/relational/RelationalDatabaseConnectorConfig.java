@@ -26,9 +26,9 @@ import io.debezium.config.Configuration;
 import io.debezium.config.ConfigurationNames;
 import io.debezium.config.EnumeratedValue;
 import io.debezium.config.Field;
+import io.debezium.config.Field.ValidationOutput;
 import io.debezium.document.Document;
 import io.debezium.document.DocumentReader;
-import io.debezium.config.Field.ValidationOutput;
 import io.debezium.heartbeat.DatabaseHeartbeatImpl;
 import io.debezium.heartbeat.Heartbeat;
 import io.debezium.heartbeat.HeartbeatConnectionProvider;
@@ -383,7 +383,6 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
                             "to the select statement to use when retrieving data from that table during snapshotting. " +
                             "Keys are the fully-qualified table names; values are the SELECT statements. " +
                             "A possible use case for large append-only tables is setting a specific point where to start (resume) snapshotting, in case a previous snapshotting was interrupted.");
-
 
     /**
      * A comma-separated list of regular expressions that match schema names to be monitored.
