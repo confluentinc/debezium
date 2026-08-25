@@ -36,6 +36,10 @@ final class JacksonReader implements DocumentReader, ArrayReader {
         factory = new JsonFactory();
         factory.enable(JsonParser.Feature.ALLOW_COMMENTS);
         factory.enable(JsonParser.Feature.ALLOW_UNQUOTED_CONTROL_CHARS);
+        // Do not retain a snippet of the parsed input in parser locations/exceptions. The input can be
+        // signal or offset data, and the resulting JsonParseException is logged downstream (e.g.
+        // SignalProcessor), which would leak that content.
+        factory.disable(JsonParser.Feature.INCLUDE_SOURCE_IN_LOCATION);
     }
 
     private JacksonReader(boolean handleFloatNumbersAsText) {

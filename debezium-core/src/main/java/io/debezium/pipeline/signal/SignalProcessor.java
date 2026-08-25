@@ -196,7 +196,9 @@ public class SignalProcessor<P extends Partition, O extends OffsetContext> {
                     previousOffsets.getTheOnlyOffset(), signalRecord.getAdditionalData()));
         }
         catch (IOException e) {
-            LOGGER.warn("Signal '{}' has been received but the data cannot be parsed", signalRecord.getId(), e);
+            // Do not pass the parse exception 'e': it can echo the signal data. The signal id is safe.
+            // (JacksonReader also has source-in-location disabled so its location cannot carry the data.)
+            LOGGER.warn("Signal '{}' has been received but the data cannot be parsed", signalRecord.getId());
         }
         catch (InterruptedException e) {
             LOGGER.warn("Action {} has been interrupted. The signal {} may not have been processed.", signalRecord.getType(), signalRecord.getId());

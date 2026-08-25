@@ -738,7 +738,9 @@ public class PostgresValueConverter extends JdbcValueConverters {
                     r.deliver(ltrees);
                 }
                 catch (SQLException e) {
-                    logger.error("Failed to parse PgArray: " + maybeRedactSensitiveData(pgArray), e);
+                    // Do not pass the driver SQLException as the throwable: it echoes the raw array literal
+                    // (customer row data). The value is already redacted; log the SQLState only.
+                    logger.error("Failed to parse PgArray: {} (SQLState: {})", maybeRedactSensitiveData(pgArray), e.getSQLState());
                 }
             }
         });
@@ -795,7 +797,9 @@ public class PostgresValueConverter extends JdbcValueConverters {
             return convertMapToJsonStringRepresentation(map);
         }
         catch (Exception e) {
-            throw new RuntimeException("Couldn't serialize hstore value into JSON", e);
+            // Do not attach the cause: the HStoreConverter parse exception echoes the raw hstore value
+            // (customer row data), and this RuntimeException is logged upstream by TableSchemaBuilder.
+            throw new RuntimeException("Couldn't serialize hstore value into JSON");
         }
     }
 
