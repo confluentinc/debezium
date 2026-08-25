@@ -27,6 +27,7 @@ import org.apache.kafka.connect.transforms.ExtractField;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.re2j.Matcher;
@@ -177,7 +178,9 @@ public class EventRouterDelegate<R extends ConnectRecord<R>> {
                     payload = jsonSchemaData.toConnectData(jsonPayload, payloadSchema);
                 }
                 catch (Exception e) {
-                    LOGGER.warn("JSON expansion failed", e);
+                    // Do not log 'e': the Jackson/JsonSchemaData exception can echo an outbox payload
+                    // fragment (customer data). Report a fixed reason and the exception type only.
+                    LOGGER.warn("JSON expansion failed ({})", e.getClass().getSimpleName());
                 }
             }
         }
@@ -365,6 +368,9 @@ public class EventRouterDelegate<R extends ConnectRecord<R>> {
         expandJsonPayload = config.getBoolean(EventRouterConfigDefinition.EXPAND_JSON_PAYLOAD);
         if (expandJsonPayload) {
             objectMapper = new ObjectMapper();
+            // Do not retain a snippet of the parsed input in parser exceptions: the outbox payload is
+            // customer data and expansion failures are logged below.
+            objectMapper.getFactory().disable(JsonParser.Feature.INCLUDE_SOURCE_IN_LOCATION);
             FieldNameAdjustmentMode fieldNameAdjustmentMode = FieldNameAdjustmentMode.parse(
                     config.getString(CommonConnectorConfig.FIELD_NAME_ADJUSTMENT_MODE));
             jsonSchemaData = new JsonSchemaData(jsonPayloadNullFieldBehavior,

@@ -80,7 +80,10 @@ public class MongoProcessedSinkRecordData {
         }
         catch (Exception e) {
             exception = e;
-            LOGGER.error("Unable to process record {}", sinkRecord, e);
+            // Do not log the SinkRecord: its toString() serializes the record key and value (customer
+            // data). Log the Kafka coordinates only.
+            LOGGER.error("Unable to process record from topic '{}' partition {} offset {}",
+                    sinkRecord.topicName(), sinkRecord.partition(), sinkRecord.offset(), e);
         }
         return Optional.empty();
     }

@@ -599,12 +599,16 @@ public class RowDeserializers {
 
     private static Serializable handleException(EventProcessingFailureHandlingMode eventProcessingFailureHandlingMode,
                                                 String columnType, Exception e, Serializable defaultValue) {
+        // Do not log or propagate e.getMessage(): for temporal columns the underlying DateTimeException
+        // echoes the raw out-of-range column value (e.g. "Invalid date 'APRIL 31'"), which is customer
+        // row data. Report only the column type; the full exception is available at DEBUG for self-managed
+        // troubleshooting.
         if (eventProcessingFailureHandlingMode == EventProcessingFailureHandlingMode.FAIL) {
-            LOGGER.error("Error while deserializing binlog data of {}: {}", columnType, e.getMessage());
-            throw new DebeziumException("Error while deserializing binlog data of " + columnType + ": " + e.getMessage());
+            LOGGER.error("Error while deserializing binlog data of {}", columnType);
+            throw new DebeziumException("Error while deserializing binlog data of " + columnType);
         }
         else if (eventProcessingFailureHandlingMode == EventProcessingFailureHandlingMode.WARN) {
-            LOGGER.warn("Error while deserializing binlog data of {}: {}", columnType, e.getMessage());
+            LOGGER.warn("Error while deserializing binlog data of {}", columnType);
             return defaultValue;
         }
         else {

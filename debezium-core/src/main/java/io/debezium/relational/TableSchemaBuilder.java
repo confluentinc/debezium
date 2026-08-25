@@ -329,24 +329,28 @@ public class TableSchemaBuilder {
                         catch (final Exception e) {
                             Column col = columnsThatShouldBeAdded.get(i);
                             String message = "Failed to properly convert data value for '{}.{}' of type {}";
+                            // Do not pass the conversion exception 'e' (nor its cause) to the log or the
+                            // rethrow: its message embeds the raw column value (customer row data) and would
+                            // reach the ERROR log and the framework task-status trace. The failing row is
+                            // still routed to TRACE by the helper; report only tableId + column + JDBC type.
                             if (eventConvertingFailureHandlingMode == null) {
                                 Loggings.logErrorAndTraceRecord(LOGGER, row,
-                                        message, tableId, col.name(), col.typeName(), e);
+                                        message, tableId, col.name(), col.typeName());
                             }
                             else {
                                 // NOTE: what if failed column is not accept null?
                                 switch (eventConvertingFailureHandlingMode) {
                                     case FAIL:
                                         Loggings.logErrorAndTraceRecord(LOGGER, row, message, tableId,
-                                                col.name(), col.typeName(), e);
+                                                col.name(), col.typeName());
                                         throw new DebeziumException("Failed to properly convert data value for '" +
-                                                tableId + "." + col.name() + "' of type " + col.typeName(), e.getCause());
+                                                tableId + "." + col.name() + "' of type " + col.typeName());
                                     case WARN:
                                         Loggings.logWarningAndTraceRecord(LOGGER, row, message, tableId,
-                                                col.name(), col.typeName(), e);
+                                                col.name(), col.typeName());
                                     case SKIP:
                                         Loggings.logDebugAndTraceRecord(LOGGER, row, message, tableId,
-                                                col.name(), col.typeName(), e);
+                                                col.name(), col.typeName());
                                 }
                             }
                         }
