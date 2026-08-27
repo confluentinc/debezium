@@ -122,8 +122,9 @@ public class SqlServerChangeTablePointer extends ChangeTableResultSet<SqlServerC
                     lastPositionSeen.getOperation(), lastPositionSeen.getCommandId(), toLsn, maxRowsPerResultSet);
         }
 
-        // restarted connector which has not seen any position yet.
-        if (resumeFromPosition != null && resumeFromPosition.getCommandId() != null) {
+        // restarted connector which has not seen any position yet OR running connector with new range.
+        if (resumeFromPosition != null && resumeFromPosition.getCommandId() != null
+                && fromLsn.equals(resumeFromPosition.getCommitLsn())) {
             return connection.getChangesForTable(getChangeTable(), fromLsn, resumeFromPosition.getInTxLsn(), 0,
                     resumeFromPosition.getCommandId(), toLsn, maxRowsPerResultSet);
         }
