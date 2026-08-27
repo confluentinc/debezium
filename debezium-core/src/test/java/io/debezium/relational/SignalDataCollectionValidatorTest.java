@@ -204,8 +204,8 @@ public class SignalDataCollectionValidatorTest {
 
         SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
 
-        assertThat(logInterceptor.containsWarnMessage(
-                "Signal data collection '" + RAW_VALUE + "' was not found in the database.")).isTrue();
+        assertThat(logInterceptor.containsWarnMessage("Signal data collection '" + RAW_VALUE
+                + "' was not found in the database. Source-channel signaling will not work until this table is created.")).isTrue();
         verify(signalDataCollectionValue, never()).addErrorMessage(any());
         verify(connection, never()).getColumnNames(any());
     }
@@ -221,6 +221,25 @@ public class SignalDataCollectionValidatorTest {
 
         assertThat(logInterceptor.containsWarnMessage(
                 "signal.data.collection must be '" + found + "' (got 'dbo.debezium_signal').")).isTrue();
+        verify(signalDataCollectionValue, never()).addErrorMessage(any());
+        verify(connection, never()).getColumnNames(any());
+    }
+
+    @Test
+    public void shouldWarnWithoutFailingConfigWhenWrongShapeMatchesMultipleCandidates() throws SQLException {
+        // A 2-part FQN can resolve to same-named tables in more than one database (e.g. SqlServer multi-db mode);
+        // the message must list every candidate, sorted for determinism, instead of picking one via Set iteration order.
+        TableId dbOneMatch = new TableId("db1", "dbo", "debezium_signal");
+        TableId dbTwoMatch = new TableId("db2", "dbo", "debezium_signal");
+        when(connection.resolveSignalDataCollectionTableId("dbo.debezium_signal")).thenReturn(Set.of(dbTwoMatch, dbOneMatch));
+        when(connectorConfig.getSignalingDataCollectionId()).thenReturn("dbo.debezium_signal");
+        when(connectorConfig.isSignalDataCollection(dbOneMatch)).thenReturn(false);
+        when(connectorConfig.isSignalDataCollection(dbTwoMatch)).thenReturn(false);
+
+        SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
+
+        assertThat(logInterceptor.containsWarnMessage("signal.data.collection must be one of: [" + dbOneMatch + ", " + dbTwoMatch
+                + "] (got 'dbo.debezium_signal').")).isTrue();
         verify(signalDataCollectionValue, never()).addErrorMessage(any());
         verify(connection, never()).getColumnNames(any());
     }
@@ -260,7 +279,8 @@ public class SignalDataCollectionValidatorTest {
 
         SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
 
-        verify(signalDataCollectionValue).addErrorMessage("Signal data collection '" + RAW_VALUE + "' was not found in the database.");
+        verify(signalDataCollectionValue).addErrorMessage("Signal data collection '" + RAW_VALUE
+                + "' was not found in the database. Source-channel signaling will not work until this table is created.");
     }
 
     @Test

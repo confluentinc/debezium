@@ -65,7 +65,8 @@ public class SignalDataCollectionValidator {
             throws SQLException {
         Set<TableId> matches = connection.resolveSignalDataCollectionTableId(rawValue);
         if (matches.isEmpty()) {
-            return "Signal data collection '" + rawValue + "' was not found in the database.";
+            return "Signal data collection '" + rawValue + "' was not found in the database. Source-channel signaling "
+                    + "will not work until this table is created.";
         }
 
         TableId resolved = matches.stream()
@@ -73,7 +74,11 @@ public class SignalDataCollectionValidator {
                 .findFirst()
                 .orElse(null);
         if (resolved == null) {
-            return "signal.data.collection must be '" + matches.iterator().next() + "' (got '" + rawValue + "').";
+            if (matches.size() == 1) {
+                return "signal.data.collection must be '" + matches.iterator().next() + "' (got '" + rawValue + "').";
+            }
+            List<String> candidates = matches.stream().map(TableId::toString).sorted().toList();
+            return "signal.data.collection must be one of: " + candidates + " (got '" + rawValue + "').";
         }
 
         // Reuse the connector's real ColumnNameFilter so the count matches what Debezium's schema builder sees -
