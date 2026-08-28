@@ -68,7 +68,8 @@ public class PgProtoMessageDecoder extends AbstractMessageDecoder {
             processor.process(new PgProtoReplicationMessage(message, typeRegistry));
         }
         catch (InvalidProtocolBufferException e) {
-            throw new ConnectException(e);
+            // Do not chain the protobuf exception: it can carry raw replication message bytes.
+            throw new ConnectException("Failed to decode a protobuf replication message");
         }
     }
 

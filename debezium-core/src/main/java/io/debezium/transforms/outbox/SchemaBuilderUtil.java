@@ -99,8 +99,9 @@ public class SchemaBuilderUtil {
 
             // Check types of elements.
             if (element.getNodeType() != refNode.getNodeType()) {
+                // Do not include asText() values: they are customer payload data. Report node types only.
                 throw new ConnectException(String.format("Field is not a homogenous array (%s x %s).",
-                        refNode.asText(), element.getNodeType().toString()));
+                        refNode.getNodeType().toString(), element.getNodeType().toString()));
             }
 
             // We may return different schemas for NUMBER type, check here they are same.
@@ -110,8 +111,9 @@ public class SchemaBuilderUtil {
                 }
                 Schema elementSchema = jsonValueToSchema(element);
                 if (refSchema != elementSchema) {
+                    // Do not include asText() values: they are customer payload data. Report types/schemas only.
                     throw new ConnectException(String.format("Field is not a homogenous array (%s x %s), different number types (%s x %s)",
-                            refNode.asText(), element.asText(), refSchema, elementSchema));
+                            refNode.getNodeType(), element.getNodeType(), refSchema, elementSchema));
                 }
             }
         }
@@ -127,8 +129,8 @@ public class SchemaBuilderUtil {
 
         final Schema schema = jsonValueToSchema(sample);
         if (schema == null) {
-            throw new ConnectException(String.format("Array '%s' has unrecognized member schema.",
-                    array.asText()));
+            // Do not include asText(): it is customer payload data.
+            throw new ConnectException("Array has an unrecognized member schema.");
         }
         return schema;
     }

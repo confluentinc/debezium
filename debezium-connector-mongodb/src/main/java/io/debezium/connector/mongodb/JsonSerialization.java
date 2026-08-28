@@ -66,7 +66,8 @@ class JsonSerialization {
         final int start = 6;
         final int end = keyValue.length() - 1;
         if (!(end > start)) {
-            throw new IllegalStateException("Serialized JSON object '" + keyValue + "' is not in expected format");
+            // Do not append the serialized _id key value: it is customer data.
+            throw new IllegalStateException("Serialized JSON object is not in expected format");
         }
         return keyValue.substring(start, end);
     }
@@ -80,7 +81,8 @@ class JsonSerialization {
         final int start = 8;
         final int end = keyValue.length() - 1;
         if (!(end > start)) {
-            throw new IllegalStateException("Serialized JSON object '" + keyValue + "' is not in expected format");
+            // Do not append the serialized _id key value: it is customer data.
+            throw new IllegalStateException("Serialized JSON object is not in expected format");
         }
         return keyValue.substring(start, end);
     }

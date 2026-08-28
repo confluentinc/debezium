@@ -48,7 +48,9 @@ public class XStreamChangeRecordEmitter extends BaseChangeRecordEmitter<ColumnVa
             case "TRUNCATE TABLE":
                 return Operation.TRUNCATE;
             default:
-                throw new IllegalArgumentException("Received event of unexpected command type: " + lcr);
+                // Do not append the whole LCR: its toString includes customer column values.
+                throw new IllegalArgumentException("Received event of unexpected command type: " + lcr.getCommandType()
+                        + " for table " + lcr.getObjectOwner() + "." + lcr.getObjectName());
         }
     }
 

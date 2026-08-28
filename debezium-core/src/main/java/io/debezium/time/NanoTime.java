@@ -72,7 +72,8 @@ public class NanoTime {
         if (value instanceof Duration) {
             Duration duration = (Duration) value;
             if (!acceptLargeValues && (duration.isNegative() || duration.compareTo(ONE_DAY) > 0)) {
-                throw new IllegalArgumentException("Time values must be between 00:00:00 and 24:00:00 (inclusive): " + duration);
+                // Do not append the duration value: it is customer column data.
+                throw new IllegalArgumentException("Time values must be between 00:00:00 and 24:00:00 (inclusive)");
             }
 
             return ((Duration) value).toNanos();

@@ -324,7 +324,10 @@ public class CloudEventsConverter implements Converter {
                     return connectData;
                 }
                 catch (SerializationException e) {
-                    throw new DataException("Converting byte[] to Kafka Connect data failed due to serialization error: ", e);
+                    // Do not chain the parse exception into the propagated DataException: its message can
+                    // echo the record value. Keep the detail at DEBUG only.
+                    LOGGER.debug("CloudEvents data deserialization failed", e);
+                    throw new DataException("Converting byte[] to Kafka Connect data failed due to serialization error");
                 }
             case AVRO:
                 // First reconvert the whole CloudEvents
@@ -399,7 +402,10 @@ public class CloudEventsConverter implements Converter {
                                                 jsonCloudEventsConverterConfig));
                     }
                     catch (IllegalAccessException | InvocationTargetException e) {
-                        throw new DataException(e.getCause());
+                        // Do not propagate the reflective cause: its message can echo the record value.
+                        // Keep the detail at DEBUG only.
+                        LOGGER.debug("CloudEvents data reconversion failed", e);
+                        throw new DataException("Converting CloudEvents data field failed");
                     }
                 case AVRO:
                     return avroConverter.toConnectData(topic, serializedData);
@@ -408,7 +414,10 @@ public class CloudEventsConverter implements Converter {
             }
         }
         catch (IOException e) {
-            throw new DataException("Converting byte[] to Kafka Connect data failed due to serialization error: ", e);
+            // Do not chain the parse exception into the propagated DataException: its message can
+            // echo the record value. Keep the detail at DEBUG only.
+            LOGGER.debug("CloudEvents deserialization failed", e);
+            throw new DataException("Converting byte[] to Kafka Connect data failed due to serialization error");
         }
     }
 

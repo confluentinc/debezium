@@ -417,7 +417,9 @@ public abstract class RelationalSnapshotChangeEventSource<P extends Partition, O
             snapshotProgressListener.dataCollectionSnapshotCompleted(snapshotContext.partition, table.id(), rows);
         }
         catch (SQLException e) {
-            throw new ConnectException("Snapshotting of table " + table.id() + " failed", e);
+            // Do not chain the SQLException: it can echo customer column values. Keep detail at DEBUG.
+            LOGGER.debug("Snapshotting of table '{}' failed", table.id(), e);
+            throw new ConnectException("Snapshotting of table " + table.id() + " failed");
         }
     }
 

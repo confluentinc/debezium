@@ -122,7 +122,8 @@ public class MongoDbIncrementalSnapshotContext<T> implements IncrementalSnapshot
             return HexConverter.convertToHexString(bos.toByteArray());
         }
         catch (IOException e) {
-            throw new DebeziumException(String.format("Cannot serialize chunk information %s", array));
+            // Do not append the chunk key bounds: they are customer data.
+            throw new DebeziumException(String.format("Cannot serialize chunk information (%d elements)", array.length));
         }
     }
 
@@ -132,7 +133,8 @@ public class MongoDbIncrementalSnapshotContext<T> implements IncrementalSnapshot
             return (Object[]) ois.readObject();
         }
         catch (Exception e) {
-            throw new DebeziumException(String.format("Failed to deserialize '%s' with value '%s'", field, serialized),
+            // Do not append the serialized chunk position value: it is customer data.
+            throw new DebeziumException(String.format("Failed to deserialize '%s'", field),
                     e);
         }
     }

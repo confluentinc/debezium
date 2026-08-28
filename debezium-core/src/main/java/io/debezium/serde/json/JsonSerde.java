@@ -92,7 +92,8 @@ public class JsonSerde<T> implements Serde<T> {
                 return isKey ? readKey(node) : readValue(node);
             }
             catch (IOException e) {
-                throw new RuntimeException(e);
+                // Do not chain the parse exception: its message can echo the JSON record content.
+                throw new RuntimeException("Failed to deserialize JSON record");
             }
         }
 

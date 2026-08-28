@@ -304,7 +304,8 @@ public abstract class AbstractLogMinerEventProcessor<T extends AbstractTransacti
      * @param row the result set row
      */
     protected void handleMissingScn(LogMinerEventRow row) {
-        LOGGER.warn("Missing SCN detected. {}", row);
+        // Do not log the whole row: its toString includes the redo SQL (customer data).
+        LOGGER.warn("Missing SCN detected. scn={}, tableId={}", row.getScn(), row.getTableId());
     }
 
     /**
@@ -725,10 +726,12 @@ public abstract class AbstractLogMinerEventProcessor<T extends AbstractTransacti
             // The SQL in the SQL_REDO column is not valid and cannot be parsed.
             switch (connectorConfig.getEventProcessingFailureHandlingMode()) {
                 case FAIL:
-                    LOGGER.error("Oracle LogMiner is unable to re-construct the SQL for '{}'", row);
-                    throw new DebeziumException("Oracle failed to re-construct redo SQL '" + row.getRedoSql() + "'");
+                    // Do not log the whole row or the redo SQL: they are customer data.
+                    LOGGER.error("Oracle LogMiner is unable to re-construct the SQL for scn={}, tableId={}", row.getScn(), row.getTableId());
+                    throw new DebeziumException("Oracle failed to re-construct redo SQL for scn=" + row.getScn() + ", tableId=" + row.getTableId());
                 case WARN:
-                    LOGGER.warn("Oracle LogMiner event '{}' cannot be parsed. This event will be ignored and skipped.", row);
+                    // Do not log the whole row: its toString includes the redo SQL (customer data).
+                    LOGGER.warn("Oracle LogMiner event for scn={}, tableId={} cannot be parsed. This event will be ignored and skipped.", row.getScn(), row.getTableId());
                     return;
                 default:
                     // In this case, we explicitly log the situation in "debug" only and not as an error/warn.
@@ -977,14 +980,15 @@ public abstract class AbstractLogMinerEventProcessor<T extends AbstractTransacti
             metrics.addCurrentParseTime(Duration.between(parseStart, Instant.now()));
         }
         catch (DmlParserException e) {
-            String message = "DML statement couldn't be parsed." +
-                    " Please open a Jira issue with the statement '" + redoSql + "'.";
+            // Do not append the redo SQL: it contains customer column values.
+            String message = "DML statement couldn't be parsed. Please open a Jira issue.";
             throw new DmlParserException(message, e);
         }
 
         if (dmlEntry.getOldValues().length == 0) {
             if (EventType.UPDATE == dmlEntry.getEventType() || EventType.DELETE == dmlEntry.getEventType()) {
-                LOGGER.warn("The DML event '{}' contained no before state.", redoSql);
+                // Do not log the redo SQL: it contains customer column values.
+                LOGGER.warn("The DML event for table '{}' in transaction '{}' contained no before state.", table.id(), transactionId);
                 metrics.incrementWarningCount();
             }
         }
@@ -1009,7 +1013,8 @@ public abstract class AbstractLogMinerEventProcessor<T extends AbstractTransacti
 
         Matcher m = LOB_WRITE_SQL_PATTERN.matcher(sql.trim());
         if (!m.matches()) {
-            throw new DebeziumException("Unable to parse unsupported LOB_WRITE SQL: " + sql);
+            // Do not append the redo SQL: it contains customer LOB data.
+            throw new DebeziumException("Unable to parse unsupported LOB_WRITE SQL");
         }
 
         String data = m.group(1);

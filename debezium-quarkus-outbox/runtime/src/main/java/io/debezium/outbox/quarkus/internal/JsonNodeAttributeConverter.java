@@ -46,7 +46,8 @@ public class JsonNodeAttributeConverter implements AttributeConverter<JsonNode, 
             return mapper.readValue(databaseValue, JsonNode.class);
         }
         catch (IOException e) {
-            throw new HibernateException("Failed to convert String to JsonNode", e);
+            // Do not chain the Jackson exception: it can echo the source JSON content in its message.
+            throw new HibernateException("Failed to convert String to JsonNode");
         }
     }
 }

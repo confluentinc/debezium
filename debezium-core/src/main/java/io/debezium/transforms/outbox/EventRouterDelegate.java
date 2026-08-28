@@ -166,7 +166,9 @@ public class EventRouterDelegate<R extends ConnectRecord<R>> {
                     payload = StructBuilderUtil.jsonNodeToStruct(jsonPayload, payloadSchema);
                 }
                 catch (Exception e) {
-                    LOGGER.warn("JSON expansion failed", e);
+                    // Do not log the exception at WARN: it can echo the record payload. Keep detail at DEBUG.
+                    LOGGER.warn("JSON expansion failed");
+                    LOGGER.debug("JSON expansion failed", e);
                 }
             }
         }

@@ -87,8 +87,9 @@ public abstract class AbstractColumnValue<T> implements ReplicationMessage.Colum
             return new PGbox(asString());
         }
         catch (final SQLException e) {
-            LOGGER.error("Failed to parse point {}, {}", asString(), e);
-            throw new ConnectException(e);
+            // Do not log asString(): it is the raw column value (customer data).
+            LOGGER.error("Failed to parse point column value: {}", e.getClass().getName());
+            throw new ConnectException("Failed to parse column value");
         }
     }
 
@@ -98,8 +99,9 @@ public abstract class AbstractColumnValue<T> implements ReplicationMessage.Colum
             return new PGcircle(asString());
         }
         catch (final SQLException e) {
-            LOGGER.error("Failed to parse circle {}, {}", asString(), e);
-            throw new ConnectException(e);
+            // Do not log asString(): it is the raw column value (customer data).
+            LOGGER.error("Failed to parse circle column value: {}", e.getClass().getName());
+            throw new ConnectException("Failed to parse column value");
         }
     }
 
@@ -109,8 +111,9 @@ public abstract class AbstractColumnValue<T> implements ReplicationMessage.Colum
             return new PGInterval(asString());
         }
         catch (final SQLException e) {
-            LOGGER.error("Failed to parse point {}, {}", asString(), e);
-            throw new ConnectException(e);
+            // Do not log asString(): it is the raw column value (customer data).
+            LOGGER.error("Failed to parse point column value: {}", e.getClass().getName());
+            throw new ConnectException("Failed to parse column value");
         }
     }
 
@@ -120,8 +123,9 @@ public abstract class AbstractColumnValue<T> implements ReplicationMessage.Colum
             return new PGline(asString());
         }
         catch (final SQLException e) {
-            LOGGER.error("Failed to parse point {}, {}", asString(), e);
-            throw new ConnectException(e);
+            // Do not log asString(): it is the raw column value (customer data).
+            LOGGER.error("Failed to parse point column value: {}", e.getClass().getName());
+            throw new ConnectException("Failed to parse column value");
         }
     }
 
@@ -131,8 +135,9 @@ public abstract class AbstractColumnValue<T> implements ReplicationMessage.Colum
             return new PGlseg(asString());
         }
         catch (final SQLException e) {
-            LOGGER.error("Failed to parse point {}, {}", asString(), e);
-            throw new ConnectException(e);
+            // Do not log asString(): it is the raw column value (customer data).
+            LOGGER.error("Failed to parse point column value: {}", e.getClass().getName());
+            throw new ConnectException("Failed to parse column value");
         }
     }
 
@@ -147,8 +152,9 @@ public abstract class AbstractColumnValue<T> implements ReplicationMessage.Colum
             return new PGmoney(asString());
         }
         catch (final SQLException e) {
-            LOGGER.error("Failed to parse money {}, {}", asString(), e);
-            throw new ConnectException(e);
+            // Do not log asString(): it is the raw column value (customer data).
+            LOGGER.error("Failed to parse money column value: {}", e.getClass().getName());
+            throw new ConnectException("Failed to parse column value");
         }
     }
 
@@ -158,8 +164,9 @@ public abstract class AbstractColumnValue<T> implements ReplicationMessage.Colum
             return new PGpath(asString());
         }
         catch (final SQLException e) {
-            LOGGER.error("Failed to parse point {}, {}", asString(), e);
-            throw new ConnectException(e);
+            // Do not log asString(): it is the raw column value (customer data).
+            LOGGER.error("Failed to parse point column value: {}", e.getClass().getName());
+            throw new ConnectException("Failed to parse column value");
         }
     }
 
@@ -169,8 +176,9 @@ public abstract class AbstractColumnValue<T> implements ReplicationMessage.Colum
             return new PGpoint(asString());
         }
         catch (final SQLException e) {
-            LOGGER.error("Failed to parse point {}, {}", asString(), e);
-            throw new ConnectException(e);
+            // Do not log asString(): it is the raw column value (customer data).
+            LOGGER.error("Failed to parse point column value: {}", e.getClass().getName());
+            throw new ConnectException("Failed to parse column value");
         }
     }
 
@@ -180,8 +188,9 @@ public abstract class AbstractColumnValue<T> implements ReplicationMessage.Colum
             return new PGpolygon(asString());
         }
         catch (final SQLException e) {
-            LOGGER.error("Failed to parse point {}, {}", asString(), e);
-            throw new ConnectException(e);
+            // Do not log asString(): it is the raw column value (customer data).
+            LOGGER.error("Failed to parse point column value: {}", e.getClass().getName());
+            throw new ConnectException("Failed to parse column value");
         }
     }
 
