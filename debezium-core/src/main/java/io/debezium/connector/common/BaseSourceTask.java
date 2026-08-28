@@ -9,6 +9,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -187,12 +188,26 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
                 // We want to record the status ...
                 final Instant currentTime = clock.currentTime();
                 LOGGER.info("{} records sent during previous {}, last recorded offset: {}", previousOutputBatchSize,
-                        Strings.duration(Duration.between(previousOutputInstant, currentTime).toMillis()), lastRecord.sourceOffset());
+                        Strings.duration(Duration.between(previousOutputInstant, currentTime).toMillis()), redactOffset(lastRecord.sourceOffset()));
 
                 previousOutputInstant = currentTime;
                 previousOutputBatchSize = 0;
             }
         }
+    }
+
+    /**
+     * Returns a copy of the source offset with the incremental-snapshot key window bounds redacted.
+     * During an incremental snapshot the offset carries the customer's primary-key values (the window
+     * lower/upper bounds); the position markers (LSN/SCN/txId/binlog position) remain intact.
+     */
+    static Map<String, ?> redactOffset(Map<String, ?> offset) {
+        if (offset == null) {
+            return null;
+        }
+        final Map<String, Object> redacted = new LinkedHashMap<>(offset);
+        redacted.replaceAll((key, value) -> key != null && key.startsWith("incremental_snapshot") ? "[redacted]" : value);
+        return redacted;
     }
 
     /**

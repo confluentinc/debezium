@@ -159,7 +159,8 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
         }
         if (key instanceof Struct) {
             if (window.remove((Struct) key) != null) {
-                LOGGER.info("Removed '{}' from window", key);
+                // Do not log the key Struct: it holds the customer's primary-key values. Log a hash only.
+                LOGGER.info("Removed key with hash {} from window", key.hashCode());
             }
         }
     }
@@ -306,8 +307,8 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
                         continue;
                     }
                     if (LOGGER.isInfoEnabled()) {
-                        LOGGER.info("Incremental snapshot for table '{}' will end at position {}", currentTableId,
-                                context.maximumKey().orElse(new Object[0]));
+                        // Do not log the maximum key value: it is a customer primary-key value.
+                        LOGGER.info("Incremental snapshot for table '{}' will end at the maximum key", currentTableId);
                     }
                 }
                 if (createDataEventsForTable(partition)) {
@@ -329,7 +330,9 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
             emitWindowClose(partition);
         }
         catch (SQLException e) {
-            throw new DebeziumException(String.format("Database error while executing incremental snapshot for table '%s'", context.currentDataCollectionId()), e);
+            // Do not chain the SQLException: it can echo customer column values. Keep detail at DEBUG.
+            LOGGER.debug("Database error while executing incremental snapshot for table '{}'", context.currentDataCollectionId(), e);
+            throw new DebeziumException(String.format("Database error while executing incremental snapshot for table '%s'", context.currentDataCollectionId()));
         }
         finally {
             postReadChunk(context);
@@ -395,7 +398,9 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
             return getTable(rs);
         }
         catch (SQLException e) {
-            throw new DebeziumException("Snapshotting of table " + currentTable.id() + " failed", e);
+            // Do not chain the SQLException: it can echo customer column values. Keep detail at DEBUG.
+            LOGGER.debug("Snapshotting of table '{}' failed", currentTable.id(), e);
+            throw new DebeziumException("Snapshotting of table " + currentTable.id() + " failed");
         }
     }
 
@@ -486,7 +491,9 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
             incrementTableRowsScanned(partition, rows);
         }
         catch (SQLException e) {
-            throw new DebeziumException("Snapshotting of table " + currentTable.id() + " failed", e);
+            // Do not chain the SQLException: it can echo customer column values. Keep detail at DEBUG.
+            LOGGER.debug("Snapshotting of table '{}' failed", currentTable.id(), e);
+            throw new DebeziumException("Snapshotting of table " + currentTable.id() + " failed");
         }
         return true;
     }

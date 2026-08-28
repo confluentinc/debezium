@@ -94,7 +94,8 @@ public class EventHubsChangeConsumer extends BaseChangeConsumer
             producer = new EventHubClientBuilder().connectionString(finalConnectionString).buildProducerClient();
         }
         catch (Exception e) {
-            throw new DebeziumException(e);
+            // Do not chain the builder exception: it can contain the connection string (a credential).
+            throw new DebeziumException("Failed to build the Event Hubs producer client");
         }
 
         LOGGER.info("Using default Event Hubs client for namespace '{}'", producer.getFullyQualifiedNamespace());

@@ -227,8 +227,9 @@ public class TableSchemaBuilder {
                         }
                         catch (DataException e) {
                             Column col = columns.get(i);
-                            LOGGER.error("Failed to properly convert key value for '{}.{}' of type {} for row {}:",
-                                    columnSetName, col.name(), col.typeName(), row, e);
+                            // Do not log the row: it holds all column values. Log the column name/type only.
+                            LOGGER.error("Failed to properly convert key value for '{}.{}' of type {}:",
+                                    columnSetName, col.name(), col.typeName(), e);
                         }
                     }
                 }
@@ -299,13 +300,15 @@ public class TableSchemaBuilder {
                         }
                         catch (DataException | IllegalArgumentException e) {
                             Column col = columns.get(i);
-                            LOGGER.error("Failed to properly convert data value for '{}.{}' of type {} for row {}:",
-                                    tableId, col.name(), col.typeName(), row, e);
+                            // Do not log the row: it holds all column values. Log the column name/type only.
+                            LOGGER.error("Failed to properly convert data value for '{}.{}' of type {}:",
+                                    tableId, col.name(), col.typeName(), e);
                         }
                         catch (final Exception e) {
                             Column col = columns.get(i);
-                            LOGGER.error("Failed to properly convert data value for '{}.{}' of type {} for row {}:",
-                                    tableId, col.name(), col.typeName(), row, e);
+                            // Do not log the row: it holds all column values. Log the column name/type only.
+                            LOGGER.error("Failed to properly convert data value for '{}.{}' of type {}:",
+                                    tableId, col.name(), col.typeName(), e);
                         }
                     }
                 }

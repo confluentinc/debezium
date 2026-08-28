@@ -355,7 +355,8 @@ public class OracleValueConverters extends JdbcValueConverters {
             return super.convertBinary(column, fieldDefn, data, mode);
         }
         catch (SQLException e) {
-            throw new DebeziumException("Couldn't convert value for column " + column.name(), e);
+            // Do not attach the SQLException cause: the hex-parse error can echo the malformed customer value.
+            throw new DebeziumException("Couldn't convert value for column " + column.name());
         }
     }
 

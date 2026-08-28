@@ -7,6 +7,8 @@ package io.debezium.pipeline;
 
 import java.util.Collection;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -243,11 +245,15 @@ public class EventDispatcher<P extends Partition, T extends DataCollectionId> im
         catch (Exception e) {
             switch (connectorConfig.getEventProcessingFailureHandlingMode()) {
                 case FAIL:
-                    throw new ConnectException("Error while processing event at offset " + changeRecordEmitter.getOffset().getOffset(), e);
+                    // Do not chain the processing exception (it can echo record/column values); keep it at
+                    // DEBUG. Redact incremental-snapshot key bounds from the offset before surfacing.
+                    LOGGER.debug("Error while processing event", e);
+                    throw new ConnectException("Error while processing event at offset "
+                            + redactOffset(changeRecordEmitter.getOffset().getOffset()));
                 case WARN:
                     LOGGER.warn(
                             "Error while processing event at offset {}",
-                            changeRecordEmitter.getOffset().getOffset());
+                            redactOffset(changeRecordEmitter.getOffset().getOffset()));
                     break;
                 case SKIP:
                     LOGGER.debug(
@@ -257,6 +263,20 @@ public class EventDispatcher<P extends Partition, T extends DataCollectionId> im
             }
             return false;
         }
+    }
+
+    /**
+     * Returns a copy of the source offset with the incremental-snapshot key window bounds redacted.
+     * During an incremental snapshot the offset carries the customer's primary-key values; the position
+     * markers (LSN/SCN/txId/binlog position) remain intact.
+     */
+    private static Map<String, ?> redactOffset(Map<String, ?> offset) {
+        if (offset == null) {
+            return null;
+        }
+        final Map<String, Object> redacted = new LinkedHashMap<>(offset);
+        redacted.replaceAll((key, value) -> key != null && key.startsWith("incremental_snapshot") ? "[redacted]" : value);
+        return redacted;
     }
 
     public void dispatchFilteredEvent(P partition, OffsetContext offset) throws InterruptedException {

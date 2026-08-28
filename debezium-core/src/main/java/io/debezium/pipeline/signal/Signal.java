@@ -135,7 +135,9 @@ public class Signal<P extends Partition> {
             return action.arrived(new Payload<>(partition, id, type, jsonData, offset, source));
         }
         catch (IOException e) {
-            LOGGER.warn("Signal '{}' has been received but the data cannot be parsed", id, e);
+            // Do not log the parse exception at WARN: it echoes the signal data JSON. Keep detail at DEBUG.
+            LOGGER.warn("Signal '{}' has been received but the data cannot be parsed", id);
+            LOGGER.debug("Signal '{}' data parse failure", id, e);
             return false;
         }
     }
