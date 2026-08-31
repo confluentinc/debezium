@@ -64,9 +64,9 @@ public class MongoEventRouter<R extends ConnectRecord<R>> implements Transformat
                 return expandAfterField(r);
             }
             catch (Exception e) {
-                // Do not log e.getMessage()/e: a BSON/JSON parse error echoes the after-field document, which is customer data.
-                LOGGER.warn("Failed to expand after field");
-                LOGGER.debug("Failed to expand after field", e);
+                // Do not log e.getMessage()/e: a BSON/JSON parse error echoes the after-field document,
+                // which is customer data. Log only the exception class as a safe correlator.
+                LOGGER.warn("Failed to expand after field. Cause: {}", e.getClass().getName());
                 return r;
             }
         });

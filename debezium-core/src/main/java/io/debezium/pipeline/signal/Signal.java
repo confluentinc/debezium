@@ -135,9 +135,9 @@ public class Signal<P extends Partition> {
             return action.arrived(new Payload<>(partition, id, type, jsonData, offset, source));
         }
         catch (IOException e) {
-            // Do not log the parse exception at WARN: it echoes the signal data JSON. Keep detail at DEBUG.
-            LOGGER.warn("Signal '{}' has been received but the data cannot be parsed", id);
-            LOGGER.debug("Signal '{}' data parse failure", id, e);
+            // Do not log the parse exception: it echoes the signal data JSON. Log only the
+            // exception class as a safe correlator.
+            LOGGER.warn("Signal '{}' has been received but the data cannot be parsed. Cause: {}", id, e.getClass().getName());
             return false;
         }
     }
@@ -170,7 +170,8 @@ public class Signal<P extends Partition> {
             data = parseSignal.get()[2];
         }
         catch (Exception e) {
-            LOGGER.warn("Exception while preparing to process the signal", e);
+            // Do not log the exception: the signal parse can echo the signal data. Log only the class.
+            LOGGER.warn("Exception while preparing to process the signal. Cause: {}", e.getClass().getName());
         }
         return process(partition, id, type, data, offset, source);
     }

@@ -245,9 +245,9 @@ public class EventDispatcher<P extends Partition, T extends DataCollectionId> im
         catch (Exception e) {
             switch (connectorConfig.getEventProcessingFailureHandlingMode()) {
                 case FAIL:
-                    // Do not chain the processing exception (it can echo record/column values); keep it at
-                    // DEBUG. Redact incremental-snapshot key bounds from the offset before surfacing.
-                    LOGGER.debug("Error while processing event", e);
+                    // Do not chain or log the processing exception (it can echo record/column values);
+                    // log only the class. Redact incremental-snapshot key bounds from the offset before surfacing.
+                    LOGGER.debug("Error while processing event. Cause: {}", e.getClass().getName());
                     throw new ConnectException("Error while processing event at offset "
                             + redactOffset(changeRecordEmitter.getOffset().getOffset()));
                 case WARN:
