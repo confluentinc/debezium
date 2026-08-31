@@ -346,6 +346,19 @@ public class StringsTest {
     }
 
     @Test
+    public void asDurationShouldNotLeakValueOnParseFailure() {
+        final String canary = "SENSITIVE_TIME_CANARY";
+        try {
+            Strings.asDuration(canary);
+            org.junit.Assert.fail("Expected a RuntimeException for a malformed time value");
+        }
+        catch (RuntimeException e) {
+            // The exception message must not echo the (customer) column value.
+            assertThat(e.getMessage().contains(canary)).isFalse();
+        }
+    }
+
+    @Test
     public void startsWithIgnoreCase() {
         assertThat(Strings.startsWithIgnoreCase("INSERT INTO", "insert")).isTrue();
         assertThat(Strings.startsWithIgnoreCase("INSERT INTO", "INSERT")).isTrue();

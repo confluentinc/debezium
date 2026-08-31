@@ -77,7 +77,8 @@ public class NonStreamingWal2JsonMessageDecoder extends AbstractMessageDecoder {
             }
         }
         catch (final IOException e) {
-            throw new ConnectException(e);
+            // Do not chain the JSON parse exception: its message can echo the change payload content.
+            throw new ConnectException("Failed to decode a wal2json replication message");
         }
     }
 

@@ -76,8 +76,9 @@ public abstract class BaseChangeRecordEmitter<T> extends RelationalChangeRecordE
         if (connectorConfig.isLobEnabled()) {
             final List<Column> reselectColumns = getReselectColumns(newValue);
             if (!reselectColumns.isEmpty()) {
-                LOGGER.info("Table '{}' primary key changed from '{}' to '{}' via an UPDATE, re-selecting LOB columns {} out of bands.",
-                        table.id(), oldKey, newKey, reselectColumns.stream().map(Column::name).collect(Collectors.toList()));
+                // Do not log oldKey/newKey Struct values: they are primary-key customer data.
+                LOGGER.info("Table '{}' primary key changed via an UPDATE (key columns {}), re-selecting LOB columns {} out of bands.",
+                        table.id(), table.primaryKeyColumnNames(), reselectColumns.stream().map(Column::name).collect(Collectors.toList()));
 
                 final JdbcConfiguration jdbcConfig = connectorConfig.getJdbcConfig();
                 try (OracleConnection connection = new OracleConnection(jdbcConfig, () -> getClass().getClassLoader(), false)) {

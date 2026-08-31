@@ -83,7 +83,8 @@ public class ZonedTime {
         if (value instanceof java.util.Date) { // or JDBC subtypes
             return toIsoString((java.util.Date) value, defaultZone, adjuster);
         }
-        throw new IllegalArgumentException("Unable to convert to OffsetTime from unexpected value '" + value + "' of type " + value.getClass().getName());
+        // Do not interpolate the value: it is customer column data. The type is enough.
+        throw new IllegalArgumentException("Unable to convert to OffsetTime from unexpected value of type " + value.getClass().getName());
     }
 
     /**

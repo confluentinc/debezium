@@ -120,7 +120,9 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                 snapshotter.init(connectorConfig, null, slotInfo);
             }
             else {
-                LOGGER.info("Found previous offset {}", previousOffset);
+                // Do not log the whole offset: its toString() includes the incremental-snapshot key
+                // window bounds (customer PK values). Log only the LSN position marker.
+                LOGGER.info("Found previous offset at LSN {}", previousOffset.lsn());
                 snapshotter.init(connectorConfig, previousOffset.asOffsetState(), slotInfo);
             }
 

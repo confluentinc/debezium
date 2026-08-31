@@ -124,7 +124,8 @@ public class AbstractIncrementalSnapshotContext<T> implements IncrementalSnapsho
             return HexConverter.convertToHexString(bos.toByteArray());
         }
         catch (IOException e) {
-            throw new DebeziumException(String.format("Cannot serialize chunk information %s", array));
+            // Do not include the chunk array in the message: it holds customer primary-key values.
+            throw new DebeziumException(String.format("Cannot serialize chunk information (%d elements)", array.length));
         }
     }
 
@@ -134,8 +135,9 @@ public class AbstractIncrementalSnapshotContext<T> implements IncrementalSnapsho
             return (Object[]) ois.readObject();
         }
         catch (Exception e) {
-            throw new DebeziumException(String.format("Failed to deserialize '%s' with value '%s'", field, serialized),
-                    e);
+            // Do not include the serialized value nor chain e (its message can echo it): it holds
+            // customer primary-key values. Report the field name and exception class only.
+            throw new DebeziumException(String.format("Failed to deserialize '%s' (%s)", field, e.getClass().getName()));
         }
     }
 

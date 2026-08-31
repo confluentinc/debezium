@@ -53,7 +53,8 @@ public class Connector {
             return new Connector(name, config);
         }
         catch (IOException e) {
-            throw new IllegalArgumentException(e);
+            // Do not chain the Jackson exception: it can echo the connector configuration JSON.
+            throw new IllegalArgumentException("Failed to parse connector configuration JSON");
         }
     }
 

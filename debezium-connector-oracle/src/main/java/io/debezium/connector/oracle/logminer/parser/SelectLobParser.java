@@ -80,7 +80,9 @@ public class SelectLobParser {
                 }
             }
             catch (Throwable t) {
-                throw new ParsingException(null, "Parsing failed for SEL_LOB_LOCATOR sql: '" + sql + "'", t);
+                // Do not append the redo SQL nor chain t (its message can echo a column value):
+                // it contains customer column values. Report the exception class only.
+                throw new ParsingException(null, "Parsing failed for SEL_LOB_LOCATOR sql (" + t.getClass().getName() + ")");
             }
         }
 

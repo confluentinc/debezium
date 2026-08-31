@@ -160,6 +160,19 @@ public class MySqlValueConvertersTest {
     }
 
     @Test
+    public void stringToDurationShouldNotLeakValueOnParseFailure() {
+        final String canary = "SENSITIVE_TIME_CANARY";
+        try {
+            MySqlValueConverters.stringToDuration(canary);
+            org.junit.Assert.fail("Expected a RuntimeException for a malformed TIME value");
+        }
+        catch (RuntimeException e) {
+            // The exception message must not echo the (customer) column value.
+            assertThat(e.getMessage().contains(canary)).isFalse();
+        }
+    }
+
+    @Test
     @FixFor("DBC-3371")
     public void testFallbackDecimalValueScale() {
         int scale = 42;
