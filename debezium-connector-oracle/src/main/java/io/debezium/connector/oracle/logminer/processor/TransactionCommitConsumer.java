@@ -174,8 +174,9 @@ public class TransactionCommitConsumer implements AutoCloseable, BlockingConsume
             lob.add(new LobFragment(event));
         }
         catch (final DebeziumException exception) {
-            // Do not log the whole event: LobWriteEvent.toString includes the LOB data (customer data).
-            LOGGER.warn("\tInvalid LOB manipulation event: {} ; ignoring {} {}", exception, event.getEventType(), event.getTableId());
+            // Do not log the whole event (LobWriteEvent.toString includes the LOB data) nor the raw
+            // exception (its message can echo the same LOB/column data). Log only the exception class.
+            LOGGER.warn("\tInvalid LOB manipulation event: {} ; ignoring {} {}", exception.getClass().getName(), event.getEventType(), event.getTableId());
         }
     }
 

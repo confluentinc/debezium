@@ -324,9 +324,9 @@ public class CloudEventsConverter implements Converter {
                     return connectData;
                 }
                 catch (SerializationException e) {
-                    // Do not chain the parse exception into the propagated DataException: its message can
-                    // echo the record value. Keep the detail at DEBUG only.
-                    LOGGER.debug("CloudEvents data deserialization failed", e);
+                    // Do not chain the parse exception into the propagated DataException, and do not log
+                    // the exception itself: its message can echo the record value. Log only the class.
+                    LOGGER.debug("CloudEvents data deserialization failed. Cause: {}", e.getClass().getName());
                     throw new DataException("Converting byte[] to Kafka Connect data failed due to serialization error");
                 }
             case AVRO:
@@ -402,9 +402,9 @@ public class CloudEventsConverter implements Converter {
                                                 jsonCloudEventsConverterConfig));
                     }
                     catch (IllegalAccessException | InvocationTargetException e) {
-                        // Do not propagate the reflective cause: its message can echo the record value.
-                        // Keep the detail at DEBUG only.
-                        LOGGER.debug("CloudEvents data reconversion failed", e);
+                        // Do not propagate the reflective cause, and do not log the exception itself:
+                        // its message can echo the record value. Log only the class.
+                        LOGGER.debug("CloudEvents data reconversion failed. Cause: {}", e.getClass().getName());
                         throw new DataException("Converting CloudEvents data field failed");
                     }
                 case AVRO:
@@ -414,9 +414,9 @@ public class CloudEventsConverter implements Converter {
             }
         }
         catch (IOException e) {
-            // Do not chain the parse exception into the propagated DataException: its message can
-            // echo the record value. Keep the detail at DEBUG only.
-            LOGGER.debug("CloudEvents deserialization failed", e);
+            // Do not chain the parse exception into the propagated DataException, and do not log the
+            // exception itself: its message can echo the record value. Log only the class.
+            LOGGER.debug("CloudEvents deserialization failed. Cause: {}", e.getClass().getName());
             throw new DataException("Converting byte[] to Kafka Connect data failed due to serialization error");
         }
     }

@@ -330,8 +330,8 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
             emitWindowClose(partition);
         }
         catch (SQLException e) {
-            // Do not chain the SQLException: it can echo customer column values. Keep detail at DEBUG.
-            LOGGER.debug("Database error while executing incremental snapshot for table '{}'", context.currentDataCollectionId(), e);
+            // Do not chain or log the SQLException: it can echo customer column values. Log only the class.
+            LOGGER.debug("Database error while executing incremental snapshot for table '{}'. Cause: {}, SQLState: {}", context.currentDataCollectionId(), e.getClass().getName(), e.getSQLState());
             throw new DebeziumException(String.format("Database error while executing incremental snapshot for table '%s'", context.currentDataCollectionId()));
         }
         finally {
@@ -398,8 +398,8 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
             return getTable(rs);
         }
         catch (SQLException e) {
-            // Do not chain the SQLException: it can echo customer column values. Keep detail at DEBUG.
-            LOGGER.debug("Snapshotting of table '{}' failed", currentTable.id(), e);
+            // Do not chain or log the SQLException: it can echo customer column values. Log only the class.
+            LOGGER.debug("Snapshotting of table '{}' failed. Cause: {}, SQLState: {}", currentTable.id(), e.getClass().getName(), e.getSQLState());
             throw new DebeziumException("Snapshotting of table " + currentTable.id() + " failed");
         }
     }
@@ -491,8 +491,8 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
             incrementTableRowsScanned(partition, rows);
         }
         catch (SQLException e) {
-            // Do not chain the SQLException: it can echo customer column values. Keep detail at DEBUG.
-            LOGGER.debug("Snapshotting of table '{}' failed", currentTable.id(), e);
+            // Do not chain or log the SQLException: it can echo customer column values. Log only the class.
+            LOGGER.debug("Snapshotting of table '{}' failed. Cause: {}, SQLState: {}", currentTable.id(), e.getClass().getName(), e.getSQLState());
             throw new DebeziumException("Snapshotting of table " + currentTable.id() + " failed");
         }
         return true;
