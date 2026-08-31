@@ -80,7 +80,8 @@ public class SelectLobParser {
                 }
             }
             catch (Throwable t) {
-                throw new ParsingException(null, "Parsing failed for SEL_LOB_LOCATOR sql: '" + sql + "'", t);
+                // Do not append the redo SQL: it contains customer column values.
+                throw new ParsingException(null, "Parsing failed for SEL_LOB_LOCATOR sql", t);
             }
         }
 

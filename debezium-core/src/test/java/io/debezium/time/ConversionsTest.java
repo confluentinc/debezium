@@ -37,6 +37,19 @@ public class ConversionsTest {
     }
 
     @Test
+    public void toLocalDateShouldNotLeakValueOnUnexpectedType() {
+        final String canary = "SENSITIVE_DATE_CANARY";
+        try {
+            Conversions.toLocalDate(canary);
+            fail("Expected an IllegalArgumentException for an unexpected value type");
+        }
+        catch (IllegalArgumentException e) {
+            // The exception message must not echo the (customer) column value.
+            assertThat(e.getMessage().contains(canary)).isFalse();
+        }
+    }
+
+    @Test
     public void shouldReturnLocalDateInstanceWhenConvertingLocalDateTimeToLocalDate() {
         LocalDateTime now = LocalDateTime.now();
         assertThat(Conversions.toLocalDate(now)).isEqualTo(now.toLocalDate());

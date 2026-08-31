@@ -166,12 +166,10 @@ public class DebeziumContainer extends GenericContainer<DebeziumContainer> {
     }
 
     private static void handleFailedResponse(Response response) {
-        String responseBodyContent = "{empty response body}";
         try (final ResponseBody responseBody = response.body()) {
-            if (null != responseBody) {
-                responseBodyContent = responseBody.string();
-            }
-            throw new IllegalStateException("Unexpected response: " + response + " ; Response Body: " + responseBodyContent);
+            // Do not include the response body: it can echo connector config containing secret keys.
+            // The body is opened only so it is closed; log the HTTP status line instead.
+            throw new IllegalStateException("Unexpected response with HTTP status " + response.code());
         }
         catch (IOException e) {
             throw new RuntimeException("Error connecting to Debezium container", e);

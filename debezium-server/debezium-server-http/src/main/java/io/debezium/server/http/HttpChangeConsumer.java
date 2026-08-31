@@ -120,7 +120,8 @@ public class HttpChangeConsumer extends BaseChangeConsumer implements DebeziumEn
                 while (!recordSent(record)) {
                     attempts++;
                     if (attempts >= retries) {
-                        throw new DebeziumException("Exceeded maximum number of attempts to publish event " + record);
+                        // Do not interpolate the whole record: it holds customer data. Use its destination only.
+                        throw new DebeziumException("Exceeded maximum number of attempts to publish event to '" + record.destination() + "'");
                     }
                     Metronome.sleeper(retryInterval, Clock.SYSTEM).pause();
                 }
@@ -149,7 +150,8 @@ public class HttpChangeConsumer extends BaseChangeConsumer implements DebeziumEn
             sent = true;
         }
         else {
-            LOGGER.info("Failed to publish event: " + r.body());
+            // Do not log the response body: it can echo the published event content. Log the status only.
+            LOGGER.info("Failed to publish event, HTTP status {}", r.statusCode());
         }
 
         return sent;

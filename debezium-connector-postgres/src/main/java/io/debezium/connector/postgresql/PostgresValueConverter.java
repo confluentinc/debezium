@@ -671,7 +671,8 @@ public class PostgresValueConverter extends JdbcValueConverters {
                     r.deliver(ltrees);
                 }
                 catch (SQLException e) {
-                    logger.error("Failed to parse PgArray with exception:" +  e);
+                    // Do not concatenate the parse exception: its message can echo the raw array value.
+                    logger.error("Failed to parse PgArray column value: {}", e.getClass().getName());
                 }
             }
         });
@@ -726,7 +727,8 @@ public class PostgresValueConverter extends JdbcValueConverters {
             return convertMapToJsonStringRepresentation(map);
         }
         catch (Exception e) {
-            throw new RuntimeException("Couldn't serialize hstore value into JSON: " + text, e);
+            // Do not include the hstore value in the message: it is customer data.
+            throw new RuntimeException("Couldn't serialize hstore value into JSON", e);
         }
     }
 
@@ -742,7 +744,8 @@ public class PostgresValueConverter extends JdbcValueConverters {
             return writer.getBuffer().toString();
         }
         catch (Exception e) {
-            throw new RuntimeException("Couldn't serialize hstore value into JSON: " + map, e);
+            // Do not include the hstore map contents in the message: they are customer data.
+            throw new RuntimeException("Couldn't serialize hstore value into JSON", e);
         }
     }
 
