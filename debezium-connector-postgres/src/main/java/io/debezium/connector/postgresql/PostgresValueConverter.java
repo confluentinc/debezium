@@ -727,8 +727,8 @@ public class PostgresValueConverter extends JdbcValueConverters {
             return convertMapToJsonStringRepresentation(map);
         }
         catch (Exception e) {
-            // Do not include the hstore value in the message: it is customer data.
-            throw new RuntimeException("Couldn't serialize hstore value into JSON", e);
+            // Do not include the hstore value nor chain e (its message can echo the value): customer data.
+            throw new RuntimeException("Couldn't serialize hstore value into JSON (" + e.getClass().getName() + ")");
         }
     }
 
@@ -744,8 +744,8 @@ public class PostgresValueConverter extends JdbcValueConverters {
             return writer.getBuffer().toString();
         }
         catch (Exception e) {
-            // Do not include the hstore map contents in the message: they are customer data.
-            throw new RuntimeException("Couldn't serialize hstore value into JSON", e);
+            // Do not include the hstore map contents nor chain e (its message can echo them): customer data.
+            throw new RuntimeException("Couldn't serialize hstore value into JSON (" + e.getClass().getName() + ")");
         }
     }
 
