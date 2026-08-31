@@ -135,8 +135,9 @@ public class AbstractIncrementalSnapshotContext<T> implements IncrementalSnapsho
             return (Object[]) ois.readObject();
         }
         catch (Exception e) {
-            // Do not include the serialized value in the message: it holds customer primary-key values.
-            throw new DebeziumException(String.format("Failed to deserialize '%s'", field), e);
+            // Do not include the serialized value nor chain e (its message can echo it): it holds
+            // customer primary-key values. Report the field name and exception class only.
+            throw new DebeziumException(String.format("Failed to deserialize '%s' (%s)", field, e.getClass().getName()));
         }
     }
 
