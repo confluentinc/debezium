@@ -182,7 +182,9 @@ public class PartitionRouting<R extends ConnectRecord<R>> implements Transformat
 
         }
         catch (Exception e) {
-            throw new DebeziumException(String.format("Unprocessable message %s", envelope), e);
+            // Route the envelope through the redaction helper (as the TRACE sibling above does): the
+            // change-event Struct is customer data and this exception reaches the framework/task status.
+            throw new DebeziumException(String.format("Unprocessable message %s", maybeRedactSensitiveData(envelope)), e);
         }
     }
 

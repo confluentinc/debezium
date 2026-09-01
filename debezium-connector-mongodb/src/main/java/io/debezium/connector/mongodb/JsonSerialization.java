@@ -65,7 +65,8 @@ class JsonSerialization {
         final int start = 6;
         final int end = keyValue.length() - 1;
         if (!(end > start)) {
-            throw new IllegalStateException("Serialized JSON object '" + keyValue + "' is not in expected format");
+            // Do not embed the serialized _id (the record key, customer data). Report its length only.
+            throw new IllegalStateException("Serialized JSON object is not in the expected format (length " + keyValue.length() + ")");
         }
         return keyValue.substring(start, end);
     }
