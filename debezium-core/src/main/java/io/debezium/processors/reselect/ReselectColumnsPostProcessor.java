@@ -246,11 +246,15 @@ public class ReselectColumnsPostProcessor implements PostProcessor, BeanRegistry
             }
         }
         catch (SQLException e) {
-            // Do not log the key values: they are customer data. Report the key column names only.
+            // Do not log the key values or the SQLException itself: the driver message can quote the
+            // WHERE-clause key values (customer data). Report the key column names and the SQLState
+            // only, and do not attach the SQLException as the cause of the thrown exception.
             if (errorHandlingMode == ErrorHandlingMode.FAIL) {
-                throw new DebeziumException("Failed to re-select columns for table " + tableId + " and key columns " + keyColumns, e);
+                throw new DebeziumException("Failed to re-select columns for table " + tableId
+                        + " and key columns " + keyColumns + " (SQLState: " + e.getSQLState() + ")");
             }
-            LOGGER.warn("Failed to re-select columns for table {} and key columns {}", tableId, keyColumns, e);
+            LOGGER.warn("Failed to re-select columns for table {} and key columns {} (SQLState: {})",
+                    tableId, keyColumns, e.getSQLState());
             return;
         }
     }
