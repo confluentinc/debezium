@@ -782,8 +782,9 @@ public class SqlServerConnection extends JdbcConnection {
                 singleResultMapper(rs -> rs.getBoolean(1), true,
                         "Configured SQL Server Agent status query \"" + query + "\" "
                                 + "did not return the expected single row indicating whether the SQL Server Agent is running. "
-                                + "If this query is not applicable to your SQL Server deployment, override 'database.sqlserver.agent.status.query' "
-                                + "with a query appropriate for your deployment."));
+                                + "If this query is not applicable to your SQL Server deployment, reach out to Confluent"
+                                + " support to override 'database.sqlserver.agent.status.query' with a query "
+                                + "appropriate for your deployment."));
     }
 
     @Override
