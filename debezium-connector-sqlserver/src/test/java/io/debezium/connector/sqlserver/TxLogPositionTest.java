@@ -7,7 +7,7 @@ package io.debezium.connector.sqlserver;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import org.junit.jupiter.api.Test;
+import org.junit.Test;
 
 import io.debezium.doc.FixFor;
 
@@ -24,7 +24,7 @@ public class TxLogPositionTest {
 
     @Test
     @FixFor("dbz#2012")
-    void shouldOrderByCommandIdBeforeSequenceValue() {
+    public void shouldOrderByCommandIdBeforeSequenceValue() {
         TxLogPosition lastDelete = TxLogPosition.valueOf(TX_1, SEQVAL_HIGH, 1, 5);
         TxLogPosition firstInsert = TxLogPosition.valueOf(TX_1, SEQVAL_LOW, 2, 6);
 
@@ -33,7 +33,7 @@ public class TxLogPositionTest {
 
     @Test
     @FixFor("dbz#2012")
-    void shouldFallBackToSequenceValueWhenOnlyOneSideKnowsItsCommandId() {
+    public void shouldFallBackToSequenceValueWhenOnlyOneSideKnowsItsCommandId() {
         TxLogPosition fromChangeTable = TxLogPosition.valueOf(TX_1, SEQVAL_LOW, 1, 6);
         TxLogPosition fromLegacyOffset = TxLogPosition.valueOf(TX_1, SEQVAL_HIGH, 0, null);
 
@@ -43,7 +43,7 @@ public class TxLogPositionTest {
 
     @Test
     @FixFor("dbz#2012")
-    void shouldPreserveFunctionModeOrderingWhenCommandIdIsAbsent() {
+    public void shouldPreserveFunctionModeOrderingWhenCommandIdIsAbsent() {
         TxLogPosition lower = TxLogPosition.valueOf(TX_1, SEQVAL_LOW, 1, null);
         TxLogPosition higher = TxLogPosition.valueOf(TX_1, SEQVAL_HIGH, 2, null);
 
@@ -57,7 +57,7 @@ public class TxLogPositionTest {
     }
 
     @Test
-    void shouldTreatBeforeAndAfterImagesOfAnUpdateAsTheSamePosition() {
+    public void shouldTreatBeforeAndAfterImagesOfAnUpdateAsTheSamePosition() {
         TxLogPosition updateBefore = TxLogPosition.valueOf(TX_1, SEQVAL_LOW, 3, 7);
         TxLogPosition updateAfter = TxLogPosition.valueOf(TX_1, SEQVAL_LOW, 4, 7);
 
@@ -67,7 +67,7 @@ public class TxLogPositionTest {
 
     @Test
     @FixFor("dbz#2012")
-    void shouldDistinguishPositionsThatDifferOnlyByCommandId() {
+    public void shouldDistinguishPositionsThatDifferOnlyByCommandId() {
         TxLogPosition delete = TxLogPosition.valueOf(TX_1, SEQVAL_LOW, 1, 1);
         TxLogPosition insert = TxLogPosition.valueOf(TX_1, SEQVAL_LOW, 2, 6);
 
@@ -77,7 +77,7 @@ public class TxLogPositionTest {
 
     @Test
     @FixFor("dbz#2012")
-    void shouldAssertCommandIdBasedOnMode() {
+    public void shouldAssertCommandIdBasedOnMode() {
         // NULL is the direct-mode empty position (command_id -1); NULL_LEGACY is the function-mode one (null).
         assertThat(TxLogPosition.NULL.getCommandId()).isEqualTo(-1);
         assertThat(TxLogPosition.NULL_LEGACY.getCommandId()).isNull();

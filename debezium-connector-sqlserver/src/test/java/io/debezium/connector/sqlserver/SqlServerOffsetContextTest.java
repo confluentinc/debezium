@@ -10,8 +10,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.Before;
+import org.junit.Test;
 
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
@@ -32,7 +32,7 @@ public class SqlServerOffsetContextTest {
 
     private SqlServerConnectorConfig connectorConfig;
 
-    @BeforeEach
+    @Before
     public void beforeEach() {
         connectorConfig = new SqlServerConnectorConfig(
                 Configuration.create()
@@ -42,7 +42,7 @@ public class SqlServerOffsetContextTest {
 
     @Test
     @FixFor("dbz#2012")
-    void shouldRoundTripCommandIdThroughTheOffset() {
+    public void shouldRoundTripCommandIdThroughTheOffset() {
         SqlServerOffsetContext offsetContext = offsetContextWithCommandId(7);
 
         assertThat(offsetContext.getOffset().get(SourceInfo.COMMAND_ID_KEY)).isEqualTo(7);
@@ -62,7 +62,7 @@ public class SqlServerOffsetContextTest {
 
     @Test
     @FixFor("dbz#2012")
-    void shouldLeaveCommandIdUnknownWhenAbsentFromOffset() {
+    public void shouldLeaveCommandIdUnknownWhenAbsentFromOffset() {
         Map<String, Object> legacyOffset = baseOffset();
         assertThat(legacyOffset).doesNotContainKey(SourceInfo.COMMAND_ID_KEY);
 
@@ -76,7 +76,7 @@ public class SqlServerOffsetContextTest {
 
     @Test
     @FixFor("dbz#2012")
-    void shouldLoadCommandIdWhateverNumericTypeTheOffsetStoreReturns() {
+    public void shouldLoadCommandIdWhateverNumericTypeTheOffsetStoreReturns() {
         Map<String, Object> withInteger = baseOffset();
         withInteger.put(SourceInfo.COMMAND_ID_KEY, Integer.valueOf(9));
 
@@ -93,7 +93,7 @@ public class SqlServerOffsetContextTest {
 
     @Test
     @FixFor("dbz#2012")
-    void shouldIncrementEventSerialNoWhenTheChangeStaysAtTheSamePosition() {
+    public void shouldIncrementEventSerialNoWhenTheChangeStaysAtTheSamePosition() {
         SqlServerOffsetContext offset = offsetContextWithCommandId(7);
 
         // same commit + change lsn, same command id -> another event at the same log position -> increment
@@ -104,7 +104,7 @@ public class SqlServerOffsetContextTest {
 
     @Test
     @FixFor("dbz#2012")
-    void shouldResetEventSerialNoWhenTheChangeMovesToANewPosition() {
+    public void shouldResetEventSerialNoWhenTheChangeMovesToANewPosition() {
         SqlServerOffsetContext offset = offsetContextWithCommandId(7);
         offset.setChangePosition(TxLogPosition.valueOf(Lsn.valueOf(COMMIT_LSN), Lsn.valueOf(CHANGE_LSN), 4, 7), 1); // -> 2
 
@@ -116,7 +116,7 @@ public class SqlServerOffsetContextTest {
 
     @Test
     @FixFor("dbz#2012")
-    void shouldResetEventSerialNoOnAModeSwitchEvenAtTheSamePosition() {
+    public void shouldResetEventSerialNoOnAModeSwitchEvenAtTheSamePosition() {
         SqlServerOffsetContext offset = offsetContextWithCommandId(7); // direct: command id present
         offset.setChangePosition(TxLogPosition.valueOf(Lsn.valueOf(COMMIT_LSN), Lsn.valueOf(CHANGE_LSN), 4, 7), 1); // -> 2
 
@@ -128,7 +128,7 @@ public class SqlServerOffsetContextTest {
 
     @Test
     @FixFor("dbz#2012")
-    void shouldTreatSamePositionWithDifferentCommandIdAsTheSamePositionForSerial() {
+    public void shouldTreatSamePositionWithDifferentCommandIdAsTheSamePositionForSerial() {
         SqlServerOffsetContext offset = offsetContextWithCommandId(1);
 
         // same commit + change lsn, different (both non-null) command id -> command id is ignored in the

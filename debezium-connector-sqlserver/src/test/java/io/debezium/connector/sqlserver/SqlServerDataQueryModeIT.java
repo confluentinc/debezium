@@ -13,18 +13,12 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.source.SourceRecord;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import io.debezium.config.Configuration;
 import io.debezium.connector.sqlserver.SqlServerConnectorConfig.DataQueryMode;
@@ -85,13 +79,7 @@ public class SqlServerDataQueryModeIT extends AbstractAsyncEngineConnectorTest {
 
     private SqlServerConnection connection;
 
-    static Stream<Arguments> modeSwitches() {
-        return Stream.of(
-                Arguments.of(DataQueryMode.FUNCTION, DataQueryMode.DIRECT),
-                Arguments.of(DataQueryMode.DIRECT, DataQueryMode.FUNCTION));
-    }
-
-    @BeforeEach
+    @Before
     public void before() throws SQLException, InterruptedException {
         TestHelper.createTestDatabase();
         connection = TestHelper.testConnection();
@@ -100,7 +88,7 @@ public class SqlServerDataQueryModeIT extends AbstractAsyncEngineConnectorTest {
         createAndEnableCdc(ORDERS_DDL, ORDERS_SEED, ORDERS);
     }
 
-    @AfterEach
+    @After
     public void after() throws SQLException {
         stopConnector();
         if (connection != null) {
@@ -108,47 +96,68 @@ public class SqlServerDataQueryModeIT extends AbstractAsyncEngineConnectorTest {
         }
     }
 
-    @ParameterizedTest(name = "streaming.fetch.size = {0}")
-    @ValueSource(ints = { 3, 5, 7, 12, 0 })
-    @FixFor("dbz#2012")
-    void shouldNotLoseDeferredUpdateAtAnyFetchBoundary(int fetchSize) throws Exception {
-        start(SqlServerConnector.class, config(DataQueryMode.DIRECT, "dbo.orders", fetchSize));
-        assertConnectorIsRunning();
-        consumeRecordsByTopic(ORDERS_SEED_ROWS);
-
-        connection.execute(DEFERRED_UPDATE);
-
-        Map<Operation, Map<Integer, SourceRecord>> byOperation = groupByOperation(consumeOrders(DEFERRED_RECORDS));
-
-        assertThat(byOperation.get(Operation.DELETE)).hasSize(DEFERRED_COUNT);
-        assertThat(byOperation.get(Operation.CREATE)).hasSize(DEFERRED_COUNT);
-        assertDeferredUpdate(byOperation, "REF-", "order_ref");
-    }
-
-    @ParameterizedTest(name = "data.query.mode = {0}")
-    @EnumSource(DataQueryMode.class)
-    @FixFor("dbz#2012")
-    void shouldDeliverEveryChangeInBothQueryModes(DataQueryMode mode) throws Exception {
-        start(SqlServerConnector.class, config(mode, "dbo.orders", 3));
-        assertConnectorIsRunning();
-        consumeRecordsByTopic(ORDERS_SEED_ROWS);
-
-        executeInOneTransaction(DEFERRED_UPDATE, PLAIN_UPDATE, PRIMARY_KEY_MOVE);
-
-        Map<Operation, Map<Integer, SourceRecord>> byOperation = groupByOperation(consumeOrders(ALL_SHAPES_RECORDS));
-
-        assertThat(byOperation.get(Operation.DELETE)).hasSize(DEFERRED_COUNT + PK_COUNT);
-        assertThat(byOperation.get(Operation.CREATE)).hasSize(DEFERRED_COUNT + PK_COUNT);
-        assertThat(byOperation.get(Operation.UPDATE)).hasSize(PLAIN_COUNT);
-
-        assertDeferredUpdate(byOperation, "REF-", "order_ref");
-        assertPlainUpdate(byOperation);
-        assertPrimaryKeyMove(byOperation);
+    // JUnit4 has no parameterized-test support here; each entry re-runs the case with a fresh
+    // database and connection via resetFixture(), mirroring @BeforeEach/@AfterEach semantics.
+    private void resetFixture() throws SQLException, InterruptedException {
+        after();
+        before();
     }
 
     @Test
     @FixFor("dbz#2012")
-    void shouldOrderChangesFromTwoTablesByCommandId() throws Exception {
+    public void shouldNotLoseDeferredUpdateAtAnyFetchBoundary() throws Exception {
+        int[] fetchSizes = { 3, 5, 7, 12, 0 };
+        for (int i = 0; i < fetchSizes.length; i++) {
+            if (i > 0) {
+                resetFixture();
+            }
+            int fetchSize = fetchSizes[i];
+
+            start(SqlServerConnector.class, config(DataQueryMode.DIRECT, "dbo.orders", fetchSize));
+            assertConnectorIsRunning();
+            consumeRecordsByTopic(ORDERS_SEED_ROWS);
+
+            connection.execute(DEFERRED_UPDATE);
+
+            Map<Operation, Map<Integer, SourceRecord>> byOperation = groupByOperation(consumeOrders(DEFERRED_RECORDS));
+
+            assertThat(byOperation.get(Operation.DELETE)).hasSize(DEFERRED_COUNT);
+            assertThat(byOperation.get(Operation.CREATE)).hasSize(DEFERRED_COUNT);
+            assertDeferredUpdate(byOperation, "REF-", "order_ref");
+        }
+    }
+
+    @Test
+    @FixFor("dbz#2012")
+    public void shouldDeliverEveryChangeInBothQueryModes() throws Exception {
+        DataQueryMode[] modes = DataQueryMode.values();
+        for (int i = 0; i < modes.length; i++) {
+            if (i > 0) {
+                resetFixture();
+            }
+            DataQueryMode mode = modes[i];
+
+            start(SqlServerConnector.class, config(mode, "dbo.orders", 3));
+            assertConnectorIsRunning();
+            consumeRecordsByTopic(ORDERS_SEED_ROWS);
+
+            executeInOneTransaction(DEFERRED_UPDATE, PLAIN_UPDATE, PRIMARY_KEY_MOVE);
+
+            Map<Operation, Map<Integer, SourceRecord>> byOperation = groupByOperation(consumeOrders(ALL_SHAPES_RECORDS));
+
+            assertThat(byOperation.get(Operation.DELETE)).hasSize(DEFERRED_COUNT + PK_COUNT);
+            assertThat(byOperation.get(Operation.CREATE)).hasSize(DEFERRED_COUNT + PK_COUNT);
+            assertThat(byOperation.get(Operation.UPDATE)).hasSize(PLAIN_COUNT);
+
+            assertDeferredUpdate(byOperation, "REF-", "order_ref");
+            assertPlainUpdate(byOperation);
+            assertPrimaryKeyMove(byOperation);
+        }
+    }
+
+    @Test
+    @FixFor("dbz#2012")
+    public void shouldOrderChangesFromTwoTablesByCommandId() throws Exception {
         createAndEnableCdc(SHIPMENTS_DDL, SHIPMENTS_SEED, SHIPMENTS);
 
         start(SqlServerConnector.class, config(DataQueryMode.DIRECT, "dbo.orders,dbo.shipments", 3));
@@ -163,31 +172,42 @@ public class SqlServerDataQueryModeIT extends AbstractAsyncEngineConnectorTest {
         assertDeferredUpdate(groupByOperation(consumed.recordsForTopic(topicName(SHIPMENTS))), "TRK-", "tracking_ref");
     }
 
-    @ParameterizedTest(name = "{0} -> {1}")
-    @MethodSource("modeSwitches")
+    @Test
     @FixFor("dbz#2012")
-    void shouldReReadLastTransactionOnModeSwitch(DataQueryMode from, DataQueryMode to) throws Exception {
-        start(SqlServerConnector.class, config(from, "dbo.orders", 3));
-        assertConnectorIsRunning();
-        consumeRecordsByTopic(ORDERS_SEED_ROWS);
+    public void shouldReReadLastTransactionOnModeSwitch() throws Exception {
+        DataQueryMode[][] modeSwitches = {
+                { DataQueryMode.FUNCTION, DataQueryMode.DIRECT },
+                { DataQueryMode.DIRECT, DataQueryMode.FUNCTION }
+        };
+        for (int i = 0; i < modeSwitches.length; i++) {
+            if (i > 0) {
+                resetFixture();
+            }
+            DataQueryMode from = modeSwitches[i][0];
+            DataQueryMode to = modeSwitches[i][1];
 
-        connection.execute(DEFERRED_UPDATE);
-        List<SourceRecord> records = consumeOrders(DEFERRED_RECORDS);
+            start(SqlServerConnector.class, config(from, "dbo.orders", 3));
+            assertConnectorIsRunning();
+            consumeRecordsByTopic(ORDERS_SEED_ROWS);
 
-        assertThat(records).hasSize(DEFERRED_RECORDS);
+            connection.execute(DEFERRED_UPDATE);
+            List<SourceRecord> records = consumeOrders(DEFERRED_RECORDS);
 
-        stopConnector();
+            assertThat(records).hasSize(DEFERRED_RECORDS);
 
-        start(SqlServerConnector.class, config(to, "dbo.orders", 3));
-        assertConnectorIsRunning();
+            stopConnector();
 
-        // The whole transaction is read again from its start, so all of it arrives a second time.
-        assertDeferredUpdate(groupByOperation(consumeOrders(DEFERRED_RECORDS)), "REF-", "order_ref");
+            start(SqlServerConnector.class, config(to, "dbo.orders", 3));
+            assertConnectorIsRunning();
+
+            // The whole transaction is read again from its start, so all of it arrives a second time.
+            assertDeferredUpdate(groupByOperation(consumeOrders(DEFERRED_RECORDS)), "REF-", "order_ref");
+        }
     }
 
     @Test
     @FixFor("dbz#2012")
-    void shouldResumeCorrectlyWhenOperationsAreSkipped() throws Exception {
+    public void shouldResumeCorrectlyWhenOperationsAreSkipped() throws Exception {
         Configuration config = config(DataQueryMode.DIRECT, "dbo.orders", 3)
                 .edit()
                 .with(SqlServerConnectorConfig.SKIPPED_OPERATIONS, "d")
