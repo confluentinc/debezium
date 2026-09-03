@@ -24,7 +24,20 @@ global_job_config:
   prologue:
     commands:
       - checkout
-      - sem-version java 21
+      # DBZ-9558 REPRO EXPERIMENT (DO NOT MERGE): run the Postgres connector IT
+      # suite on JDK 24 to reproduce the JDK-23+ timestamp NPE
+      # (ChronoLocalDateTime.toLocalDate() returns null -> NPE in Timestamp.toEpochMillis).
+      # Reporter only ever hit it on x86 CI (GitHub Actions); this semaphore agent
+      # is x86-64 (s1-prod-ubuntu24-04-amd64-1), matching that environment.
+      #
+      # `sem-version java 24` is NOT available on this agent (LTS only: 8/11/17/21),
+      # so install Eclipse Temurin 24 (x64) directly. Semaphore persists shell env
+      # across commands in a job, so JAVA_HOME/PATH carry into the mvn step below.
+      - curl -fsSL -o /tmp/jdk24.tar.gz "https://api.adoptium.net/v3/binary/latest/24/ga/linux/x64/jdk/hotspot/normal/eclipse"
+      - mkdir -p "$HOME/jdk24" && tar -xzf /tmp/jdk24.tar.gz -C "$HOME/jdk24" --strip-components=1
+      - export JAVA_HOME="$HOME/jdk24"
+      - export PATH="$JAVA_HOME/bin:$PATH"
+      - java -version
       - . cache-maven restore
 
 blocks:
@@ -35,84 +48,28 @@ blocks:
       when: "change_in('/', {exclude: ['/.deployed-versions/', '.github/']})"
     task:
       jobs:
-        - name: MySQL 9.1 (mysql-ci-gtids)
-          commands:
-            - mvn -Dcloud -Dversion.mysql.server=9.1 -Pmysql-ci-gtids -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
-            - . cve-scan
-            - . cache-maven store
-        - name: MySQL 9.1 (mysql-ci)
-          commands:
-            - mvn -Dcloud -Dversion.mysql.server=9.1 -Pmysql-ci -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
-            - . cve-scan
-            - . cache-maven store
-        - name: MySQL 9.1 (mysql-ci-percona)
-          commands:
-            - mvn -Dcloud -Dversion.mysql.server=9.1 -Pmysql-ci-percona -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
-            - . cve-scan
-            - . cache-maven store
-        - name: MySQL 9.1 (mysql-ci-ssl)
-          commands:
-            - mvn -Dcloud -Dversion.mysql.server=9.1 -Pmysql-ci-ssl -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
-            - . cve-scan
-            - . cache-maven store
-        - name: MySQL 8.4 (mysql-ci-gtids)
-          commands:
-            - mvn -Dcloud -Dversion.mysql.server=8.4 -Pmysql-ci-gtids -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
-            - . cve-scan
-            - . cache-maven store
-        - name: MySQL 8.4 (mysql-ci)
-          commands:
-            - mvn -Dcloud -Dversion.mysql.server=8.4 -Pmysql-ci -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
-            - . cve-scan
-            - . cache-maven store
-        - name: MySQL 8.4 (mysql-ci-percona)
-          commands:
-            - mvn -Dcloud -Dversion.mysql.server=8.4 -Pmysql-ci-percona -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
-            - . cve-scan
-            - . cache-maven store
-        - name: MySQL 8.4 (mysql-ci-ssl)
-          commands:
-            - mvn -Dcloud -Dversion.mysql.server=8.4 -Pmysql-ci-ssl -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mysql -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
-            - . cve-scan
-            - . cache-maven store
-        - name: MariaDB 11.4 (mariadb-ci)
-          commands:
-            - mvn -Dcloud -Pmariadb-ci -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mariadb -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
-            - . cve-scan
-            - . cache-maven store
-        - name: MariaDB 11.4 (mariadb-ci-ssl)
-          commands:
-            - mvn -Dcloud -Pmariadb-ci-ssl -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mariadb -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
-            - . cve-scan
-            - . cache-maven store
-        - name: MariaDB 11.4 (mariadb-ci-gtids)
-          commands:
-            - mvn -Dcloud -Pmariadb-ci-gtids -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mariadb -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
-            - . cve-scan
-            - . cache-maven store
-        - name: MongoDB
-          commands:
-            - mvn -Dcloud -Passembly -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-mongodb -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
-            - . cve-scan
-            - . cache-maven store
+        # DBZ-9558 repro (run #3), on JDK 24. Narrowed to:
+        #   -Dtest=Dbz9558Jdk24TimestampNpeReproTest  : high-volume multi-threaded hammer on
+        #       Timestamp.toEpochMillis / MicroTimestamp.toEpochMicros (max C2 JIT pressure;
+        #       native x86-64 is the one variable our arm64/Rosetta attempts never satisfied).
+        #   -Dit.test=RecordsStreamProducerIT,PostgresTemporalPrecisionHandlingIT : the existing
+        #       streaming timestamp ITs, for faithful call-site fidelity via pgoutput.
+        # Narrowing also dodges the unrelated flaky BlockingSnapshotIT (toMap-null NPE) that
+        # aborted run #2, and keeps the log under Semaphore's 16MB cap so results are visible.
+        # 3 lanes = 3 parallel JIT attempts across PG 12/17/18.
         - name: Postgres 12 (assembly,postgres-12)
           commands:
-            - mvn -Dcloud -Passembly,postgres-12 -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-postgres -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
+            - mvn -Dcloud -Passembly,postgres-12 -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-postgres -am -Dtest=Dbz9558Jdk24TimestampNpeReproTest -Dit.test=RecordsStreamProducerIT,PostgresTemporalPrecisionHandlingIT -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dfailsafe.failIfNoSpecifiedTests=false -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
             - . cve-scan
             - . cache-maven store
         - name: Postgres 17 (assembly,postgres-17,pgoutput-decoder)
           commands:
-            - mvn -Dcloud -Passembly,postgres-17,pgoutput-decoder -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-postgres -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
+            - mvn -Dcloud -Passembly,postgres-17,pgoutput-decoder -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-postgres -am -Dtest=Dbz9558Jdk24TimestampNpeReproTest -Dit.test=RecordsStreamProducerIT,PostgresTemporalPrecisionHandlingIT -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dfailsafe.failIfNoSpecifiedTests=false -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
             - . cve-scan
             - . cache-maven store
         - name: Postgres 18 (assembly,postgres-18,pgoutput-decoder)
           commands:
-            - mvn -Dcloud -Passembly,postgres-18,pgoutput-decoder -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-postgres -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
-            - . cve-scan
-            - . cache-maven store
-        - name: SqlServer
-          commands:
-            - mvn -Dcloud -Passembly -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-sqlserver -am -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
+            - mvn -Dcloud -Passembly,postgres-18,pgoutput-decoder -Dformat.skip=true -DfailFlakyTests=false -pl debezium-connector-postgres -am -Dtest=Dbz9558Jdk24TimestampNpeReproTest -Dit.test=RecordsStreamProducerIT,PostgresTemporalPrecisionHandlingIT -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dfailsafe.failIfNoSpecifiedTests=false -U -Dmaven.wagon.http.retryHandler.count=10 --batch-mode --no-transfer-progress verify
             - . cve-scan
             - . cache-maven store
       env_vars:
