@@ -73,7 +73,9 @@ public class JdbcOffsetBackingStore implements OffsetBackingStore {
                     this.config.getWaitRetryDelay(), this.config.getMaxRetryCount());
         }
         catch (Exception e) {
-            throw new IllegalStateException("Failed to connect JDBC offset backing store: " + config.originalsStrings(), e);
+            // Do not include originalsStrings(): the worker config map can contain secrets (passwords,
+            // credentials, etc.). Report the config key names only.
+            throw new IllegalStateException("Failed to connect JDBC offset backing store; config keys: " + config.originalsStrings().keySet(), e);
         }
     }
 
