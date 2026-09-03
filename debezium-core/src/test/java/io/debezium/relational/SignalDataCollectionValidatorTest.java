@@ -56,6 +56,8 @@ public class SignalDataCollectionValidatorTest {
         when(connectorConfig.getSignalingDataCollectionId()).thenReturn(RAW_VALUE);
         when(connectorConfig.getEnabledChannels()).thenReturn(List.of("source"));
         when(connectorConfig.getSignalDataCollectionValidationAction()).thenReturn(SignalDataCollectionValidationAction.WARN);
+        // A streaming-capable mode by default; shouldDoNothingWhenSnapshotModeIsInitialOnly overrides this.
+        when(connectorConfig.getSnapshotMode()).thenReturn(() -> "initial");
         // Mirrors RelationalDatabaseConnectorConfig's real default: no column.include.list/exclude.list configured
         // means a ColumnNameFilter that matches every column.
         when(connectorConfig.getColumnFilter()).thenReturn(MATCH_ALL);
@@ -64,6 +66,18 @@ public class SignalDataCollectionValidatorTest {
     @Test
     public void shouldDoNothingWhenValidationDisabled() throws SQLException {
         when(connectorConfig.isSignalDataCollectionValidationEnabled()).thenReturn(false);
+
+        SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
+
+        verifyNoInteractions(connection);
+        verifyNoInteractions(signalDataCollectionValue);
+    }
+
+    @Test
+    public void shouldDoNothingWhenSnapshotModeIsInitialOnly() throws SQLException {
+        // initial_only never transitions to streaming, so the source channel never reads signal.data.collection -
+        // validating it would only risk blocking a connector over a config that's never actually used.
+        when(connectorConfig.getSnapshotMode()).thenReturn(() -> "initial_only");
 
         SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
 
@@ -120,8 +134,8 @@ public class SignalDataCollectionValidatorTest {
         SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
 
         assertThat(logInterceptor.containsWarnMessage("Signal data collection '" + RAW_VALUE
-                + "' has 0 of its 3 columns surviving column.include.list - none are included, so every signal will be "
-                + "silently dropped at runtime. Add this table's id/type/data columns explicitly to column.include.list.")).isTrue();
+                + "' has no columns included after applying column.include.list - every signal will be "
+                + "silently dropped at runtime. Adjust column.include.list so this table's id/type/data columns are included.")).isTrue();
     }
 
     @Test
@@ -137,8 +151,8 @@ public class SignalDataCollectionValidatorTest {
         SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
 
         assertThat(logInterceptor.containsWarnMessage("Signal data collection '" + RAW_VALUE
-                + "' has 0 of its 3 columns surviving column.exclude.list - none are included, so every signal will be "
-                + "silently dropped at runtime. Add this table's id/type/data columns explicitly to column.exclude.list.")).isTrue();
+                + "' has no columns included after applying column.exclude.list - every signal will be "
+                + "silently dropped at runtime. Adjust column.exclude.list so this table's id/type/data columns are included.")).isTrue();
     }
 
     @Test
@@ -158,8 +172,8 @@ public class SignalDataCollectionValidatorTest {
         SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
 
         assertThat(logInterceptor.containsWarnMessage("Signal data collection '" + RAW_VALUE
-                + "' has 2 of 3 columns surviving column.include.list, but requires exactly 3 - verify "
-                + "column.include.list covers all of this table's id/type/data columns.")).isTrue();
+                + "' does not have exactly 3 columns (id/type/data) included after applying "
+                + "column.include.list - adjust column.include.list accordingly.")).isTrue();
     }
 
     @Test
@@ -177,8 +191,8 @@ public class SignalDataCollectionValidatorTest {
         SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
 
         assertThat(logInterceptor.containsWarnMessage("Signal data collection '" + RAW_VALUE
-                + "' has 5 columns surviving column.include.list, but requires exactly 3 - narrow "
-                + "column.include.list to just this table's id/type/data columns.")).isTrue();
+                + "' does not have exactly 3 columns (id/type/data) included after applying "
+                + "column.include.list - adjust column.include.list accordingly.")).isTrue();
     }
 
     @Test

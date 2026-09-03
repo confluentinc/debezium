@@ -31,12 +31,17 @@ public class SignalDataCollectionValidator {
     private static final Logger LOGGER = LoggerFactory.getLogger(SignalDataCollectionValidator.class);
     private static final String LOG_PREFIX = "[signal.data.collection.validation]";
 
+    private static final String INITIAL_ONLY_SNAPSHOT_MODE = "initial_only";
+
     private SignalDataCollectionValidator() {
     }
 
-    /** No-op unless enabled, {@code signal.data.collection} is set, and the source channel is on; attaches an error only when {@code action=FAIL}. */
+    /** No-op unless enabled, streaming-capable, {@code signal.data.collection} is set, and the source channel is on; attaches an error only when {@code action=FAIL}. */
     public static void validate(JdbcConnection connection, RelationalDatabaseConnectorConfig connectorConfig, ConfigValue signalDataCollectionValue) {
         if (!connectorConfig.isSignalDataCollectionValidationEnabled()) {
+            return;
+        }
+        if (INITIAL_ONLY_SNAPSHOT_MODE.equals(connectorConfig.getSnapshotMode().getValue())) {
             return;
         }
 
@@ -46,7 +51,7 @@ public class SignalDataCollectionValidator {
         }
 
         try {
-            String problem = checkSignalDataCollection(connection, connectorConfig, rawValue);
+            String problem = checkSignalDataCollection(connection, connectorConfig);
             if (problem == null) {
                 return;
             }
@@ -61,8 +66,9 @@ public class SignalDataCollectionValidator {
         }
     }
 
-    private static String checkSignalDataCollection(JdbcConnection connection, RelationalDatabaseConnectorConfig connectorConfig, String rawValue)
+    private static String checkSignalDataCollection(JdbcConnection connection, RelationalDatabaseConnectorConfig connectorConfig)
             throws SQLException {
+        String rawValue = connectorConfig.getSignalingDataCollectionId();
         Set<TableId> matches = connection.resolveSignalDataCollectionTableId(rawValue);
         if (matches.isEmpty()) {
             return "Signal data collection '" + rawValue + "' was not found in the database. Source-channel signaling "
@@ -97,19 +103,15 @@ public class SignalDataCollectionValidator {
                     rawValue, physicalColumns.size());
         }
 
+        // The fix for include.list is the opposite of the fix for exclude.list, so no single verb works for both.
         String activeProperty = Strings.isNullOrBlank(connectorConfig.columnIncludeList()) ? "column.exclude.list" : "column.include.list";
         if (effectiveColumnCount == 0) {
-            return String.format("Signal data collection '%s' has 0 of its %2$d columns surviving %3$s - none are included, so every "
-                    + "signal will be silently dropped at runtime. Add this table's id/type/data columns explicitly to %3$s.",
-                    rawValue, physicalColumns.size(), activeProperty);
+            return String.format("Signal data collection '%s' has no columns included after applying %2$s - every signal will be "
+                    + "silently dropped at runtime. Adjust %2$s so this table's id/type/data columns are included.",
+                    rawValue, activeProperty);
         }
-        if (effectiveColumnCount < 3) {
-            return String.format("Signal data collection '%s' has %d of %d columns surviving %s, but requires exactly 3 - verify "
-                    + "%4$s covers all of this table's id/type/data columns.",
-                    rawValue, effectiveColumnCount, physicalColumns.size(), activeProperty);
-        }
-        return String.format("Signal data collection '%s' has %d columns surviving %s, but requires exactly 3 - narrow "
-                + "%3$s to just this table's id/type/data columns.",
-                rawValue, effectiveColumnCount, activeProperty);
+        return String.format("Signal data collection '%s' does not have exactly 3 columns (id/type/data) included after applying "
+                + "%2$s - adjust %2$s accordingly.",
+                rawValue, activeProperty);
     }
 }
