@@ -245,7 +245,7 @@ public class SqlServerDeferredUpdateIT extends AbstractAsyncEngineConnectorTest 
     private Configuration ordersConnectorConfig() {
         return TestHelper.defaultConfig()
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
-                .with(SqlServerConnectorConfig.DATA_QUERY_MODE, DataQueryMode.FUNCTION)
+                .with(SqlServerConnectorConfig.DATA_QUERY_MODE, DataQueryMode.DIRECT)
                 .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.orders")
                 .build();
     }
@@ -253,7 +253,7 @@ public class SqlServerDeferredUpdateIT extends AbstractAsyncEngineConnectorTest 
     private Configuration accountsConnectorConfig() {
         return TestHelper.defaultConfig()
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
-                .with(SqlServerConnectorConfig.DATA_QUERY_MODE, DataQueryMode.FUNCTION)
+                .with(SqlServerConnectorConfig.DATA_QUERY_MODE, DataQueryMode.DIRECT)
                 .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.accounts")
                 .build();
     }
