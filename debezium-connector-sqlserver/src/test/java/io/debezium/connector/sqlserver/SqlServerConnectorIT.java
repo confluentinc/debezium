@@ -5,6 +5,7 @@
  */
 package io.debezium.connector.sqlserver;
 
+import static io.debezium.connector.sqlserver.SqlServerConnectorConfig.DATA_QUERY_MODE;
 import static io.debezium.connector.sqlserver.util.TestHelper.SCHEMA_HISTORY_PATH;
 import static io.debezium.connector.sqlserver.util.TestHelper.TEST_DATABASE_2;
 import static io.debezium.connector.sqlserver.util.TestHelper.TYPE_LENGTH_PARAMETER_KEY;
@@ -953,6 +954,9 @@ public class SqlServerConnectorIT extends AbstractAsyncEngineConnectorTest {
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
                 .build();
 
+        boolean directMode = SqlServerConnectorConfig.DataQueryMode.parse(
+                config.getString(DATA_QUERY_MODE), DATA_QUERY_MODE.defaultValueAsString()) == SqlServerConnectorConfig.DataQueryMode.DIRECT;
+
         final List<Integer> expectedIds = new ArrayList<>();
         for (int i = 0; i < RECORDS_PER_TABLE; i++) {
             final int id = ID_START + i;
@@ -983,7 +987,7 @@ public class SqlServerConnectorIT extends AbstractAsyncEngineConnectorTest {
                         final Lsn minLsn = connection.getMinLsn(TestHelper.TEST_DATABASE_1, tableName);
                         final Lsn maxLsn = connection.getMaxLsn(TestHelper.TEST_DATABASE_1);
                         final List<Integer> ids = new ArrayList<>();
-                        try (ResultSet rs = connection.getChangesForTable(ct, minLsn, maxLsn)) {
+                        try (ResultSet rs = connection.getChangesForTable(ct, minLsn, Lsn.ZERO, 0, directMode ? -1 : null, maxLsn, 0)) {
                             while (rs.next()) {
                                 ids.add(rs.getInt("id"));
                             }
