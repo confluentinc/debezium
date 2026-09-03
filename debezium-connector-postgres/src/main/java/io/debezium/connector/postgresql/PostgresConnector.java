@@ -25,12 +25,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.debezium.DebeziumException;
+import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.connector.common.RelationalBaseSourceConnector;
 import io.debezium.connector.postgresql.PostgresConnectorConfig.LogicalDecoder;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.connector.postgresql.connection.ServerInfo;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
+import io.debezium.relational.SignalDataCollectionValidator;
 import io.debezium.relational.TableId;
 import io.debezium.util.ThreadNameContext;
 import io.debezium.util.Threads;
@@ -113,6 +115,8 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
                         testConnection(connection);
                         checkReadOnlyMode(connection, postgresConfig);
                         checkLoginReplicationRoles(connection);
+                        SignalDataCollectionValidator.validate(connection, postgresConfig,
+                                configValues.get(CommonConnectorConfig.SIGNAL_DATA_COLLECTION.name()));
                         if (LogicalDecoder.PGOUTPUT.equals(postgresConfig.plugin())) {
                             int pgversion = checkPostgresVersionForPgoutputSupport(connection, postgresConfig);
                             if (ServerVersion.v10.getVersionNum() > pgversion) {
