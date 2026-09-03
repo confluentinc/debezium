@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import io.debezium.DebeziumException;
 import io.debezium.annotation.Immutable;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
+import io.debezium.jdbc.QueryTimeoutDebug;
 import io.debezium.util.Collect;
 
 /**
@@ -373,7 +374,7 @@ public class TypeRegistry {
      */
     private void prime() throws SQLException {
         try (Statement statement = createStatementWithQueryTimeout();
-                ResultSet rs = statement.executeQuery(SQL_TYPES)) {
+                ResultSet rs = QueryTimeoutDebug.executeQuery(statement, "TypeRegistry.prime[SQL_TYPES]", SQL_TYPES, connection.getQueryTimeout())) {
             final List<PostgresType.Builder> delayResolvedBuilders = new ArrayList<>();
             while (rs.next()) {
                 PostgresType.Builder builder = createTypeBuilderFromResultSet(rs);
@@ -458,7 +459,7 @@ public class TypeRegistry {
 
     private PostgresType loadType(PreparedStatement statement) throws SQLException {
         statement.setQueryTimeout(connection.getQueryTimeout());
-        try (ResultSet rs = statement.executeQuery()) {
+        try (ResultSet rs = QueryTimeoutDebug.executeQuery(statement, "TypeRegistry.loadType[resolveUnknownType]", "SQL_NAME_LOOKUP/SQL_OID_LOOKUP", connection.getQueryTimeout())) {
             while (rs.next()) {
                 PostgresType result = createTypeBuilderFromResultSet(rs).build();
                 addType(result);
@@ -550,7 +551,7 @@ public class TypeRegistry {
 
             try (Statement statement = connection.connection().createStatement()) {
                 statement.setQueryTimeout(connection.getQueryTimeout());
-                try (ResultSet rs = statement.executeQuery(SQL_TYPE_DETAILS)) {
+                try (ResultSet rs = QueryTimeoutDebug.executeQuery(statement, "TypeRegistry.getSqlTypes[SQL_TYPE_DETAILS]", SQL_TYPE_DETAILS, connection.getQueryTimeout())) {
                     while (rs.next()) {
                         int type;
                         boolean isArray = rs.getBoolean(2);

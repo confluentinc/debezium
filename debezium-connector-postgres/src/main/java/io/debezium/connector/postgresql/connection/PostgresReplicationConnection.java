@@ -47,6 +47,7 @@ import io.debezium.connector.postgresql.spi.SlotCreationResult;
 import io.debezium.jdbc.JdbcConfiguration;
 import io.debezium.jdbc.JdbcConnection;
 import io.debezium.jdbc.JdbcConnectionException;
+import io.debezium.jdbc.QueryTimeoutDebug;
 import io.debezium.relational.RelationalTableFilters;
 import io.debezium.relational.TableId;
 import io.debezium.util.Clock;
@@ -227,7 +228,7 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
                 try (Statement stmt = conn.createStatement()) {
                     stmt.setQueryTimeout(getQueryTimeout());
                     boolean isOnlyRead = isReadOnlyDb();
-                    try (ResultSet rs = stmt.executeQuery(selectPublication)) {
+                    try (ResultSet rs = QueryTimeoutDebug.executeQuery(stmt, "initPublication.selectPublication", selectPublication, getQueryTimeout())) {
                         final boolean publicationExists = rs.next();
                         if (!publicationExists) {
                             // Close eagerly as the transaction might stay running
@@ -372,7 +373,7 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
         try (PreparedStatement prepStmt = stmt.getConnection().prepareStatement(validatePublication)) {
             prepStmt.setQueryTimeout(getQueryTimeout());
             prepStmt.setString(1, publicationName);
-            ResultSet rs = prepStmt.executeQuery();
+            ResultSet rs = QueryTimeoutDebug.executeQuery(prepStmt, "validatePublications", validatePublication, getQueryTimeout());
             while (rs.next()) {
                 final var tableName = String.format("%s.%s", rs.getString(1), rs.getString(2));
                 dbTableNamesHashSet.add(tableName);
@@ -396,7 +397,7 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
         Set<TableId> publicationTables = new HashSet<>();
         try (PreparedStatement prepStmt = stmt.getConnection().prepareStatement(getPublicationTablesQuery)) {
             prepStmt.setQueryTimeout(getQueryTimeout());
-            try (ResultSet rs = prepStmt.executeQuery()) {
+            try (ResultSet rs = QueryTimeoutDebug.executeQuery(prepStmt, "getCurrentPublicationTables", getPublicationTablesQuery, getQueryTimeout())) {
                 while (rs.next()) {
                     String schemaName = rs.getString("schemaname");
                     String tableName = rs.getString("tablename");
@@ -406,7 +407,10 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
             }
         }
         catch (SQLException e) {
-            LOGGER.warn("Unable to query pg_publication_tables for publication '{}'. This may be due to insufficient privileges. " +
+            LOGGER.info("[QT-DEBUG] getCurrentPublicationTables SWALLOWED SQLException -> returning Optional.empty(), which makes isPublicationUpdateRequired()=true and triggers the ALTER PUBLICATION path. "
+                    + "sqlState={} errorCode={} exceptionClass={} message={}",
+                    e.getSQLState(), e.getErrorCode(), e.getClass().getName(), e.getMessage(), e);
+            LOGGER.info("Unable to query pg_publication_tables for publication '{}'. This may be due to insufficient privileges. " +
                     "Publication will be updated to ensure synchronization. Error: {}", publicationName, e.getMessage());
             return Optional.empty();
         }
@@ -725,7 +729,7 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
                     slotName,
                     lsn.asString());
             LOGGER.info("Seeking to {} on the replication slot with command {}", lsn, seekCommand);
-            stmt.execute(seekCommand);
+            QueryTimeoutDebug.execute(stmt, "validateSlotIsInExpectedState.pg_replication_slot_advance", seekCommand, getQueryTimeout());
         }
         catch (PSQLException e) {
             if (e.getMessage().matches("ERROR: function pg_replication_slot_advance.*does not exist(.|\\n)*")
@@ -831,7 +835,8 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
             int tryCount = 0;
             while (true) {
                 try {
-                    stmt.execute(createCommand);
+                    QueryTimeoutDebug.execute(stmt, "createReplicationSlot[create.slot.command.timeout]", createCommand,
+                            toIntExact(connectorConfig.createSlotCommandTimeout()));
                     break;
                 }
                 catch (SQLException ex) {
@@ -844,7 +849,7 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
                             throw new DebeziumException(message, ex);
                         }
                         else {
-                            LOGGER.warn("{} Waiting for {} and retrying, attempt number {} over {}", message, delay, tryCount, maxRetries, ex);
+                            LOGGER.info("{} Waiting for {} and retrying, attempt number {} over {}", message, delay, tryCount, maxRetries, ex);
                             final Metronome metronome = Metronome.parker(delay, Clock.SYSTEM);
                             try {
                                 metronome.pause();
