@@ -216,6 +216,16 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
      */
     protected abstract void emitWindowClose(P partition, OffsetContext offsetContext) throws Exception;
 
+    /**
+     * Probe whether the signal table is writable by attempting the same INSERT shape as
+     * {@link #emitWindowOpen()} inside an explicit transaction that is always rolled back.
+     * No watermark row is committed, so CDC consumers see nothing. If the probe throws,
+     * the caller MUST treat the signal as rejected and avoid mutating context state.
+     * Default is no-op for channels that don't write to a signal table (e.g. file / kafka).
+     */
+    protected void probeSignalTableWritable() throws SQLException {
+    }
+
     @Override
     @SuppressWarnings("unchecked")
     public void init(P partition, OffsetContext offsetContext) {
@@ -467,6 +477,17 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
 
         context = (IncrementalSnapshotContext<T>) offsetContext.getIncrementalSnapshotContext();
         boolean shouldReadChunk = !context.snapshotRunning();
+
+        if (shouldReadChunk) {
+            try {
+                probeSignalTableWritable();
+            }
+            catch (Exception e) {
+                LOGGER.warn("Signal '{}' for incremental snapshot was rejected: pre-flight signal-table probe failed. " +
+                        "No state was mutated; fix the underlying issue and re-issue the signal.", correlationId, e);
+                return;
+            }
+        }
 
         List<String> expandedDataCollectionIds = expandAndDedupeDataCollectionIds(snapshotConfiguration.getDataCollections());
         LOGGER.trace("Configured data collections {}", snapshotConfiguration.getDataCollections());
