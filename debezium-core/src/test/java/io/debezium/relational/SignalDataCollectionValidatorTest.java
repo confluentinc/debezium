@@ -7,6 +7,7 @@ package io.debezium.relational;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -19,10 +20,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.kafka.common.config.ConfigValue;
 import org.junit.Before;
 import org.junit.Test;
 
+import io.debezium.DebeziumException;
 import io.debezium.jdbc.JdbcConnection;
 import io.debezium.junit.logging.LogInterceptor;
 import io.debezium.relational.RelationalDatabaseConnectorConfig.SignalDataCollectionValidationAction;
@@ -31,8 +32,9 @@ import io.debezium.relational.Tables.ColumnNameFilter;
 /**
  * Unit tests for {@link SignalDataCollectionValidator} covering the config gates, the three ordered checks
  * (existence, accepted FQN shape, effective column count), the {@code column.include.list}/{@code .exclude.list}
- * interaction, the WARN/FAIL action split, and the exception-swallowing guarantee. {@link JdbcConnection} and
- * {@link RelationalDatabaseConnectorConfig} are mocked so no live database or concrete connector config is required.
+ * interaction, the WARN/FAIL action split (log-only vs. throwing a {@link DebeziumException} to fail the task),
+ * and the exception-swallowing guarantee. {@link JdbcConnection} and {@link RelationalDatabaseConnectorConfig}
+ * are mocked so no live database or concrete connector config is required.
  */
 public class SignalDataCollectionValidatorTest {
 
@@ -42,14 +44,12 @@ public class SignalDataCollectionValidatorTest {
 
     private JdbcConnection connection;
     private RelationalDatabaseConnectorConfig connectorConfig;
-    private ConfigValue signalDataCollectionValue;
     private LogInterceptor logInterceptor;
 
     @Before
     public void beforeEach() {
         connection = mock(JdbcConnection.class);
         connectorConfig = mock(RelationalDatabaseConnectorConfig.class);
-        signalDataCollectionValue = mock(ConfigValue.class);
         logInterceptor = new LogInterceptor(SignalDataCollectionValidator.class);
 
         when(connectorConfig.isSignalDataCollectionValidationEnabled()).thenReturn(true);
@@ -67,42 +67,38 @@ public class SignalDataCollectionValidatorTest {
     public void shouldDoNothingWhenValidationDisabled() throws SQLException {
         when(connectorConfig.isSignalDataCollectionValidationEnabled()).thenReturn(false);
 
-        SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
+        SignalDataCollectionValidator.validate(connection, connectorConfig);
 
         verifyNoInteractions(connection);
-        verifyNoInteractions(signalDataCollectionValue);
     }
 
     @Test
     public void shouldDoNothingWhenSnapshotModeIsInitialOnly() throws SQLException {
         // initial_only never transitions to streaming, so the source channel never reads signal.data.collection -
-        // validating it would only risk blocking a connector over a config that's never actually used.
+        // validating it would only risk failing the task over a config that's never actually used.
         when(connectorConfig.getSnapshotMode()).thenReturn(() -> "initial_only");
 
-        SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
+        SignalDataCollectionValidator.validate(connection, connectorConfig);
 
         verifyNoInteractions(connection);
-        verifyNoInteractions(signalDataCollectionValue);
     }
 
     @Test
     public void shouldDoNothingWhenSignalDataCollectionIsBlank() throws SQLException {
         when(connectorConfig.getSignalingDataCollectionId()).thenReturn(" ");
 
-        SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
+        SignalDataCollectionValidator.validate(connection, connectorConfig);
 
         verifyNoInteractions(connection);
-        verifyNoInteractions(signalDataCollectionValue);
     }
 
     @Test
     public void shouldDoNothingWhenSourceChannelDisabled() throws SQLException {
         when(connectorConfig.getEnabledChannels()).thenReturn(List.of("kafka"));
 
-        SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
+        SignalDataCollectionValidator.validate(connection, connectorConfig);
 
         verifyNoInteractions(connection);
-        verifyNoInteractions(signalDataCollectionValue);
     }
 
     @Test
@@ -112,9 +108,8 @@ public class SignalDataCollectionValidatorTest {
         when(connectorConfig.isSignalDataCollection(resolved)).thenReturn(true);
         when(connection.getColumnNames(resolved)).thenReturn(List.of("id", "type", "data"));
 
-        SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
-
-        verifyNoInteractions(signalDataCollectionValue);
+        assertThatCode(() -> SignalDataCollectionValidator.validate(connection, connectorConfig))
+                .doesNotThrowAnyException();
     }
 
     @Test
@@ -131,7 +126,7 @@ public class SignalDataCollectionValidatorTest {
         when(connectorConfig.getColumnFilter()).thenReturn(MATCH_NONE);
         when(connection.getColumnNames(resolved)).thenReturn(List.of("id", "type", "data"));
 
-        SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
+        SignalDataCollectionValidator.validate(connection, connectorConfig);
 
         assertThat(logInterceptor.containsWarnMessage("Signal data collection '" + RAW_VALUE
                 + "' has no columns included after applying column.include.list - every signal will be "
@@ -148,7 +143,7 @@ public class SignalDataCollectionValidatorTest {
         when(connectorConfig.getColumnFilter()).thenReturn(MATCH_NONE);
         when(connection.getColumnNames(resolved)).thenReturn(List.of("id", "type", "data"));
 
-        SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
+        SignalDataCollectionValidator.validate(connection, connectorConfig);
 
         assertThat(logInterceptor.containsWarnMessage("Signal data collection '" + RAW_VALUE
                 + "' has no columns included after applying column.exclude.list - every signal will be "
@@ -169,7 +164,7 @@ public class SignalDataCollectionValidatorTest {
                 .thenReturn((catalog, schema, table, column) -> Set.of("id", "type").contains(column));
         when(connection.getColumnNames(resolved)).thenReturn(List.of("id", "type", "data"));
 
-        SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
+        SignalDataCollectionValidator.validate(connection, connectorConfig);
 
         assertThat(logInterceptor.containsWarnMessage("Signal data collection '" + RAW_VALUE
                 + "' does not have exactly 3 columns (id/type/data) included after applying "
@@ -188,7 +183,7 @@ public class SignalDataCollectionValidatorTest {
         when(connectorConfig.getColumnFilter()).thenReturn(MATCH_ALL);
         when(connection.getColumnNames(resolved)).thenReturn(List.of("id", "type", "data", "created_at", "note"));
 
-        SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
+        SignalDataCollectionValidator.validate(connection, connectorConfig);
 
         assertThat(logInterceptor.containsWarnMessage("Signal data collection '" + RAW_VALUE
                 + "' does not have exactly 3 columns (id/type/data) included after applying "
@@ -207,40 +202,39 @@ public class SignalDataCollectionValidatorTest {
                 .thenReturn((catalog, schema, table, column) -> Set.of("id", "type", "data").contains(column));
         when(connection.getColumnNames(resolved)).thenReturn(List.of("id", "type", "data", "created_at"));
 
-        SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
-
-        verifyNoInteractions(signalDataCollectionValue);
+        assertThatCode(() -> SignalDataCollectionValidator.validate(connection, connectorConfig))
+                .doesNotThrowAnyException();
     }
 
     @Test
-    public void shouldWarnWithoutFailingConfigWhenTableMissingAndActionIsWarn() throws SQLException {
+    public void shouldWarnWithoutFailingTaskWhenTableMissingAndActionIsWarn() throws SQLException {
         when(connection.resolveSignalDataCollectionTableId(RAW_VALUE)).thenReturn(Collections.emptySet());
 
-        SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
+        assertThatCode(() -> SignalDataCollectionValidator.validate(connection, connectorConfig))
+                .doesNotThrowAnyException();
 
         assertThat(logInterceptor.containsWarnMessage("Signal data collection '" + RAW_VALUE
                 + "' was not found in the database. Source-channel signaling will not work until this table is created.")).isTrue();
-        verify(signalDataCollectionValue, never()).addErrorMessage(any());
         verify(connection, never()).getColumnNames(any());
     }
 
     @Test
-    public void shouldWarnWithoutFailingConfigWhenWrongShapeAndActionIsWarn() throws SQLException {
+    public void shouldWarnWithoutFailingTaskWhenWrongShapeAndActionIsWarn() throws SQLException {
         TableId found = new TableId("testDB", "dbo", "debezium_signal");
         when(connection.resolveSignalDataCollectionTableId("dbo.debezium_signal")).thenReturn(Set.of(found));
         when(connectorConfig.getSignalingDataCollectionId()).thenReturn("dbo.debezium_signal");
         when(connectorConfig.isSignalDataCollection(found)).thenReturn(false);
 
-        SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
+        assertThatCode(() -> SignalDataCollectionValidator.validate(connection, connectorConfig))
+                .doesNotThrowAnyException();
 
         assertThat(logInterceptor.containsWarnMessage(
                 "signal.data.collection must be '" + found + "' (got 'dbo.debezium_signal').")).isTrue();
-        verify(signalDataCollectionValue, never()).addErrorMessage(any());
         verify(connection, never()).getColumnNames(any());
     }
 
     @Test
-    public void shouldWarnWithoutFailingConfigWhenWrongShapeMatchesMultipleCandidates() throws SQLException {
+    public void shouldWarnWithoutFailingTaskWhenWrongShapeMatchesMultipleCandidates() throws SQLException {
         // A 2-part FQN can resolve to same-named tables in more than one database (e.g. SqlServer multi-db mode);
         // the message must list every candidate, sorted for determinism, instead of picking one via Set iteration order.
         TableId dbOneMatch = new TableId("db1", "dbo", "debezium_signal");
@@ -250,27 +244,27 @@ public class SignalDataCollectionValidatorTest {
         when(connectorConfig.isSignalDataCollection(dbOneMatch)).thenReturn(false);
         when(connectorConfig.isSignalDataCollection(dbTwoMatch)).thenReturn(false);
 
-        SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
+        assertThatCode(() -> SignalDataCollectionValidator.validate(connection, connectorConfig))
+                .doesNotThrowAnyException();
 
         assertThat(logInterceptor.containsWarnMessage("signal.data.collection must be one of: [" + dbOneMatch + ", " + dbTwoMatch
                 + "] (got 'dbo.debezium_signal').")).isTrue();
-        verify(signalDataCollectionValue, never()).addErrorMessage(any());
         verify(connection, never()).getColumnNames(any());
     }
 
     @Test
-    public void shouldWarnWithoutFailingConfigWhenWrongColumnCountAndActionIsWarn() throws SQLException {
+    public void shouldWarnWithoutFailingTaskWhenWrongColumnCountAndActionIsWarn() throws SQLException {
         TableId resolved = new TableId("testDB", "dbo", "debezium_signal");
         when(connection.resolveSignalDataCollectionTableId(RAW_VALUE)).thenReturn(Set.of(resolved));
         when(connectorConfig.isSignalDataCollection(resolved)).thenReturn(true);
         when(connection.getColumnNames(resolved)).thenReturn(List.of("id", "type", "data", "extra"));
 
-        SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
+        assertThatCode(() -> SignalDataCollectionValidator.validate(connection, connectorConfig))
+                .doesNotThrowAnyException();
 
         assertThat(logInterceptor.containsWarnMessage("Signal data collection '" + RAW_VALUE
                 + "' has 4 columns but requires exactly 3 (id/type/data); no column.include.list/column.exclude.list is "
                 + "configured, so all 4 columns reach Debezium's schema unfiltered.")).isTrue();
-        verify(signalDataCollectionValue, never()).addErrorMessage(any());
     }
 
     @Test
@@ -281,60 +275,58 @@ public class SignalDataCollectionValidatorTest {
         when(connectorConfig.isSignalDataCollection(resolved)).thenReturn(true);
         when(connection.getColumnNames(resolved)).thenReturn(List.of("id", "type", "data"));
 
-        SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
-
-        verifyNoInteractions(signalDataCollectionValue);
+        assertThatCode(() -> SignalDataCollectionValidator.validate(connection, connectorConfig))
+                .doesNotThrowAnyException();
     }
 
     @Test
-    public void shouldFailConfigWhenTableMissingAndActionIsFail() throws SQLException {
+    public void shouldFailTaskWhenTableMissingAndActionIsFail() throws SQLException {
         when(connectorConfig.getSignalDataCollectionValidationAction()).thenReturn(SignalDataCollectionValidationAction.FAIL);
         when(connection.resolveSignalDataCollectionTableId(RAW_VALUE)).thenReturn(Collections.emptySet());
 
-        SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
-
-        verify(signalDataCollectionValue).addErrorMessage("Signal data collection '" + RAW_VALUE
-                + "' was not found in the database. Source-channel signaling will not work until this table is created.");
+        assertThatThrownBy(() -> SignalDataCollectionValidator.validate(connection, connectorConfig))
+                .isInstanceOf(DebeziumException.class)
+                .hasMessage("Signal data collection '" + RAW_VALUE
+                        + "' was not found in the database. Source-channel signaling will not work until this table is created.");
     }
 
     @Test
-    public void shouldFailConfigWhenWrongShapeAndActionIsFail() throws SQLException {
+    public void shouldFailTaskWhenWrongShapeAndActionIsFail() throws SQLException {
         when(connectorConfig.getSignalDataCollectionValidationAction()).thenReturn(SignalDataCollectionValidationAction.FAIL);
         when(connectorConfig.getSignalingDataCollectionId()).thenReturn("dbo.debezium_signal");
         TableId found = new TableId("testDB", "dbo", "debezium_signal");
         when(connection.resolveSignalDataCollectionTableId("dbo.debezium_signal")).thenReturn(Set.of(found));
         when(connectorConfig.isSignalDataCollection(found)).thenReturn(false);
 
-        SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
-
-        verify(signalDataCollectionValue).addErrorMessage("signal.data.collection must be '" + found + "' (got 'dbo.debezium_signal').");
+        assertThatThrownBy(() -> SignalDataCollectionValidator.validate(connection, connectorConfig))
+                .isInstanceOf(DebeziumException.class)
+                .hasMessage("signal.data.collection must be '" + found + "' (got 'dbo.debezium_signal').");
     }
 
     @Test
-    public void shouldFailConfigWhenWrongColumnCountAndActionIsFail() throws SQLException {
+    public void shouldFailTaskWhenWrongColumnCountAndActionIsFail() throws SQLException {
         when(connectorConfig.getSignalDataCollectionValidationAction()).thenReturn(SignalDataCollectionValidationAction.FAIL);
         TableId resolved = new TableId("testDB", "dbo", "debezium_signal");
         when(connection.resolveSignalDataCollectionTableId(RAW_VALUE)).thenReturn(Set.of(resolved));
         when(connectorConfig.isSignalDataCollection(resolved)).thenReturn(true);
         when(connection.getColumnNames(resolved)).thenReturn(List.of("id", "type"));
 
-        SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue);
-
-        verify(signalDataCollectionValue).addErrorMessage("Signal data collection '" + RAW_VALUE
-                + "' has 2 columns but requires exactly 3 (id/type/data); no column.include.list/column.exclude.list is "
-                + "configured, so all 2 columns reach Debezium's schema unfiltered.");
+        assertThatThrownBy(() -> SignalDataCollectionValidator.validate(connection, connectorConfig))
+                .isInstanceOf(DebeziumException.class)
+                .hasMessage("Signal data collection '" + RAW_VALUE
+                        + "' has 2 columns but requires exactly 3 (id/type/data); no column.include.list/column.exclude.list is "
+                        + "configured, so all 2 columns reach Debezium's schema unfiltered.");
     }
 
     @Test
-    public void shouldSwallowExceptionFromProbeAndNeverThrowOrFailConfig() throws SQLException {
+    public void shouldSwallowExceptionFromProbeAndNeverThrowOrFailTask() throws SQLException {
         when(connectorConfig.getSignalDataCollectionValidationAction()).thenReturn(SignalDataCollectionValidationAction.FAIL);
         when(connection.resolveSignalDataCollectionTableId(RAW_VALUE)).thenThrow(new SQLException("connection reset"));
 
-        assertThatCode(() -> SignalDataCollectionValidator.validate(connection, connectorConfig, signalDataCollectionValue))
+        assertThatCode(() -> SignalDataCollectionValidator.validate(connection, connectorConfig))
                 .doesNotThrowAnyException();
 
         assertThat(logInterceptor.containsWarnMessage(
                 "Could not validate signal data collection '" + RAW_VALUE + "'")).isTrue();
-        verifyNoInteractions(signalDataCollectionValue);
     }
 }

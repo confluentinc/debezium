@@ -45,6 +45,7 @@ import io.debezium.pipeline.GuardrailValidator;
 import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.signal.SignalProcessor;
 import io.debezium.pipeline.spi.Offsets;
+import io.debezium.relational.SignalDataCollectionValidator;
 import io.debezium.relational.TableId;
 import io.debezium.schema.SchemaFactory;
 import io.debezium.schema.SchemaNameAdjuster;
@@ -143,6 +144,8 @@ public class MariaDbConnectorTask extends BinlogSourceTask<MariaDbPartition, Mar
         else {
             validateGuardrailLimits(connectorConfig, connection);
         }
+
+        SignalDataCollectionValidator.validate(connection, connectorConfig);
 
         LOGGER.info("Closing JDBC connection before starting schema recovery.");
         try {

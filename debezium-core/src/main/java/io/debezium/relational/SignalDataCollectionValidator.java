@@ -9,10 +9,10 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.kafka.common.config.ConfigValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.debezium.DebeziumException;
 import io.debezium.jdbc.JdbcConnection;
 import io.debezium.pipeline.signal.channels.SourceSignalChannel;
 import io.debezium.relational.RelationalDatabaseConnectorConfig.SignalDataCollectionValidationAction;
@@ -20,9 +20,11 @@ import io.debezium.relational.Tables.ColumnNameFilter;
 import io.debezium.util.Strings;
 
 /**
- * Validates {@code signal.data.collection} at connector {@code validate()} time, turning silent streaming-time
- * failures (missing table, wrong FQN shape, wrong column count) into a WARN log or a {@link ConfigValue} error,
- * gated by the internal {@code .validation.enabled}/{@code .action} configs. Never throws.
+ * Validates {@code signal.data.collection} once the task has started, turning silent streaming-time failures
+ * (missing table, wrong FQN shape, wrong column count) into a WARN log or a task-failing {@link DebeziumException},
+ * gated by the internal {@code .validation.enabled}/{@code .action} configs. Runs at task start - rather than at
+ * connector config-validation time - so the resulting WARN carries the task's MDC connector context and is visible
+ * through the same log channels (UI, {@code confluent connect logs}) customers already use.
  *
  * @author Debezium Authors
  */
@@ -36,8 +38,11 @@ public class SignalDataCollectionValidator {
     private SignalDataCollectionValidator() {
     }
 
-    /** No-op unless enabled, streaming-capable, {@code signal.data.collection} is set, and the source channel is on; attaches an error only when {@code action=FAIL}. */
-    public static void validate(JdbcConnection connection, RelationalDatabaseConnectorConfig connectorConfig, ConfigValue signalDataCollectionValue) {
+    /**
+     * No-op unless enabled, streaming-capable, {@code signal.data.collection} is set, and the source channel is on;
+     * throws to fail the task only when {@code action=FAIL}, otherwise just warns.
+     */
+    public static void validate(JdbcConnection connection, RelationalDatabaseConnectorConfig connectorConfig) {
         if (!connectorConfig.isSignalDataCollectionValidationEnabled()) {
             return;
         }
@@ -50,19 +55,22 @@ public class SignalDataCollectionValidator {
             return;
         }
 
+        String problem;
         try {
-            String problem = checkSignalDataCollection(connection, connectorConfig);
-            if (problem == null) {
-                return;
-            }
-
-            LOGGER.warn("{} {}", LOG_PREFIX, problem);
-            if (connectorConfig.getSignalDataCollectionValidationAction() == SignalDataCollectionValidationAction.FAIL) {
-                signalDataCollectionValue.addErrorMessage(problem);
-            }
+            problem = checkSignalDataCollection(connection, connectorConfig);
         }
         catch (SQLException | RuntimeException e) {
             LOGGER.warn("{} Could not validate signal data collection '{}'", LOG_PREFIX, rawValue, e);
+            return;
+        }
+
+        if (problem == null) {
+            return;
+        }
+
+        LOGGER.warn("{} {}", LOG_PREFIX, problem);
+        if (connectorConfig.getSignalDataCollectionValidationAction() == SignalDataCollectionValidationAction.FAIL) {
+            throw new DebeziumException(problem);
         }
     }
 
