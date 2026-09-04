@@ -552,6 +552,11 @@ public class PostgresValueConverter extends JdbcValueConverters {
                     return createArrayConverter(column, fieldDefn);
                 }
 
+                // Enum types don't have a JDBC converter, but we need to return a converter that passes through the string value
+                if (resolvedType.isEnumType()) {
+                    return data -> convertString(column, fieldDefn, data);
+                }
+
                 final ValueConverter jdbcConverter = super.converter(column, fieldDefn);
                 if (jdbcConverter == null) {
                     return includeUnknownDatatypes ? data -> convertBinary(column, fieldDefn, data, binaryMode) : null;
