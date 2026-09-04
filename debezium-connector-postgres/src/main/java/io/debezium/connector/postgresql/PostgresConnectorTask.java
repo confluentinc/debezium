@@ -50,6 +50,7 @@ import io.debezium.pipeline.signal.SignalProcessor;
 import io.debezium.pipeline.spi.OffsetContext;
 import io.debezium.pipeline.spi.Offsets;
 import io.debezium.pipeline.spi.Partition;
+import io.debezium.relational.SignalDataCollectionValidator;
 import io.debezium.relational.TableId;
 import io.debezium.schema.SchemaFactory;
 import io.debezium.schema.SchemaNameAdjuster;
@@ -161,6 +162,8 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
         else {
             validateGuardrailLimits(connectorConfig, jdbcConnection);
         }
+
+        SignalDataCollectionValidator.validate(jdbcConnection, connectorConfig);
 
         validateSchemaHistory(connectorConfig, jdbcConnection::validateLogPosition, previousOffsets, schema, snapshotter);
 
