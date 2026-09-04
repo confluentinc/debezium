@@ -5,6 +5,7 @@
  */
 package io.debezium.connector.sqlserver;
 
+import static io.debezium.connector.sqlserver.SqlServerConnectorConfig.DATA_QUERY_MODE;
 import static io.debezium.connector.sqlserver.util.TestHelper.SCHEMA_HISTORY_PATH;
 import static io.debezium.connector.sqlserver.util.TestHelper.TEST_DATABASE_2;
 import static io.debezium.connector.sqlserver.util.TestHelper.TYPE_LENGTH_PARAMETER_KEY;
@@ -313,6 +314,65 @@ public class SqlServerConnectorIT extends AbstractAsyncEngineConnectorTest {
             final Struct tombstoneValue = (Struct) tombstoneRecord.value();
             assertNull(tombstoneValue);
         }
+
+        stopConnector();
+    }
+
+    @Test
+    @FixFor("dbz#1915")
+    public void shouldStreamFunctionModeWhenCapturedColumnCollidesWithLsnTimeMappingColumn() throws Exception {
+        assertStreamingWorksWhenCapturedColumnCollidesWithLsnTimeMappingColumn(SqlServerConnectorConfig.DataQueryMode.FUNCTION);
+    }
+
+    @Test
+    @FixFor("dbz#1915")
+    public void shouldStreamDirectModeWhenCapturedColumnCollidesWithLsnTimeMappingColumn() throws Exception {
+        assertStreamingWorksWhenCapturedColumnCollidesWithLsnTimeMappingColumn(SqlServerConnectorConfig.DataQueryMode.DIRECT);
+    }
+
+    private void assertStreamingWorksWhenCapturedColumnCollidesWithLsnTimeMappingColumn(
+                                                                                        SqlServerConnectorConfig.DataQueryMode dataQueryMode)
+            throws Exception {
+        connection.execute("CREATE TABLE lsn_column_collision (id INT NOT NULL PRIMARY KEY,"
+                + " description VARCHAR(100), start_lsn VARCHAR(100), tran_begin_time VARCHAR(100),"
+                + " tran_id VARCHAR(100), tran_end_time VARCHAR(100))");
+        TestHelper.enableTableCdc(connection, "lsn_column_collision");
+
+        final Configuration config = TestHelper.defaultConfig()
+                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NO_DATA)
+                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "dbo.lsn_column_collision")
+                .with(SqlServerConnectorConfig.DATA_QUERY_MODE, dataQueryMode)
+                .build();
+
+        start(SqlServerConnector.class, config);
+        assertConnectorIsRunning();
+        TestHelper.waitForSnapshotToBeCompleted();
+
+        connection.execute("INSERT INTO lsn_column_collision VALUES (1, 'normal column', 'a', 'b', 'c', 'd')");
+
+        final SourceRecords records = consumeRecordsByTopic(1);
+        final List<SourceRecord> recordsForTopic = records.recordsForTopic("server1.testDB1.dbo.lsn_column_collision");
+        assertThat(recordsForTopic).hasSize(1);
+
+        final Struct value = (Struct) recordsForTopic.get(0).value();
+        final List<SchemaAndValueField> expectedRow = Arrays.asList(
+                new SchemaAndValueField("id", Schema.INT32_SCHEMA, 1),
+                new SchemaAndValueField("description", Schema.OPTIONAL_STRING_SCHEMA, "normal column"),
+                new SchemaAndValueField("start_lsn", Schema.OPTIONAL_STRING_SCHEMA, "a"),
+                new SchemaAndValueField("tran_begin_time", Schema.OPTIONAL_STRING_SCHEMA, "b"),
+                new SchemaAndValueField("tran_id", Schema.OPTIONAL_STRING_SCHEMA, "c"),
+                new SchemaAndValueField("tran_end_time", Schema.OPTIONAL_STRING_SCHEMA, "d"));
+        assertRecord((Struct) value.get("after"), expectedRow);
+
+        final long tsMs = value.getStruct("source").getInt64("ts_ms");
+        final String commitLsnHex = "0x" + value.getStruct("source").getString("commit_lsn").replace(":", "");
+        final Instant expectedSourceTimestamp = connection.queryAndMap(
+                "SELECT TODATETIMEOFFSET(sys.fn_cdc_map_lsn_to_time(" + commitLsnHex + "), DATEPART(TZOFFSET, SYSDATETIMEOFFSET()))",
+                rs -> {
+                    rs.next();
+                    return rs.getTimestamp(1).toInstant();
+                });
+        assertThat(Instant.ofEpochMilli(tsMs)).isEqualTo(expectedSourceTimestamp);
 
         stopConnector();
     }
@@ -895,6 +955,9 @@ public class SqlServerConnectorIT extends AbstractAsyncEngineConnectorTest {
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
                 .build();
 
+        boolean directMode = SqlServerConnectorConfig.DataQueryMode.parse(
+                config.getString(DATA_QUERY_MODE), DATA_QUERY_MODE.defaultValueAsString()) == SqlServerConnectorConfig.DataQueryMode.DIRECT;
+
         final List<Integer> expectedIds = new ArrayList<>();
         for (int i = 0; i < RECORDS_PER_TABLE; i++) {
             final int id = ID_START + i;
@@ -925,7 +988,7 @@ public class SqlServerConnectorIT extends AbstractAsyncEngineConnectorTest {
                         final Lsn minLsn = connection.getMinLsn(TestHelper.TEST_DATABASE_1, tableName);
                         final Lsn maxLsn = connection.getMaxLsn(TestHelper.TEST_DATABASE_1);
                         final List<Integer> ids = new ArrayList<>();
-                        try (ResultSet rs = connection.getChangesForTable(ct, minLsn, maxLsn)) {
+                        try (ResultSet rs = connection.getChangesForTable(ct, minLsn, Lsn.ZERO, 0, directMode ? -1 : null, maxLsn, 0)) {
                             while (rs.next()) {
                                 ids.add(rs.getInt("id"));
                             }
