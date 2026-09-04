@@ -116,59 +116,38 @@ public class SignalDataCollectionValidatorTest {
     public void shouldFailWhenColumnIncludeListReducesSignalTableToZeroColumns() throws SQLException {
         // A column.include.list that only covers other, unrelated tables (the common case in practice) matches
         // none of the signal table's columns - Debezium's real ColumnNameFilter would reduce it to zero effective
-        // columns, silently breaking signaling. That must be flagged, not skipped, and the message must name
-        // column.include.list specifically since that's the property actually configured.
+        // columns, silently breaking signaling. That must be flagged, not skipped.
         TableId resolved = new TableId("testDB", "dbo", "debezium_signal");
         when(connection.resolveSignalDataCollectionTableId(RAW_VALUE)).thenReturn(Set.of(resolved));
         when(connectorConfig.isSignalDataCollection(resolved)).thenReturn(true);
-        when(connectorConfig.isColumnsFiltered()).thenReturn(true);
-        when(connectorConfig.columnIncludeList()).thenReturn("public.orders.id,public.orders.amount");
         when(connectorConfig.getColumnFilter()).thenReturn(MATCH_NONE);
         when(connection.getColumnNames(resolved)).thenReturn(List.of("id", "type", "data"));
 
         SignalDataCollectionValidator.validate(connection, connectorConfig);
 
-        assertThat(logInterceptor.containsWarnMessage("Signal data collection '" + RAW_VALUE
-                + "' has no columns included after applying column.include.list - every signal will be "
-                + "silently dropped at runtime. Adjust column.include.list so this table's id/type/data columns are included.")).isTrue();
-    }
-
-    @Test
-    public void shouldFailWhenColumnExcludeListStripsSignalTableToZeroColumns() throws SQLException {
-        // Same failure mode as above but via column.exclude.list, which must be named correctly instead.
-        TableId resolved = new TableId("testDB", "dbo", "debezium_signal");
-        when(connection.resolveSignalDataCollectionTableId(RAW_VALUE)).thenReturn(Set.of(resolved));
-        when(connectorConfig.isSignalDataCollection(resolved)).thenReturn(true);
-        when(connectorConfig.isColumnsFiltered()).thenReturn(true);
-        when(connectorConfig.getColumnFilter()).thenReturn(MATCH_NONE);
-        when(connection.getColumnNames(resolved)).thenReturn(List.of("id", "type", "data"));
-
-        SignalDataCollectionValidator.validate(connection, connectorConfig);
-
-        assertThat(logInterceptor.containsWarnMessage("Signal data collection '" + RAW_VALUE
-                + "' has no columns included after applying column.exclude.list - every signal will be "
-                + "silently dropped at runtime. Adjust column.exclude.list so this table's id/type/data columns are included.")).isTrue();
+        assertThat(logInterceptor.containsWarnMessage("The configured signal data collection '" + RAW_VALUE
+                + "' has 0 columns but signalling requires exactly 3 columns. Please adjust the table definition in "
+                + "the database or column filters using connector's column.include.list/column.exclude.list to "
+                + "ensure there are exactly 3 effective columns for signal table.")).isTrue();
     }
 
     @Test
     public void shouldFailWhenColumnIncludeListCoversOnlySomeOfTheRequiredColumns() throws SQLException {
         // A column.include.list that lists id/type but forgets data (a typo/oversight, not a wholesale omission)
-        // must be reported distinctly from the zero-columns case, since the fix is different (add the missing
-        // column) rather than adding the table at all.
+        // must still be flagged with the effective column count actually reaching Debezium's schema.
         TableId resolved = new TableId("testDB", "dbo", "debezium_signal");
         when(connection.resolveSignalDataCollectionTableId(RAW_VALUE)).thenReturn(Set.of(resolved));
         when(connectorConfig.isSignalDataCollection(resolved)).thenReturn(true);
-        when(connectorConfig.isColumnsFiltered()).thenReturn(true);
-        when(connectorConfig.columnIncludeList()).thenReturn("public.debezium_signal.id,public.debezium_signal.type");
         when(connectorConfig.getColumnFilter())
                 .thenReturn((catalog, schema, table, column) -> Set.of("id", "type").contains(column));
         when(connection.getColumnNames(resolved)).thenReturn(List.of("id", "type", "data"));
 
         SignalDataCollectionValidator.validate(connection, connectorConfig);
 
-        assertThat(logInterceptor.containsWarnMessage("Signal data collection '" + RAW_VALUE
-                + "' does not have exactly 3 columns (id/type/data) included after applying "
-                + "column.include.list - adjust column.include.list accordingly.")).isTrue();
+        assertThat(logInterceptor.containsWarnMessage("The configured signal data collection '" + RAW_VALUE
+                + "' has 2 columns but signalling requires exactly 3 columns. Please adjust the table definition in "
+                + "the database or column filters using connector's column.include.list/column.exclude.list to "
+                + "ensure there are exactly 3 effective columns for signal table.")).isTrue();
     }
 
     @Test
@@ -178,16 +157,15 @@ public class SignalDataCollectionValidatorTest {
         TableId resolved = new TableId("testDB", "dbo", "debezium_signal");
         when(connection.resolveSignalDataCollectionTableId(RAW_VALUE)).thenReturn(Set.of(resolved));
         when(connectorConfig.isSignalDataCollection(resolved)).thenReturn(true);
-        when(connectorConfig.isColumnsFiltered()).thenReturn(true);
-        when(connectorConfig.columnIncludeList()).thenReturn("public.debezium_signal..*");
         when(connectorConfig.getColumnFilter()).thenReturn(MATCH_ALL);
         when(connection.getColumnNames(resolved)).thenReturn(List.of("id", "type", "data", "created_at", "note"));
 
         SignalDataCollectionValidator.validate(connection, connectorConfig);
 
-        assertThat(logInterceptor.containsWarnMessage("Signal data collection '" + RAW_VALUE
-                + "' does not have exactly 3 columns (id/type/data) included after applying "
-                + "column.include.list - adjust column.include.list accordingly.")).isTrue();
+        assertThat(logInterceptor.containsWarnMessage("The configured signal data collection '" + RAW_VALUE
+                + "' has 5 columns but signalling requires exactly 3 columns. Please adjust the table definition in "
+                + "the database or column filters using connector's column.include.list/column.exclude.list to "
+                + "ensure there are exactly 3 effective columns for signal table.")).isTrue();
     }
 
     @Test
@@ -197,7 +175,6 @@ public class SignalDataCollectionValidatorTest {
         TableId resolved = new TableId("testDB", "dbo", "debezium_signal");
         when(connection.resolveSignalDataCollectionTableId(RAW_VALUE)).thenReturn(Set.of(resolved));
         when(connectorConfig.isSignalDataCollection(resolved)).thenReturn(true);
-        when(connectorConfig.isColumnsFiltered()).thenReturn(true);
         when(connectorConfig.getColumnFilter())
                 .thenReturn((catalog, schema, table, column) -> Set.of("id", "type", "data").contains(column));
         when(connection.getColumnNames(resolved)).thenReturn(List.of("id", "type", "data", "created_at"));
@@ -262,9 +239,10 @@ public class SignalDataCollectionValidatorTest {
         assertThatCode(() -> SignalDataCollectionValidator.validate(connection, connectorConfig))
                 .doesNotThrowAnyException();
 
-        assertThat(logInterceptor.containsWarnMessage("Signal data collection '" + RAW_VALUE
-                + "' has 4 columns but requires exactly 3 (id/type/data); no column.include.list/column.exclude.list is "
-                + "configured, so all 4 columns reach Debezium's schema unfiltered.")).isTrue();
+        assertThat(logInterceptor.containsWarnMessage("The configured signal data collection '" + RAW_VALUE
+                + "' has 4 columns but signalling requires exactly 3 columns. Please adjust the table definition in "
+                + "the database or column filters using connector's column.include.list/column.exclude.list to "
+                + "ensure there are exactly 3 effective columns for signal table.")).isTrue();
     }
 
     @Test
@@ -313,9 +291,10 @@ public class SignalDataCollectionValidatorTest {
 
         assertThatThrownBy(() -> SignalDataCollectionValidator.validate(connection, connectorConfig))
                 .isInstanceOf(DebeziumException.class)
-                .hasMessage("Signal data collection '" + RAW_VALUE
-                        + "' has 2 columns but requires exactly 3 (id/type/data); no column.include.list/column.exclude.list is "
-                        + "configured, so all 2 columns reach Debezium's schema unfiltered.");
+                .hasMessage("The configured signal data collection '" + RAW_VALUE
+                        + "' has 2 columns but signalling requires exactly 3 columns. Please adjust the table definition in "
+                        + "the database or column filters using connector's column.include.list/column.exclude.list to "
+                        + "ensure there are exactly 3 effective columns for signal table.");
     }
 
     @Test

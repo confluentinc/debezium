@@ -105,21 +105,9 @@ public class SignalDataCollectionValidator {
         if (effectiveColumnCount == 3) {
             return null;
         }
-        if (!connectorConfig.isColumnsFiltered()) {
-            return String.format("Signal data collection '%s' has %d columns but requires exactly 3 (id/type/data); no "
-                    + "column.include.list/column.exclude.list is configured, so all %2$d columns reach Debezium's schema unfiltered.",
-                    rawValue, physicalColumns.size());
-        }
-
-        // The fix for include.list is the opposite of the fix for exclude.list, so no single verb works for both.
-        String activeProperty = Strings.isNullOrBlank(connectorConfig.columnIncludeList()) ? "column.exclude.list" : "column.include.list";
-        if (effectiveColumnCount == 0) {
-            return String.format("Signal data collection '%s' has no columns included after applying %2$s - every signal will be "
-                    + "silently dropped at runtime. Adjust %2$s so this table's id/type/data columns are included.",
-                    rawValue, activeProperty);
-        }
-        return String.format("Signal data collection '%s' does not have exactly 3 columns (id/type/data) included after applying "
-                + "%2$s - adjust %2$s accordingly.",
-                rawValue, activeProperty);
+        return String.format("The configured signal data collection '%s' has %d columns but signalling requires exactly 3 columns. "
+                + "Please adjust the table definition in the database or column filters using connector's "
+                + "column.include.list/column.exclude.list to ensure there are exactly 3 effective columns for signal table.",
+                rawValue, effectiveColumnCount);
     }
 }
