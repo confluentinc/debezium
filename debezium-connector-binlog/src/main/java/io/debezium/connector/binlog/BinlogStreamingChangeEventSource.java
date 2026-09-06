@@ -1363,7 +1363,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
             final char[] trustPasswordArray = connection.connectionConfig().sslTrustStorePassword();
             final String trustFilename = connection.connectionConfig().sslTrustStore();
             KeyManager[] keyManagers = null;
-            if (keyFilename != null) {
+            if (!Strings.isNullOrBlank(keyFilename)) {
                 try {
                     KeyStore ks = connection.loadKeyStore(keyFilename, keyPasswordArray);
 
@@ -1379,7 +1379,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
             TrustManager[] trustManagers;
             try {
                 KeyStore ks = null;
-                if (trustFilename != null) {
+                if (!Strings.isNullOrBlank(trustFilename)) {
                     ks = connection.loadKeyStore(trustFilename, trustPasswordArray);
                 }
 
