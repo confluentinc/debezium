@@ -172,9 +172,15 @@ public class EventRouterDelegate<R extends ConnectRecord<R>> {
                 try {
                     // Parse and get Jackson JsonNode.
                     final JsonNode jsonPayload = parseJsonPayload(payloadString);
-                    // Build a new Schema and new payload Struct that replace existing ones.
-                    payloadSchema = jsonSchemaData.toConnectSchema(fieldPayload, jsonPayload);
-                    payload = jsonSchemaData.toConnectData(jsonPayload, payloadSchema);
+                    // Build a new Schema and new payload Struct that replace existing ones. Compute
+                    // both into locals and only commit them together once the value conversion has
+                    // also succeeded. If toConnectData throws after toConnectSchema already returned
+                    // an upgraded STRUCT schema, committing that schema while payload stays the raw
+                    // String would leave a mismatched schema and value that fails the task later on.
+                    final Schema expandedSchema = jsonSchemaData.toConnectSchema(fieldPayload, jsonPayload);
+                    final Object expandedPayload = jsonSchemaData.toConnectData(jsonPayload, expandedSchema);
+                    payloadSchema = expandedSchema;
+                    payload = expandedPayload;
                 }
                 catch (Exception e) {
                     LOGGER.warn("JSON expansion failed", e);
