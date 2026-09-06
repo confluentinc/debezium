@@ -1211,6 +1211,51 @@ public class EventRouterTest {
         assertThat(eventRouted.valueSchema()).isEqualTo(eventRouted2.valueSchema());
     }
 
+    @Test
+    @FixFor("CC-43974")
+    public void shouldFallBackToRawStringWhenJsonExpansionFailsOnInconsistentArrayElementTypes() {
+        // A JSON array whose elements disagree on the type of a nested field is a legitimate,
+        // non-malformed shape: here "details" is a nested object in the first element and a plain
+        // string in the second. JsonSchemaData.mergeSchema keeps a single type for such a field, so
+        // toConnectData throws while converting the element whose value does not match that type.
+        // Before the fix, EventRouterDelegate assigned the upgraded STRUCT schema to payloadSchema
+        // before toConnectData ran, so the swallowed failure left the STRUCT schema paired with the
+        // original raw JSON String payload, and building the envelope Struct then threw a
+        // DataException that permanently failed the task. After the fix the delegate commits the
+        // schema and value together, so a failed expansion leaves both untouched and the record
+        // flows through with the payload as its unexpanded raw JSON string.
+        final EventRouter<SourceRecord> router = new EventRouter<>();
+        final Map<String, String> config = new HashMap<>();
+        config.put(EventRouterConfigDefinition.EXPAND_JSON_PAYLOAD.name(), "true");
+        config.put(EventRouterConfigDefinition.FIELDS_ADDITIONAL_PLACEMENT.name(), "type:envelope");
+        router.configure(config);
+
+        final String rawPayload = "{\"items\":[{\"name\":\"itemA\",\"details\":{\"qty\":1}},{\"name\":\"itemB\",\"details\":\"no-details-available\"}]}";
+        final SourceRecord eventRecord = createEventRecord(
+                "da8d6de6-3b77-45ff-8f44-57db55a7a06c",
+                "UserCreated",
+                "10711fa5",
+                "User",
+                rawPayload,
+                new HashMap<>(),
+                new HashMap<>());
+
+        final SourceRecord eventRouted = router.apply(eventRecord);
+
+        assertThat(eventRouted).isNotNull();
+
+        final Schema valueSchema = eventRouted.valueSchema();
+        assertThat(valueSchema.type()).isEqualTo(SchemaBuilder.struct().type());
+        // Expansion failed, so the payload field keeps its original String schema rather than the
+        // partially built STRUCT schema.
+        assertThat(valueSchema.field("payload").schema().type()).isEqualTo(Schema.Type.STRING);
+
+        final Struct valueStruct = (Struct) eventRouted.value();
+        assertThat(valueStruct.get("type")).isEqualTo("UserCreated");
+        // The unexpanded raw JSON string flows through untouched.
+        assertThat(valueStruct.getString("payload")).isEqualTo(rawPayload);
+    }
+
     private SourceRecord createEventRecord() {
         return createEventRecord(
                 "da8d6de6-3b77-45ff-8f44-57db55a7a06c",
