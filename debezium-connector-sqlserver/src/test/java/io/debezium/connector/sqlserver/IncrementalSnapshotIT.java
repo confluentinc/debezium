@@ -12,6 +12,7 @@ import java.util.List;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 
 import io.debezium.config.Configuration.Builder;
@@ -36,9 +37,13 @@ public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotWithSchema
     @Rule
     public ConditionalFail conditionalFail = new ConditionalFail();
 
+    @BeforeClass
+    public static void beforeClass() {
+        TestHelper.createTestDatabase();
+    }
+
     @Before
     public void before() throws SQLException, InterruptedException {
-        TestHelper.createTestDatabase();
         connection = TestHelper.testConnection();
         connection.execute(
                 "CREATE TABLE a (pk int primary key, aa int)",
@@ -59,6 +64,7 @@ public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotWithSchema
     @After
     public void after() throws SQLException {
         if (connection != null) {
+            TestHelper.disableCdcAndDropTables(connection);
             connection.close();
         }
     }
