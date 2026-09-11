@@ -68,7 +68,20 @@ public class BinaryDataConverter implements Converter, HeaderConverter, Versione
         final String converterTypeName = (String) configs.get(DELEGATE_CONVERTER_TYPE);
         if (converterTypeName != null) {
             delegateConverter = Instantiator.getInstance(converterTypeName, null);
-            delegateConverter.configure(Configuration.from(configs).subset(DELEGATE_CONVERTER_TYPE, true).asMap(), isKey);
+            // Configure the delegate under its own classloader so that all classes the delegate
+            // resolves (e.g. Schema Registry serializer helpers loaded via config defaults) come
+            // from a single, consistent classloader. When the delegate lives in a different plugin
+            // classloader than this converter, resolving them via the thread context classloader can
+            // pick up a second copy of the same class and fail with "X is not an instance of Y".
+            final ClassLoader delegateClassLoader = delegateConverter.getClass().getClassLoader();
+            final ClassLoader previousClassLoader = Thread.currentThread().getContextClassLoader();
+            try {
+                Thread.currentThread().setContextClassLoader(delegateClassLoader);
+                delegateConverter.configure(Configuration.from(configs).subset(DELEGATE_CONVERTER_TYPE, true).asMap(), isKey);
+            }
+            finally {
+                Thread.currentThread().setContextClassLoader(previousClassLoader);
+            }
         }
     }
 
