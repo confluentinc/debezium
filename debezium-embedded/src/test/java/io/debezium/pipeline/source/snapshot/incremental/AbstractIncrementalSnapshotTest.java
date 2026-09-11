@@ -11,6 +11,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.sql.SQLException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -1286,19 +1287,34 @@ public abstract class AbstractIncrementalSnapshotTest<T extends SourceConnector>
     }
 
     protected boolean consumeAnyRemainingIncrementalSnapshotEventsAndCheckForStopMessage(LogInterceptor interceptor, String stopMessage) throws Exception {
-        // When an incremental snapshot is stopped, there may be some residual open/close events that
-        // have been written concurrently to the signal table after the stop signal. We want to make
-        // sure that those have all been read before stopping the connector.
+        // When an incremental snapshot is stopped, there may be some residual open/close events
+        // written concurrently to the signal table after the stop signal, plus the connector must
+        // log that it has processed the stop signal. Two races matter:
+        // 1. drain vs. log emission — on connectors doing extra work in the signal path
+        // (e.g. SqlServer's CDC recompile flow) the drain can complete before the log line.
+        // 2. drain vs. late stragglers — snapshot-close events can trickle in after an initial
+        // empty poll, leaving records queued when the caller later asserts no records.
+        // To handle both, require the stop log AND a *stable* quiet period (a few consecutive
+        // empty polls) before returning.
         final AtomicBoolean stopMessageFound = new AtomicBoolean(false);
+        final AtomicInteger consecutiveEmptyPolls = new AtomicInteger(0);
+        final int requiredStablePolls = 3;
         Awaitility.await().atMost(60, TimeUnit.SECONDS)
-                .pollDelay(5, TimeUnit.SECONDS)
-                .pollInterval(1, TimeUnit.SECONDS)
+                .pollDelay(Duration.ZERO)
+                .pollInterval(Duration.ofMillis(500))
                 .until(() -> {
+                    int consumed = consumeAvailableRecords(r -> {
+                    });
                     if (interceptor.containsMessage(stopMessage)) {
                         stopMessageFound.set(true);
                     }
-                    return consumeAvailableRecords(r -> {
-                    }) == 0;
+                    if (consumed == 0) {
+                        consecutiveEmptyPolls.incrementAndGet();
+                    }
+                    else {
+                        consecutiveEmptyPolls.set(0);
+                    }
+                    return stopMessageFound.get() && consecutiveEmptyPolls.get() >= requiredStablePolls;
                 });
         return stopMessageFound.get();
     }
