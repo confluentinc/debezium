@@ -113,10 +113,14 @@ public class FileSignalChannel implements SignalChannelReader {
                 try {
                     SignalRecord signal = readSignalString(signalLine);
                     signals.add(signal);
-                    LOGGER.info("Processing signal: {}, {}, {}, {}", signal.getId(), signal.getType(), signal.getData(), signal.getAdditionalData());
+                    // Do not log the signal data or additional data: they are operator/customer content.
+                    // Log the signal id and type only.
+                    LOGGER.info("Processing signal: {}, {}", signal.getId(), signal.getType());
                 }
                 catch (final Exception e) {
-                    LOGGER.warn("Skipped signal due to an error '{}'", signalLine, e);
+                    // Do not log the raw signal line or the parse exception 'e': both echo the signal
+                    // data. Report a fixed reason and the exception type only.
+                    LOGGER.warn("Skipped signal due to a parse error ({})", e.getClass().getSimpleName());
                 }
                 lineIterator.remove();
             }

@@ -58,6 +58,7 @@ import io.debezium.spi.snapshot.Snapshotter;
 import io.debezium.spi.topic.TopicNamingStrategy;
 import io.debezium.util.Clock;
 import io.debezium.util.LoggingContext;
+import io.debezium.util.Loggings;
 import io.debezium.util.Metronome;
 import io.debezium.util.ThreadNameContext;
 
@@ -170,7 +171,10 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
             LOGGER.info("No previous offset found");
         }
         else {
-            LOGGER.info("Found previous offset {}", previousOffset);
+            // The Postgres offset's toString() embeds the incremental-snapshot context (chunk end
+            // position / last event key / maximum key = primary-key values), which is customer data.
+            // Route it through the redaction helper so those keys are not logged at INFO.
+            LOGGER.info("Found previous offset {}", Loggings.maybeRedactSensitiveData(previousOffset));
         }
 
         try {

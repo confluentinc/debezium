@@ -103,7 +103,10 @@ public class JsonSchemaDataTest {
         }
         assertThat(expectedException).isNotNull();
         assertThat(expectedException).isInstanceOf(ConnectException.class);
-        assertThat(expectedException).hasMessage("Field is not a homogenous array (1 x 2.0), different number types (Schema{INT32} x Schema{FLOAT64})");
+        // Sensitive-log fix (finding 19): the message references the node TYPES, not the element values
+        // (the values "1"/"2.0" are outbox payload content and must not appear).
+        assertThat(expectedException).hasMessage("Field is not a homogenous array (NUMBER x NUMBER), different number types (Schema{INT32} x Schema{FLOAT64})");
+        assertThat(expectedException.getMessage()).doesNotContain("1 x 2.0");
     }
 
     @Test

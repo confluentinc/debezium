@@ -41,7 +41,9 @@ public class CloudEventsValidator {
 
     public void verifyIsCloudEvent(SchemaAndValue schemaAndValue) {
         if (!isCloudEvent(schemaAndValue)) {
-            throw new DataException("A deserialized record's value is not a CloudEvent: value=" + schemaAndValue.value());
+            // Do not embed the record value: it is customer data. Reference the value's type only.
+            throw new DataException("A deserialized record's value is not a CloudEvent (value type: "
+                    + (schemaAndValue.value() == null ? "null" : schemaAndValue.value().getClass().getName()) + ")");
         }
     }
 

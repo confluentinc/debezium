@@ -71,6 +71,21 @@ public class ConversionsTest {
     }
 
     @Test
+    public void shouldNotLeakColumnValueWhenConvertingUnexpectedTypeToLocalDate() {
+        // Sensitive-log fix (finding 28): the raw column value must not appear in the converter exception;
+        // only its type may be reported.
+        final String canary = "CANARY_SENSITIVE_VALUE";
+        try {
+            Conversions.toLocalDate(canary);
+            fail("Should not accept String values");
+        }
+        catch (IllegalArgumentException e) {
+            assertThat(e.getMessage()).doesNotContain(canary);
+            assertThat(e.getMessage()).contains("unexpected value of type");
+        }
+    }
+
+    @Test
     public void shouldReturnLocalDateInstanceWhenConvertingLongToLocalDate() {
         LocalDate now = LocalDate.now();
         long epochDay = now.toEpochDay();

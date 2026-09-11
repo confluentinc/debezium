@@ -393,7 +393,9 @@ public class CloudEventsConverter implements Converter, Versioned {
                     return connectData;
                 }
                 catch (SerializationException e) {
-                    throw new DataException("Converting byte[] to Kafka Connect data failed due to serialization error: ", e);
+                    // Do not attach 'e': the serialization exception can carry a record-payload fragment
+                    // (customer data). Report a fixed reason only.
+                    throw new DataException("Converting byte[] to Kafka Connect data failed due to a serialization error");
                 }
             case AVRO:
                 // First reconvert the whole CloudEvents
@@ -467,7 +469,9 @@ public class CloudEventsConverter implements Converter, Versioned {
                                                 jsonCloudEventsConverterConfig));
                     }
                     catch (IllegalAccessException | InvocationTargetException e) {
-                        throw new DataException(e.getCause());
+                        // Do not attach e.getCause(): the reflective-convert cause can carry a
+                        // record-payload fragment (customer data). Report a fixed reason only.
+                        throw new DataException("Converting the CloudEvents 'data' field to Kafka Connect data failed");
                     }
                 case AVRO:
                     return avroConverter.toConnectData(topic, serializedData);
@@ -476,7 +480,9 @@ public class CloudEventsConverter implements Converter, Versioned {
             }
         }
         catch (IOException e) {
-            throw new DataException("Converting byte[] to Kafka Connect data failed due to serialization error: ", e);
+            // Do not attach 'e': the exception can carry a record-payload fragment (customer data).
+            // Report a fixed reason only.
+            throw new DataException("Converting byte[] to Kafka Connect data failed due to a serialization error");
         }
     }
 

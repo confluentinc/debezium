@@ -163,8 +163,10 @@ public class JsonSchemaData {
 
             // Check types of elements.
             if (element.getNodeType() != refNode.getNodeType()) {
+                // Reference the node types, not asText(): the node text is the outbox payload value
+                // (customer data).
                 throw new ConnectException(String.format("Field is not a homogenous array (%s x %s).",
-                        refNode.asText(), element.getNodeType().toString()));
+                        refNode.getNodeType(), element.getNodeType()));
             }
 
             // We may return different schemas for NUMBER type, check here they are same.
@@ -174,8 +176,10 @@ public class JsonSchemaData {
                 }
                 Schema elementSchema = toConnectSchema(null, element);
                 if (refSchema != elementSchema) {
+                    // Reference the node types/schemas, not asText(): the node text is the outbox payload
+                    // value (customer data).
                     throw new ConnectException(String.format("Field is not a homogenous array (%s x %s), different number types (%s x %s)",
-                            refNode.asText(), element.asText(), refSchema, elementSchema));
+                            refNode.getNodeType(), element.getNodeType(), refSchema, elementSchema));
                 }
             }
         }

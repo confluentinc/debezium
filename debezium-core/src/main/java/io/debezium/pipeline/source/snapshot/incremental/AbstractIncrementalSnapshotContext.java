@@ -5,6 +5,8 @@
  */
 package io.debezium.pipeline.source.snapshot.incremental;
 
+import static io.debezium.util.Loggings.maybeRedactSensitiveData;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -170,7 +172,8 @@ public class AbstractIncrementalSnapshotContext<T> implements IncrementalSnapsho
             return HexConverter.convertToHexString(bos.toByteArray());
         }
         catch (IOException e) {
-            throw new DebeziumException(String.format("Cannot serialize chunk information %s", array));
+            // 'array' holds the chunk boundary key (primary-key values, customer data); redact it.
+            throw new DebeziumException(String.format("Cannot serialize chunk information %s", maybeRedactSensitiveData(array)));
         }
     }
 
@@ -180,7 +183,8 @@ public class AbstractIncrementalSnapshotContext<T> implements IncrementalSnapsho
             return (Object[]) ois.readObject();
         }
         catch (Exception e) {
-            throw new DebeziumException(String.format("Failed to deserialize '%s' with value '%s'", field, serialized),
+            // 'serialized' is the hex-encoded chunk PK array (customer data); redact it. 'field' is safe.
+            throw new DebeziumException(String.format("Failed to deserialize '%s' with value '%s'", field, maybeRedactSensitiveData(serialized)),
                     e);
         }
     }
@@ -486,7 +490,9 @@ public class AbstractIncrementalSnapshotContext<T> implements IncrementalSnapsho
                         .collect(Collectors.toList());
             }
             catch (JsonProcessingException e) {
-                throw new DebeziumException("Cannot de-serialize dataCollectionsToSnapshot information: " + dataCollectionsStr);
+                // 'dataCollectionsStr' embeds per-collection additional_condition filter values (customer
+                // data); redact it.
+                throw new DebeziumException("Cannot de-serialize dataCollectionsToSnapshot information: " + maybeRedactSensitiveData(dataCollectionsStr));
             }
         }
     }

@@ -162,8 +162,10 @@ public interface DateTimeFormat {
                 return value.get();
             }
             catch (final DateTimeParseException e) {
-                LOGGER.error("Cannot parse time/date value '{}', expected format '{}'", s, pattern);
-                throw new ConnectException(e);
+                // Do not log the value 's' or propagate the DateTimeParseException: both echo the raw
+                // temporal column value (customer row data). Report the expected format only.
+                LOGGER.error("Cannot parse time/date value, expected format '{}'", pattern);
+                throw new ConnectException("Cannot parse time/date value, expected format '" + pattern + "'");
             }
         }
 

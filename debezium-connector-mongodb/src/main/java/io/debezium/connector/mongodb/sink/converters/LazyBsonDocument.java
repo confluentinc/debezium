@@ -20,8 +20,6 @@ import org.apache.kafka.connect.errors.DataException;
 import org.bson.BsonDocument;
 import org.bson.BsonValue;
 
-import com.mongodb.lang.Nullable;
-
 import io.debezium.sink.DebeziumSinkRecord;
 
 /**
@@ -156,10 +154,12 @@ public class LazyBsonDocument extends BsonDocument {
                         unwrapped = converter.apply(record.keySchema(), record.key());
                     }
                     catch (Exception e) {
+                        // Do not embed the record key: it is customer data. Reference the Kafka
+                        // coordinates only.
                         throw new DataException(
                                 format(
-                                        "Could not convert key %s into a BsonDocument.",
-                                        unambiguousToString(record.key())),
+                                        "Could not convert key of record from topic '%s' partition %s offset %s into a BsonDocument.",
+                                        record.topicName(), record.partition(), record.offset()),
                                 e);
                     }
                     break;
@@ -168,10 +168,12 @@ public class LazyBsonDocument extends BsonDocument {
                         unwrapped = converter.apply(record.valueSchema(), record.value());
                     }
                     catch (Exception e) {
+                        // Do not embed the record value: it is customer data. Reference the Kafka
+                        // coordinates only.
                         throw new DataException(
                                 format(
-                                        "Could not convert value %s into a BsonDocument.",
-                                        unambiguousToString(record.value())),
+                                        "Could not convert value of record from topic '%s' partition %s offset %s into a BsonDocument.",
+                                        record.topicName(), record.partition(), record.offset()),
                                 e);
                     }
                     break;
@@ -190,18 +192,5 @@ public class LazyBsonDocument extends BsonDocument {
     // see https://docs.oracle.com/javase/6/docs/platform/serialization/spec/input.html
     private void readObject(final ObjectInputStream stream) throws InvalidObjectException {
         throw new InvalidObjectException("Proxy required");
-    }
-
-    private static String unambiguousToString(@Nullable final Object v) {
-        String stringValue = String.valueOf(v);
-        if (v == null) {
-            return format("'%s' (null reference)", stringValue);
-        }
-        else if (stringValue.equals(String.valueOf((Object) null))) {
-            return format("'%s' (%s, not a null reference)", stringValue, v.getClass().getName());
-        }
-        else {
-            return format("'%s' (%s)", stringValue, v.getClass().getName());
-        }
     }
 }
