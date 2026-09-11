@@ -499,7 +499,7 @@ public class PostgresValueConverter extends JdbcValueConverters {
                 return createArrayConverter(column, fieldDefn);
 
             // TODO DBZ-459 implement support for these array types; for now we just fall back to the default, i.e.
-            // having no converter, so to be consistent with the schema definitions above
+            // having no converter, so to be consistent with the schema definitions above the
             case PgOid.MONEY_ARRAY:
             case PgOid.NAME_ARRAY:
             case PgOid.INTERVAL_ARRAY:
