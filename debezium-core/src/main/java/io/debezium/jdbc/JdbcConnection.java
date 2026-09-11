@@ -1151,6 +1151,38 @@ public class JdbcConnection implements AutoCloseable {
     }
 
     /**
+     * Resolves the {@code signal.data.collection} value against the database's actual tables, for use by
+     * validate-time signal table checks. Parses schema-first (as opposed to {@link TableId#parse(String)}, which is
+     * catalog-first) since {@link DatabaseMetaData#getTables} expects catalog/schema as separate slots.
+     *
+     * @param signalDataCollection the raw, as-typed {@code signal.data.collection} value
+     * @return the matching {@link TableId}s, shaped by this connector's {@link #createTableId}; empty if none exist
+     * @throws SQLException if an error occurs while accessing the database metadata
+     */
+    public Set<TableId> resolveSignalDataCollectionTableId(String signalDataCollection) throws SQLException {
+        TableId parsed = TableId.parse(signalDataCollection, false);
+        return readTableNames(parsed.catalog(), parsed.schema(), parsed.table(), null);
+    }
+
+    /**
+     * Returns the column names of the given table, for use by validate-time signal table checks.
+     *
+     * @param tableId the table to inspect
+     * @return the table's column names
+     * @throws SQLException if an error occurs while accessing the database metadata
+     */
+    public List<String> getColumnNames(TableId tableId) throws SQLException {
+        DatabaseMetaData metadata = connection().getMetaData();
+        try (ResultSet rs = metadata.getColumns(tableId.catalog(), tableId.schema(), tableId.table(), null)) {
+            List<String> columnNames = new ArrayList<>();
+            while (rs.next()) {
+                columnNames.add(rs.getString(4));
+            }
+            return columnNames;
+        }
+    }
+
+    /**
      * Returns a JDBC connection string using the current configuration and url.
      *
      * @param urlPattern a {@code String} representing a JDBC connection with variables that will be replaced

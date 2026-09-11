@@ -36,6 +36,7 @@ import io.debezium.pipeline.GuardrailValidator;
 import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.signal.SignalProcessor;
 import io.debezium.pipeline.spi.Offsets;
+import io.debezium.relational.SignalDataCollectionValidator;
 import io.debezium.relational.TableId;
 import io.debezium.schema.SchemaFactory;
 import io.debezium.schema.SchemaNameAdjuster;
@@ -120,6 +121,8 @@ public class SqlServerConnectorTask extends BaseSourceTask<SqlServerPartition, S
         else {
             validateGuardrailLimits(connectorConfig, dataConnection);
         }
+
+        SignalDataCollectionValidator.validate(dataConnection, connectorConfig);
 
         validateSchemaHistory(connectorConfig, dataConnection::validateLogPosition, offsets, schema,
                 snapshotterService.getSnapshotter());

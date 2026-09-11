@@ -489,7 +489,6 @@ public abstract class AbstractBlockingSnapshotTest<T extends SourceConnector> ex
 
         LogInterceptor interceptor = new LogInterceptor(ChangeEventSourceCoordinator.class);
 
-
         sendAdHocSnapshotSignalWithAdditionalConditionsWithSurrogateKey(
                 String.format("{\"data-collection\": \"%s\"}", tableDataCollectionIds().get(1)), "", BLOCKING,
                 tableDataCollectionIds().get(1));
