@@ -69,6 +69,12 @@ public class MongoDbIncrementalSnapshotContext<T> implements IncrementalSnapshot
     protected boolean windowOpened = false;
 
     /**
+     * In-memory only. See {@link io.debezium.pipeline.source.snapshot.incremental.AbstractIncrementalSnapshotContext}
+     * for semantics.
+     */
+    private boolean preFlightOpenedWindow = false;
+
+    /**
      * The last primary key in chunk that is now in process.
      */
     private Object[] chunkEndPosition;
@@ -361,6 +367,23 @@ public class MongoDbIncrementalSnapshotContext<T> implements IncrementalSnapshot
     public void startNewChunk() {
         currentChunkId = UUID.randomUUID().toString();
         LOGGER.debug("Starting new chunk with id '{}'", currentChunkId);
+    }
+
+    @Override
+    public void resetChunkId() {
+        currentChunkId = null;
+    }
+
+    @Override
+    public void markPreFlightOpenedWindow() {
+        preFlightOpenedWindow = true;
+    }
+
+    @Override
+    public boolean consumePreFlightOpenedWindow() {
+        boolean wasSet = preFlightOpenedWindow;
+        preFlightOpenedWindow = false;
+        return wasSet;
     }
 
     public String currentChunkId() {
