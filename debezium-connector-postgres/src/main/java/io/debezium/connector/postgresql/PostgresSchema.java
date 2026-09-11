@@ -85,15 +85,67 @@ public class PostgresSchema extends RelationalDatabaseSchema {
     protected PostgresSchema refresh(PostgresConnection connection, boolean printReplicaIdentityInfo) throws SQLException {
         // read all the information from the DB
         connection.readSchema(tables(), null, null, getTableFilter(), null, true);
-        if (printReplicaIdentityInfo) {
-            // print out all the replica identity info
-            tableIds().forEach(tableId -> printReplicaIdentityInfo(connection, tableId));
+
+        // Check for interruption before expensive per-table operations
+        if (Thread.currentThread().isInterrupted()) {
+            throw new SQLException("Schema refresh interrupted before replica identity check");
         }
+
+        if (printReplicaIdentityInfo) {
+            // print out all the replica identity info with interruption checks
+            int processed = 0;
+            int totalTables = tableIds().size();
+            int checkInterval = Math.max(1, totalTables / 100); // Check every 1% of tables
+
+            for (TableId tableId : tableIds()) {
+                // Check interruption periodically (every 1% of tables or every table if <100 tables)
+                /*if (processed % checkInterval == 0) {
+                    if (Thread.currentThread().isInterrupted()) {
+                        LOGGER.warn("Schema refresh interrupted after processing {} of {} tables (replica identity)",
+                                processed, totalTables);
+                        throw new SQLException("Schema refresh interrupted during replica identity check");
+                    }
+                }*/
+                // TEMPORARY (test only): slow down per-table work to simulate 25K-table load.
+                // Mimics JDBC executeQuery() blocking on socket I/O — does NOT respond to Thread.interrupt().
+                long deadline = System.nanoTime() + 50_000_000L; // 50ms per table
+                while (System.nanoTime() < deadline) {
+                    for (int k = 0; k < 1000; k++) {
+                        Math.sqrt(k);
+                    }
+                }
+                printReplicaIdentityInfo(connection, tableId);
+                processed++;
+            }
+        }
+
         // and then refresh the schemas
         refreshSchemas();
+
+//        // Check for interruption before toastable columns
+//        if (Thread.currentThread().isInterrupted()) {
+//            throw new SQLException("Schema refresh interrupted before toastable columns check");
+//        }
+
         if (readToastableColumns) {
-            tableIds().forEach(tableId -> refreshToastableColumnsMap(connection, tableId));
+            int processed = 0;
+            int totalTables = tableIds().size();
+            int checkInterval = Math.max(1, totalTables / 100); // Check every 1% of tables
+
+            for (TableId tableId : tableIds()) {
+                // Check interruption periodically
+                /*if (processed % checkInterval == 0) {
+                    if (Thread.currentThread().isInterrupted()) {
+                        LOGGER.warn("Schema refresh interrupted after processing {} of {} tables (toastable columns)",
+                                processed, totalTables);
+                        throw new SQLException("Schema refresh interrupted during toastable columns check");
+                    }
+                }*/
+                refreshToastableColumnsMap(connection, tableId);
+                processed++;
+            }
         }
+
         return this;
     }
 
