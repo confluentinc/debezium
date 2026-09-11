@@ -1007,6 +1007,39 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
             .withDescription("Frequency for sending replication connection status updates to the server, given in milliseconds. Defaults to 10 seconds (10,000 ms).")
             .withValidation(Field::isPositiveInteger);
 
+    public static final Field CONNECTION_LIVENESS_PROBE_ENABLED = Field.create("connection.liveness.probe.enabled")
+            .withDisplayName("Enable connection liveness probe")
+            .withType(Type.BOOLEAN)
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTION_ADVANCED, 30))
+            .withDefault(true)
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.MEDIUM)
+            .withDescription(
+                    "Run a dedicated background liveness probe (SELECT 1) on its own connection to detect a dropped/black-holed database connection and fail the task for a fast restart, instead of waiting for the OS TCP timeout. Enabled by default.")
+            .withValidation(Field::isBoolean);
+
+    public static final Field CONNECTION_LIVENESS_PROBE_TIMEOUT_MS = Field.create("connection.liveness.probe.timeout.ms")
+            .withDisplayName("Connection liveness probe timeout (ms)")
+            .withType(Type.INT)
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTION_ADVANCED, 31))
+            .withDefault(5_000)
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.MEDIUM)
+            .withDescription(
+                    "Socket read timeout, in milliseconds, applied to the liveness probe's SELECT 1. A probe that does not complete within this time counts as one failure. Defaults to 5 seconds (5,000 ms).")
+            .withValidation(Field::isPositiveInteger);
+
+    public static final Field CONNECTION_LIVENESS_PROBE_FAILURE_THRESHOLD = Field.create("connection.liveness.probe.failure.threshold")
+            .withDisplayName("Connection liveness probe failure threshold")
+            .withType(Type.INT)
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTION_ADVANCED, 32))
+            .withDefault(3)
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.MEDIUM)
+            .withDescription(
+                    "Number of consecutive liveness probe failures required before the connection is treated as dead and the task is failed for a fast restart. A single transient failure does not trigger a restart. Defaults to 3.")
+            .withValidation(Field::isPositiveInteger);
+
     public static final Field LSN_FLUSH_TIMEOUT_MS = Field.create("lsn.flush.timeout.ms")
             .withDisplayName("LSN flush timeout (ms)")
             .withType(Type.LONG)
@@ -1302,6 +1335,18 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
         return Duration.ofMillis(getConfig().getLong(PostgresConnectorConfig.STATUS_UPDATE_INTERVAL_MS));
     }
 
+    public boolean isConnectionLivenessProbeEnabled() {
+        return getConfig().getBoolean(CONNECTION_LIVENESS_PROBE_ENABLED);
+    }
+
+    public int connectionLivenessProbeTimeoutMs() {
+        return getConfig().getInteger(CONNECTION_LIVENESS_PROBE_TIMEOUT_MS);
+    }
+
+    public int connectionLivenessProbeFailureThreshold() {
+        return getConfig().getInteger(CONNECTION_LIVENESS_PROBE_FAILURE_THRESHOLD);
+    }
+
     protected Duration lsnFlushTimeout() {
         return Duration.ofMillis(getConfig().getLong(PostgresConnectorConfig.LSN_FLUSH_TIMEOUT_MS));
     }
@@ -1420,6 +1465,9 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
                     LSN_FLUSH_TIMEOUT_MS,
                     LSN_FLUSH_TIMEOUT_ACTION,
                     TCP_KEEPALIVE,
+                    CONNECTION_LIVENESS_PROBE_ENABLED,
+                    CONNECTION_LIVENESS_PROBE_TIMEOUT_MS,
+                    CONNECTION_LIVENESS_PROBE_FAILURE_THRESHOLD,
                     XMIN_FETCH_INTERVAL,
                     // Use this connector's implementation rather than common connector's flavor
                     SKIPPED_OPERATIONS,
