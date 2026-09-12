@@ -105,12 +105,10 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
             result.put(SourceInfo.MSG_TYPE_KEY, sourceInfo.messageType().toString());
         }
         if (epoch != null) {
+            // Only the epoch is stamped here. snapshot_completed is written above while a snapshot is in
+            // progress; once postSnapshotCompletion() clears `snapshot` neither key is written, and a restart
+            // correctly reads that as "no initial snapshot running".
             result.put(SnapshotCoordinationFacade.EPOCH, epoch);
-            // this is not needed as it is already populated in the previous `if (getSnapshot().isPresent())` block
-            // note that in the constructor snapshot is cleared in postSnapshotCompletion() method call
-            // but that only happens when the snapshot is completed,
-            // in that case we wouldn't need to pass down the snapshot_complete marker again
-            // result.put(SNAPSHOT_COMPLETED_KEY, snapshotCompleted);
         }
         return sourceInfo.isSnapshot() ? result : incrementalSnapshotContext.store(transactionContext.store(result));
     }
