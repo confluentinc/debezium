@@ -12,17 +12,14 @@ import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.debezium.DebeziumException;
 import io.debezium.jdbc.JdbcConnection;
 import io.debezium.pipeline.signal.channels.SourceSignalChannel;
-import io.debezium.relational.RelationalDatabaseConnectorConfig.SignalDataCollectionValidationAction;
 import io.debezium.relational.Tables.ColumnNameFilter;
 import io.debezium.util.Strings;
 
 /**
  * Validates {@code signal.data.collection} once the task has started, turning silent streaming-time failures
- * (missing table, wrong FQN shape, wrong column count) into a WARN log or a task-failing {@link DebeziumException},
- * gated by the internal {@code .validation.enabled}/{@code .action} configs. Runs at task start - rather than at
+ * (missing table, wrong FQN shape, wrong column count) into a WARN log. Runs at task start - rather than at
  * connector config-validation time - so the resulting WARN carries the task's MDC connector context and is visible
  * through the same log channels (UI, {@code confluent connect logs}) customers already use.
  *
@@ -39,13 +36,9 @@ public class SignalDataCollectionValidator {
     }
 
     /**
-     * No-op unless enabled, streaming-capable, {@code signal.data.collection} is set, and the source channel is on;
-     * throws to fail the task only when {@code action=FAIL}, otherwise just warns.
+     * No-op unless streaming-capable, {@code signal.data.collection} is set, and the source channel is on.
      */
     public static void validate(JdbcConnection connection, RelationalDatabaseConnectorConfig connectorConfig) {
-        if (!connectorConfig.isSignalDataCollectionValidationEnabled()) {
-            return;
-        }
         if (INITIAL_ONLY_SNAPSHOT_MODE.equals(connectorConfig.getSnapshotMode().getValue())) {
             return;
         }
@@ -64,13 +57,8 @@ public class SignalDataCollectionValidator {
             return;
         }
 
-        if (problem == null) {
-            return;
-        }
-
-        LOGGER.warn("{} {}", LOG_PREFIX, problem);
-        if (connectorConfig.getSignalDataCollectionValidationAction() == SignalDataCollectionValidationAction.FAIL) {
-            throw new DebeziumException(problem);
+        if (problem != null) {
+            LOGGER.warn("{} {}", LOG_PREFIX, problem);
         }
     }
 
