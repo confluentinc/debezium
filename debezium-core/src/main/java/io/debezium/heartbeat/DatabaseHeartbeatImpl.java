@@ -5,8 +5,6 @@
  */
 package io.debezium.heartbeat;
 
-import static io.debezium.util.Loggings.maybeRedactSensitiveData;
-
 import java.sql.SQLException;
 import java.time.Duration;
 import java.util.Map;
@@ -20,6 +18,8 @@ import io.debezium.config.Field;
 import io.debezium.function.BlockingConsumer;
 import io.debezium.jdbc.JdbcConnection;
 import io.debezium.schema.SchemaNameAdjuster;
+
+import static io.debezium.util.Loggings.maybeRedactSensitiveData;
 
 /**
  *  Implementation of the heartbeat feature that allows for a DB query to be executed with every heartbeat.
