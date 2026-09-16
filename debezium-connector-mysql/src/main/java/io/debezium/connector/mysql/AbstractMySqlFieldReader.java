@@ -46,7 +46,8 @@ public abstract class AbstractMySqlFieldReader implements MySqlFieldReader {
                 return readDateField(rs, columnIndex, column, table);
             }
             catch (RuntimeException e) {
-                logger.warn("Failed to read date value: '{}'. Trying default ResultSet implementation.", e.getMessage());
+                // Do not log e.getMessage(): the value-converter exception echoes the raw DATE column value.
+                logger.warn("Failed to read date value, trying default ResultSet implementation. Cause: {}", e.getClass().getName());
                 // If our field reader failed, let's try JDBC as the last resort.
                 // Workaround for DBZ-5084.
                 return rs.getObject(columnIndex);
@@ -61,7 +62,8 @@ public abstract class AbstractMySqlFieldReader implements MySqlFieldReader {
                 return readTimestampField(rs, columnIndex, column, table);
             }
             catch (RuntimeException e) {
-                logger.warn("Failed to read timestamp value: '{}'. Trying default ResultSet implementation.", e.getMessage());
+                // Do not log e.getMessage(): the value-converter exception echoes the raw TIMESTAMP column value.
+                logger.warn("Failed to read timestamp value, trying default ResultSet implementation. Cause: {}", e.getClass().getName());
                 // If our field reader failed, let's try JDBC as the last resort.
                 // Workaround for DBZ-5084.
                 return rs.getObject(columnIndex);

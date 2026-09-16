@@ -440,7 +440,9 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
                         eventHeader.getNextPosition(),
                         offsetContext.getSource().binlogFilename());
 
-                throw new RuntimeException(data.getCause());
+                // Drop the raw deserialization cause: it operates on record bytes and cannot be
+                // proven free of customer data. The event position is already logged above.
+                throw new RuntimeException("Failed to deserialize binlog event, see preceding log for the event position");
             }
             else if (eventDeserializationFailureHandlingMode == EventProcessingFailureHandlingMode.WARN) {
                 LOGGER.warn(
@@ -559,7 +561,8 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
             return;
         }
         if (upperCasedStatementBegin.equals("INSERT ") || upperCasedStatementBegin.equals("UPDATE ") || upperCasedStatementBegin.equals("DELETE ")) {
-            LOGGER.warn("Received DML '" + sql + "' for processing, binlog probably contains events generated with statement or mixed based replication format");
+            // Do not log the raw DML statement: it contains row column values in statement/mixed binlog format.
+            LOGGER.warn("Received DML for processing, binlog probably contains events generated with statement or mixed based replication format");
             return;
         }
         if (sql.equalsIgnoreCase("ROLLBACK")) {
@@ -642,20 +645,22 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
             EventHeaderV4 eventHeader = event.getHeader();
 
             if (inconsistentSchemaHandlingMode == EventProcessingFailureHandlingMode.FAIL) {
+                // Do not log the change event object: its toString() includes row column values.
                 LOGGER.error(
-                        "Encountered change event '{}' at offset {} for table {} whose schema isn't known to this connector. One possible cause is an incomplete database history topic. Take a new snapshot in this case.{}"
+                        "Encountered change event at offset {} for table {} whose schema isn't known to this connector. One possible cause is an incomplete database history topic. Take a new snapshot in this case.{}"
                                 + "Use the mysqlbinlog tool to view the problematic event: mysqlbinlog --start-position={} --stop-position={} --verbose {}",
-                        event, offsetContext.getOffset(), tableId, System.lineSeparator(), eventHeader.getPosition(),
+                        offsetContext.getOffset(), tableId, System.lineSeparator(), eventHeader.getPosition(),
                         eventHeader.getNextPosition(), offsetContext.getSource().binlogFilename());
                 throw new DebeziumException("Encountered change event for table " + tableId
                         + " whose schema isn't known to this connector");
             }
             else if (inconsistentSchemaHandlingMode == EventProcessingFailureHandlingMode.WARN) {
+                // Do not log the change event object: its toString() includes row column values.
                 LOGGER.warn(
-                        "Encountered change event '{}' at offset {} for table {} whose schema isn't known to this connector. One possible cause is an incomplete database history topic. Take a new snapshot in this case.{}"
+                        "Encountered change event at offset {} for table {} whose schema isn't known to this connector. One possible cause is an incomplete database history topic. Take a new snapshot in this case.{}"
                                 + "The event will be ignored.{}"
                                 + "Use the mysqlbinlog tool to view the problematic event: mysqlbinlog --start-position={} --stop-position={} --verbose {}",
-                        event, offsetContext.getOffset(), tableId, System.lineSeparator(), System.lineSeparator(),
+                        offsetContext.getOffset(), tableId, System.lineSeparator(), System.lineSeparator(),
                         eventHeader.getPosition(), eventHeader.getNextPosition(), offsetContext.getSource().binlogFilename());
             }
             else {
@@ -740,7 +745,8 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
             throws InterruptedException {
         if (skipEvent) {
             // We can skip this because we should already be at least this far ...
-            LOGGER.info("Skipping previously processed row event: {}", event);
+            // Do not log the event object: its toString() includes row column values.
+            LOGGER.info("Skipping previously processed row event of type {}", event.getHeader().getEventType());
             return;
         }
         if (ignoreDmlEventByGtidSource) {
@@ -1182,6 +1188,11 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
      */
     protected DebeziumException wrap(Throwable error) {
         assert error != null;
+        if (error instanceof EventDataDeserializationException) {
+            // The deserialization exception operates on raw record bytes; neither its message nor its
+            // cause chain can be proven free of customer data, so surface a fixed message only.
+            return new DebeziumException("Failed to deserialize a binlog event");
+        }
         String msg = error.getMessage();
         if (error instanceof ServerException) {
             ServerException e = (ServerException) error;
@@ -1247,7 +1258,8 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
                 errorHandler.setProducerThrowable(wrap(ex));
             }
             else if (eventDeserializationFailureHandlingMode == EventProcessingFailureHandlingMode.WARN) {
-                LOGGER.warn("A deserialization failure event arrived", ex);
+                // Do not log the raw deserialization exception at WARN: it operates on record bytes.
+                LOGGER.warn("A deserialization failure event arrived, enable DEBUG logging to see the exception detail");
                 logStreamingSourceState(Level.WARN);
             }
             else {

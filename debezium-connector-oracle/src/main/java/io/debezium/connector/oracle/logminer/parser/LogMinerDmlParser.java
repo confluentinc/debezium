@@ -77,7 +77,8 @@ public class LogMinerDmlParser implements DmlParser {
                     return parseDelete(sql, table);
             }
         }
-        throw new DmlParserException("Unknown supported SQL '" + sql + "'");
+        // Do not append the redo SQL: it contains customer column values.
+        throw new DmlParserException("Unknown supported SQL statement");
     }
 
     /**
@@ -106,7 +107,9 @@ public class LogMinerDmlParser implements DmlParser {
             return LogMinerDmlEntryImpl.forInsert(newValues);
         }
         catch (Exception e) {
-            throw new DmlParserException("Failed to parse insert DML: '" + sql + "'", e);
+            // Do not append the redo SQL nor chain e: a parse exception (e.g. NumberFormatException)
+            // can echo a column value. Report the exception class only.
+            throw new DmlParserException("Failed to parse insert DML (" + e.getClass().getName() + ")");
         }
     }
 
@@ -152,7 +155,9 @@ public class LogMinerDmlParser implements DmlParser {
             return LogMinerDmlEntryImpl.forUpdate(newValues, oldValues);
         }
         catch (Exception e) {
-            throw new DmlParserException("Failed to parse update DML: '" + sql + "'", e);
+            // Do not append the redo SQL nor chain e: a parse exception (e.g. NumberFormatException)
+            // can echo a column value. Report the exception class only.
+            throw new DmlParserException("Failed to parse update DML (" + e.getClass().getName() + ")");
         }
     }
 
@@ -181,7 +186,9 @@ public class LogMinerDmlParser implements DmlParser {
             return LogMinerDmlEntryImpl.forDelete(oldValues);
         }
         catch (Exception e) {
-            throw new DmlParserException("Failed to parse delete DML: '" + sql + "'", e);
+            // Do not append the redo SQL nor chain e: a parse exception (e.g. NumberFormatException)
+            // can echo a column value. Report the exception class only.
+            throw new DmlParserException("Failed to parse delete DML (" + e.getClass().getName() + ")");
         }
     }
 
@@ -264,7 +271,8 @@ public class LogMinerDmlParser implements DmlParser {
 
         // verify entering values-clause
         if (sql.indexOf(VALUES, index) != index) {
-            throw new DebeziumException("Failed to parse DML: " + sql);
+            // Do not append the redo SQL: it contains customer column values.
+            throw new DebeziumException("Failed to parse DML");
         }
         index += VALUES_LENGTH;
 
@@ -354,7 +362,8 @@ public class LogMinerDmlParser implements DmlParser {
         // verify entering set-clause
         int set = sql.indexOf(SET, start);
         if (set == -1) {
-            throw new DebeziumException("Failed to parse DML: " + sql);
+            // Do not append the redo SQL: it contains customer column values.
+            throw new DebeziumException("Failed to parse DML");
         }
         else if (set != start) {
             // find table alias
@@ -523,7 +532,8 @@ public class LogMinerDmlParser implements DmlParser {
         // verify entering where-clause
         int where = sql.indexOf(WHERE, start);
         if (where == -1) {
-            throw new DebeziumException("Failed to parse DML: " + sql);
+            // Do not append the redo SQL: it contains customer column values.
+            throw new DebeziumException("Failed to parse DML");
         }
         else if (where != start) {
             // find table alias
