@@ -66,7 +66,7 @@ public class MicroTime {
         if (value instanceof Duration) {
             Duration duration = (Duration) value;
             if (!acceptLargeValues && (duration.isNegative() || duration.compareTo(ONE_DAY) > 0)) {
-                // Do not append the duration value: it is customer column data.
+                // Raw value omitted: it is customer column data (see Time for the same policy).
                 throw new IllegalArgumentException("Time values must be between 00:00:00 and 24:00:00 (inclusive)");
             }
 

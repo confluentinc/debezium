@@ -93,7 +93,7 @@ public class ZonedTimestamp {
         if (value instanceof java.util.Date) { // or JDBC subtypes
             return toIsoString((java.util.Date) value, defaultZone, adjuster);
         }
-        // Do not interpolate the value: it is customer column data. The type is enough.
+        // Raw value omitted: it is customer column data (see Conversions for the same policy).
         throw new IllegalArgumentException(
                 "Unable to convert to OffsetDateTime from unexpected value of type " + value.getClass().getName());
     }

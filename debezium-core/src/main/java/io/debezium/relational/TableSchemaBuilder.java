@@ -227,9 +227,11 @@ public class TableSchemaBuilder {
                         }
                         catch (DataException e) {
                             Column col = columns.get(i);
-                            // Do not log the row: it holds all column values. Log the column name/type only.
-                            LOGGER.error("Failed to properly convert key value for '{}.{}' of type {}:",
-                                    columnSetName, col.name(), col.typeName(), e);
+                            // Do not log the row or attach 'e': the row holds all column values, and the
+                            // exception message/stack trace can echo the failing column's raw value. The
+                            // exception class name alone is safe and kept for debuggability.
+                            LOGGER.error("Failed to properly convert key value for '{}.{}' of type {}. Cause: {}",
+                                    columnSetName, col.name(), col.typeName(), e.getClass().getName());
                         }
                     }
                 }
@@ -300,15 +302,19 @@ public class TableSchemaBuilder {
                         }
                         catch (DataException | IllegalArgumentException e) {
                             Column col = columns.get(i);
-                            // Do not log the row: it holds all column values. Log the column name/type only.
-                            LOGGER.error("Failed to properly convert data value for '{}.{}' of type {}:",
-                                    tableId, col.name(), col.typeName(), e);
+                            // Do not log the row or attach 'e': the row holds all column values, and the
+                            // exception message/stack trace can echo the failing column's raw value. The
+                            // exception class name alone is safe and kept for debuggability.
+                            LOGGER.error("Failed to properly convert data value for '{}.{}' of type {}. Cause: {}",
+                                    tableId, col.name(), col.typeName(), e.getClass().getName());
                         }
                         catch (final Exception e) {
                             Column col = columns.get(i);
-                            // Do not log the row: it holds all column values. Log the column name/type only.
-                            LOGGER.error("Failed to properly convert data value for '{}.{}' of type {}:",
-                                    tableId, col.name(), col.typeName(), e);
+                            // Do not log the row or attach 'e': the row holds all column values, and the
+                            // exception message/stack trace can echo the failing column's raw value. The
+                            // exception class name alone is safe and kept for debuggability.
+                            LOGGER.error("Failed to properly convert data value for '{}.{}' of type {}. Cause: {}",
+                                    tableId, col.name(), col.typeName(), e.getClass().getName());
                         }
                     }
                 }

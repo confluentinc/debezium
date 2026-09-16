@@ -368,8 +368,10 @@ public class MySqlValueConverters extends JdbcValueConverters {
                         r.deliver(JsonBinary.parseAsString((byte[]) data));
                     }
                     catch (IOException e) {
-                        // Do not include the raw JSON column bytes in the message: they are customer data.
-                        parsingErrorHandler.error("Failed to parse and read a JSON value on '" + column + "'", e);
+                        // Do not include the raw JSON column bytes in the message, and do not pass 'e' as
+                        // the cause: the parse exception's own message can echo the malformed JSON bytes
+                        // (customer data), which would re-leak once the wrapping exception is logged.
+                        parsingErrorHandler.error("Failed to parse and read a JSON value on '" + column + "'", null);
                         r.deliver(column.isOptional() ? null : "{}");
                     }
                 }
