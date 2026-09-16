@@ -174,7 +174,9 @@ public class TransactionCommitConsumer implements AutoCloseable, BlockingConsume
             lob.add(new LobFragment(event));
         }
         catch (final DebeziumException exception) {
-            LOGGER.warn("\tInvalid LOB manipulation event: {} ; ignoring {} {}", exception, event.getEventType(), event);
+            // Do not log the whole event (LobWriteEvent.toString includes the LOB data) nor the raw
+            // exception (its message can echo the same LOB/column data). Log only the exception class.
+            LOGGER.warn("\tInvalid LOB manipulation event: {} ; ignoring {} {}", exception.getClass().getName(), event.getEventType(), event.getTableId());
         }
     }
 
@@ -326,7 +328,8 @@ public class TransactionCommitConsumer implements AutoCloseable, BlockingConsume
                     this.bytes = RAW.hexString2Bytes(data.substring(10, data.length() - 2));
                 }
                 catch (SQLException e) {
-                    throw new DebeziumException("malformed hex string in LogMiner event BLOB value", e);
+                    // Do not attach the SQLException cause: the hex-parse error can echo the malformed customer LOB value.
+                    throw new DebeziumException("malformed hex string in LogMiner event BLOB value");
                 }
             }
             else {

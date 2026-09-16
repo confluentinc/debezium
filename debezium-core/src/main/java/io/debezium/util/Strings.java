@@ -715,7 +715,8 @@ public final class Strings {
         Matcher matcher = TIME_PATTERN.matcher(timeString);
 
         if (!matcher.matches()) {
-            throw new RuntimeException("Unexpected format for TIME column: " + timeString);
+            // Do not append the value: it is customer column data that propagates into logs.
+            throw new RuntimeException("Unexpected format for TIME column");
         }
 
         long hours = Long.parseLong(matcher.group(1));

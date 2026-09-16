@@ -129,7 +129,8 @@ public class KafkaSignalThread<T extends DataCollectionId> {
                     return;
                 }
                 catch (final Exception e) {
-                    LOGGER.error("Skipped signal due to an error", e);
+                    // Do not log the raw exception: a parse failure can echo the signal record value (customer data).
+                    LOGGER.error("Skipped signal due to an error: {}", e.getClass().getName());
                 }
             }
         }

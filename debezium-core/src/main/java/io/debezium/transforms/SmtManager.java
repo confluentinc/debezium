@@ -66,7 +66,9 @@ public class SmtManager<R extends ConnectRecord<R>> {
         for (Map.Entry<String, ConfigValue> entry : validations.entrySet()) {
             if (!entry.getValue().errorMessages().isEmpty()) {
                 final ConfigValue value = entry.getValue();
-                throw new ConfigException(value.name(), value.value(), value.errorMessages().get(0));
+                // Do not embed the raw config value: this exception surfaces in the /validate REST
+                // response. Report the field name and the validation error only.
+                throw new ConfigException("Invalid value for configuration " + value.name() + ": " + value.errorMessages().get(0));
             }
         }
     }

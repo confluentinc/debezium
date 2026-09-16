@@ -112,15 +112,18 @@ public class MemoryLogMinerEventProcessor extends AbstractLogMinerEventProcessor
                         }
                     }
                 }
-                LOGGER.warn("Cannot undo change '{}' since event with row-id {} was not found.", row, row.getRowId());
+                // Do not log the whole row: its toString includes the redo SQL (customer data).
+                LOGGER.warn("Cannot undo change '{}' since event with row-id {} was not found.", row.getTableId(), row.getRowId());
             }
             else if (!getConfig().isLobEnabled()) {
-                LOGGER.warn("Cannot undo change '{}' since transaction was not found.", row);
+                // Do not log the whole row: its toString includes the redo SQL (customer data).
+                LOGGER.warn("Cannot undo change '{}' since transaction was not found.", row.getRowId());
             }
         }
         else {
             if (!transaction.removeEventWithRowId(row.getRowId())) {
-                LOGGER.warn("Cannot undo change '{}' since event with row-id {} was not found.", row, row.getRowId());
+                // Do not log the whole row: its toString includes the redo SQL (customer data).
+                LOGGER.warn("Cannot undo change '{}' since event with row-id {} was not found.", row.getTableId(), row.getRowId());
             }
         }
     }

@@ -109,11 +109,15 @@ public class Jsr223Engine implements Engine {
                 return (T) result;
             }
             else {
-                throw new DebeziumException("Value '" + result + "' returned by the expression is not a " + type.getSimpleName());
+                // Do not interpolate the result value: it may be record-derived. Report the types only.
+                throw new DebeziumException("Value returned by the expression is not a " + type.getSimpleName()
+                        + " but a " + result.getClass().getSimpleName());
             }
         }
         catch (Exception e) {
-            throw new DebeziumException("Error while evaluating expression '" + expression + "' for record '" + record + "'", e);
+            // Do not interpolate the whole record: it holds customer data. Use its coordinates only.
+            throw new DebeziumException("Error while evaluating expression '" + expression + "' for record at topic '"
+                    + record.topic() + "' partition " + record.kafkaPartition(), e);
         }
     }
 }
