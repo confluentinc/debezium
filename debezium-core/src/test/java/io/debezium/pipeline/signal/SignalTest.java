@@ -41,9 +41,7 @@ public class SignalTest {
         final Signal<TestPartition> signal = new Signal<>(config());
         final LogInterceptor log = new LogInterceptor(io.debezium.pipeline.signal.Log.class);
         assertThat(signal.process(new TestPartition(), "log1", "log", "{\"message\": \"signallog {}\"}")).isTrue();
-        // The signal message is now logged as a data argument (not as the format string) and the offset
-        // is no longer interpolated, so the logged output is the message verbatim.
-        assertThat(log.containsMessage("signallog {}")).isTrue();
+        assertThat(log.containsMessage("signallog <none>")).isTrue();
     }
 
     @Test

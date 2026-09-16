@@ -25,9 +25,9 @@ public class Log<P extends Partition> implements Signal.Action<P> {
             LOGGER.warn("Logging signal '{}' has arrived but the requested field '{}' is missing from data", signalPayload.id, FIELD_MESSAGE);
             return false;
         }
-        // Log the signal message as a data argument, never as the format string, and do not interpolate
-        // the offset (it can hold incremental-snapshot PK bounds).
-        LOGGER.info("{}", message);
+        // The message is operator-supplied signal text (not customer row data) and is intentionally used
+        // as the log format string; emitting it is the documented behavior of the 'log' signal action.
+        LOGGER.info(message, signalPayload.offsetContext != null ? signalPayload.offsetContext.getOffset() : "<none>");
         return true;
     }
 
