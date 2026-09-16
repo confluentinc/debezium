@@ -1271,6 +1271,27 @@ public final class Field {
         return errors;
     }
 
+    // Regex validator enforced both at task time (Validator) and at connector-creation time (ConfigDef.Validator).
+    public static class RegexValidator implements Validator, ConfigDef.Validator {
+        @Override
+        public int validate(Configuration config, Field field, ValidationOutput problems) {
+            return isRegex(config, field, problems);
+        }
+
+        @Override
+        public void ensureValid(String name, Object value) {
+            if (value == null) {
+                return;
+            }
+            try {
+                Pattern.compile(value.toString());
+            }
+            catch (PatternSyntaxException e) {
+                throw new ConfigException(name, value, "A valid regular expressions is expected, but " + e.getMessage());
+            }
+        }
+    }
+
     public static int isClassName(Configuration config, Field field, ValidationOutput problems) {
         String value = config.getString(field);
         if (value == null || SourceVersion.isName(value)) {
