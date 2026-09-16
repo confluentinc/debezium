@@ -133,9 +133,9 @@ public class MongoDbIncrementalSnapshotContext<T> implements IncrementalSnapshot
             return (Object[]) ois.readObject();
         }
         catch (Exception e) {
-            // Do not append the serialized chunk position value: it is customer data.
-            throw new DebeziumException(String.format("Failed to deserialize '%s'", field),
-                    e);
+            // Do not append the serialized value nor chain e (its message can echo it): it is
+            // customer data. Report the field name and exception class only.
+            throw new DebeziumException(String.format("Failed to deserialize '%s' (%s)", field, e.getClass().getName()));
         }
     }
 
