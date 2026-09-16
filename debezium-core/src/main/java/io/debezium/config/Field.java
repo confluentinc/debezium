@@ -1293,11 +1293,10 @@ public final class Field {
 
         @Override
         public void ensureValid(String name, Object value) {
+            // Create-time only validates the regex when a value is present; required-ness is enforced at task time
+            // (validate) so we do not reject the null value Connect passes during its config-validation pass.
             String regex = value == null ? null : value.toString();
             if (regex == null || regex.isEmpty()) {
-                if (required) {
-                    throw new ConfigException(name, value, "A value is required");
-                }
                 return;
             }
             try {
