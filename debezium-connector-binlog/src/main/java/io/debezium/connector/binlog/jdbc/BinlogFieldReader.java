@@ -58,7 +58,9 @@ public abstract class BinlogFieldReader {
                     return readDateField(rs, columnIndex, column, table);
                 }
                 catch (RuntimeException e) {
-                    LOGGER.warn("Failed to read data value: '{}'. Trying default implementation.", e.getMessage());
+                    // Do not log e.getMessage(): the DateTimeException from an out-of-range DATE read
+                    // echoes the raw column value, which is customer row data. Log the coordinates only.
+                    LOGGER.warn("Failed to read data value for column '{}' in table '{}'. Trying default implementation.", column.name(), table.id());
                     // Workaround for DBZ-5084
                     return rs.getObject(columnIndex);
                 }
@@ -72,7 +74,9 @@ public abstract class BinlogFieldReader {
                     return readTimestampField(rs, columnIndex, column, table);
                 }
                 catch (RuntimeException e) {
-                    LOGGER.warn("Failed to read data value: '{}'. Trying default implementation.", e.getMessage());
+                    // Do not log e.getMessage(): the DateTimeException from an out-of-range DATETIME/TIMESTAMP
+                    // read echoes the raw column value, which is customer row data. Log the coordinates only.
+                    LOGGER.warn("Failed to read data value for column '{}' in table '{}'. Trying default implementation.", column.name(), table.id());
                     // Workaround for DBZ-5084
                     return rs.getObject(columnIndex);
                 }

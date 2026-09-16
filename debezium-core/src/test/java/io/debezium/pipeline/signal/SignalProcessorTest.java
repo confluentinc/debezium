@@ -22,6 +22,8 @@ import org.awaitility.Awaitility;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.fasterxml.jackson.core.JsonParseException;
+
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.config.EnumeratedValue;
@@ -170,6 +172,11 @@ public class SignalProcessorTest {
                         () -> assertThat(log.containsMessage("Signal 'log1' has been received but the data cannot be parsed")).isTrue());
 
         signalProcess.stop();
+
+        // The parse exception must not be attached to the log record: its message/stack trace can echo
+        // the unparseable signal data (customer content). Only the exception class name is safe to report.
+        assertThat(log.containsMessage("Signal 'log1' has been received but the data cannot be parsed (JsonParseException)")).isTrue();
+        assertThat(log.containsThrowableWithCause(JsonParseException.class)).isFalse();
     }
 
     @Test

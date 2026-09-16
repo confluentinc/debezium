@@ -22,6 +22,8 @@ import org.apache.kafka.connect.source.SourceRecord;
 import org.junit.Before;
 import org.junit.Test;
 
+import ch.qos.logback.classic.Level;
+
 import io.debezium.config.CommonConnectorConfig.EventConvertingFailureHandlingMode;
 import io.debezium.config.Configuration;
 import io.debezium.data.VerifyRecord;
@@ -707,6 +709,9 @@ public class TableSchemaBuilderTest {
         }
 
         assertThat(logInterceptor.containsErrorMessage(errorMessage)).isTrue();
+        // The raw column value ("converting_failed_value") is customer row data and must never reach
+        // the log, regardless of what NumberFormatException.getMessage() would otherwise echo.
+        assertThat(logInterceptor.containsMessage("converting_failed_value")).isFalse();
         logInterceptor.clear();
 
         // error log and exception if eventConvertingFailureHandlingMode is FAIL
@@ -720,7 +725,13 @@ public class TableSchemaBuilderTest {
         }
         catch (Exception e) {
             assertThat(e.getMessage().contains(errorMessage)).isTrue();
+            // Only the exception class name is safe to surface here; its message/cause embed the raw
+            // column value and must not appear in the log or the rethrown exception's message.
+            assertThat(e.getMessage()).contains("(NumberFormatException)");
+            assertThat(e.getMessage()).doesNotContain("converting_failed_value");
+            assertThat(logInterceptor.containsMessage("converting_failed_value")).isFalse();
         }
+        logInterceptor.clear();
 
         // warn log without exception if eventConvertingFailureHandlingMode is WARN
         schema = new TableSchemaBuilder(new JdbcValueConverters(), null, adjuster, customConverterRegistry,
@@ -735,9 +746,11 @@ public class TableSchemaBuilderTest {
         }
 
         assertThat(logInterceptor.containsWarnMessage(errorMessage)).isTrue();
+        assertThat(logInterceptor.containsMessage("converting_failed_value")).isFalse();
         logInterceptor.clear();
 
         // only debug log without exception if eventConvertingFailureHandlingMode is SKIP
+        logInterceptor.setLoggerLevel(TableSchemaBuilder.class, Level.DEBUG);
         schema = new TableSchemaBuilder(new JdbcValueConverters(), null, adjuster, customConverterRegistry,
                 SchemaBuilder.struct().build(), defaultFieldNamer, false, EventConvertingFailureHandlingMode.SKIP)
                 .create(topicNamingStrategy, table, null, null, null);
@@ -751,6 +764,8 @@ public class TableSchemaBuilderTest {
 
         assertThat(logInterceptor.containsErrorMessage(errorMessage)).isFalse();
         assertThat(logInterceptor.containsWarnMessage(errorMessage)).isFalse();
+        // Even at DEBUG, the raw column value must not be logged.
+        assertThat(logInterceptor.containsMessage("converting_failed_value")).isFalse();
         logInterceptor.clear();
     }
 }

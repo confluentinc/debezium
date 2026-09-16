@@ -128,7 +128,10 @@ final class MongoDbChangeEventSink implements ChangeEventSink, AutoCloseable {
                                                final boolean logErrors,
                                                final boolean tolerateErrors) {
         if (e instanceof MongoBulkWriteException) {
-            throw new DataException(e);
+            // Do not propagate the MongoBulkWriteException as the cause: its message embeds the
+            // conflicting document key/value (customer data) and would reach the framework/task-status
+            // ERROR log.
+            throw new DataException("Bulk write into the sink failed with a MongoBulkWriteException");
         }
         else {
             if (logErrors) {
@@ -144,6 +147,8 @@ final class MongoDbChangeEventSink implements ChangeEventSink, AutoCloseable {
     }
 
     private static void log(final Collection<DebeziumSinkRecord> records, final RuntimeException e) {
-        LOGGER.error("Failed to put into the sink the following records: {}", records, e);
+        // Do not log the record collection or the Mongo exception: both carry document key/value data.
+        // Report the batch size and the exception type only; per-record failures go to the error reporter.
+        LOGGER.error("Failed to put {} record(s) into the sink ({})", records.size(), e.getClass().getSimpleName());
     }
 }

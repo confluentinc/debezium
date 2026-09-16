@@ -87,8 +87,10 @@ public abstract class AbstractColumnValue<T> implements ReplicationMessage.Colum
             return new PGbox(asString());
         }
         catch (final SQLException e) {
-            LOGGER.error("Failed to parse point {}, {}", asString(), e);
-            throw new ConnectException(e);
+            // Neither asString() nor the driver SQLException may be logged/propagated: both echo the raw
+            // geometric column value, which is customer row data. Report the driver SQLState only.
+            LOGGER.error("Failed to parse point value (SQLState: {})", e.getSQLState());
+            throw new ConnectException("Failed to parse point value (SQLState: " + e.getSQLState() + ")");
         }
     }
 
@@ -98,8 +100,10 @@ public abstract class AbstractColumnValue<T> implements ReplicationMessage.Colum
             return new PGcircle(asString());
         }
         catch (final SQLException e) {
-            LOGGER.error("Failed to parse circle {}, {}", asString(), e);
-            throw new ConnectException(e);
+            // Neither asString() nor the driver SQLException may be logged/propagated: both echo the raw
+            // geometric column value, which is customer row data. Report the driver SQLState only.
+            LOGGER.error("Failed to parse circle value (SQLState: {})", e.getSQLState());
+            throw new ConnectException("Failed to parse circle value (SQLState: " + e.getSQLState() + ")");
         }
     }
 
@@ -109,8 +113,10 @@ public abstract class AbstractColumnValue<T> implements ReplicationMessage.Colum
             return new PGInterval(asString());
         }
         catch (final SQLException e) {
-            LOGGER.error("Failed to parse point {}, {}", asString(), e);
-            throw new ConnectException(e);
+            // Neither asString() nor the driver SQLException may be logged/propagated: both echo the raw
+            // geometric column value, which is customer row data. Report the driver SQLState only.
+            LOGGER.error("Failed to parse point value (SQLState: {})", e.getSQLState());
+            throw new ConnectException("Failed to parse point value (SQLState: " + e.getSQLState() + ")");
         }
     }
 
@@ -120,8 +126,10 @@ public abstract class AbstractColumnValue<T> implements ReplicationMessage.Colum
             return new PGline(asString());
         }
         catch (final SQLException e) {
-            LOGGER.error("Failed to parse point {}, {}", asString(), e);
-            throw new ConnectException(e);
+            // Neither asString() nor the driver SQLException may be logged/propagated: both echo the raw
+            // geometric column value, which is customer row data. Report the driver SQLState only.
+            LOGGER.error("Failed to parse point value (SQLState: {})", e.getSQLState());
+            throw new ConnectException("Failed to parse point value (SQLState: " + e.getSQLState() + ")");
         }
     }
 
@@ -131,8 +139,10 @@ public abstract class AbstractColumnValue<T> implements ReplicationMessage.Colum
             return new PGlseg(asString());
         }
         catch (final SQLException e) {
-            LOGGER.error("Failed to parse point {}, {}", asString(), e);
-            throw new ConnectException(e);
+            // Neither asString() nor the driver SQLException may be logged/propagated: both echo the raw
+            // geometric column value, which is customer row data. Report the driver SQLState only.
+            LOGGER.error("Failed to parse point value (SQLState: {})", e.getSQLState());
+            throw new ConnectException("Failed to parse point value (SQLState: " + e.getSQLState() + ")");
         }
     }
 
@@ -157,8 +167,10 @@ public abstract class AbstractColumnValue<T> implements ReplicationMessage.Colum
             return new PGpath(asString());
         }
         catch (final SQLException e) {
-            LOGGER.error("Failed to parse point {}, {}", asString(), e);
-            throw new ConnectException(e);
+            // Neither asString() nor the driver SQLException may be logged/propagated: both echo the raw
+            // geometric column value, which is customer row data. Report the driver SQLState only.
+            LOGGER.error("Failed to parse point value (SQLState: {})", e.getSQLState());
+            throw new ConnectException("Failed to parse point value (SQLState: " + e.getSQLState() + ")");
         }
     }
 
@@ -168,8 +180,10 @@ public abstract class AbstractColumnValue<T> implements ReplicationMessage.Colum
             return new PGpoint(asString());
         }
         catch (final SQLException e) {
-            LOGGER.error("Failed to parse point {}, {}", asString(), e);
-            throw new ConnectException(e);
+            // Neither asString() nor the driver SQLException may be logged/propagated: both echo the raw
+            // geometric column value, which is customer row data. Report the driver SQLState only.
+            LOGGER.error("Failed to parse point value (SQLState: {})", e.getSQLState());
+            throw new ConnectException("Failed to parse point value (SQLState: " + e.getSQLState() + ")");
         }
     }
 
@@ -179,8 +193,10 @@ public abstract class AbstractColumnValue<T> implements ReplicationMessage.Colum
             return new PGpolygon(asString());
         }
         catch (final SQLException e) {
-            LOGGER.error("Failed to parse point {}, {}", asString(), e);
-            throw new ConnectException(e);
+            // Neither asString() nor the driver SQLException may be logged/propagated: both echo the raw
+            // geometric column value, which is customer row data. Report the driver SQLState only.
+            LOGGER.error("Failed to parse point value (SQLState: {})", e.getSQLState());
+            throw new ConnectException("Failed to parse point value (SQLState: " + e.getSQLState() + ")");
         }
     }
 
@@ -196,7 +212,9 @@ public abstract class AbstractColumnValue<T> implements ReplicationMessage.Colum
             return new PgArray(connection.get(), type.getOid(), dataString);
         }
         catch (SQLException e) {
-            LOGGER.warn("Unexpected exception trying to process PgArray ({}) column '{}', {}", fullType, columnName, e);
+            // Do not log the driver SQLException: it echoes the raw array literal (customer row data).
+            // The PG type and column name are safe; report the driver SQLState only.
+            LOGGER.warn("Unexpected exception trying to process PgArray ({}) column '{}' (SQLState: {})", fullType, columnName, e.getSQLState());
         }
         return null;
     }

@@ -16,6 +16,9 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Temporal conversion constants.
+ * <p>
+ * Note on the conversion failures below: the {@code obj} value being converted is raw customer row
+ * data, so exception messages in this class report only its type, never the value itself.
  *
  * @author Randall Hauch
  */
@@ -50,7 +53,7 @@ public final class Conversions {
             return ((java.sql.Date) obj).toLocalDate();
         }
         if (obj instanceof java.sql.Time) {
-            throw new IllegalArgumentException("Unable to convert to LocalDate from a java.sql.Time value '" + obj + "'");
+            throw new IllegalArgumentException("Unable to convert to LocalDate from a java.sql.Time value");
         }
         if (obj instanceof java.util.Date) {
             java.util.Date date = (java.util.Date) obj;
@@ -66,7 +69,7 @@ public final class Conversions {
             // Assume the value is the epoch day number
             return LocalDate.ofEpochDay((Integer) obj);
         }
-        throw new IllegalArgumentException("Unable to convert to LocalDate from unexpected value '" + obj + "' of type " + obj.getClass().getName());
+        throw new IllegalArgumentException("Unable to convert to LocalDate from unexpected value of type " + obj.getClass().getName());
     }
 
     @SuppressWarnings("deprecation")
@@ -81,7 +84,7 @@ public final class Conversions {
             return ((LocalDateTime) obj).toLocalTime();
         }
         if (obj instanceof java.sql.Date) {
-            throw new IllegalArgumentException("Unable to convert to LocalDate from a java.sql.Date value '" + obj + "'");
+            throw new IllegalArgumentException("Unable to convert to LocalDate from a java.sql.Date value");
         }
         if (obj instanceof java.sql.Time) {
             java.sql.Time time = (java.sql.Time) obj;
@@ -117,7 +120,7 @@ public final class Conversions {
                 throw new IllegalArgumentException("Time values must use number of milliseconds greater than 0 and less than 86400000000000");
             }
         }
-        throw new IllegalArgumentException("Unable to convert to LocalTime from unexpected value '" + obj + "' of type " + obj.getClass().getName());
+        throw new IllegalArgumentException("Unable to convert to LocalTime from unexpected value of type " + obj.getClass().getName());
     }
 
     @SuppressWarnings("deprecation")
@@ -176,7 +179,7 @@ public final class Conversions {
                     date.getSeconds(),
                     nanosOfSecond);
         }
-        throw new IllegalArgumentException("Unable to convert to LocalTime from unexpected value '" + obj + "' of type " + obj.getClass().getName());
+        throw new IllegalArgumentException("Unable to convert to LocalTime from unexpected value of type " + obj.getClass().getName());
     }
 
     public static long toEpochMicros(Instant instant) {
