@@ -61,8 +61,7 @@ public class ToLogicalTopicRouter<R extends ConnectRecord<R>> implements Transfo
             .withType(ConfigDef.Type.STRING)
             .withWidth(ConfigDef.Width.LONG)
             .withImportance(ConfigDef.Importance.LOW)
-            .required()
-            .withValidation(new Field.RegexValidator())
+            .withValidation(new Field.RegexValidator(true))
             .withDescription("The regex used for extracting the name of the logical destination from the original topic name.");
 
     private static final Field TOPIC_REPLACEMENT = Field.create("topic.replacement")
