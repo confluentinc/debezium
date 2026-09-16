@@ -16,6 +16,9 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Temporal conversion constants.
+ * <p>
+ * Note on the conversion failures below: the {@code obj} value being converted is raw customer row
+ * data, so exception messages in this class report only its type, never the value itself.
  *
  * @author Randall Hauch
  */
@@ -50,7 +53,6 @@ public final class Conversions {
             return ((java.sql.Date) obj).toLocalDate();
         }
         if (obj instanceof java.sql.Time) {
-            // Do not embed the value 'obj': it is the raw column value (customer data).
             throw new IllegalArgumentException("Unable to convert to LocalDate from a java.sql.Time value");
         }
         if (obj instanceof java.util.Date) {
@@ -67,7 +69,6 @@ public final class Conversions {
             // Assume the value is the epoch day number
             return LocalDate.ofEpochDay((Integer) obj);
         }
-        // Do not embed the value 'obj': it is the raw column value (customer data). Keep the type only.
         throw new IllegalArgumentException("Unable to convert to LocalDate from unexpected value of type " + obj.getClass().getName());
     }
 
@@ -83,7 +84,6 @@ public final class Conversions {
             return ((LocalDateTime) obj).toLocalTime();
         }
         if (obj instanceof java.sql.Date) {
-            // Do not embed the value 'obj': it is the raw column value (customer data).
             throw new IllegalArgumentException("Unable to convert to LocalDate from a java.sql.Date value");
         }
         if (obj instanceof java.sql.Time) {
@@ -120,7 +120,6 @@ public final class Conversions {
                 throw new IllegalArgumentException("Time values must use number of milliseconds greater than 0 and less than 86400000000000");
             }
         }
-        // Do not embed the value 'obj': it is the raw column value (customer data). Keep the type only.
         throw new IllegalArgumentException("Unable to convert to LocalTime from unexpected value of type " + obj.getClass().getName());
     }
 
@@ -180,7 +179,6 @@ public final class Conversions {
                     date.getSeconds(),
                     nanosOfSecond);
         }
-        // Do not embed the value 'obj': it is the raw column value (customer data). Keep the type only.
         throw new IllegalArgumentException("Unable to convert to LocalTime from unexpected value of type " + obj.getClass().getName());
     }
 

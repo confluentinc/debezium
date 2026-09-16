@@ -27,10 +27,13 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+
 import io.debezium.connector.AbstractSourceInfo;
 import io.debezium.data.Envelope;
 import io.debezium.data.VerifyRecord;
 import io.debezium.doc.FixFor;
+import io.debezium.junit.logging.LogInterceptor;
 import io.debezium.time.Timestamp;
 
 /**
@@ -1169,6 +1172,38 @@ public class EventRouterTest {
         assertThat(numbers.get(0)).isEqualTo(null);
         assertThat(numbers.get(1)).isEqualTo(2);
         assertThat(numbers.get(2)).isEqualTo(3);
+    }
+
+    @Test
+    public void jsonExpansionFailureDoesNotLogRawPayloadOrException() {
+        final EventRouter<SourceRecord> router = new EventRouter<>();
+        final Map<String, String> config = new HashMap<>();
+        config.put(
+                EventRouterConfigDefinition.EXPAND_JSON_PAYLOAD.name(),
+                "true");
+        router.configure(config);
+
+        // Malformed JSON: Jackson's JsonParseException message echoes the offending token, so the raw
+        // payload fragment ("CUSTOMER-SECRET-VALUE") must never reach the log.
+        final SourceRecord eventRecord = createEventRecord(
+                "da8d6de6-3b77-45ff-8f44-57db55a7a06c",
+                "UserCreated",
+                "10711fa5",
+                "User",
+                "{\"a\": CUSTOMER-SECRET-VALUE}",
+                new HashMap<>(),
+                new HashMap<>());
+
+        final LogInterceptor log = new LogInterceptor(EventRouterDelegate.class);
+
+        final SourceRecord eventRouted = router.apply(eventRecord);
+        assertThat(eventRouted).isNotNull();
+
+        // Only a fixed reason and the exception class name are safe to report; the exception itself
+        // (message and stack trace) must not be attached to the log record.
+        assertThat(log.containsMessage("JSON expansion failed (JsonParseException)")).isTrue();
+        assertThat(log.containsMessage("CUSTOMER-SECRET-VALUE")).isFalse();
+        assertThat(log.containsThrowableWithCause(JsonProcessingException.class)).isFalse();
     }
 
     @Test

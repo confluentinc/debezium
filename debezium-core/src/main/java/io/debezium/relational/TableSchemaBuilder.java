@@ -343,8 +343,11 @@ public class TableSchemaBuilder {
                                     case FAIL:
                                         Loggings.logErrorAndTraceRecord(LOGGER, row, message, tableId,
                                                 col.name(), col.typeName());
+                                        // The exception class name alone is safe (unlike its message/cause,
+                                        // which embed the raw column value) and kept for debuggability.
                                         throw new DebeziumException("Failed to properly convert data value for '" +
-                                                tableId + "." + col.name() + "' of type " + col.typeName());
+                                                tableId + "." + col.name() + "' of type " + col.typeName() +
+                                                " (" + e.getClass().getSimpleName() + ")");
                                     case WARN:
                                         Loggings.logWarningAndTraceRecord(LOGGER, row, message, tableId,
                                                 col.name(), col.typeName());

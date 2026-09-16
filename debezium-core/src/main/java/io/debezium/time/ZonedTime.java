@@ -83,7 +83,7 @@ public class ZonedTime {
         if (value instanceof java.util.Date) { // or JDBC subtypes
             return toIsoString((java.util.Date) value, defaultZone, adjuster);
         }
-        // Do not embed the value: it is the raw column value (customer data). Keep the type only.
+        // Raw value omitted: it is customer row data (see Conversions for the same policy).
         throw new IllegalArgumentException("Unable to convert to OffsetTime from unexpected value of type " + value.getClass().getName());
     }
 
