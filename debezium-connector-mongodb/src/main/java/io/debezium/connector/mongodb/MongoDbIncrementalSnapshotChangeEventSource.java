@@ -140,7 +140,8 @@ public class MongoDbIncrementalSnapshotChangeEventSource
         }
         if (key instanceof Struct) {
             if (window.remove((Struct) key) != null) {
-                LOGGER.info("Removed '{}' from window", key);
+                // Do not log the key Struct: it is customer data.
+                LOGGER.info("Removed key (hash '{}') for collection '{}' from window", key.hashCode(), dataCollectionId);
             }
         }
     }
@@ -249,8 +250,8 @@ public class MongoDbIncrementalSnapshotChangeEventSource
                         continue;
                     }
                     if (LOGGER.isInfoEnabled()) {
-                        LOGGER.info("Incremental snapshot for collection '{}' will end at position {}", currentDataCollectionId,
-                                context.maximumKey().orElse(new Object[0]));
+                        // Do not log the maximum key value: it is customer data.
+                        LOGGER.info("Incremental snapshot for collection '{}' will end at the maximum key position", currentDataCollectionId);
                     }
                 }
                 createDataEventsForDataCollection(partition);
@@ -449,12 +450,15 @@ public class MongoDbIncrementalSnapshotChangeEventSource
         return connectionContext.primaryFor(replicaSet, taskContext.filters(), (desc, error) -> {
             // propagate authorization failures
             if (error.getMessage() != null && error.getMessage().startsWith(AUTHORIZATION_FAILURE_MESSAGE)) {
-                throw new ConnectException("Error while attempting to " + desc, error);
+                // Do not chain the driver error: its message/cause can carry customer _id bounds.
+                throw new ConnectException("Error while attempting to " + desc);
             }
             else {
                 dispatcher.dispatchConnectorEvent(partition, new DisconnectEvent());
-                LOGGER.error("Error while attempting to {}: {}", desc, error.getMessage(), error);
-                throw new ConnectException("Error while attempting to " + desc, error);
+                // Do not log the driver error message/cause: it can carry customer _id bounds.
+                LOGGER.error("Error while attempting to {}", desc);
+                // Do not chain the driver error: its message/cause can carry customer _id bounds.
+                throw new ConnectException("Error while attempting to " + desc);
             }
         });
     }

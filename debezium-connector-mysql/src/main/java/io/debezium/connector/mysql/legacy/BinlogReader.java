@@ -703,7 +703,9 @@ public class BinlogReader extends AbstractReader {
                         eventHeader.getNextPosition(),
                         source.binlogFilename());
 
-                throw new RuntimeException(data.getCause());
+                // Drop the raw deserialization cause: it operates on record bytes and cannot be
+                // proven free of customer data. The event position is already logged above.
+                throw new RuntimeException("Failed to deserialize binlog event, see preceding log for the event position");
             }
             else if (eventDeserializationFailureHandlingMode == EventProcessingFailureHandlingMode.WARN) {
                 logger.warn(
@@ -820,7 +822,8 @@ public class BinlogReader extends AbstractReader {
             return;
         }
         if (upperCasedStatementBegin.equals("INSERT ") || upperCasedStatementBegin.equals("UPDATE ") || upperCasedStatementBegin.equals("DELETE ")) {
-            logger.warn("Received DML '" + sql + "' for processing, binlog probably contains events generated with statement or mixed based replication format");
+            // Do not log the raw DML statement: it contains row column values in statement/mixed binlog format.
+            logger.warn("Received DML for processing, binlog probably contains events generated with statement or mixed based replication format");
             return;
         }
         if (sql.equalsIgnoreCase("ROLLBACK")) {
@@ -882,11 +885,11 @@ public class BinlogReader extends AbstractReader {
             EventHeaderV4 eventHeader = event.getHeader();
 
             if (inconsistentSchemaHandlingMode == EventProcessingFailureHandlingMode.FAIL) {
+                // Do not log the change event object: its toString() includes row column values.
                 logger.error(
-                        "Encountered change event '{}' at offset {} for table {} whose schema isn't known to this connector. One possible cause is an incomplete database history topic. Take a new snapshot in this case.{}"
+                        "Encountered change event at offset {} for table {} whose schema isn't known to this connector. One possible cause is an incomplete database history topic. Take a new snapshot in this case.{}"
                                 +
                                 "Use the mysqlbinlog tool to view the problematic event: mysqlbinlog --start-position={} --stop-position={} --verbose {}",
-                        event,
                         source.offset(),
                         tableId,
                         System.lineSeparator(),
@@ -896,12 +899,12 @@ public class BinlogReader extends AbstractReader {
                 throw new ConnectException("Encountered change event for table " + tableId + " whose schema isn't known to this connector");
             }
             else if (inconsistentSchemaHandlingMode == EventProcessingFailureHandlingMode.WARN) {
+                // Do not log the change event object: its toString() includes row column values.
                 logger.warn(
-                        "Encountered change event '{}' at offset {} for table {} whose schema isn't known to this connector. One possible cause is an incomplete database history topic. Take a new snapshot in this case.{}"
+                        "Encountered change event at offset {} for table {} whose schema isn't known to this connector. One possible cause is an incomplete database history topic. Take a new snapshot in this case.{}"
                                 +
                                 "The event will be ignored.{}" +
                                 "Use the mysqlbinlog tool to view the problematic event: mysqlbinlog --start-position={} --stop-position={} --verbose {}",
-                        event,
                         source.offset(),
                         tableId,
                         System.lineSeparator(),
@@ -1172,10 +1175,13 @@ public class BinlogReader extends AbstractReader {
             if (eventDeserializationFailureHandlingMode == EventProcessingFailureHandlingMode.FAIL) {
                 logger.debug("A deserialization failure event arrived", ex);
                 logReaderState();
-                BinlogReader.this.failed(ex);
+                // Surface a fixed message: the raw deserialization exception operates on record bytes
+                // and cannot be proven free of customer data (it reaches the framework log via failed()).
+                BinlogReader.this.failed(new DebeziumException("Failed to deserialize a binlog event"));
             }
             else if (eventDeserializationFailureHandlingMode == EventProcessingFailureHandlingMode.WARN) {
-                logger.warn("A deserialization failure event arrived", ex);
+                // Do not log the raw deserialization exception at WARN: it operates on record bytes.
+                logger.warn("A deserialization failure event arrived, enable DEBUG logging to see the exception detail");
                 logReaderState(Level.WARN);
             }
             else {
