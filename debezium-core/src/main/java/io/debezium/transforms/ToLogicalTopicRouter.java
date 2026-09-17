@@ -320,6 +320,7 @@ public class ToLogicalTopicRouter<R extends ConnectRecord<R>> implements Transfo
                 topicRegexReplaceCache.put(oldTopic, newTopic);
                 return newTopic;
             }
+            LOGGER.debug("Topic '{}' did not match the '{}' regex; leaving the record's topic unchanged", oldTopic, topicRegex);
             return null;
         }
     }
