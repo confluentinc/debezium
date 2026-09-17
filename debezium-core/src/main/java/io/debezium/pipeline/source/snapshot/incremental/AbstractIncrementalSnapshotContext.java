@@ -64,6 +64,19 @@ public class AbstractIncrementalSnapshotContext<T> implements IncrementalSnapsho
     protected boolean windowOpened = false;
 
     /**
+     * {@code true} if the pre-flight check in {@code addDataCollectionNamesToSnapshot} has already
+     * opened the first window (verified the signal-table write path works). When set, the first
+     * {@code readChunk} invocation skips its own {@code startNewChunk + emitWindowOpen} and reuses
+     * the chunk ID and watermark that the pre-flight already produced. The first {@code readChunk}
+     * call also clears the flag.
+     * <p>
+     * In-memory only. Not part of the persisted offset — irrelevant across restart because the
+     * pre-flight runs only on fresh signal arrival, and restart's {@code init} path enters
+     * {@code readChunk} directly without a pre-flight.
+     */
+    private boolean preFlightOpenedWindow = false;
+
+    /**
      * The last primary key in chunk that is now in process.
      */
     private Object[] chunkEndPosition;
@@ -120,6 +133,25 @@ public class AbstractIncrementalSnapshotContext<T> implements IncrementalSnapsho
         LOGGER.debug("Closing window for incremental snapshot chunk");
         windowOpened = false;
         return true;
+    }
+
+    /**
+     * Mark that the pre-flight check in {@code addDataCollectionNamesToSnapshot} has already
+     * opened the first window. The next call to {@code readChunk} should skip its own
+     * {@code startNewChunk + emitWindowOpen} pair and consume this flag.
+     */
+    public void markPreFlightOpenedWindow() {
+        preFlightOpenedWindow = true;
+    }
+
+    /**
+     * Returns {@code true} and clears the flag in one step if the pre-flight had already
+     * opened the first window. Otherwise returns {@code false}. Idempotent on the false path.
+     */
+    public boolean consumePreFlightOpenedWindow() {
+        boolean wasSet = preFlightOpenedWindow;
+        preFlightOpenedWindow = false;
+        return wasSet;
     }
 
     public void pauseSnapshot() {
@@ -341,6 +373,17 @@ public class AbstractIncrementalSnapshotContext<T> implements IncrementalSnapsho
     public void startNewChunk() {
         currentChunkId = UUID.randomUUID().toString();
         LOGGER.debug("Starting new chunk with id '{}'", currentChunkId);
+    }
+
+    /**
+     * Clear the current chunk ID. Used by the pre-flight rollback path in
+     * {@code addDataCollectionNamesToSnapshot} when the open-watermark write fails — at that
+     * point the chunk ID was minted but no real chunk read has started, so dropping it back to
+     * {@code null} matches the unstarted-snapshot invariant and ensures any stale open bookmark
+     * arriving via CDC later is rejected by {@code notExpectedChunk}.
+     */
+    public void resetChunkId() {
+        currentChunkId = null;
     }
 
     public String currentChunkId() {
