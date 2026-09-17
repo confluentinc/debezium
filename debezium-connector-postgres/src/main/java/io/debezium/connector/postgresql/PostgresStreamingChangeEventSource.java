@@ -7,6 +7,7 @@ package io.debezium.connector.postgresql;
 
 import static io.debezium.connector.postgresql.PostgresConnectorConfig.LsnFlushTimeoutAction;
 
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Map;
 import java.util.Objects;
@@ -33,6 +34,7 @@ import io.debezium.connector.postgresql.connection.ReplicationMessage.Operation;
 import io.debezium.connector.postgresql.connection.ReplicationStream;
 import io.debezium.connector.postgresql.connection.WalPositionLocator;
 import io.debezium.heartbeat.Heartbeat;
+import io.debezium.jdbc.JdbcConnection;
 import io.debezium.pipeline.ErrorHandler;
 import io.debezium.pipeline.source.spi.StreamingChangeEventSource;
 import io.debezium.relational.TableId;
@@ -40,6 +42,7 @@ import io.debezium.snapshot.SnapshotterService;
 import io.debezium.util.Clock;
 import io.debezium.util.DelayStrategy;
 import io.debezium.util.ElapsedTimeStrategy;
+import io.debezium.util.Metronome;
 import io.debezium.util.ThreadNameContext;
 import io.debezium.util.Threads;
 
@@ -63,6 +66,10 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
     // We thus try to read the message multiple times before we make poll pause
     private static final int THROTTLE_NO_MESSAGE_BEFORE_PAUSE = 5;
 
+    private static final String CONNECTION_LIVENESS_THREAD_NAME = "connection-liveness-probe";
+
+    private static final long CONNECTION_LIVENESS_SHUTDOWN_WAIT_MS = 5_000;
+
     private final PostgresConnection connection;
     private final PostgresEventDispatcher<TableId> dispatcher;
     private final ErrorHandler errorHandler;
@@ -75,6 +82,10 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
     private final SnapshotterService snapshotterService;
     private final DelayStrategy pauseNoMessage;
     private final ElapsedTimeStrategy connectionProbeTimer;
+
+    private volatile PostgresConnection livenessProbeConnection;
+    private volatile ExecutorService livenessProbeExecutor;
+    private volatile boolean livenessProbeRunning;
 
     // Offset committing is an asynchronous operation.
     // When connector is restarted we cannot be sure about timing of recovery, offset committing etc.
@@ -171,6 +182,10 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
             stream.startKeepAlive(
                     Threads.newSingleThreadExecutor(PostgresConnector.class, connectorConfig.getLogicalName(), KEEP_ALIVE_THREAD_NAME, threadNameContext));
 
+            if (connectorConfig.isConnectionLivenessProbeEnabled()) {
+                startConnectionLivenessProbe(threadNameContext);
+            }
+
             // If we need to do a pre-snapshot streaming catch up, we should allow the snapshot transaction to persist
             // but normally we want to start streaming without any open transactions.
             if (!isInPreSnapshotCatchUpStreaming(this.effectiveOffset)) {
@@ -208,6 +223,7 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
     }
 
     private void cleanUpStreamingOnStop(PostgresOffsetContext offsetContext) {
+        stopConnectionLivenessProbe();
         if (replicationConnection != null) {
             LOGGER.debug("stopping streaming...");
             // stop the keep alive thread, this also shuts down the
@@ -399,6 +415,103 @@ public class PostgresStreamingChangeEventSource implements StreamingChangeEventS
         if (connectionProbeTimer.hasElapsed()) {
             connection.prepareQuery("SELECT 1");
             connection.commit();
+        }
+    }
+
+    /**
+     * Periodically runs a bounded {@code SELECT 1} on a dedicated connection; after
+     * {@code connection.liveness.probe.failure.threshold} consecutive failures it aborts the
+     * streaming/JDBC connections so a black-holed connection fails the task fast rather than hanging
+     * on the OS TCP timeout. Detects database host/egress-path failures (same DB host as streaming).
+     */
+    private void startConnectionLivenessProbe(ThreadNameContext threadNameContext) {
+        livenessProbeConnection = new PostgresConnection(connectorConfig.getJdbcConfig(),
+                PostgresConnection.CONNECTION_VALIDATE_CONNECTION, threadNameContext);
+        livenessProbeRunning = true;
+        livenessProbeExecutor = Threads.newSingleThreadExecutor(PostgresConnector.class,
+                connectorConfig.getLogicalName(), CONNECTION_LIVENESS_THREAD_NAME, threadNameContext);
+        final int failureThreshold = connectorConfig.connectionLivenessProbeFailureThreshold();
+        livenessProbeExecutor.submit(() -> {
+            final Metronome metronome = Metronome.sleeper(connectorConfig.statusUpdateInterval(), Clock.SYSTEM);
+            int consecutiveFailures = 0;
+            while (livenessProbeRunning) {
+                try {
+                    metronome.pause();
+                }
+                catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+                if (!livenessProbeRunning) {
+                    return;
+                }
+                try {
+                    runBoundedLivenessProbe();
+                    consecutiveFailures = 0;
+                }
+                catch (Exception probeFailure) {
+                    if (!livenessProbeRunning) {
+                        // Normal shutdown.
+                        return;
+                    }
+                    consecutiveFailures++;
+                    if (consecutiveFailures < failureThreshold) {
+                        LOGGER.warn("Connection liveness probe failed ({} of {} consecutive failures before the task is failed)",
+                                consecutiveFailures, failureThreshold, probeFailure);
+                        continue;
+                    }
+                    LOGGER.error("Connection liveness probe failed {} times consecutively; aborting streaming connections so the task fails fast",
+                            consecutiveFailures, probeFailure);
+                    abortQuietly(connection);
+                    if (replicationConnection instanceof JdbcConnection) {
+                        abortQuietly((JdbcConnection) replicationConnection);
+                    }
+                    errorHandler.setProducerThrowable(new DebeziumException(
+                            "Connection liveness probe to the database failed " + consecutiveFailures + " times consecutively", probeFailure));
+                    return;
+                }
+            }
+        });
+    }
+
+    private void runBoundedLivenessProbe() throws SQLException {
+        // Socket read timeout bounds the probe even on a black-holed connection (caller-runs executor).
+        final Connection probe = livenessProbeConnection.connection();
+        probe.setNetworkTimeout(Runnable::run, connectorConfig.connectionLivenessProbeTimeoutMs());
+        livenessProbeConnection.prepareQuery("SELECT 1");
+        livenessProbeConnection.commit();
+    }
+
+    private void abortQuietly(JdbcConnection jdbcConnection) {
+        try {
+            // abort() terminates the connection from another thread, unblocking the wedged streaming op.
+            jdbcConnection.connection().abort(Runnable::run);
+        }
+        catch (Exception e) {
+            LOGGER.debug("Failed to abort connection during liveness-probe-triggered shutdown", e);
+        }
+    }
+
+    private void stopConnectionLivenessProbe() {
+        livenessProbeRunning = false;
+        if (livenessProbeExecutor != null) {
+            livenessProbeExecutor.shutdownNow();
+            try {
+                livenessProbeExecutor.awaitTermination(CONNECTION_LIVENESS_SHUTDOWN_WAIT_MS, TimeUnit.MILLISECONDS);
+            }
+            catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            livenessProbeExecutor = null;
+        }
+        if (livenessProbeConnection != null) {
+            try {
+                livenessProbeConnection.close();
+            }
+            catch (Exception e) {
+                LOGGER.debug("Error closing liveness probe connection", e);
+            }
+            livenessProbeConnection = null;
         }
     }
 
