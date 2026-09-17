@@ -1271,43 +1271,6 @@ public final class Field {
         return errors;
     }
 
-    // Regex validator enforced both at task time (Validator) and at connector-creation time (ConfigDef.Validator).
-    // Must be the field's sole validator so it is forwarded to the ConfigDef; do not combine with .required()
-    // (pass required=true instead, since .required() would wrap this into a non-ConfigDef.Validator composite).
-    public static class RegexValidator implements Validator, ConfigDef.Validator {
-        private final boolean required;
-
-        public RegexValidator() {
-            this(false);
-        }
-
-        public RegexValidator(boolean required) {
-            this.required = required;
-        }
-
-        @Override
-        public int validate(Configuration config, Field field, ValidationOutput problems) {
-            int errors = required ? isRequired(config, field, problems) : 0;
-            return errors + isRegex(config, field, problems);
-        }
-
-        @Override
-        public void ensureValid(String name, Object value) {
-            // Create-time only validates the regex when a value is present; required-ness is enforced at task time
-            // (validate) so we do not reject the null value Connect passes during its config-validation pass.
-            String regex = value == null ? null : value.toString();
-            if (regex == null || regex.isEmpty()) {
-                return;
-            }
-            try {
-                Pattern.compile(regex);
-            }
-            catch (PatternSyntaxException e) {
-                throw new ConfigException(name, value, "A valid regular expressions is expected, but " + e.getMessage());
-            }
-        }
-    }
-
     public static int isClassName(Configuration config, Field field, ValidationOutput problems) {
         String value = config.getString(field);
         if (value == null || SourceVersion.isName(value)) {

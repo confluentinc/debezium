@@ -61,7 +61,8 @@ public class ToLogicalTopicRouter<R extends ConnectRecord<R>> implements Transfo
             .withType(ConfigDef.Type.STRING)
             .withWidth(ConfigDef.Width.LONG)
             .withImportance(ConfigDef.Importance.LOW)
-            .withValidation(new Field.RegexValidator(true))
+            .required()
+            .withValidation(Field::isRegex)
             .withDescription("The regex used for extracting the name of the logical destination from the original topic name.");
 
     private static final Field TOPIC_REPLACEMENT = Field.create("topic.replacement")
@@ -89,7 +90,7 @@ public class ToLogicalTopicRouter<R extends ConnectRecord<R>> implements Transfo
             .withType(ConfigDef.Type.STRING)
             .withWidth(ConfigDef.Width.LONG)
             .withImportance(ConfigDef.Importance.LOW)
-            .withValidation(new Field.RegexValidator())
+            .withValidation(Field::isRegex)
             .withDescription("The regex used for extracting the source identifier from the original topic " +
                     "name. Now that multiple physical tables can share a topic, the event's key may need to be augmented " +
                     "to include fields other than just those for the record's primary/unique key, since these are not " +
