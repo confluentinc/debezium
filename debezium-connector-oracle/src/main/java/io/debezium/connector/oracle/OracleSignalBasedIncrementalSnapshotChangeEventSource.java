@@ -47,6 +47,21 @@ public class OracleSignalBasedIncrementalSnapshotChangeEventSource extends Signa
         return OracleTableIdParser.quoteIfNeeded(tableId, false, true, ((OracleConnection) jdbcConnection).getSQLKeywords());
     }
 
+        @Override
+    protected void probeSignalTableWritable() throws SQLException {
+        if (pdbName != null) {
+            connection.setSessionToPdb(pdbName);
+        }
+        try {
+            super.probeSignalTableWritable();
+        }
+        finally {
+            if (pdbName != null) {
+                connection.resetSessionToCdb();
+            }
+        }
+    }
+
     @Override
     protected void preReadChunk(IncrementalSnapshotContext<TableId> context) {
         super.preReadChunk(context);
