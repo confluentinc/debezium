@@ -511,7 +511,13 @@ public class MongoDataConverter {
                 .toList();
 
         if (types.size() > 1) {
-            throw new DebeziumException("Array elements with different Bson types are not supported: " + list);
+            // Do not embed 'list': it holds the array element values (customer data). Report the
+            // distinct BSON types encountered only.
+            List<BsonType> bsonTypes = list.stream()
+                    .map(o -> ((BsonValue) o).getBsonType())
+                    .distinct()
+                    .toList();
+            throw new DebeziumException("Array elements with different Bson types are not supported: " + bsonTypes);
         }
 
         return ((BsonValue) list.get(0)).getBsonType();

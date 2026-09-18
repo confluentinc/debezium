@@ -68,7 +68,9 @@ public class PgProtoMessageDecoder extends AbstractMessageDecoder {
             processor.process(new PgProtoReplicationMessage(message, typeRegistry));
         }
         catch (InvalidProtocolBufferException e) {
-            throw new ConnectException(e);
+            // Do not propagate the protobuf parser exception: its message can embed a fragment of the
+            // raw WAL row bytes (customer data). Report a fixed reason and the buffer size only.
+            throw new ConnectException("Failed to parse protobuf replication message (" + buffer.remaining() + " bytes remaining in buffer)");
         }
     }
 

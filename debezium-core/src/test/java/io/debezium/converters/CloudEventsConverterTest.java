@@ -637,7 +637,11 @@ public class CloudEventsConverterTest {
 
             Exception exception = assertThrows(DataException.class, () -> cloudEventsConverter.toConnectData(record.topic(), valueBytes));
 
-            assertThat(exception.getMessage()).startsWith("A deserialized record's value is not a CloudEvent: value={");
+            // Sensitive-log fix (finding 13): the message references the value's TYPE only, never the
+            // deserialized value itself (customer data).
+            assertThat(exception.getMessage())
+                    .startsWith("A deserialized record's value is not a CloudEvent (value type:")
+                    .doesNotContain("value={");
         }
         catch (Throwable t) {
             Testing.Print.enable();
@@ -675,7 +679,11 @@ public class CloudEventsConverterTest {
 
             Exception exception = assertThrows(DataException.class, () -> cloudEventsConverter.toConnectData(record.topic(), valueBytes));
 
-            assertThat(exception.getMessage()).startsWith("A deserialized record's value is not a CloudEvent: value=Struct{");
+            // Sensitive-log fix (finding 13): the message references the value's TYPE only, never the
+            // deserialized value itself (customer data).
+            assertThat(exception.getMessage())
+                    .startsWith("A deserialized record's value is not a CloudEvent (value type:")
+                    .doesNotContain("value=Struct{");
         }
         catch (Throwable t) {
             Testing.Print.enable();

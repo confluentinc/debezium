@@ -17,10 +17,13 @@ import java.util.Optional;
 
 import org.junit.Test;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.config.EnumeratedValue;
 import io.debezium.connector.SourceInfoStructMaker;
+import io.debezium.junit.logging.LogInterceptor;
 import io.debezium.pipeline.signal.channels.FileSignalChannel;
 
 /**
@@ -42,6 +45,33 @@ public class FileSignalChannelTest {
         // only two whitespace lines are ignored
         assertThat(signalRecords).hasSize(2);
         assertThat(signalRecords.get(0).getData().contains("public.MyFirstTable")).isTrue();
+        Files.deleteIfExists(signalsFile.toAbsolutePath());
+    }
+
+    @Test
+    public void shouldNotLogSignalDataOrParseException() throws IOException {
+        Files.write(signalsFile, List.of(
+                "{\"id\":\"sig-1\",\"type\":\"log\",\"data\":\"{\\\"message\\\":\\\"THIS-IS-CUSTOMER-DATA\\\"}\"}",
+                "not-a-json-line-with-CUSTOMER-SECRET"));
+
+        final FileSignalChannel fileSignalChannel = new FileSignalChannel();
+        fileSignalChannel.init(config());
+
+        final LogInterceptor log = new LogInterceptor(FileSignalChannel.class);
+
+        List<SignalRecord> signalRecords = fileSignalChannel.read();
+        assertThat(signalRecords).hasSize(1);
+
+        // The successfully processed signal's data/additionalData must not be logged: only id + type.
+        assertThat(log.containsMessage("Processing signal: sig-1, log")).isTrue();
+        assertThat(log.containsMessage("THIS-IS-CUSTOMER-DATA")).isFalse();
+
+        // The unparseable line must not be echoed, nor its parse exception attached: only a fixed
+        // reason and the exception class name are safe to report.
+        assertThat(log.containsMessage("Skipped signal due to a parse error (JsonParseException)")).isTrue();
+        assertThat(log.containsMessage("CUSTOMER-SECRET")).isFalse();
+        assertThat(log.containsThrowableWithCause(JsonProcessingException.class)).isFalse();
+
         Files.deleteIfExists(signalsFile.toAbsolutePath());
     }
 

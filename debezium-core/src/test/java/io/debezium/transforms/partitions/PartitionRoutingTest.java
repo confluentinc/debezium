@@ -23,6 +23,7 @@ import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.junit.Test;
 
+import io.debezium.DebeziumException;
 import io.debezium.data.Envelope;
 import io.debezium.doc.FixFor;
 
@@ -227,6 +228,68 @@ public class PartitionRoutingTest {
         SourceRecord transformed = partitionRoutingTransformation.apply(eventRecord);
 
         assertThat(transformed.kafkaPartition()).isEqualTo(65);
+    }
+
+    @Test
+    public void whenAnUnexpectedErrorOccursTheChangeEventIsRedactedFromTheExceptionMessage() {
+
+        // An intermediate Struct on the configured field path (after.nested) is null, so resolving
+        // after.nested.leaf throws a NullPointerException (not the DataException toValue() already
+        // handles) which reaches PartitionRouting's outer catch.
+        Schema nestedSchema = SchemaBuilder.struct()
+                .name("server1.inventory.productsWithNested.Nested")
+                .field("leaf", Schema.OPTIONAL_STRING_SCHEMA)
+                .optional()
+                .build();
+
+        Schema valueSchemaWithNested = SchemaBuilder.struct()
+                .name("server1.inventory.productsWithNested.Value")
+                .field("id", Schema.INT64_SCHEMA)
+                .field("product", Schema.OPTIONAL_STRING_SCHEMA)
+                .field("nested", nestedSchema)
+                .build();
+
+        Struct row = new Struct(valueSchemaWithNested)
+                .put("id", 1L)
+                .put("product", "SUPER-SECRET-CUSTOMER-VALUE")
+                .put("nested", null);
+
+        Schema sourceSchema = SchemaBuilder.struct()
+                .name("source")
+                .field("connector", Schema.STRING_SCHEMA)
+                .field("db", Schema.STRING_SCHEMA)
+                .field("table", Schema.STRING_SCHEMA)
+                .build();
+
+        Struct source = new Struct(sourceSchema)
+                .put("connector", "mysql")
+                .put("db", "inventory")
+                .put("table", "products");
+
+        Envelope envelope = Envelope.defineSchema()
+                .withName("server1.inventory.productsWithNested.Envelope")
+                .withRecord(valueSchemaWithNested)
+                .withSource(sourceSchema)
+                .build();
+
+        Struct payload = envelope.create(row, source, Instant.now());
+
+        SourceRecord eventRecord = new SourceRecord(
+                new HashMap<>(),
+                new HashMap<>(),
+                "prefix.inventory.productsWithNested",
+                envelope.schema(), payload);
+
+        partitionRoutingTransformation.configure(Map.of(
+                "partition.payload.fields", "after.nested.leaf",
+                "partition.topic.num", 2));
+
+        assertThatThrownBy(() -> partitionRoutingTransformation.apply(eventRecord))
+                .isInstanceOf(DebeziumException.class)
+                .hasMessageContaining("Unprocessable message")
+                // The change-event Struct is customer row data: it must be redacted, never embedded verbatim.
+                .hasMessageContaining("[REDACTED]")
+                .hasMessageNotContaining("SUPER-SECRET-CUSTOMER-VALUE");
     }
 
     private SourceRecord buildSourceRecord(Struct row, Envelope.Operation operation) {

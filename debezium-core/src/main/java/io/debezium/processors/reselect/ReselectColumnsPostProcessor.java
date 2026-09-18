@@ -236,18 +236,25 @@ public class ReselectColumnsPostProcessor implements PostProcessor, BeanRegistry
                 }
             });
             if (!found) {
+                // Do not log the record key or key values: they are customer data. Report the key column
+                // names only.
                 if (errorHandlingMode == ErrorHandlingMode.FAIL) {
-                    throw new DebeziumException("Failed to find row in table " + tableId + " with key " + key);
+                    throw new DebeziumException("Failed to find row in table " + tableId + " with key columns " + keyColumns);
                 }
-                LOGGER.warn("Failed to find row in table {} with key {}.", tableId, key);
+                LOGGER.warn("Failed to find row in table {} with key columns {}.", tableId, keyColumns);
                 return;
             }
         }
         catch (SQLException e) {
+            // Do not log the key values or the SQLException itself: the driver message can quote the
+            // WHERE-clause key values (customer data). Report the key column names and the SQLState
+            // only, and do not attach the SQLException as the cause of the thrown exception.
             if (errorHandlingMode == ErrorHandlingMode.FAIL) {
-                throw new DebeziumException("Failed to re-select columns for table " + tableId + " and key " + keyValues, e);
+                throw new DebeziumException("Failed to re-select columns for table " + tableId
+                        + " and key columns " + keyColumns + " (SQLState: " + e.getSQLState() + ")");
             }
-            LOGGER.warn("Failed to re-select columns for table {} and key {}", tableId, keyValues, e);
+            LOGGER.warn("Failed to re-select columns for table {} and key columns {} (SQLState: {})",
+                    tableId, keyColumns, e.getSQLState());
             return;
         }
     }
