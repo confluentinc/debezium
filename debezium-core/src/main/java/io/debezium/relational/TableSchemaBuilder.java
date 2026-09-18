@@ -330,30 +330,28 @@ public class TableSchemaBuilder {
                             Column col = columnsThatShouldBeAdded.get(i);
                             String message = "Failed to properly convert data value for '{}.{}' of type {}";
                             // Do not pass the conversion exception 'e' (nor its cause) to the log or the
-                            // rethrow: its message embeds the raw column value (customer row data) and would
-                            // reach the ERROR log and the framework task-status trace. The failing row is
-                            // still routed to TRACE by the helper; report only tableId + column + JDBC type.
+                            // rethrow: its message embeds the raw column value (customer row data). Do not
+                            // route the row to TRACE either: TRACE on io.debezium.util.Loggings is blocked
+                            // fleet-wide on Confluent Cloud, and this connector has no self-managed
+                            // deployment where TRACE would be a real, reachable debugging path. Report only
+                            // tableId + column + JDBC type.
                             if (eventConvertingFailureHandlingMode == null) {
-                                Loggings.logErrorAndTraceRecord(LOGGER, row,
-                                        message, tableId, col.name(), col.typeName());
+                                LOGGER.error(message, tableId, col.name(), col.typeName());
                             }
                             else {
                                 // NOTE: what if failed column is not accept null?
                                 switch (eventConvertingFailureHandlingMode) {
                                     case FAIL:
-                                        Loggings.logErrorAndTraceRecord(LOGGER, row, message, tableId,
-                                                col.name(), col.typeName());
+                                        LOGGER.error(message, tableId, col.name(), col.typeName());
                                         // The exception class name alone is safe (unlike its message/cause,
                                         // which embed the raw column value) and kept for debuggability.
                                         throw new DebeziumException("Failed to properly convert data value for '" +
                                                 tableId + "." + col.name() + "' of type " + col.typeName() +
                                                 " (" + e.getClass().getSimpleName() + ")");
                                     case WARN:
-                                        Loggings.logWarningAndTraceRecord(LOGGER, row, message, tableId,
-                                                col.name(), col.typeName());
+                                        LOGGER.warn(message, tableId, col.name(), col.typeName());
                                     case SKIP:
-                                        Loggings.logDebugAndTraceRecord(LOGGER, row, message, tableId,
-                                                col.name(), col.typeName());
+                                        LOGGER.debug(message, tableId, col.name(), col.typeName());
                                 }
                             }
                         }

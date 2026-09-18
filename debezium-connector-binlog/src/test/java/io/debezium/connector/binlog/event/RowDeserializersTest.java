@@ -15,8 +15,11 @@ import java.time.DateTimeException;
 
 import org.junit.Test;
 
+import ch.qos.logback.classic.Level;
+
 import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig.EventProcessingFailureHandlingMode;
+import io.debezium.junit.logging.LogInterceptor;
 
 /**
  * Verifies that {@link RowDeserializers} does not leak the raw column value when a temporal value fails
@@ -49,5 +52,24 @@ public class RowDeserializersTest {
                 assertThat(t.getMessage() == null ? "" : t.getMessage()).doesNotContain(CANARY);
             }
         }
+    }
+
+    @Test
+    public void handleExceptionInSkipModeMustNotLeakColumnValueEvenAtDebug() throws Exception {
+        final Method handleException = RowDeserializers.class.getDeclaredMethod(
+                "handleException", EventProcessingFailureHandlingMode.class, String.class, Exception.class, Serializable.class);
+        handleException.setAccessible(true);
+
+        final LogInterceptor logInterceptor = new LogInterceptor(RowDeserializers.class);
+        logInterceptor.setLoggerLevel(RowDeserializers.class, Level.DEBUG);
+
+        final DateTimeException cause = new DateTimeException("Invalid date '" + CANARY + "'");
+        final Object result = handleException.invoke(null, EventProcessingFailureHandlingMode.SKIP, "date", cause, null);
+
+        assertThat(result).isNull();
+        // Even the DEBUG fallback must not echo the raw out-of-range value: this connector is cloud-only,
+        // so DEBUG still reaches centralized logging and there is no self-managed troubleshooting path to
+        // justify keeping it.
+        assertThat(logInterceptor.containsMessage(CANARY)).isFalse();
     }
 }
