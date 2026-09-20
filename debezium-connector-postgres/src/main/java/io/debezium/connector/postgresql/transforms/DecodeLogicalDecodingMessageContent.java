@@ -8,6 +8,7 @@ package io.debezium.connector.postgresql.transforms;
 import static io.debezium.connector.postgresql.LogicalDecodingMessageMonitor.DEBEZIUM_LOGICAL_DECODING_MESSAGE_CONTENT_KEY;
 import static io.debezium.connector.postgresql.LogicalDecodingMessageMonitor.DEBEZIUM_LOGICAL_DECODING_MESSAGE_KEY;
 import static io.debezium.connector.postgresql.PostgresSchemaFactory.POSTGRES_LOGICAL_DECODING_MESSAGE_MONITOR_VALUE_SCHEMA_NAME;
+import static io.debezium.util.Loggings.maybeRedactSensitiveData;
 import static org.apache.kafka.connect.transforms.util.Requirements.requireStruct;
 
 import java.util.Map;
@@ -145,7 +146,8 @@ public class DecodeLogicalDecodingMessageContent<R extends ConnectRecord<R>> imp
             }
         }
         throw new DebeziumException(
-                "Unable to parse logical decoding message content JSON string '" + logicalDecodingMessageContentJsonString + "'");
+                "Unable to parse logical decoding message content JSON string '" +
+                        maybeRedactSensitiveData(logicalDecodingMessageContentJsonString) + "'");
     }
 
     private R removeLogicalDecodingMessageContentField(R record) {
