@@ -265,14 +265,9 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
                 else {
                     LOGGER.info("No GTID stored in the offset, but there is non-empty purged GTID set. Registering binlog reader with purged GTID set: '{}'",
                             purgedServerGtidSet.toString());
-                    final String purgedServerGtidSetStr = purgedServerGtidSet.toString();
-                    client.setGtidSet(purgedServerGtidSetStr);
-                    // The purged GTID set is the effective starting floor for a no-snapshot start: the connector
-                    // intentionally skips everything at or below it. Record it in the offset and seed the accumulator
-                    // with it (mirroring the stored-offset branch above and the snapshot path's setCompletedGtidSet),
-                    // so the committed offset carries this floor and subsequent restarts validate it correctly.
-                    effectiveOffsetContext.setCompletedGtidSet(purgedServerGtidSetStr);
-                    initializeGtidSet(purgedServerGtidSetStr);
+                    client.setGtidSet(purgedServerGtidSet.toString());
+                    // We don't have stored any GTID in the offset, so start from empty GTID set.
+                    initializeGtidSet("");
                 }
             }
         }
@@ -1363,7 +1358,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
             final char[] trustPasswordArray = connection.connectionConfig().sslTrustStorePassword();
             final String trustFilename = connection.connectionConfig().sslTrustStore();
             KeyManager[] keyManagers = null;
-            if (!Strings.isNullOrBlank(keyFilename)) {
+            if (keyFilename != null) {
                 try {
                     KeyStore ks = connection.loadKeyStore(keyFilename, keyPasswordArray);
 
@@ -1379,7 +1374,7 @@ public abstract class BinlogStreamingChangeEventSource<P extends BinlogPartition
             TrustManager[] trustManagers;
             try {
                 KeyStore ks = null;
-                if (!Strings.isNullOrBlank(trustFilename)) {
+                if (trustFilename != null) {
                     ks = connection.loadKeyStore(trustFilename, trustPasswordArray);
                 }
 
