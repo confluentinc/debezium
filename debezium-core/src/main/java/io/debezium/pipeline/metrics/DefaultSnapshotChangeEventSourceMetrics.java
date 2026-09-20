@@ -28,7 +28,6 @@ public class DefaultSnapshotChangeEventSourceMetrics<P extends Partition> extend
         implements SnapshotChangeEventSourceMetrics<P>, SnapshotChangeEventSourceMetricsMXBean {
 
     private final SnapshotMeter snapshotMeter;
-    private final TaskStateMetrics taskStateMetrics;
 
     public <T extends CdcSourceTaskContext> DefaultSnapshotChangeEventSourceMetrics(T taskContext,
                                                                                     ChangeEventQueueMetrics changeEventQueueMetrics,
@@ -38,7 +37,6 @@ public class DefaultSnapshotChangeEventSourceMetrics<P extends Partition> extend
         CommonConnectorConfig config = taskContext.getConfig();
         snapshotMeter = new SnapshotMeter(taskContext.getClock(), taskStateMetrics,
                 config.isSmartSnapshotEnabled(), config.getDndDelayMs());
-        this.taskStateMetrics = taskStateMetrics;
     }
 
     public <T extends CdcSourceTaskContext> DefaultSnapshotChangeEventSourceMetrics(T taskContext,
@@ -50,7 +48,6 @@ public class DefaultSnapshotChangeEventSourceMetrics<P extends Partition> extend
         CommonConnectorConfig config = taskContext.getConfig();
         snapshotMeter = new SnapshotMeter(taskContext.getClock(), taskStateMetrics,
                 config.isSmartSnapshotEnabled(), config.getDndDelayMs());
-        this.taskStateMetrics = taskStateMetrics;
     }
 
     @Override
@@ -192,6 +189,5 @@ public class DefaultSnapshotChangeEventSourceMetrics<P extends Partition> extend
     public void reset() {
         super.reset();
         snapshotMeter.reset();
-        taskStateMetrics.clearDnd();
     }
 }

@@ -5,8 +5,6 @@
  */
 package io.debezium.connector.binlog;
 
-import static io.debezium.util.Loggings.maybeRedactSensitiveData;
-
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -135,7 +133,7 @@ public abstract class BinlogDatabaseSchema<P extends BinlogPartition, O extends 
         // - or DDLs for captured objects
         if (!storeOnlyCapturedTables() || isGlobalSetVariableStatement(schemaChange.getDdl(), schemaChange.getDatabase())
                 || schemaChange.getTables().stream().map(Table::id).anyMatch(filters.dataCollectionFilter()::isIncluded)) {
-            LOGGER.trace("Recorded DDL statements for database '{}': {}", schemaChange.getDatabase(), maybeRedactSensitiveData(schemaChange.getDdl()));
+            LOGGER.trace("Recorded DDL statements for database '{}': {}", schemaChange.getDatabase(), schemaChange.getDdl());
             record(schemaChange, schemaChange.getTableChanges());
         }
     }
