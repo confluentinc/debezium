@@ -675,7 +675,7 @@ public class JdbcValueConverters implements ValueConverterProvider {
             }
             catch (IllegalArgumentException e) {
                 logger.warn("Unexpected JDBC DATE value for field {} with schema {}: class={}, value={}", fieldDefn.name(),
-                        fieldDefn.schema(), data.getClass(), data);
+                        fieldDefn.schema(), data.getClass(), maybeRedactSensitiveData(data));
             }
         });
     }
@@ -701,7 +701,7 @@ public class JdbcValueConverters implements ValueConverterProvider {
             }
             catch (IllegalArgumentException e) {
                 logger.warn("Unexpected JDBC DATE value for field {} with schema {}: class={}, value={}", fieldDefn.name(),
-                        fieldDefn.schema(), data.getClass(), data);
+                        fieldDefn.schema(), data.getClass(), maybeRedactSensitiveData(data));
             }
         });
     }
@@ -725,7 +725,7 @@ public class JdbcValueConverters implements ValueConverterProvider {
             }
             catch (IllegalArgumentException e) {
                 logger.warn("Unexpected JDBC Time value for field {} with schema {}: class={}, value={}", fieldDefn.name(),
-                        fieldDefn.schema(), data.getClass(), data);
+                        fieldDefn.schema(), data.getClass(), maybeRedactSensitiveData(data));
             }
         });
     }
@@ -749,7 +749,7 @@ public class JdbcValueConverters implements ValueConverterProvider {
             }
             catch (IllegalArgumentException e) {
                 logger.warn("Unexpected JDBC Timestamp value for field {} with schema {}: class={}, value={}", fieldDefn.name(),
-                        fieldDefn.schema(), data.getClass(), data);
+                        fieldDefn.schema(), data.getClass(), maybeRedactSensitiveData(data));
             }
         });
     }
@@ -779,7 +779,7 @@ public class JdbcValueConverters implements ValueConverterProvider {
             }
             catch (IllegalArgumentException e) {
                 logger.warn("Unexpected JDBC DATE value for field {} with schema {}: class={}, value={}", fieldDefn.name(),
-                        fieldDefn.schema(), data.getClass(), data);
+                        fieldDefn.schema(), data.getClass(), maybeRedactSensitiveData(data));
             }
         });
     }
@@ -946,7 +946,7 @@ public class JdbcValueConverters implements ValueConverterProvider {
      */
     protected byte[] unexpectedBinary(Object value, Field fieldDefn) {
         logger.warn("Unexpected JDBC BINARY value for field {} with schema {}: class={}, value={}", fieldDefn.name(),
-                fieldDefn.schema(), value.getClass(), value);
+                fieldDefn.schema(), value.getClass(), maybeRedactSensitiveData(value));
         return null;
     }
 
