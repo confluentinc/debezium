@@ -5,6 +5,8 @@
  */
 package io.debezium.connector.postgresql.connection.pgproto;
 
+import static io.debezium.util.Loggings.maybeRedactSensitiveData;
+
 import java.math.BigDecimal;
 import java.nio.charset.Charset;
 import java.sql.SQLException;
@@ -331,7 +333,7 @@ public class PgProtoColumnValue extends AbstractColumnValue<PgProto.DatumMessage
             return Arrays.asList((Object[]) deserializedArray);
         }
         catch (SQLException e) {
-            LOGGER.warn("Unexpected exception trying to process PgArray column '{}'", value.getColumnName(), e);
+            LOGGER.warn("Unexpected exception trying to process PgArray column '{}'", value.getColumnName(), maybeRedactSensitiveData(e));
         }
         return null;
     }
