@@ -51,7 +51,7 @@ public class EngineSourceConnectorContext implements DebeziumSourceConnectorCont
 
     @Override
     public void requestTaskReconfiguration() {
-        engine.requestReconfiguration();
+        // no-op, we don't support config changes on the fly yet
     }
 
     @Override
