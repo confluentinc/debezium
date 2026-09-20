@@ -5,8 +5,6 @@
  */
 package io.debezium.connector.binlog;
 
-import static io.debezium.util.Loggings.maybeRedactSensitiveData;
-
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -114,7 +112,16 @@ public abstract class BinlogDatabaseSchema<P extends BinlogPartition, O extends 
 
     @Override
     public void applySchemaChange(SchemaChangeEvent schemaChange) {
-        applySchemaChangeInMemoryOnly(schemaChange);
+        switch (schemaChange.getType()) {
+            case CREATE:
+            case ALTER:
+                schemaChange.getTableChanges().forEach(x -> buildAndRegisterSchema(x.getTable()));
+                break;
+            case DROP:
+                schemaChange.getTableChanges().forEach(x -> removeSchema(x.getId()));
+                break;
+            default:
+        }
 
         // Record the DDL statement so that we can later recover them.
         // This is done _after_ writing the schema change records so that failure recovery (which is based on
@@ -126,28 +133,9 @@ public abstract class BinlogDatabaseSchema<P extends BinlogPartition, O extends 
         // - or DDLs for captured objects
         if (!storeOnlyCapturedTables() || isGlobalSetVariableStatement(schemaChange.getDdl(), schemaChange.getDatabase())
                 || schemaChange.getTables().stream().map(Table::id).anyMatch(filters.dataCollectionFilter()::isIncluded)) {
-            LOGGER.trace("Recorded DDL statements for database '{}': {}", schemaChange.getDatabase(), maybeRedactSensitiveData(schemaChange.getDdl()));
+            LOGGER.trace("Recorded DDL statements for database '{}': {}", schemaChange.getDatabase(), schemaChange.getDdl());
             record(schemaChange, schemaChange.getTableChanges());
         }
-    }
-
-    /**
-     * Apply a schema change to the in-memory model ONLY: build/drop the {@code TableSchema}, but do NOT persist
-     * to the schema-history topic and do NOT emit to the public schema-change topic. Used by smart-snapshot
-     * follower/foreground tasks — only the leader task persists the history (single writer).
-     */
-    public void applySchemaChangeInMemoryOnly(SchemaChangeEvent schemaChange) {
-        switch (schemaChange.getType()) {
-            case CREATE:
-            case ALTER:
-                schemaChange.getTableChanges().forEach(x -> buildAndRegisterSchema(x.getTable()));
-                break;
-            case DROP:
-                schemaChange.getTableChanges().forEach(x -> removeSchema(x.getId()));
-                break;
-            default:
-        }
-        // intentionally NO record(...) and no public-topic emit — see smart snapshot single-writer schema history.
     }
 
     /**

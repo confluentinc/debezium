@@ -280,6 +280,6 @@ public class SnapshotMeter implements SnapshotMetricsMXBean {
         chunkTo.set(null);
         tableFrom.set(null);
         tableTo.set(null);
-        this.taskStateMetrics.clearDnd();
+        taskStateMetrics.clearDnd();
     }
 }

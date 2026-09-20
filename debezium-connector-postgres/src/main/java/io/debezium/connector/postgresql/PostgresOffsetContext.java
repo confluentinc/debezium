@@ -23,7 +23,6 @@ import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.connector.postgresql.connection.ReplicationMessage.Operation;
 import io.debezium.connector.postgresql.spi.OffsetState;
 import io.debezium.pipeline.CommonOffsetContext;
-import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.pipeline.source.snapshot.incremental.IncrementalSnapshotContext;
 import io.debezium.pipeline.source.snapshot.incremental.SignalBasedIncrementalSnapshotContext;
 import io.debezium.pipeline.spi.OffsetContext;
@@ -46,14 +45,12 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
     private Lsn streamingStoppingLsn = null;
     private final TransactionContext transactionContext;
     private final IncrementalSnapshotContext<TableId> incrementalSnapshotContext;
-    // null when smart snapshot is disabled
-    private final Integer epoch;
 
     private PostgresOffsetContext(PostgresConnectorConfig connectorConfig, Lsn lsn, Lsn lastCompletelyProcessedLsn, Lsn lastCommitLsn, Long txId, Operation messageType,
                                   Instant time,
                                   SnapshotType snapshot,
                                   boolean lastSnapshotRecord, boolean snapshotCompleted, TransactionContext transactionContext,
-                                  IncrementalSnapshotContext<TableId> incrementalSnapshotContext, Integer epoch) {
+                                  IncrementalSnapshotContext<TableId> incrementalSnapshotContext) {
         super(new SourceInfo(connectorConfig), snapshotCompleted);
 
         this.lastCompletelyProcessedLsn = lastCompletelyProcessedLsn;
@@ -72,7 +69,6 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
         }
         this.transactionContext = transactionContext;
         this.incrementalSnapshotContext = incrementalSnapshotContext;
-        this.epoch = epoch;
     }
 
     @Override
@@ -104,17 +100,7 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
         if (sourceInfo.messageType() != null) {
             result.put(SourceInfo.MSG_TYPE_KEY, sourceInfo.messageType().toString());
         }
-        if (epoch != null) {
-            // Only the epoch is stamped here. snapshot_completed is written above while a snapshot is in
-            // progress; once postSnapshotCompletion() clears `snapshot` neither key is written, and a restart
-            // correctly reads that as "no initial snapshot running".
-            result.put(SnapshotCoordinationFacade.EPOCH, epoch);
-        }
         return sourceInfo.isSnapshot() ? result : incrementalSnapshotContext.store(transactionContext.store(result));
-    }
-
-    public Integer getEpoch() {
-        return epoch;
     }
 
     @Override
@@ -224,16 +210,15 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
             final SnapshotType snapshot = loadSnapshot(offset).orElse(null);
             boolean snapshotCompleted = loadSnapshotCompleted(offset);
             final boolean lastSnapshotRecord = (boolean) ((Map<String, Object>) offset).getOrDefault(SourceInfo.LAST_SNAPSHOT_RECORD_KEY, Boolean.FALSE);
-            final Integer epoch = SnapshotCoordinationFacade.epochOf((Map<String, Object>) offset);
             return new PostgresOffsetContext(connectorConfig, lsn,
                     lastCompletelyProcessedLsn, lastCommitLsn, txId, messageType, useconds, snapshot, lastSnapshotRecord,
                     snapshotCompleted,
                     TransactionContext.load(offset),
                     connectorConfig.isReadOnlyConnection()
                             ? PostgresReadOnlyIncrementalSnapshotContext.load(offset)
-                            : SignalBasedIncrementalSnapshotContext.load(offset, false),
-                    epoch);
+                            : SignalBasedIncrementalSnapshotContext.load(offset, false));
         }
+
     }
 
     @Override
@@ -241,9 +226,7 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
         return "PostgresOffsetContext [sourceInfoSchema=" + sourceInfoSchema + ", sourceInfo=" + sourceInfo
                 + ", lastSnapshotRecord=" + lastSnapshotRecord
                 + ", lastCompletelyProcessedLsn=" + lastCompletelyProcessedLsn + ", lastCommitLsn=" + lastCommitLsn
-                + ", streamingStoppingLsn=" + streamingStoppingLsn
-                + (epoch != null ? ", epoch=" + epoch : "")
-                + ", transactionContext=" + transactionContext
+                + ", streamingStoppingLsn=" + streamingStoppingLsn + ", transactionContext=" + transactionContext
                 + ", incrementalSnapshotContext=" + incrementalSnapshotContext + "]";
     }
 
@@ -258,7 +241,7 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
             final Lsn lsn = Lsn.valueOf(jdbcConnection.currentXLogLocation());
             final Long txId = jdbcConnection.currentTransactionId();
             LOGGER.info("Read xlogStart at '{}' from transaction '{}'", lsn, txId);
-            PostgresOffsetContext context = new PostgresOffsetContext(
+            return new PostgresOffsetContext(
                     connectorConfig,
                     lsn,
                     lastCompletelyProcessedLsn,
@@ -272,9 +255,7 @@ public class PostgresOffsetContext extends CommonOffsetContext<SourceInfo> {
                     new TransactionContext(),
                     connectorConfig.isReadOnlyConnection()
                             ? new PostgresReadOnlyIncrementalSnapshotContext<>()
-                            : new SignalBasedIncrementalSnapshotContext<>(false),
-                    connectorConfig.getSmartSnapshotEpoch());
-            return context;
+                            : new SignalBasedIncrementalSnapshotContext<>(false));
         }
         catch (SQLException e) {
             throw new ConnectException("Database processing error", e);

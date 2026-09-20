@@ -46,11 +46,6 @@ public class MongoDbStreamingChangeEventSourceMetrics extends DefaultStreamingCh
     }
 
     @Override
-    public int getConnectedCode() {
-        return isConnected() ? 1 : 0;
-    }
-
-    @Override
     public long getNumberOfPrimaryElections() {
         return numberOfPrimaryElections.get();
     }
