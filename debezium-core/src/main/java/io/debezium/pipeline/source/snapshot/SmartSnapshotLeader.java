@@ -111,6 +111,7 @@ public class SmartSnapshotLeader implements Runnable {
             // to roughly 8k tables. Beyond that the write would be rejected and the round would fail; raising the
             // ceiling (topic-level compression, or splitting the assignments across records) is tracked
             // separately and is not needed for the table counts this supports today.
+            // https://confluentinc.atlassian.net/browse/CC-43566
             leaderSnapshotCoordination.writeSnapshotInfo(setup.snapshotName(), setup.consistentPosition(), leaderEpoch, setup.tables(), numTasks);
             snapshotPublished = true;
 
