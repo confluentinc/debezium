@@ -5,8 +5,6 @@
  */
 package io.debezium.data.vector;
 
-import static io.debezium.util.Loggings.maybeRedactSensitiveData;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -28,7 +26,7 @@ public final class Vectors {
 
         value = value.trim();
         if (!value.startsWith("[") || !value.endsWith("]")) {
-            LOGGER.warn("Cannot convert vector {}, expected format is [x,y,z,...]", maybeRedactSensitiveData(value));
+            LOGGER.warn("Cannot convert vector {}, expected format is [x,y,z,...]", value);
             return null;
         }
 
@@ -47,7 +45,7 @@ public final class Vectors {
         value = value.trim();
         var parts = value.split("/");
         if (parts.length != 2) {
-            LOGGER.warn(SPARSE_VECTOR_ERROR, maybeRedactSensitiveData(value));
+            LOGGER.warn(SPARSE_VECTOR_ERROR, value);
             return null;
         }
 
@@ -55,7 +53,7 @@ public final class Vectors {
         final var dimensions = Short.parseShort(parts[1].trim());
 
         if (!strVector.startsWith("{") || !strVector.endsWith("}")) {
-            LOGGER.warn(SPARSE_VECTOR_ERROR, maybeRedactSensitiveData(value));
+            LOGGER.warn(SPARSE_VECTOR_ERROR, value);
             return null;
         }
 
@@ -66,7 +64,7 @@ public final class Vectors {
         for (String element : strValues) {
             parts = element.split(":");
             if (parts.length != 2) {
-                LOGGER.warn(SPARSE_VECTOR_ERROR, maybeRedactSensitiveData(value));
+                LOGGER.warn(SPARSE_VECTOR_ERROR, value);
                 return null;
             }
             vector.put(Short.parseShort(parts[0].trim()), elementMapper.apply(parts[1].trim()));

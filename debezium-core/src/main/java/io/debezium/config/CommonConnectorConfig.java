@@ -909,89 +909,6 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
             .withValidation(Field::isPositiveInteger)
             .withDescription("The maximum number of threads used to perform the snapshot. Defaults to 1.");
 
-    public static final Field SMART_SNAPSHOT_ENABLED = Field.create("smart.snapshot.enabled")
-            .withDisplayName("Smart snapshot.enabled")
-            .withType(Type.BOOLEAN)
-            .withGroup(Field.createGroupEntry(Field.Group.CONNECTOR_SNAPSHOT, 22))
-            .withWidth(Width.SHORT)
-            .withImportance(Importance.MEDIUM)
-            .withDefault(true)
-            .withDescription("When enabled, optimizes snapshot behavior by delaying DND metric emission, "
-                    + "increasing producer batch size, and using multiple snapshot threads.");
-
-    public static final Field SMART_SNAPSHOT_MONITOR_POLL_INTERVAL_MS = Field.createInternal("smart.snapshot.internal.monitor.poll.interval.ms")
-            .withDisplayName("Smart snapshot monitor poll interval (ms)")
-            .withType(Type.LONG)
-            .withWidth(Width.MEDIUM)
-            .withImportance(Importance.LOW)
-            .withDefault(30000L)
-            .withValidation(Field::isPositiveLong)
-            .withDescription("Interval in milliseconds at which the connector checks the coordination topic for "
-                    + "snapshot completion / restart during a smart (multi-task) snapshot. Internal, mainly for testing.");
-
-    public static final Field SMART_SNAPSHOT_LEADER_JOIN_WAIT_TIMEOUT_MS = Field.createInternal("smart.snapshot.internal.leader.join.wait.timeout.ms")
-            .withDisplayName("Smart snapshot leader join wait timeout (ms)")
-            .withType(Type.LONG)
-            .withWidth(Width.MEDIUM)
-            .withImportance(Importance.LOW)
-            // Generous by default: starting a round triggers a Connect rebalance, and task assignment plus startup
-            // (connection setup, coordination-topic catch-up) can take a while. Kept below the task snapshot-info
-            // wait so a joined task does not give up before the leader publishes.
-            .withDefault(180000L)
-            .withValidation(Field::isPositiveLong)
-            .withDescription("How long, in milliseconds, the leader waits for every task to join before it prepares "
-                    + "the snapshot (takes table locks). Waiting first keeps the locked window small. If the tasks do "
-                    + "not all join in time, the leader fails the task so it retries (no epoch bump, since nothing was "
-                    + "prepared yet). Should be smaller than the task snapshot-info wait timeout. Internal, mainly for testing.");
-
-    public static final Field SMART_SNAPSHOT_TASK_SNAPSHOT_INFO_WAIT_TIMEOUT_MS = Field
-            .createInternal("smart.snapshot.internal.task.snapshot.info.wait.timeout.ms")
-            .withDisplayName("Smart snapshot task snapshot-info wait timeout (ms)")
-            .withType(Type.LONG)
-            .withWidth(Width.MEDIUM)
-            .withImportance(Importance.LOW)
-            // Kept comfortably above the leader join-wait (180s) plus snapshot preparation time.
-            .withDefault(360000L)
-            .withValidation(Field::isPositiveLong)
-            .withDescription("How long, in milliseconds, a task waits for the leader to publish the snapshot info "
-                    + "before failing. Must be larger than the leader join-wait timeout plus snapshot preparation "
-                    + "time, so a joined task does not give up before the snapshot is published. Internal, mainly for testing.");
-
-    public static final Field SMART_SNAPSHOT_LEADER_STARTED_TRANSACTION_TIMEOUT_MS = Field
-            .createInternal("smart.snapshot.internal.leader.started.transaction.timeout.ms")
-            .withDisplayName("Smart snapshot leader started-transaction wait timeout (ms)")
-            .withType(Type.LONG)
-            .withWidth(Width.MEDIUM)
-            .withImportance(Importance.LOW)
-            .withDefault(120000L)
-            .withValidation(Field::isPositiveLong)
-            .withDescription("How long, in milliseconds, the leader holds the table locks waiting for every task to "
-                    + "start its snapshot transaction. If they do not all start in time, the leader releases the locks "
-                    + "and then signals a restart of the round (a restart_needed marker keyed to task 0, which the "
-                    + "connector monitor picks up to bump the epoch and retry), so a stuck task cannot hold the locks "
-                    + "forever. Internal, mainly for testing.");
-
-    public static final Field SMART_SNAPSHOT_LEADER_POLL_INTERVAL_MS = Field.createInternal("smart.snapshot.internal.leader.poll.interval.ms")
-            .withDisplayName("Smart snapshot leader poll interval (ms)")
-            .withType(Type.LONG)
-            .withWidth(Width.MEDIUM)
-            .withImportance(Importance.LOW)
-            .withDefault(10000L)
-            .withValidation(Field::isPositiveLong)
-            .withDescription("Interval in milliseconds at which the leader polls the coordination topic while waiting "
-                    + "for tasks to join / start their transaction, and at which it keep-alives the held snapshot "
-                    + "connections. Internal, mainly for testing.");
-
-    public static final Field DND_DELAY_MS = Field.create("dnd.delay.ms")
-            .withDisplayName("DND delay (ms)")
-            .withType(Type.LONG)
-            .withGroup(Field.createGroupEntry(Field.Group.CONNECTOR_SNAPSHOT, 23))
-            .withWidth(Width.MEDIUM)
-            .withImportance(Importance.LOW)
-            .withDefault(600000L)
-            .withDescription("Delay in milliseconds before emitting the DND metric after a snapshot starts. "
-                    + "Only applies when smart.snapshot is enabled.");
-
     public static final Field SIGNAL_DATA_COLLECTION = Field.create("signal.data.collection")
             .withDisplayName("Signaling data collection")
             .withGroup(Field.createGroupEntry(Field.Group.ADVANCED, 20))
@@ -1501,13 +1418,6 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
                     SNAPSHOT_MODE_TABLES,
                     SNAPSHOT_FETCH_SIZE,
                     SNAPSHOT_MAX_THREADS,
-                    SMART_SNAPSHOT_ENABLED,
-                    DND_DELAY_MS,
-                    SMART_SNAPSHOT_MONITOR_POLL_INTERVAL_MS,
-                    SMART_SNAPSHOT_LEADER_JOIN_WAIT_TIMEOUT_MS,
-                    SMART_SNAPSHOT_LEADER_STARTED_TRANSACTION_TIMEOUT_MS,
-                    SMART_SNAPSHOT_LEADER_POLL_INTERVAL_MS,
-                    SMART_SNAPSHOT_TASK_SNAPSHOT_INFO_WAIT_TIMEOUT_MS,
                     SNAPSHOT_MODE_CUSTOM_NAME,
                     SNAPSHOT_MODE_CONFIGURATION_BASED_SNAPSHOT_DATA,
                     SNAPSHOT_MODE_CONFIGURATION_BASED_SNAPSHOT_SCHEMA,
@@ -1565,13 +1475,6 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
     private final int incrementalSnapshotChunkSize;
     private final boolean incrementalSnapshotAllowSchemaChanges;
     private final int snapshotMaxThreads;
-    private final boolean smartSnapshotEnabled;
-    private final long dndDelayMs;
-    private final long smartSnapshotMonitorPollIntervalMs;
-    private final long smartSnapshotLeaderJoinWaitTimeoutMs;
-    private final long smartSnapshotLeaderStartedTransactionTimeoutMs;
-    private final long smartSnapshotLeaderPollIntervalMs;
-    private final long smartSnapshotTaskSnapshotInfoWaitTimeoutMs;
 
     private final String snapshotModeCustomName;
     private final Integer queryFetchSize;
@@ -1621,13 +1524,6 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
         this.retriableRestartWait = Duration.ofMillis(config.getLong(RETRIABLE_RESTART_WAIT));
         this.snapshotFetchSize = config.getInteger(SNAPSHOT_FETCH_SIZE, defaultSnapshotFetchSize);
         this.snapshotMaxThreads = config.getInteger(SNAPSHOT_MAX_THREADS);
-        this.smartSnapshotEnabled = config.getBoolean(SMART_SNAPSHOT_ENABLED);
-        this.dndDelayMs = config.getLong(DND_DELAY_MS);
-        this.smartSnapshotMonitorPollIntervalMs = config.getLong(SMART_SNAPSHOT_MONITOR_POLL_INTERVAL_MS);
-        this.smartSnapshotLeaderJoinWaitTimeoutMs = config.getLong(SMART_SNAPSHOT_LEADER_JOIN_WAIT_TIMEOUT_MS);
-        this.smartSnapshotLeaderStartedTransactionTimeoutMs = config.getLong(SMART_SNAPSHOT_LEADER_STARTED_TRANSACTION_TIMEOUT_MS);
-        this.smartSnapshotLeaderPollIntervalMs = config.getLong(SMART_SNAPSHOT_LEADER_POLL_INTERVAL_MS);
-        this.smartSnapshotTaskSnapshotInfoWaitTimeoutMs = config.getLong(SMART_SNAPSHOT_TASK_SNAPSHOT_INFO_WAIT_TIMEOUT_MS);
         this.snapshotModeCustomName = config.getString(SNAPSHOT_MODE_CUSTOM_NAME);
         this.queryFetchSize = config.getInteger(QUERY_FETCH_SIZE);
         this.incrementalSnapshotChunkSize = config.getInteger(INCREMENTAL_SNAPSHOT_CHUNK_SIZE);
@@ -1781,34 +1677,6 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
 
     public int getSnapshotMaxThreads() {
         return snapshotMaxThreads;
-    }
-
-    public boolean isSmartSnapshotEnabled() {
-        return smartSnapshotEnabled;
-    }
-
-    public long getDndDelayMs() {
-        return dndDelayMs;
-    }
-
-    public long getSmartSnapshotMonitorPollIntervalMs() {
-        return smartSnapshotMonitorPollIntervalMs;
-    }
-
-    public long getSmartSnapshotLeaderJoinWaitTimeoutMs() {
-        return smartSnapshotLeaderJoinWaitTimeoutMs;
-    }
-
-    public long getSmartSnapshotLeaderStartedTransactionTimeoutMs() {
-        return smartSnapshotLeaderStartedTransactionTimeoutMs;
-    }
-
-    public long getSmartSnapshotLeaderPollIntervalMs() {
-        return smartSnapshotLeaderPollIntervalMs;
-    }
-
-    public long getSmartSnapshotTaskSnapshotInfoWaitTimeoutMs() {
-        return smartSnapshotTaskSnapshotInfoWaitTimeoutMs;
     }
 
     public String getSnapshotModeCustomName() {
