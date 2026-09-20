@@ -6,7 +6,6 @@
 
 package io.debezium.connector.postgresql;
 
-import static io.debezium.util.Loggings.maybeRedactSensitiveData;
 import static java.time.ZoneId.systemDefault;
 
 import java.io.StringWriter;
@@ -552,11 +551,6 @@ public class PostgresValueConverter extends JdbcValueConverters {
                     return createArrayConverter(column, fieldDefn);
                 }
 
-                // Enum types don't have a JDBC converter, but we need to return a converter that passes through the string value
-                if (resolvedType.isEnumType()) {
-                    return data -> convertString(column, fieldDefn, data);
-                }
-
                 final ValueConverter jdbcConverter = super.converter(column, fieldDefn);
                 if (jdbcConverter == null) {
                     return includeUnknownDatatypes ? data -> convertBinary(column, fieldDefn, data, binaryMode) : null;
@@ -743,7 +737,7 @@ public class PostgresValueConverter extends JdbcValueConverters {
                     r.deliver(ltrees);
                 }
                 catch (SQLException e) {
-                    logger.error("Failed to parse PgArray: " + maybeRedactSensitiveData(pgArray), e);
+                    logger.error("Failed to parse PgArray: " + pgArray, e);
                 }
             }
         });
@@ -1081,8 +1075,7 @@ public class PostgresValueConverter extends JdbcValueConverters {
                     r.deliver(Point.createValue(schema, pgPoint.x, pgPoint.y));
                 }
                 catch (SQLException e) {
-                    logger.warn("Error converting the string '{}' to a PGPoint type for the column '{}'",
-                            maybeRedactSensitiveData(dataString), column);
+                    logger.warn("Error converting the string '{}' to a PGPoint type for the column '{}'", dataString, column);
                 }
             }
             else if (data instanceof PgProto.Point) {
