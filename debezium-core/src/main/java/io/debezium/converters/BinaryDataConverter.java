@@ -6,6 +6,8 @@
 
 package io.debezium.converters;
 
+import static io.debezium.util.Loggings.maybeRedactSensitiveData;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
@@ -118,7 +120,7 @@ public class BinaryDataConverter implements Converter, HeaderConverter, Versione
 
     private void assertDelegateProvided(String name, Object type) {
         if (delegateConverter == null) {
-            throw new DataException("A " + name + " of type '" + type + "' requires a delegate.converter.type to be configured");
+            throw new DataException("A " + name + " of type '" + maybeRedactSensitiveData(type) + "' requires a delegate.converter.type to be configured");
         }
     }
 }
