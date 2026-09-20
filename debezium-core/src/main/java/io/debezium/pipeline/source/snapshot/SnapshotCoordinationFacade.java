@@ -1,0 +1,236 @@
+/*
+ * Copyright Debezium Authors.
+ *
+ * Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
+ */
+
+package io.debezium.pipeline.source.snapshot;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+
+import io.debezium.DebeziumException;
+import io.debezium.config.CommonConnectorConfig;
+import io.debezium.config.Configuration;
+import io.debezium.pipeline.spi.OffsetContext;
+import io.debezium.relational.TableId;
+import io.debezium.util.Collect;
+
+public class SnapshotCoordinationFacade {
+
+    // A record on the coordination topic can carry a "type" so two records for the same server id
+    // don't overwrite each other.
+    private static final String TYPE = "type";
+    private static final String TYPE_SNAPSHOT_INFO = "snapshot_info";
+    // server-level completion
+    private static final String TYPE_SNAPSHOT_DONE = "snapshot_done";
+    private static final String TYPE_EPOCH = "epoch_marker";
+    private static final String TYPE_TASK_STARTED_TRANSACTION = "task_started_transaction";
+    private static final String TYPE_TASK_RESTART = "task_restart";
+    private static final String TYPE_TASK_JOIN = "task_join";
+    private static final String TYPE_TASK_DONE = "task_done";
+
+    public static final String EPOCH = "epoch";
+    public static final String SNAPSHOT_NAME = "snapshot_name";
+    public static final String CONSISTENT_POINT = "consistent_point";
+    // Explicit per-task table assignment: taskId (as a string) -> JSON array of quoted table FQNs.
+    // The leader publishes the whole plan in this single field so each task reads its own slice directly
+    // instead of re-deriving it from a flat table list.
+    public static final String ASSIGNMENTS = "assignments";
+    public static final String NUM_TASKS = "num_tasks";
+
+    private final SnapshotCoordination coordination;
+    private final String server;
+
+    public SnapshotCoordinationFacade(Configuration configuration, CommonConnectorConfig connectorConfig) {
+        this(new KafkaLogSnapshotCoordination(configuration, connectorConfig), connectorConfig.getLogicalName());
+    }
+
+    // visible for testing: inject a coordination store (a fake / mock) without touching Kafka.
+    SnapshotCoordinationFacade(SnapshotCoordination coordination, String server) {
+        this.coordination = coordination;
+        this.server = server;
+    }
+
+    public static boolean hasCoordinationBootstrap(Configuration config) {
+        return KafkaLogSnapshotCoordination.hasBootstrap(config);
+    }
+
+    /**
+     * Facade that does NOT create the coordination topic. Used by tasks (which fail fast if the topic is missing)
+     * and by read-only callers. Only the connector creates the topic.
+     */
+    public static SnapshotCoordinationFacade nonCreating(Configuration config, CommonConnectorConfig connectorConfig) {
+        return new SnapshotCoordinationFacade(
+                new KafkaLogSnapshotCoordination(config, connectorConfig, false),
+                connectorConfig.getLogicalName());
+    }
+
+    public boolean start(SnapshotCoordination.MissingTopicPolicy policy) {
+        return coordination.start(policy);
+    }
+
+    public void stop() {
+        coordination.stop();
+    }
+
+    private Map<String, String> snapshotInfoKey() {
+        return Collect.hashMapOf("server", server, TYPE, TYPE_SNAPSHOT_INFO);
+    }
+
+    private Map<String, String> snapshotDoneKey() {
+        return Collect.hashMapOf("server", server, TYPE, TYPE_SNAPSHOT_DONE);
+    }
+
+    private Map<String, String> epochKey() {
+        return Collect.hashMapOf("server", server, TYPE, TYPE_EPOCH);
+    }
+
+    private Map<String, String> taskStartedTransactionKey(String taskId) {
+        return Collect.hashMapOf("server", server, "task", taskId, TYPE, TYPE_TASK_STARTED_TRANSACTION);
+    }
+
+    private Map<String, String> taskRestartKey(String taskId) {
+        return Collect.hashMapOf("server", server, "task", taskId, TYPE, TYPE_TASK_RESTART);
+    }
+
+    private Map<String, String> taskJoinKey(String taskId) {
+        return Collect.hashMapOf("server", server, "task", taskId, TYPE, TYPE_TASK_JOIN);
+    }
+
+    private Map<String, String> taskDoneKey(String taskId) {
+        return Collect.hashMapOf("server", server, "task", taskId, TYPE, TYPE_TASK_DONE);
+    }
+
+    public void writeSnapshotInfo(String snapshotName, String consistentPoint, int epoch, List<TableId> tables, int numTasks) {
+        Map<String, Object> value = new HashMap<>();
+        value.put(SNAPSHOT_NAME, snapshotName);
+        value.put(CONSISTENT_POINT, consistentPoint);
+        value.put(EPOCH, epoch);
+        value.put(NUM_TASKS, numTasks);
+        // Publish the explicit per-task slice rather than a flat table list.
+        value.put(ASSIGNMENTS, SmartSnapshotTableAssignments.buildAssignments(tables, numTasks));
+        write(snapshotInfoKey(), value);
+    }
+
+    public void writeCompletion(String consistentPoint, int epoch) {
+        Map<String, Object> value = new HashMap<>();
+        value.put(CONSISTENT_POINT, consistentPoint);
+        value.put(EPOCH, epoch);
+        write(snapshotDoneKey(), value);
+    }
+
+    // no epoch check
+    public Map<String, Object> readSnapshotInfo() {
+        return coordination.read(snapshotInfoKey());
+    }
+
+    public Map<String, Object> readCompletion() {
+        // has consistent_point + epoch; non-null = done
+        return coordination.read(snapshotDoneKey());
+    }
+
+    public void writeEpoch(int epoch) {
+        write(epochKey(), Collect.hashMapOf(EPOCH, epoch));
+    }
+
+    public Integer readEpoch() {
+        return epochOf(coordination.read(epochKey()));
+    }
+
+    public void writeTaskStartedTransaction(String taskId, int epoch) {
+        write(taskStartedTransactionKey(taskId), Collect.hashMapOf(EPOCH, epoch));
+    }
+
+    public boolean isTaskStartedTransaction(String taskId, int epoch) {
+        return existsAtEpoch(taskStartedTransactionKey(taskId), epoch);
+    }
+
+    public void writeRestartNeeded(String taskId, int epoch) {
+        write(taskRestartKey(taskId), Collect.hashMapOf(EPOCH, epoch));
+    }
+
+    public boolean isRestartNeeded(String taskId, int epoch) {
+        return existsAtEpoch(taskRestartKey(taskId), epoch);
+    }
+
+    public void writeTaskJoin(String taskId, int epoch) {
+        write(taskJoinKey(taskId), Collect.hashMapOf(EPOCH, epoch));
+    }
+
+    public Integer readTaskJoinEpoch(String taskId) {
+        return epochOf(coordination.read(taskJoinKey(taskId)));
+    }
+
+    public boolean isTaskJoined(String taskId, int epoch) {
+        return existsAtEpoch(taskJoinKey(taskId), epoch);
+    }
+
+    public void writeTaskDone(String taskId, int epoch) {
+        write(taskDoneKey(taskId), Collect.hashMapOf(EPOCH, epoch));
+    }
+
+    public boolean isTaskDone(String taskId, int epoch) {
+        return existsAtEpoch(taskDoneKey(taskId), epoch);
+    }
+
+    public static Integer epochOf(Map<String, Object> value) {
+        return (value != null &&
+                value.get(EPOCH) != null) ? ((Number) value.get(EPOCH)).intValue() : null;
+    }
+
+    public static <O extends OffsetContext> O fetchOffsetFromCoordinationTopic(
+                                                                               Configuration config, CommonConnectorConfig connectorConfig, boolean isSmartSnapshotTask,
+                                                                               Function<String, O> buildOffsetFromConsistentPoint) {
+        // Post-downscale streaming task: read consistent point from coordination topic only if the feature is still enabled
+        // Otherwise, the snapshot taken in the smart snapshot mode is discarded
+        if (!connectorConfig.isSmartSnapshotEnabled() || isSmartSnapshotTask) {
+            return null;
+        }
+
+        if (!SnapshotCoordinationFacade.hasCoordinationBootstrap(config)) {
+            return null;
+        }
+
+        SnapshotCoordinationFacade facade = SnapshotCoordinationFacade.nonCreating(config, connectorConfig);
+
+        try {
+            if (!facade.start(SnapshotCoordination.MissingTopicPolicy.SKIP)) {
+                // topic doesn't exist / broker unreachable skip fast
+                return null;
+            }
+
+            Map<String, Object> completionInfo = facade.readCompletion();
+
+            if (completionInfo != null
+                    && completionInfo.get(SnapshotCoordinationFacade.CONSISTENT_POINT) != null) {
+                String cp = String.valueOf(completionInfo.get(SnapshotCoordinationFacade.CONSISTENT_POINT));
+                return buildOffsetFromConsistentPoint.apply(cp);
+            }
+            return null;
+        }
+        finally {
+            facade.stop();
+        }
+    }
+
+    private boolean existsAtEpoch(Map<String, String> key, int epoch) {
+        Map<String, Object> value = coordination.read(key);
+        Integer epochOfValue = epochOf(value);
+        return value != null &&
+                epochOfValue != null &&
+                epochOfValue == epoch;
+    }
+
+    private void write(Map<String, String> key, Map<String, Object> value) {
+        try {
+            // throws -> callers that want best-effort catch it
+            coordination.write(key, value);
+        }
+        catch (Exception e) {
+            throw new DebeziumException("Smart snapshot: [role=coordination] Coordination write failed for " + key, e);
+        }
+    }
+}
