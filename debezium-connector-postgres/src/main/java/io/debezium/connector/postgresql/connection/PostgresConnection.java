@@ -90,9 +90,11 @@ public class PostgresConnection extends JdbcConnection {
             PostgresConnection.class.getClassLoader(), JdbcConfiguration.PORT.withDefault(PostgresConnectorConfig.PORT.defaultValueAsString()));
 
     /**
-     * Obtaining a replication slot may fail if there's a pending transaction. We're retrying to get a slot for 30 min.
+     * Obtaining a replication slot may fail if there's a pending transaction.  We're retrying to get a slot
+     * under 5 min: if slot is not captured within 5 min, the connector fails, rather than trying internally,
+     * Those failure is eventually retried by the operator, but task does not stays in unassigned for long
      */
-    private static final int MAX_ATTEMPTS_FOR_OBTAINING_REPLICATION_SLOT = 900;
+    private static final int MAX_ATTEMPTS_FOR_OBTAINING_REPLICATION_SLOT = 140;
 
     private static final Duration PAUSE_BETWEEN_REPLICATION_SLOT_RETRIEVAL_ATTEMPTS = Duration.ofSeconds(2);
 
@@ -162,7 +164,7 @@ public class PostgresConnection extends JdbcConnection {
         this(config, null, connectionUsage, threadNameContext);
     }
 
-    static JdbcConfiguration addDefaultSettings(JdbcConfiguration configuration, String connectionUsage) {
+    public static JdbcConfiguration addDefaultSettings(JdbcConfiguration configuration, String connectionUsage) {
         // we require Postgres 9.4 as the minimum server version since that's where logical replication was first introduced
         return JdbcConfiguration.adapt(configuration.edit()
                 .with("assumeMinServerVersion", "9.4")
