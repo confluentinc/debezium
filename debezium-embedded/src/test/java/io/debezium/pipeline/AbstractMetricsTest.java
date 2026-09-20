@@ -341,8 +341,12 @@ public abstract class AbstractMetricsTest<T extends SourceConnector> extends Abs
             // MBean doesn't exist, which is fine
         }
 
-        // Start connector
-        start();
+        // Start connector with smart snapshot disabled so DND is emitted immediately
+        // during the snapshot (smart.snapshot.enabled defaults to true, which would
+        // otherwise delay DND emission by dnd.delay.ms).
+        // todo undo this once the feature is disabled
+        start(cfg -> cfg.with("smart.snapshot.enabled", false));
+
         assertConnectorIsRunning();
 
         // Wait for MBeans to be registered and snapshot to start

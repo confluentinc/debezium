@@ -5,6 +5,8 @@
  */
 package io.debezium.relational;
 
+import static io.debezium.util.Loggings.maybeRedactSensitiveData;
+
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -68,8 +70,6 @@ import io.debezium.util.Strings;
 import io.debezium.util.ThreadNameContext;
 import io.debezium.util.Threads;
 import io.debezium.util.Threads.Timer;
-
-import static io.debezium.util.Loggings.maybeRedactSensitiveData;
 
 /**
  * Base class for {@link SnapshotChangeEventSource} for relational databases with or without a schema history.
@@ -346,7 +346,7 @@ public abstract class RelationalSnapshotChangeEventSource<P extends Partition, O
                 .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
-    private void determineCapturedTables(RelationalSnapshotContext<P, O> ctx, Set<Pattern> dataCollectionsToBeSnapshotted, SnapshottingTask snapshottingTask)
+    protected void determineCapturedTables(RelationalSnapshotContext<P, O> ctx, Set<Pattern> dataCollectionsToBeSnapshotted, SnapshottingTask snapshottingTask)
             throws Exception {
 
         Set<TableId> allTableIds = getAllTableIds(ctx);
