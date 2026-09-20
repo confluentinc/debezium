@@ -5,6 +5,8 @@
  */
 package io.debezium.heartbeat;
 
+import static io.debezium.util.Loggings.maybeRedactSensitiveData;
+
 import java.sql.SQLException;
 import java.time.Duration;
 import java.util.Map;
@@ -57,7 +59,8 @@ public class DatabaseHeartbeatImpl extends HeartbeatImpl {
             if (errorHandler != null) {
                 errorHandler.onError(e);
             }
-            LOGGER.error("Could not execute heartbeat action (Error: " + e.getSQLState() + ")", e);
+            LOGGER.error("Could not execute heartbeat action (Error: " + e.getSQLState() + ")", maybeRedactSensitiveData(e));
+            LOGGER.trace("Could not execute heartbeat action (Error: " + e.getSQLState() + ")", e);
         }
         LOGGER.debug("Executed heartbeat action query");
 
