@@ -43,11 +43,13 @@ public interface SmartSnapshotLifecycleManager {
     class SnapshotSetup {
         private final String snapshotName;
         private final String consistentPosition;
+        private final Long snapshotTxId;
         private final List<TableId> tables;
 
-        public SnapshotSetup(String snapshotName, String consistentPosition, List<TableId> tables) {
+        public SnapshotSetup(String snapshotName, String consistentPosition, Long snapshotTxId, List<TableId> tables) {
             this.snapshotName = snapshotName;
             this.consistentPosition = consistentPosition;
+            this.snapshotTxId = snapshotTxId;
             this.tables = tables;
         }
 
@@ -57,6 +59,14 @@ public interface SmartSnapshotLifecycleManager {
 
         public String consistentPosition() {
             return consistentPosition;
+        }
+
+        /**
+         * The transaction id at the shared consistent point, or {@code null} for connectors that don't carry
+         * one (e.g. MySQL). Captured once here so every task stamps the same value on its snapshot offset.
+         */
+        public Long snapshotTxId() {
+            return snapshotTxId;
         }
 
         public List<TableId> tables() {

@@ -65,12 +65,13 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
                                         int epoch,
                                         String snapshotName,
                                         String consistentPoint,
+                                        Long snapshotTxId,
                                         Object assignmentForTask,
                                         SnapshotCoordinationFacade snapshotCoordination) {
         // Postgres identifiers are schema.table, so parse the assignment with useCatalogScoped=false.
         List<TableId> tableSubset = SmartSnapshotTableAssignments.parseTables(assignmentForTask, false);
         PostgresSmartSnapshotChangeEventSource smartSource = (PostgresSmartSnapshotChangeEventSource) snapshotSource;
-        // this was captured by the background thread on the leader task
-        smartSource.setSnapshotCoordination(epoch, snapshotName, Lsn.valueOf(consistentPoint), tableSubset, snapshotCoordination);
+        // snapshotName, LSN and txId were all captured by the leader task at the shared consistent point.
+        smartSource.setSnapshotCoordination(epoch, snapshotName, Lsn.valueOf(consistentPoint), snapshotTxId, tableSubset, snapshotCoordination);
     }
 }

@@ -83,7 +83,7 @@ public class SmartSnapshotLeaderTest {
 
         verify(coordination).start(SnapshotCoordination.MissingTopicPolicy.FAIL);
         verify(lifecycle, never()).prepareSnapshot(anyBoolean());
-        verify(coordination, never()).writeSnapshotInfo(any(), any(), eq(EPOCH), any(), eq(2));
+        verify(coordination, never()).writeSnapshotInfo(any(), any(), any(), eq(EPOCH), any(), eq(2));
     }
 
     @Test
@@ -94,21 +94,21 @@ public class SmartSnapshotLeaderTest {
 
         verify(coordination).start(SnapshotCoordination.MissingTopicPolicy.FAIL);
         verify(lifecycle, never()).prepareSnapshot(anyBoolean());
-        verify(coordination, never()).writeSnapshotInfo(any(), any(), eq(EPOCH), any(), eq(2));
+        verify(coordination, never()).writeSnapshotInfo(any(), any(), any(), eq(EPOCH), any(), eq(2));
     }
 
     @Test
     public void preparesPublishesAndReleasesWhenAllTasksJoin() {
         when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
         allTasksJoined(2);
-        when(lifecycle.prepareSnapshot(true)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", TABLES));
+        when(lifecycle.prepareSnapshot(true)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", 99L, TABLES));
         when(coordination.isTaskStartedTransaction("0", EPOCH)).thenReturn(true);
         when(coordination.isTaskStartedTransaction("1", EPOCH)).thenReturn(true);
 
         prep(2, true).run();
 
         verify(lifecycle).prepareSnapshot(true);
-        verify(coordination).writeSnapshotInfo("snap", "0/16B3748", EPOCH, TABLES, 2);
+        verify(coordination).writeSnapshotInfo("snap", "0/16B3748", 99L, EPOCH, TABLES, 2);
         verify(lifecycle).onAllTasksStartedTransaction();
         // one release for every path out of run(), including the success path: the held connections are dropped
         // as soon as the leader thread ends rather than lingering until the task is stopped
@@ -121,7 +121,7 @@ public class SmartSnapshotLeaderTest {
         // task-0 joined, task-1 joins only on the second check -> the join wait runs one iteration first
         when(coordination.isTaskJoined("0", EPOCH)).thenReturn(true);
         when(coordination.isTaskJoined("1", EPOCH)).thenReturn(false, true);
-        when(lifecycle.prepareSnapshot(true)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", TABLES));
+        when(lifecycle.prepareSnapshot(true)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", 99L, TABLES));
         when(coordination.isTaskStartedTransaction("0", EPOCH)).thenReturn(true);
         when(coordination.isTaskStartedTransaction("1", EPOCH)).thenReturn(true);
 
@@ -141,7 +141,7 @@ public class SmartSnapshotLeaderTest {
         prep(2, true, 0L, 60_000L).run();
 
         verify(lifecycle, never()).prepareSnapshot(anyBoolean());
-        verify(coordination, never()).writeSnapshotInfo(any(), any(), eq(EPOCH), any(), eq(2));
+        verify(coordination, never()).writeSnapshotInfo(any(), any(), any(), eq(EPOCH), any(), eq(2));
         // nothing was prepared/published, so no epoch bump -> fail the task instead
         verify(coordination, never()).writeRestartNeeded(any(), eq(EPOCH));
         verify(errorHandler).setProducerThrowable(any(DebeziumException.class));
@@ -159,7 +159,7 @@ public class SmartSnapshotLeaderTest {
     public void keepsSnapshotAliveWhileWaitingForTasks() {
         when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
         allTasksJoined(1);
-        when(lifecycle.prepareSnapshot(true)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", TABLES));
+        when(lifecycle.prepareSnapshot(true)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", 99L, TABLES));
         // not started on the first check, started afterwards -> the wait loop runs one iteration
         when(coordination.isTaskStartedTransaction("0", EPOCH)).thenReturn(false, true);
 
@@ -173,7 +173,7 @@ public class SmartSnapshotLeaderTest {
     public void startedTransactionTimeoutReleasesAndSignalsRestart() {
         when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
         allTasksJoined(2);
-        when(lifecycle.prepareSnapshot(true)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", TABLES));
+        when(lifecycle.prepareSnapshot(true)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", 99L, TABLES));
         // tasks joined but never start their transaction; 0ms timeout ends the held critical section
         when(coordination.isTaskStartedTransaction("0", EPOCH)).thenReturn(false);
         when(coordination.isTaskStartedTransaction("1", EPOCH)).thenReturn(false);
@@ -181,7 +181,7 @@ public class SmartSnapshotLeaderTest {
         prep(2, true, 60_000L, 0L).run();
 
         verify(lifecycle).prepareSnapshot(true);
-        verify(coordination).writeSnapshotInfo("snap", "0/16B3748", EPOCH, TABLES, 2);
+        verify(coordination).writeSnapshotInfo("snap", "0/16B3748", 99L, EPOCH, TABLES, 2);
         verify(lifecycle).releaseSnapshot();
         verify(coordination).writeRestartNeeded("0", EPOCH);
         verify(lifecycle, never()).onAllTasksStartedTransaction();
@@ -191,7 +191,7 @@ public class SmartSnapshotLeaderTest {
     public void transientReadFailureDuringStartedTransactionWaitIsToleratedNotAborted() {
         when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
         allTasksJoined(2);
-        when(lifecycle.prepareSnapshot(true)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", TABLES));
+        when(lifecycle.prepareSnapshot(true)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", 99L, TABLES));
         // task-0's read blips once (broker hiccup) then reports started. While the table locks are held a transient
         // read failure must be retried, NOT treated as a round abort that drops the locks and discards the snapshot.
         when(coordination.isTaskStartedTransaction("0", EPOCH)).thenThrow(new DebeziumException("read blip")).thenReturn(true);
@@ -210,7 +210,7 @@ public class SmartSnapshotLeaderTest {
         when(coordination.isTaskJoined("0", EPOCH)).thenReturn(true);
         // task-1's read blips once then reports joined; the join wait must retry instead of failing the task.
         when(coordination.isTaskJoined("1", EPOCH)).thenThrow(new DebeziumException("read blip")).thenReturn(true);
-        when(lifecycle.prepareSnapshot(true)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", TABLES));
+        when(lifecycle.prepareSnapshot(true)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", 99L, TABLES));
         when(coordination.isTaskStartedTransaction("0", EPOCH)).thenReturn(true);
         when(coordination.isTaskStartedTransaction("1", EPOCH)).thenReturn(true);
 
@@ -238,7 +238,7 @@ public class SmartSnapshotLeaderTest {
     public void keepAliveFailureAfterPublishReleasesSignalsRestartAndFailsAfterCleanup() {
         when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
         allTasksJoined(2);
-        when(lifecycle.prepareSnapshot(true)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", TABLES));
+        when(lifecycle.prepareSnapshot(true)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", 99L, TABLES));
         // tasks never start their transaction, and keepAlive fails because the DB connection was killed
         when(coordination.isTaskStartedTransaction("0", EPOCH)).thenReturn(false);
         when(coordination.isTaskStartedTransaction("1", EPOCH)).thenReturn(false);
@@ -290,7 +290,7 @@ public class SmartSnapshotLeaderTest {
     public void nonStreamingModePreparesWithoutSlot() {
         when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
         allTasksJoined(1);
-        when(lifecycle.prepareSnapshot(false)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", TABLES));
+        when(lifecycle.prepareSnapshot(false)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", 99L, TABLES));
         when(coordination.isTaskStartedTransaction("0", EPOCH)).thenReturn(true);
 
         prep(1, false).run();
