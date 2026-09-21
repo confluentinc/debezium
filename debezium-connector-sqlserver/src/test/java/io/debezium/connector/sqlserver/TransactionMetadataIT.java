@@ -5,6 +5,7 @@
  */
 package io.debezium.connector.sqlserver;
 
+import static io.debezium.connector.sqlserver.SqlServerConnectorConfig.DATA_QUERY_MODE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertNull;
 
@@ -134,6 +135,8 @@ public class TransactionMetadataIT extends AbstractAsyncEngineConnectorTest {
                 .with(SqlServerConnectorConfig.PROVIDE_TRANSACTION_METADATA, true)
                 .build();
 
+        boolean directMode = SqlServerConnectorConfig.DataQueryMode.parse(
+                config.getString(DATA_QUERY_MODE), DATA_QUERY_MODE.defaultValueAsString()) == SqlServerConnectorConfig.DataQueryMode.DIRECT;
         // Testing.Print.enable();
 
         if (restartJustAfterSnapshot) {
@@ -157,7 +160,7 @@ public class TransactionMetadataIT extends AbstractAsyncEngineConnectorTest {
                             final Lsn minLsn = connection.getMinLsn(TestHelper.TEST_DATABASE_1, tableName);
                             final Lsn maxLsn = connection.getMaxLsn(TestHelper.TEST_DATABASE_1);
                             final AtomicReference<Boolean> found = new AtomicReference<>(false);
-                            try (ResultSet rs = connection.getChangesForTable(ct, minLsn, maxLsn)) {
+                            try (ResultSet rs = connection.getChangesForTable(ct, minLsn, Lsn.ZERO, 0, directMode ? -1 : null, maxLsn, 0)) {
                                 while (rs.next()) {
                                     if (rs.getInt("id") == -1) {
                                         found.set(true);

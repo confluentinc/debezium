@@ -61,6 +61,12 @@ public class PostgresChangeEventSourceFactory implements ChangeEventSourceFactor
     @Override
     public SnapshotChangeEventSource<PostgresPartition, PostgresOffsetContext> getSnapshotChangeEventSource(SnapshotProgressListener<PostgresPartition> snapshotProgressListener,
                                                                                                             NotificationService<PostgresPartition, PostgresOffsetContext> notificationService) {
+        if (configuration.isSmartSnapshotEnabled() && configuration.getTaskId() != null) {
+            return new PostgresSmartSnapshotChangeEventSource(
+                    configuration, snapshotterService, connectionFactory,
+                    schema, dispatcher, clock, snapshotProgressListener,
+                    slotCreatedInfo, startingSlotInfo, notificationService);
+        }
         return new PostgresSnapshotChangeEventSource(
                 configuration,
                 snapshotterService,
