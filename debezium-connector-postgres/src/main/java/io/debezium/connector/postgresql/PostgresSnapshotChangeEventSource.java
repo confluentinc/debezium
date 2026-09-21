@@ -39,8 +39,9 @@ public class PostgresSnapshotChangeEventSource extends RelationalSnapshotChangeE
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PostgresSnapshotChangeEventSource.class);
 
-    private final PostgresConnectorConfig connectorConfig;
-    private final PostgresConnection jdbcConnection;
+    // protected so the smart-snapshot subclass can reuse them instead of holding its own copies.
+    protected final PostgresConnectorConfig connectorConfig;
+    protected final PostgresConnection jdbcConnection;
     private final PostgresSchema schema;
     private final SlotCreationResult slotCreatedInfo;
     private final SlotState startingSlotInfo;
@@ -271,6 +272,16 @@ public class PostgresSnapshotChangeEventSource extends RelationalSnapshotChangeE
         jdbcConnection.executeWithoutCommitting(transactionStatement);
     }
 
+    /**
+     * Statement that opens a REPEATABLE READ transaction and attaches it to an already-exported Postgres
+     * snapshot, so this transaction reads the exact same data view. Shared by the initial snapshot (which
+     * reuses the slot's exported snapshot) and the smart-snapshot subclass (which reuses the leader's).
+     */
+    protected String importExportedSnapshotStatement(String snapshotName) {
+        String snapSet = String.format("SET TRANSACTION SNAPSHOT '%s';", snapshotName);
+        return "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ; \n" + snapSet;
+    }
+
     private String snapshotTransactionIsolationLevelStatement(SlotCreationResult newSlotInfo, boolean isOnDemand) {
 
         if (newSlotInfo != null && !isOnDemand) {
@@ -278,8 +289,7 @@ public class PostgresSnapshotChangeEventSource extends RelationalSnapshotChangeE
              * For an on demand blocking snapshot we don't need to reuse
              * the same snapshot from the existing exported transaction as for the initial snapshot.
              */
-            String snapSet = String.format("SET TRANSACTION SNAPSHOT '%s';", newSlotInfo.snapshotName());
-            return "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ; \n" + snapSet;
+            return importExportedSnapshotStatement(newSlotInfo.snapshotName());
         }
 
         final PostgresConnectorConfig.SnapshotIsolationMode isolationMode = connectorConfig.getSnapshotIsolationMode();

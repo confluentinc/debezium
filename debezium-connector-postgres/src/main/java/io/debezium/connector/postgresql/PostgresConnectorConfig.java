@@ -36,6 +36,7 @@ import io.debezium.connector.postgresql.connection.ReplicationConnection;
 import io.debezium.connector.postgresql.connection.pgoutput.PgOutputMessageDecoder;
 import io.debezium.connector.postgresql.connection.pgproto.PgProtoMessageDecoder;
 import io.debezium.jdbc.JdbcConfiguration;
+import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.relational.ColumnFilterMode;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.relational.TableId;
@@ -360,11 +361,11 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
         ALLOW("allow"),
 
         /**
-        * Establish a secure connection first.
-        * Establish an unencrypted connection next if a secure connection cannot be established
-        *
-        * see the {@code sslmode} Postgres JDBC driver option
-        */
+         * Establish a secure connection first.
+         * Establish an unencrypted connection next if a secure connection cannot be established
+         *
+         * see the {@code sslmode} Postgres JDBC driver option
+         */
         PREFER("prefer"),
 
         /**
@@ -1580,6 +1581,11 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
             return credsProvider.getJdbcCreds().password();
         }
         return getConfig().getString(RelationalDatabaseConnectorConfig.PASSWORD);
+    }
+
+    public Integer getSmartSnapshotEpoch() {
+        String epochStr = getConfig().getString(SnapshotCoordinationFacade.EPOCH);
+        return epochStr != null ? Integer.parseInt(epochStr) : null;
     }
 
     /**
