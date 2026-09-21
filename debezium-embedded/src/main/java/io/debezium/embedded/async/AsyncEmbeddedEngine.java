@@ -18,6 +18,7 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorCompletionService;
@@ -29,6 +30,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -113,7 +115,15 @@ public final class AsyncEmbeddedEngine<R> implements DebeziumEngine<R>, AsyncEng
 
     private final AtomicReference<State> state = new AtomicReference<>(State.CREATING); // state must be changed only via setEngineState() method
     private final List<EngineSourceTask> tasks = new ArrayList<>();
-    private final List<Future<Void>> pollingFutures = new ArrayList<>();
+    // Copy-on-write: mutated on the engine thread (runTasksPolling / reconfiguration) but iterated on the
+    // caller thread in stopPollingIfNeeded() during close(), so a plain list would risk a ConcurrentModificationException.
+    private final List<Future<Void>> pollingFutures = new CopyOnWriteArrayList<>();
+    // Set when the connector calls ConnectorContext#requestTaskReconfiguration; makes the polling loop stop so the
+    // engine can re-create tasks from the connector's new taskConfigs() (e.g. a task scale-up/down).
+    private final AtomicBoolean reconfigurationRequested = new AtomicBoolean(false);
+    // Set by close(): tells the reconfiguration loop to stop starting new rounds so a shutdown doesn't race a
+    // task reconfiguration (which would otherwise transition through STARTING_TASKS and make close() throw).
+    private volatile boolean stopRequested = false;
     private final ExecutorService taskService;
     private final ExecutorService recordService;
     // A latch to make sure close() method finishes before we call completion callback, see also DBZ-7496.
@@ -198,6 +208,22 @@ public final class AsyncEmbeddedEngine<R> implements DebeziumEngine<R>, AsyncEng
         return tasks;
     }
 
+    /**
+     * Requests the engine to restart its tasks from the connector's current {@code taskConfigs()}. Invoked by the
+     * connector via {@link org.apache.kafka.connect.connector.ConnectorContext#requestTaskReconfiguration()} (for
+     * example when a connector scales its tasks up or down). Takes effect only while the engine is polling; the
+     * running tasks are stopped and re-created on the engine thread.
+     */
+    public void requestReconfiguration() {
+        if (getEngineState() == State.POLLING_TASKS) {
+            LOGGER.info("Task reconfiguration requested.");
+            reconfigurationRequested.set(true);
+        }
+        else {
+            LOGGER.debug("Task reconfiguration requested but engine is not polling (state {}); ignoring.", getEngineState());
+        }
+    }
+
     @Override
     public void run() {
         Throwable exitError = null;
@@ -208,17 +234,33 @@ public final class AsyncEmbeddedEngine<R> implements DebeziumEngine<R>, AsyncEng
             LOGGER.debug("Calling connector callback after connector has started.");
             connectorCallback.ifPresent(DebeziumEngine.ConnectorCallback::connectorStarted);
 
-            LOGGER.debug("Creating source tasks.");
             setEngineState(State.INITIALIZING, State.CREATING_TASKS);
-            createSourceTasks(connector, tasks);
+            do {
+                reconfigurationRequested.set(false);
 
-            LOGGER.debug("Starting source tasks.");
-            setEngineState(State.CREATING_TASKS, State.STARTING_TASKS);
-            startSourceTasks(tasks);
+                LOGGER.debug("Creating source tasks.");
+                createSourceTasks(connector, tasks);
 
-            LOGGER.debug("Starting tasks polling.");
-            setEngineState(State.STARTING_TASKS, State.POLLING_TASKS);
-            runTasksPolling(tasks);
+                LOGGER.debug("Starting source tasks.");
+                setEngineState(State.CREATING_TASKS, State.STARTING_TASKS);
+                startSourceTasks(tasks);
+
+                LOGGER.debug("Starting tasks polling.");
+                setEngineState(State.STARTING_TASKS, State.POLLING_TASKS);
+                runTasksPolling(tasks);
+
+                // Polling stopped because the connector asked for reconfiguration (not because the engine is stopping):
+                // stop the current tasks and loop to recreate them from the connector's new taskConfigs(). If a
+                // shutdown has been requested, skip reconfiguration so we don't re-enter STARTING_TASKS while close()
+                // is trying to stop the engine.
+                if (reconfigurationRequested.get() && !stopRequested && State.canBeStopped(getEngineState())) {
+                    LOGGER.info("Task reconfiguration requested; restarting tasks with new task configurations.");
+                    stopTasksForReconfiguration(tasks);
+                    tasks.clear();
+                    pollingFutures.clear();
+                    setEngineState(State.POLLING_TASKS, State.CREATING_TASKS);
+                }
+            } while (reconfigurationRequested.get() && !stopRequested && State.canBeStopped(getEngineState()));
 
             // Check the state first - if the polling was stopped by calling close() method (not by throwing StopEngineException),
             // engine is already in STOPPING state.
@@ -240,6 +282,8 @@ public final class AsyncEmbeddedEngine<R> implements DebeziumEngine<R>, AsyncEng
     @Override
     public void close() throws IOException {
         LOGGER.debug("Engine shutdown called.");
+        // Signal the reconfiguration loop to stop starting new rounds before we read/transition the state below.
+        stopRequested = true;
         // Actual engine state may change until we pass all the checks, but in such case we fail in setEngineState() method.
         final State engineState = getEngineState();
 
@@ -493,7 +537,7 @@ public final class AsyncEmbeddedEngine<R> implements DebeziumEngine<R>, AsyncEng
             for (EngineSourceTask task : tasks) {
                 final RecordProcessor processor = createRecordProcessor(processorClassName, task);
                 processor.initialize(recordService, transformations);
-                pollingFutures.add(taskCompletionService.submit(new PollRecords(task, processor, state)));
+                pollingFutures.add(taskCompletionService.submit(new PollRecords(task, processor, state, reconfigurationRequested)));
             }
         }
         catch (RejectedExecutionException e) {
@@ -669,6 +713,26 @@ public final class AsyncEmbeddedEngine<R> implements DebeziumEngine<R>, AsyncEng
         finally {
             // Make sure task service is shut down and no other tasks can be run.
             taskService.shutdownNow();
+        }
+    }
+
+    /**
+     * Stops the current tasks for an in-flight reconfiguration (task scale up/down). Unlike
+     * {@link #stopSourceTasks(List)}, this commits offsets and stops each task sequentially and leaves the
+     * task executor and record service running so the engine can immediately start the re-created tasks.
+     *
+     * @param tasks {@link List<EngineSourceTask>} of source tasks which should be stopped.
+     */
+    private void stopTasksForReconfiguration(final List<EngineSourceTask> tasks) {
+        for (EngineSourceTask task : tasks) {
+            try {
+                final long commitTimeout = Configuration.from(task.context().config()).getLong(EmbeddedEngineConfig.OFFSET_COMMIT_TIMEOUT_MS);
+                commitOffsets(task.context().offsetStorageWriter(), task.context().clock(), commitTimeout, task.connectTask());
+                task.connectTask().stop();
+            }
+            catch (Exception e) {
+                LOGGER.warn("Failed to stop task during reconfiguration, continuing.", e);
+            }
         }
     }
 
@@ -1203,17 +1267,20 @@ public final class AsyncEmbeddedEngine<R> implements DebeziumEngine<R>, AsyncEng
         final EngineSourceTask task;
         final RecordProcessor processor;
         final AtomicReference<State> engineState;
+        final AtomicBoolean reconfigurationRequested;
 
-        PollRecords(final EngineSourceTask task, final RecordProcessor processor, final AtomicReference<State> engineState) {
+        PollRecords(final EngineSourceTask task, final RecordProcessor processor, final AtomicReference<State> engineState,
+                    final AtomicBoolean reconfigurationRequested) {
             super(Configuration.from(task.context().config()).getInteger(EmbeddedEngineConfig.ERRORS_MAX_RETRIES));
             this.task = task;
             this.processor = processor;
             this.engineState = engineState;
+            this.reconfigurationRequested = reconfigurationRequested;
         }
 
         @Override
         public Void doCall() throws Exception {
-            while (engineState.get() == State.POLLING_TASKS) {
+            while (engineState.get() == State.POLLING_TASKS && !reconfigurationRequested.get()) {
                 LOGGER.trace("Thread {} running task {} starts polling for records.", Thread.currentThread().getName(), task.connectTask());
                 final List<SourceRecord> changeRecords = task.connectTask().poll(); // blocks until there are values ...
                 LOGGER.trace("Thread {} polled {} records.", Thread.currentThread().getName(), changeRecords == null ? "no" : changeRecords.size());

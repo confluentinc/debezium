@@ -39,11 +39,17 @@ public class SmartSnapshotConnectorCoordinator {
     // without setting it the log-pattern fields (connector type/name) would be blank on monitor lines.
     private final String connectorType;
 
-    // Guards the shared state (smartSnapshotState + currentEpoch + lastNumTasks). Two threads touch it: the monitor
-    // thread started here, which is the only writer, and whichever runtime thread calls taskConfigs() (the herder
-    // thread in Connect, the engine thread when embedded), which only reads. The lock keeps taskConfigs() from
-    // seeing a half-applied transition, e.g. the new state with the old epoch. Coordination-topic I/O and
-    // requestTaskReconfiguration are done outside this lock so a slow Kafka read never blocks taskConfigs().
+    // Guards smartSnapshotState, currentEpoch and lastNumTasks. Two threads use them: the monitor thread, and the
+    // runtime thread that calls taskConfigs() (the herder thread in Connect, the engine thread when embedded). The
+    // monitor writes the state and the epoch and reads the task count; taskConfigs() writes the task count and reads
+    // the other two. The lock prevents each thread from observing a mix of recent and old state:
+    //  - the monitor reads the epoch and the task count together, so it cannot check the markers of one round
+    //    against the task count of another. A stale, smaller count would make allTasksDone() check only the first
+    //    few tasks, return true, and downscale while the remaining tasks are still snapshotting.
+    //  - taskConfigs() checks the state and records the task count together, so the count is only updated while the
+    //    snapshot is still ACTIVE, never after the monitor has completed it.
+    // Coordination-topic I/O and requestTaskReconfiguration are left outside the lock so a slow Kafka read never
+    // blocks taskConfigs().
     private final Object stateLock = new Object();
 
     // The monitor thread. start() sets it and stop() reads it, so it is volatile.
