@@ -141,7 +141,11 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
                     slotCreateOrExportResult.getCurrentSnapshotName(), epoch);
             PostgresPartition leaderPartition = new PostgresPartition(connectorConfig.getConnectorName(), "", "0");
             List<TableId> tables = leaderSource.discoverAndLock(leaderPartition, RUNNING_CONTEXT);
-            return new SnapshotSetup(slotCreateOrExportResult.getCurrentSnapshotName(), slotCreateOrExportResult.getCurrentSlotLsn(), tables);
+            // Capture the txId once, here, on the transaction that is attached to the exported snapshot (via the
+            // SET TRANSACTION SNAPSHOT that discoverAndLock ran). Publishing it means every task stamps the same,
+            // consistent-point txId on its snapshot offset instead of each reading its own unrelated backend xid.
+            Long snapshotTxId = holder.currentTransactionId();
+            return new SnapshotSetup(slotCreateOrExportResult.getCurrentSnapshotName(), slotCreateOrExportResult.getCurrentSlotLsn(), snapshotTxId, tables);
         }
         catch (Exception e) {
             releaseSnapshot();
