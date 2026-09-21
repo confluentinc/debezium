@@ -102,7 +102,7 @@ public class PostgresSmartSnapshotChangeEventSourceTest {
 
     @Test
     public void determineCapturedTablesUsesTheLeaderPublishedSlice() throws Exception {
-        source.setSnapshotCoordination(EPOCH, SNAPSHOT_NAME, null, List.of(TABLE_A, TABLE_B), coordination);
+        source.setSnapshotCoordination(EPOCH, SNAPSHOT_NAME, null, null, List.of(TABLE_A, TABLE_B), coordination);
         RelationalSnapshotContext<PostgresPartition, PostgresOffsetContext> ctx = newContext();
 
         // the ignored-patterns and snapshotting-task args are unused on the smart path
@@ -114,7 +114,7 @@ public class PostgresSmartSnapshotChangeEventSourceTest {
 
     @Test
     public void setSnapshotTransactionIsolationLevelImportsTheExportedSnapshot() throws Exception {
-        source.setSnapshotCoordination(EPOCH, SNAPSHOT_NAME, null, List.of(), coordination);
+        source.setSnapshotCoordination(EPOCH, SNAPSHOT_NAME, null, null, List.of(), coordination);
 
         source.setSnapshotTransactionIsolationLevel(false);
 
@@ -124,7 +124,7 @@ public class PostgresSmartSnapshotChangeEventSourceTest {
 
     @Test
     public void setSnapshotTransactionIsolationLevelFallsBackToSuperWhenOnDemand() throws Exception {
-        source.setSnapshotCoordination(EPOCH, SNAPSHOT_NAME, null, List.of(), coordination);
+        source.setSnapshotCoordination(EPOCH, SNAPSHOT_NAME, null, null, List.of(), coordination);
 
         source.setSnapshotTransactionIsolationLevel(true);
 
@@ -141,7 +141,7 @@ public class PostgresSmartSnapshotChangeEventSourceTest {
 
     @Test
     public void releaseSchemaSnapshotLocksSignalsTransactionStarted() {
-        source.setSnapshotCoordination(EPOCH, SNAPSHOT_NAME, null, List.of(), coordination);
+        source.setSnapshotCoordination(EPOCH, SNAPSHOT_NAME, null, null, List.of(), coordination);
 
         source.releaseSchemaSnapshotLocks(newContext());
 
@@ -150,7 +150,7 @@ public class PostgresSmartSnapshotChangeEventSourceTest {
 
     @Test
     public void releaseSchemaSnapshotLocksDoesNotSwallowCoordinationErrors() {
-        source.setSnapshotCoordination(EPOCH, SNAPSHOT_NAME, null, List.of(), coordination);
+        source.setSnapshotCoordination(EPOCH, SNAPSHOT_NAME, null, null, List.of(), coordination);
         doThrow(new RuntimeException("topic down")).when(coordination).writeTaskStartedTransaction(anyString(), anyInt());
 
         // best-effort: a failed signal must not break the (already finished) schema read
@@ -159,16 +159,19 @@ public class PostgresSmartSnapshotChangeEventSourceTest {
     }
 
     @Test
-    public void determineSnapshotOffsetUsesTheLeaderSlotLsn() throws Exception {
+    public void determineSnapshotOffsetUsesTheLeaderSlotLsnAndPublishedTxId() throws Exception {
+        // currentTransactionId() is only what initialContext() reads while building the offset object; the
+        // published (leader) txId must win on the final offset, not this task's own backend transaction id.
         when(jdbcConnection.currentXLogLocation()).thenReturn(0L);
         when(jdbcConnection.currentTransactionId()).thenReturn(42L);
         Lsn slotLsn = Lsn.valueOf("0/16B3748");
-        source.setSnapshotCoordination(EPOCH, SNAPSHOT_NAME, slotLsn, List.of(), coordination);
+        source.setSnapshotCoordination(EPOCH, SNAPSHOT_NAME, slotLsn, 7777L, List.of(), coordination);
         RelationalSnapshotContext<PostgresPartition, PostgresOffsetContext> ctx = newContext();
 
         source.determineSnapshotOffset(ctx, null);
 
         assertThat(ctx.offset).isNotNull();
         assertThat(ctx.offset.getOffset().get(SourceInfo.LSN_KEY)).isEqualTo(slotLsn.asLong());
+        assertThat(ctx.offset.getOffset().get(SourceInfo.TXID_KEY)).isEqualTo(7777L);
     }
 }

@@ -107,16 +107,28 @@ public class SnapshotCoordinationFacadeTest {
     public void writeSnapshotInfoStoresNameLsnAssignmentsAndTaskCount() throws Exception {
         List<TableId> tables = List.of(new TableId(null, "public", "a"), new TableId(null, "public", "b"));
 
-        facade.writeSnapshotInfo("snap", "0/16B3748", 4, tables, 2);
+        facade.writeSnapshotInfo("snap", "0/16B3748", 99L, 4, tables, 2);
 
         ArgumentCaptor<Map<String, Object>> value = valueCaptor();
         verify(coordination).write(eq(Collect.hashMapOf("server", SERVER, "type", "snapshot_info")), value.capture());
         assertThat(value.getValue()).containsEntry("snapshot_name", "snap")
                 .containsEntry("consistent_point", "0/16B3748")
+                .containsEntry("txid", 99L)
                 .containsEntry("epoch", 4)
                 .containsEntry("num_tasks", 2)
                 // explicit per-task slice: task-0 -> [a], task-1 -> [b] after the stable sort + round-robin
                 .containsEntry("assignments", SmartSnapshotTableAssignments.buildAssignments(tables, 2));
+    }
+
+    @Test
+    public void writeSnapshotInfoOmitsTxidWhenNull() throws Exception {
+        List<TableId> tables = List.of(new TableId(null, "public", "a"));
+
+        facade.writeSnapshotInfo("snap", "0/16B3748", null, 4, tables, 1);
+
+        ArgumentCaptor<Map<String, Object>> value = valueCaptor();
+        verify(coordination).write(eq(Collect.hashMapOf("server", SERVER, "type", "snapshot_info")), value.capture());
+        assertThat(value.getValue()).doesNotContainKey("txid");
     }
 
     @Test

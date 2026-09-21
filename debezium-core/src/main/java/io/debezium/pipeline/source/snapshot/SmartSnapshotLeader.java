@@ -112,7 +112,10 @@ public class SmartSnapshotLeader implements Runnable {
             // ceiling (topic-level compression, or splitting the assignments across records) is tracked
             // separately and is not needed for the table counts this supports today.
             // https://confluentinc.atlassian.net/browse/CC-43566
-            leaderSnapshotCoordination.writeSnapshotInfo(setup.snapshotName(), setup.consistentPosition(), leaderEpoch, setup.tables(), numTasks);
+            leaderSnapshotCoordination.writeSnapshotInfo(
+                    setup.snapshotName(), setup.consistentPosition(),
+                    setup.snapshotTxId(), leaderEpoch, setup.tables(),
+                    numTasks);
             snapshotPublished = true;
 
             LOGGER.info("Smart snapshot: [role=leader epoch={}] Prepared snapshot={}, LSN={}",
