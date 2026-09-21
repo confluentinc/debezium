@@ -114,7 +114,8 @@ public class MySqlSmartSnapshotLifecycleManager implements SmartSnapshotLifecycl
                     + (result.gtidSet == null ? "" : result.gtidSet);
             LOGGER.info("Smart snapshot: [role=leader epoch={}] Locked, captured P=({}), wrote schema history for {} tables",
                     epoch, consistentPosition, result.tables.size());
-            return new SnapshotSetup(null, consistentPosition, result.tables);
+            // MySQL carries no separate consistent-point txId; the binlog coordinates above are the position.
+            return new SnapshotSetup(null, consistentPosition, null, result.tables);
         }
         catch (Exception e) {
             releaseSnapshot();
