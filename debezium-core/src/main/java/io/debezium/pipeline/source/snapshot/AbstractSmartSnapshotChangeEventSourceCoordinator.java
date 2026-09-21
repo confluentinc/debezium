@@ -40,7 +40,7 @@ import io.debezium.util.LoggingContext;
  *
  * <p>Everything that differs per connector is confined to two hooks: {@link #epochOf(OffsetContext)}
  * reads the epoch stamped on a saved offset, and
- * {@link #configureSmartSource(SnapshotChangeEventSource, int, String, String, Object, SnapshotCoordinationFacade)}
+ * {@link #configureSmartSource(SnapshotChangeEventSource, int, String, String, Long, Object, SnapshotCoordinationFacade)}
  * hands the published snapshot info to the connector's smart snapshot source (which knows how to decode the
  * consistent position and parse the table assignment for its own identifier style).
  *
@@ -124,12 +124,15 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
      *
      * @param snapshotName       the leader's snapshot name (Postgres exported snapshot); {@code null} for MySQL
      * @param consistentPoint    the shared consistent position, connector-encoded
+     * @param snapshotTxId       the transaction id at the consistent point; {@code null} for connectors that
+     *                           don't carry one (e.g. MySQL)
      * @param assignmentForTask  this task's raw table slice from the published assignments
      */
     protected abstract void configureSmartSource(SnapshotChangeEventSource<P, O> snapshotSource,
                                                  int epoch,
                                                  String snapshotName,
                                                  String consistentPoint,
+                                                 Long snapshotTxId,
                                                  Object assignmentForTask,
                                                  SnapshotCoordinationFacade snapshotCoordination);
 
@@ -257,14 +260,15 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
         Map<String, Object> snapshotInfo = published.get();
         String snapshotName = (String) snapshotInfo.get(SnapshotCoordinationFacade.SNAPSHOT_NAME);
         String consistentPoint = String.valueOf(snapshotInfo.get(SnapshotCoordinationFacade.CONSISTENT_POINT));
+        Long snapshotTxId = SnapshotCoordinationFacade.txIdOf(snapshotInfo);
         Object assignmentForTask = SmartSnapshotTableAssignments.assignmentForTask(
                 snapshotInfo.get(SnapshotCoordinationFacade.ASSIGNMENTS), Integer.parseInt(taskId));
 
-        LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Read snapshot info, executing snapshot-only. snapshot={}, position={}",
-                taskId, epoch, snapshotName, consistentPoint);
+        LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Read snapshot info, executing snapshot-only. snapshot={}, position={}, txId={}",
+                taskId, epoch, snapshotName, consistentPoint, snapshotTxId);
 
         // Hand the published info to the connector's smart snapshot source (decode position + parse assignment).
-        configureSmartSource(snapshotSource, epoch, snapshotName, consistentPoint, assignmentForTask, snapshotCoordination);
+        configureSmartSource(snapshotSource, epoch, snapshotName, consistentPoint, snapshotTxId, assignmentForTask, snapshotCoordination);
 
         try {
             SnapshotResult<O> snapshotResult = doSnapshot(snapshotSource, context, partition, previousOffset);

@@ -33,15 +33,17 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PostgresSmartSnapshotChangeEventSource.class);
 
-    private final PostgresConnectorConfig connectorConfig;
-    private final PostgresConnection jdbcConnection;
     private final String taskId;
 
-    private volatile SnapshotCoordinationFacade snapshotCoordination;
-    private volatile int epoch;
-    private volatile String smartSnapshotName;
-    private volatile Lsn smartSnapshotLsn;
-    private volatile List<TableId> smartSnapshotTables;
+    // Set once by setSnapshotCoordination() and then read by the snapshot hooks below. Both happen on the
+    // same coordinator thread, in order (configureSmartSource() runs before doSnapshot() in
+    // AbstractSmartSnapshotChangeEventSourceCoordinator#executeChangeEventSources), so no volatile is needed.
+    private SnapshotCoordinationFacade snapshotCoordination;
+    private int epoch;
+    private String smartSnapshotName;
+    private Lsn smartSnapshotLsn;
+    private Long smartSnapshotTxId;
+    private List<TableId> smartSnapshotTables;
 
     public PostgresSmartSnapshotChangeEventSource(
                                                   PostgresConnectorConfig connectorConfig,
@@ -57,8 +59,7 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
         super(connectorConfig, snapshotterService, connectionFactory, schema,
                 dispatcher, clock, snapshotProgressListener,
                 slotCreatedInfo, startingSlotInfo, notificationService);
-        this.connectorConfig = connectorConfig;
-        this.jdbcConnection = connectionFactory.mainConnection();
+        // connectorConfig and jdbcConnection are inherited (protected) from PostgresSnapshotChangeEventSource.
         this.taskId = connectorConfig.getTaskId();
     }
 
@@ -66,11 +67,13 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
                                         int epoch,
                                         String snapshotName,
                                         Lsn lsn,
+                                        Long txId,
                                         List<TableId> tableIds,
                                         SnapshotCoordinationFacade coordination) {
         this.epoch = epoch;
         this.smartSnapshotName = snapshotName;
         this.smartSnapshotLsn = lsn;
+        this.smartSnapshotTxId = txId;
         this.smartSnapshotTables = tableIds;
         this.snapshotCoordination = coordination;
     }
@@ -79,12 +82,18 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
     protected void determineCapturedTables(
                                            RelationalSnapshotContext<PostgresPartition, PostgresOffsetContext> ctx,
                                            Set<Pattern> ignoredSnapshotPatterns, SnapshottingTask snapshottingTask) {
-        // this task's slice is already the final, filtered, sorted set from the leader; snapshot exactly it.
-        // signaling collection is assigned to one task via the split -> snapshotted once (no per-task re-add).
+        // INVARIANT: this task's slice is snapshotted exactly as given, with NO further filtering.
+        //
+        // The published slice is already the final, filtered, sorted set. The leader produced it by running the
+        // standard RelationalSnapshotChangeEventSource#determineCapturedTables (via its discoverAndLock), which
+        // applies dataCollectionFilter().isIncluded() AND then addSignalingCollectionAndSort(). That combined set
+        // is partitioned across tasks and each partition published as one task's assignment, so every slice is a
+        // subset of it. Re-running dataCollectionFilter().isIncluded() here would therefore be redundant AND wrong:
+        // it would drop the signaling data collection, which the leader adds deliberately even though the data
+        // filter excludes it. The signaling collection lands in exactly one task's slice, so it is snapshotted once.
         LinkedHashSet<TableId> mine = new LinkedHashSet<>(smartSnapshotTables);
         ctx.capturedTables = mine;
         ctx.capturedSchemaTables = mine; // unused on the Postgres path (readTableStructure derives schemas from capturedTables)
-        // todo should we log each tableId?
         LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Determining captured tables using the slice from the leader", taskId, epoch);
     }
 
@@ -93,21 +102,28 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
                                            RelationalSnapshotContext<PostgresPartition, PostgresOffsetContext> ctx,
                                            PostgresOffsetContext previousOffset)
             throws Exception {
-        // Create fresh offset with the Connector's slot LSN — not current WAL position
-        PostgresOffsetContext offset = PostgresOffsetContext.initialContext(
-                connectorConfig, jdbcConnection, getClock());
-        Long txId = jdbcConnection.currentTransactionId();
+        // Mirror the parent: reuse a pre-set offset if one exists (the on-demand/blocking path sets ctx.offset
+        // before this runs), otherwise build one. initialContext() wires up sourceInfo, the transaction/
+        // incremental-snapshot contexts, and stamps the epoch from the connector config. On the smart snapshot
+        // path (a regular initial snapshot, never on-demand) ctx.offset is null, so this builds a fresh one.
+        PostgresOffsetContext offset = ctx.offset;
+        if (offset == null) {
+            offset = PostgresOffsetContext.initialContext(connectorConfig, jdbcConnection, getClock());
+            ctx.offset = offset;
+        }
+        // Overwrite the position with the leader's shared consistent point — the slot LSN and the txId captured
+        // there, NOT this task's own WAL position or backend transaction id — so every task's snapshot offset
+        // agrees on one consistent point.
         offset.updateWalPosition(smartSnapshotLsn, null, getClock().currentTime(),
-                txId, null, null, null);
-        ctx.offset = offset;
-        LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Set offset LSN={}", taskId, epoch, smartSnapshotLsn);
+                smartSnapshotTxId, null, null, null);
+        LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Set offset LSN={}, txId={}", taskId, epoch, smartSnapshotLsn, smartSnapshotTxId);
     }
 
     @Override
     protected void setSnapshotTransactionIsolationLevel(boolean isOnDemand) throws SQLException {
         if (smartSnapshotName != null && !isOnDemand) {
-            String snapSet = String.format("SET TRANSACTION SNAPSHOT '%s';", smartSnapshotName);
-            String combined = "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ; \n" + snapSet;
+            // Reuse the parent's statement builder; only the exported snapshot name differs (leader's, not the slot's).
+            String combined = importExportedSnapshotStatement(smartSnapshotName);
             LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Opening snapshot transaction: {}", taskId, epoch, combined);
             jdbcConnection.executeWithoutCommitting(combined);
             return;

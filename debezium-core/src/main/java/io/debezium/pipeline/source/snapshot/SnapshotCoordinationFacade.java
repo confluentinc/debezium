@@ -35,6 +35,9 @@ public class SnapshotCoordinationFacade {
     public static final String EPOCH = "epoch";
     public static final String SNAPSHOT_NAME = "snapshot_name";
     public static final String CONSISTENT_POINT = "consistent_point";
+    // The transaction id at the shared consistent point, captured once by the leader so every task stamps the
+    // same value on its snapshot offset. Postgres-specific; null (absent) for connectors that don't carry one.
+    public static final String TXID = "txid";
     // Explicit per-task table assignment: taskId (as a string) -> JSON array of quoted table FQNs.
     // The leader publishes the whole plan in this single field so each task reads its own slice directly
     // instead of re-deriving it from a flat table list.
@@ -104,10 +107,14 @@ public class SnapshotCoordinationFacade {
         return Collect.hashMapOf("server", server, "task", taskId, TYPE, TYPE_TASK_DONE);
     }
 
-    public void writeSnapshotInfo(String snapshotName, String consistentPoint, int epoch, List<TableId> tables, int numTasks) {
+    public void writeSnapshotInfo(String snapshotName, String consistentPoint, Long txId, int epoch, List<TableId> tables, int numTasks) {
         Map<String, Object> value = new HashMap<>();
         value.put(SNAPSHOT_NAME, snapshotName);
         value.put(CONSISTENT_POINT, consistentPoint);
+        // Absent for connectors that don't publish a txid (e.g. MySQL); tasks then leave the offset txId null.
+        if (txId != null) {
+            value.put(TXID, txId);
+        }
         value.put(EPOCH, epoch);
         value.put(NUM_TASKS, numTasks);
         // Publish the explicit per-task slice rather than a flat table list.
@@ -179,6 +186,11 @@ public class SnapshotCoordinationFacade {
     public static Integer epochOf(Map<String, Object> value) {
         return (value != null &&
                 value.get(EPOCH) != null) ? ((Number) value.get(EPOCH)).intValue() : null;
+    }
+
+    public static Long txIdOf(Map<String, Object> value) {
+        return (value != null &&
+                value.get(TXID) != null) ? ((Number) value.get(TXID)).longValue() : null;
     }
 
     public static <O extends OffsetContext> O fetchOffsetFromCoordinationTopic(

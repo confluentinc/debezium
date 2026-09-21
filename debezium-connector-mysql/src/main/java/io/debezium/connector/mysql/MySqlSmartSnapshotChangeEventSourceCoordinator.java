@@ -64,6 +64,8 @@ public class MySqlSmartSnapshotChangeEventSourceCoordinator
                                         int epoch,
                                         String snapshotName,
                                         String consistentPoint,
+                                        // MySQL encodes its consistent point as binlog file:pos:gtids and carries no separate txId.
+                                        Long snapshotTxId,
                                         Object assignmentForTask,
                                         SnapshotCoordinationFacade snapshotCoordination) {
         // MySQL identifiers are catalog.table, so parse the assignment with useCatalogScoped=true.

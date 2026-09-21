@@ -182,6 +182,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
                 SnapshotCoordinationFacade.SNAPSHOT_NAME, "snap",
                 SnapshotCoordinationFacade.EPOCH, EPOCH,
                 SnapshotCoordinationFacade.CONSISTENT_POINT, "0/16B3748",
+                SnapshotCoordinationFacade.TXID, 123L,
                 SnapshotCoordinationFacade.ASSIGNMENTS, java.util.Map.of(TASK_ID, java.util.List.of("\"public\".\"a\"")),
                 SnapshotCoordinationFacade.NUM_TASKS, 2));
 
@@ -192,7 +193,8 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
         order.verify(coordination).writeTaskJoin(TASK_ID, EPOCH);
         order.verify(coordination).readSnapshotInfo();
         order.verify(coordination).writeTaskDone(TASK_ID, EPOCH);
-        verify(snapshotSource).setSnapshotCoordination(eq(EPOCH), eq("snap"), any(), any(), eq(coordination));
+        // the published txId is decoded and forwarded to the smart source alongside the name and LSN
+        verify(snapshotSource).setSnapshotCoordination(eq(EPOCH), eq("snap"), any(), eq(123L), any(), eq(coordination));
     }
 
     @Test
