@@ -919,6 +919,15 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
             .withDescription("When enabled, optimizes snapshot behavior by delaying DND metric emission, "
                     + "increasing producer batch size, and using multiple snapshot threads.");
 
+    public static final Field SMART_SNAPSHOT_COORDINATION_BOOTSTRAP_SERVERS = Field.create("smart.snapshot.internal.coordination.kafka.bootstrap.servers")
+            .withDisplayName("Smart snapshot coordination Kafka bootstrap servers")
+            .withType(Type.STRING)
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTOR_SNAPSHOT, 24))
+            .withWidth(Width.LONG)
+            .withImportance(Importance.MEDIUM)
+            .withDescription("A list of host/port pairs for the Kafka cluster hosting the snapshot "
+                    + "coordination topic. Required when smart.snapshot.enabled=true and tasks.max > 1.");
+
     public static final Field DND_DELAY_MS = Field.create("dnd.delay.ms")
             .withDisplayName("DND delay (ms)")
             .withType(Type.LONG)
@@ -1440,6 +1449,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
                     SNAPSHOT_MAX_THREADS,
                     SMART_SNAPSHOT_ENABLED,
                     DND_DELAY_MS,
+                    SMART_SNAPSHOT_COORDINATION_BOOTSTRAP_SERVERS,
                     SNAPSHOT_MODE_CUSTOM_NAME,
                     SNAPSHOT_MODE_CONFIGURATION_BASED_SNAPSHOT_DATA,
                     SNAPSHOT_MODE_CONFIGURATION_BASED_SNAPSHOT_SCHEMA,
@@ -1499,6 +1509,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
     private final int snapshotMaxThreads;
     private final boolean smartSnapshotEnabled;
     private final long dndDelayMs;
+    private final String smartSnapshotCoordinationBootstrapServers;
 
     private final String snapshotModeCustomName;
     private final Integer queryFetchSize;
@@ -1550,6 +1561,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
         this.snapshotMaxThreads = config.getInteger(SNAPSHOT_MAX_THREADS);
         this.smartSnapshotEnabled = config.getBoolean(SMART_SNAPSHOT_ENABLED);
         this.dndDelayMs = config.getLong(DND_DELAY_MS);
+        this.smartSnapshotCoordinationBootstrapServers = config.getString(SMART_SNAPSHOT_COORDINATION_BOOTSTRAP_SERVERS);
         this.snapshotModeCustomName = config.getString(SNAPSHOT_MODE_CUSTOM_NAME);
         this.queryFetchSize = config.getInteger(QUERY_FETCH_SIZE);
         this.incrementalSnapshotChunkSize = config.getInteger(INCREMENTAL_SNAPSHOT_CHUNK_SIZE);
@@ -1711,6 +1723,10 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
 
     public long getDndDelayMs() {
         return dndDelayMs;
+    }
+
+    public String getSmartSnapshotCoordinationBootstrapServers() {
+        return smartSnapshotCoordinationBootstrapServers;
     }
 
     public String getSnapshotModeCustomName() {

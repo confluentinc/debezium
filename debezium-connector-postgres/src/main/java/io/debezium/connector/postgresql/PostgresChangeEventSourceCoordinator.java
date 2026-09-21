@@ -84,5 +84,4 @@ public class PostgresChangeEventSourceCoordinator extends ChangeEventSourceCoord
         snapshotSource.setSnapshotTransactionIsolationLevel(false);
         snapshotSource.updateOffsetForPreSnapshotCatchUpStreaming(offsetContext);
     }
-
 }
