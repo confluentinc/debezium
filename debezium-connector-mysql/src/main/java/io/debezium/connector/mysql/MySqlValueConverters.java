@@ -368,7 +368,10 @@ public class MySqlValueConverters extends JdbcValueConverters {
                         r.deliver(JsonBinary.parseAsString((byte[]) data));
                     }
                     catch (IOException e) {
-                        parsingErrorHandler.error("Failed to parse and read a JSON value on '" + column + "' value " + Arrays.toString((byte[]) data), e);
+                        // Do not include the raw JSON column bytes in the message, and do not pass 'e' as
+                        // the cause: the parse exception's own message can echo the malformed JSON bytes
+                        // (customer data), which would re-leak once the wrapping exception is logged.
+                        parsingErrorHandler.error("Failed to parse and read a JSON value on '" + column + "'", null);
                         r.deliver(column.isOptional() ? null : "{}");
                     }
                 }
@@ -828,7 +831,8 @@ public class MySqlValueConverters extends JdbcValueConverters {
     public static Duration stringToDuration(String timeString) {
         Matcher matcher = TIME_FIELD_PATTERN.matcher(timeString);
         if (!matcher.matches()) {
-            throw new RuntimeException("Unexpected format for TIME column: " + timeString);
+            // Do not append the column value: it is customer data that propagates into logs.
+            throw new RuntimeException("Unexpected format for TIME column");
         }
 
         long hours = Long.parseLong(matcher.group(1));
@@ -857,7 +861,8 @@ public class MySqlValueConverters extends JdbcValueConverters {
     public static LocalDate stringToLocalDate(String dateString, Column column, Table table) {
         final Matcher matcher = DATE_FIELD_PATTERN.matcher(dateString);
         if (!matcher.matches()) {
-            throw new RuntimeException("Unexpected format for DATE column: " + dateString);
+            // Do not append the column value: it is customer data that propagates into logs.
+            throw new RuntimeException("Unexpected format for DATE column");
         }
 
         final int year = Integer.parseInt(matcher.group(1));
@@ -865,7 +870,8 @@ public class MySqlValueConverters extends JdbcValueConverters {
         final int day = Integer.parseInt(matcher.group(3));
 
         if (year == 0 || month == 0 || day == 0) {
-            LOGGER.warn("Invalid value '{}' stored in column '{}' of table '{}' converted to empty value", dateString, column.name(), table.id());
+            // Do not log the column value: it is customer data.
+            LOGGER.warn("Invalid value stored in column '{}' of table '{}' converted to empty value", column.name(), table.id());
             return null;
         }
         return LocalDate.of(year, month, day);
@@ -874,7 +880,8 @@ public class MySqlValueConverters extends JdbcValueConverters {
     public static boolean containsZeroValuesInDatePart(String timestampString, Column column, Table table) {
         final Matcher matcher = TIMESTAMP_FIELD_PATTERN.matcher(timestampString);
         if (!matcher.matches()) {
-            throw new RuntimeException("Unexpected format for DATE column: " + timestampString);
+            // Do not append the column value: it is customer data that propagates into logs.
+            throw new RuntimeException("Unexpected format for DATE column");
         }
 
         final int year = Integer.parseInt(matcher.group(1));
@@ -882,7 +889,8 @@ public class MySqlValueConverters extends JdbcValueConverters {
         final int day = Integer.parseInt(matcher.group(3));
 
         if (year == 0 || month == 0 || day == 0) {
-            LOGGER.warn("Invalid value '{}' stored in column '{}' of table '{}' converted to empty value", timestampString, column.name(), table.id());
+            // Do not log the column value: it is customer data.
+            LOGGER.warn("Invalid value stored in column '{}' of table '{}' converted to empty value", column.name(), table.id());
             return true;
         }
         return false;

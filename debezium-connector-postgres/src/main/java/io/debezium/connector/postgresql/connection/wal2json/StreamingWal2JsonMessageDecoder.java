@@ -161,7 +161,8 @@ public class StreamingWal2JsonMessageDecoder extends AbstractMessageDecoder {
             }
         }
         catch (final IOException e) {
-            throw new ConnectException(e);
+            // Do not chain the JSON parse exception: its message can echo the change payload content.
+            throw new ConnectException("Failed to decode a wal2json replication message");
         }
     }
 
@@ -207,7 +208,8 @@ public class StreamingWal2JsonMessageDecoder extends AbstractMessageDecoder {
         // This is not a standalone JSON, we are getting a transaction in progress
         // Metadata are lost, we need to create artificial ones
         if (LOGGER.isWarnEnabled()) {
-            LOGGER.warn("Got out of order chunk {}, recording artifical TX", new String(content));
+            // Do not log the chunk content: it is the raw change payload. Log its length only.
+            LOGGER.warn("Got out of order chunk of length {}, recording artifical TX", content.length);
         }
         txId = UNDEFINED_LONG;
         commitTime = Instant.now();

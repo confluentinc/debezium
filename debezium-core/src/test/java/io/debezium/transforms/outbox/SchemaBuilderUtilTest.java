@@ -35,7 +35,7 @@ public class SchemaBuilderUtilTest {
         }
         assertThat(expectedException).isNotNull();
         assertThat(expectedException).isInstanceOf(ConnectException.class);
-        assertThat(expectedException).hasMessage("Field is not a homogenous array (1 x 2.0), different number types (Schema{INT32} x Schema{FLOAT64})");
+        assertThat(expectedException).hasMessage("Field is not a homogenous array (NUMBER x NUMBER), different number types (Schema{INT32} x Schema{FLOAT64})");
     }
 
 }
