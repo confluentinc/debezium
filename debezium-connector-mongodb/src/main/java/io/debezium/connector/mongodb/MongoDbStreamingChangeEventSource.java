@@ -434,7 +434,8 @@ public class MongoDbStreamingChangeEventSource implements StreamingChangeEventSo
         Document object = event.get(OBJECT_FIELD, Document.class);
         if (Objects.isNull(object)) {
             if (LOGGER.isWarnEnabled()) {
-                LOGGER.warn("Missing 'o' field in event, so skipping {}", event.toJson());
+                // Do not log event.toJson(): the change document is customer data.
+                LOGGER.warn("Missing 'o' field in event for namespace '{}', so skipping", ns);
             }
             return true;
         }

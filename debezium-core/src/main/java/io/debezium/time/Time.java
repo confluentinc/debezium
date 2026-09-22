@@ -66,7 +66,9 @@ public class Time {
         if (value instanceof Duration) {
             Duration duration = (Duration) value;
             if (!acceptLargeValues && (duration.isNegative() || duration.compareTo(ONE_DAY) > 0)) {
-                throw new IllegalArgumentException("Time values must be between 00:00:00 and 24:00:00 (inclusive): " + duration);
+                // The duration value is customer column data and is intentionally omitted here; MicroTime
+                // and NanoTime have the same out-of-range check for the same reason.
+                throw new IllegalArgumentException("Time values must be between 00:00:00 and 24:00:00 (inclusive)");
             }
 
             // int conversion is ok for the range of TIME
