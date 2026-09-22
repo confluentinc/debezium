@@ -260,9 +260,13 @@ public class TableSchemaBuilder {
                         }
                         catch (DataException e) {
                             Column col = columns.get(i);
-                            Loggings.logErrorAndTraceRecord(LOGGER, row,
-                                    "Failed to properly convert key value for '{}.{}' of type {}", columnSetName,
-                                    col.name(), col.typeName(), e);
+                            // Do not log 'e' or the row: the exception can embed the raw key-column
+                            // value (customer data), and TRACE on io.debezium.util.Loggings is blocked
+                            // fleet-wide on Confluent Cloud, so routing the row there is not a reachable
+                            // debugging path. Report tableId + column + JDBC type and the exception
+                            // type only.
+                            LOGGER.error("Failed to properly convert key value for '{}.{}' of type {} ({})", columnSetName,
+                                    col.name(), col.typeName(), e.getClass().getSimpleName());
                         }
                     }
                 }
