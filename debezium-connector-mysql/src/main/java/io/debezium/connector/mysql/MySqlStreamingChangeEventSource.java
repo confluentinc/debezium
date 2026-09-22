@@ -1253,17 +1253,20 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
         @Override
         public void onEventDeserializationFailure(BinaryLogClient client, Exception ex) {
             if (eventDeserializationFailureHandlingMode == EventProcessingFailureHandlingMode.FAIL) {
-                LOGGER.debug("A deserialization failure event arrived", ex);
+                // Do not log the raw deserialization exception, even at DEBUG: it operates on record
+                // bytes, and DEBUG still reaches this connector's centralized cloud logging.
+                LOGGER.debug("A deserialization failure event arrived ({})", ex.getClass().getSimpleName());
                 logStreamingSourceState();
                 errorHandler.setProducerThrowable(wrap(ex));
             }
             else if (eventDeserializationFailureHandlingMode == EventProcessingFailureHandlingMode.WARN) {
                 // Do not log the raw deserialization exception at WARN: it operates on record bytes.
-                LOGGER.warn("A deserialization failure event arrived, enable DEBUG logging to see the exception detail");
+                // DEBUG only adds the exception class name (see below), not the exception itself.
+                LOGGER.warn("A deserialization failure event arrived ({})", ex.getClass().getSimpleName());
                 logStreamingSourceState(Level.WARN);
             }
             else {
-                LOGGER.debug("A deserialization failure event arrived", ex);
+                LOGGER.debug("A deserialization failure event arrived ({})", ex.getClass().getSimpleName());
                 logStreamingSourceState(Level.DEBUG);
             }
         }

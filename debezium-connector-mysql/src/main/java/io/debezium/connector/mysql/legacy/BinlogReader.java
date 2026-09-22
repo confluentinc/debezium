@@ -1173,7 +1173,9 @@ public class BinlogReader extends AbstractReader {
         @Override
         public void onEventDeserializationFailure(BinaryLogClient client, Exception ex) {
             if (eventDeserializationFailureHandlingMode == EventProcessingFailureHandlingMode.FAIL) {
-                logger.debug("A deserialization failure event arrived", ex);
+                // Do not log the raw deserialization exception, even at DEBUG: it operates on record
+                // bytes, and DEBUG still reaches this connector's centralized cloud logging.
+                logger.debug("A deserialization failure event arrived ({})", ex.getClass().getSimpleName());
                 logReaderState();
                 // Surface a fixed message: the raw deserialization exception operates on record bytes
                 // and cannot be proven free of customer data (it reaches the framework log via failed()).
@@ -1181,11 +1183,12 @@ public class BinlogReader extends AbstractReader {
             }
             else if (eventDeserializationFailureHandlingMode == EventProcessingFailureHandlingMode.WARN) {
                 // Do not log the raw deserialization exception at WARN: it operates on record bytes.
-                logger.warn("A deserialization failure event arrived, enable DEBUG logging to see the exception detail");
+                // DEBUG only adds the exception class name (see below), not the exception itself.
+                logger.warn("A deserialization failure event arrived ({})", ex.getClass().getSimpleName());
                 logReaderState(Level.WARN);
             }
             else {
-                logger.debug("A deserialization failure event arrived", ex);
+                logger.debug("A deserialization failure event arrived ({})", ex.getClass().getSimpleName());
                 logReaderState(Level.DEBUG);
             }
         }
