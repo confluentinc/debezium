@@ -26,6 +26,7 @@ import org.apache.kafka.connect.transforms.Transformation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -76,6 +77,9 @@ public class DecodeLogicalDecodingMessageContent<R extends ConnectRecord<R>> imp
         final Configuration config = Configuration.from(configs);
 
         objectMapper = new ObjectMapper();
+        // Do not retain a snippet of the parsed input in parser exceptions: the logical-decoding message
+        // content is customer data and the parse failure is surfaced to the framework/task status.
+        objectMapper.getFactory().disable(JsonParser.Feature.INCLUDE_SOURCE_IN_LOCATION);
 
         boolean fieldsNullInclude = config.getBoolean(FIELDS_NULL_INCLUDE);
         EventRouterConfigDefinition.JsonPayloadNullFieldBehavior nullFieldBehavior = fieldsNullInclude
@@ -142,7 +146,10 @@ public class DecodeLogicalDecodingMessageContent<R extends ConnectRecord<R>> imp
                 return objectMapper.readTree(logicalDecodingMessageContentJsonString);
             }
             catch (JsonProcessingException e) {
-                throw new DebeziumException(e);
+                // Do not propagate the Jackson exception: it can echo the message content. Report a
+                // redacted reason, mirroring the non-JSON branch below.
+                throw new DebeziumException("Unable to parse logical decoding message content JSON string '" +
+                        maybeRedactSensitiveData(logicalDecodingMessageContentJsonString) + "'");
             }
         }
         throw new DebeziumException(

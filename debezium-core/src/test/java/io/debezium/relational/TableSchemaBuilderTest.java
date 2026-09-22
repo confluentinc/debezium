@@ -15,9 +15,11 @@ import java.util.Collections;
 import java.util.Properties;
 
 import org.apache.kafka.connect.data.Decimal;
+import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.junit.Before;
 import org.junit.Test;
@@ -40,6 +42,8 @@ import io.debezium.schema.SchemaTopicNamingStrategy;
 import io.debezium.spi.common.ReplacementFunction;
 import io.debezium.spi.topic.TopicNamingStrategy;
 import io.debezium.time.Date;
+
+import ch.qos.logback.classic.Level;
 
 public class TableSchemaBuilderTest {
 
@@ -707,6 +711,9 @@ public class TableSchemaBuilderTest {
         }
 
         assertThat(logInterceptor.containsErrorMessage(errorMessage)).isTrue();
+        // The raw column value ("converting_failed_value") is customer row data and must never reach
+        // the log, regardless of what NumberFormatException.getMessage() would otherwise echo.
+        assertThat(logInterceptor.containsMessage("converting_failed_value")).isFalse();
         logInterceptor.clear();
 
         // error log and exception if eventConvertingFailureHandlingMode is FAIL
@@ -720,7 +727,13 @@ public class TableSchemaBuilderTest {
         }
         catch (Exception e) {
             assertThat(e.getMessage().contains(errorMessage)).isTrue();
+            // Only the exception class name is safe to surface here; its message/cause embed the raw
+            // column value and must not appear in the log or the rethrown exception's message.
+            assertThat(e.getMessage()).contains("(NumberFormatException)");
+            assertThat(e.getMessage()).doesNotContain("converting_failed_value");
+            assertThat(logInterceptor.containsMessage("converting_failed_value")).isFalse();
         }
+        logInterceptor.clear();
 
         // warn log without exception if eventConvertingFailureHandlingMode is WARN
         schema = new TableSchemaBuilder(new JdbcValueConverters(), null, adjuster, customConverterRegistry,
@@ -735,9 +748,11 @@ public class TableSchemaBuilderTest {
         }
 
         assertThat(logInterceptor.containsWarnMessage(errorMessage)).isTrue();
+        assertThat(logInterceptor.containsMessage("converting_failed_value")).isFalse();
         logInterceptor.clear();
 
         // only debug log without exception if eventConvertingFailureHandlingMode is SKIP
+        logInterceptor.setLoggerLevel(TableSchemaBuilder.class, Level.DEBUG);
         schema = new TableSchemaBuilder(new JdbcValueConverters(), null, adjuster, customConverterRegistry,
                 SchemaBuilder.struct().build(), defaultFieldNamer, false, EventConvertingFailureHandlingMode.SKIP)
                 .create(topicNamingStrategy, table, null, null, null);
@@ -751,6 +766,49 @@ public class TableSchemaBuilderTest {
 
         assertThat(logInterceptor.containsErrorMessage(errorMessage)).isFalse();
         assertThat(logInterceptor.containsWarnMessage(errorMessage)).isFalse();
+        // Even at DEBUG, the raw column value must not be logged.
+        assertThat(logInterceptor.containsMessage("converting_failed_value")).isFalse();
         logInterceptor.clear();
+    }
+
+    @Test
+    public void shouldLogMessageWithoutRawDataWhenKeyConversionIsFailed() {
+        LogInterceptor logInterceptor = new LogInterceptor(TableSchemaBuilder.class);
+
+        // Wrap the real converter provider so that C1 (part of the primary key) hands back a
+        // value of the wrong Java type for its STRING key schema, forcing Struct.put() to throw
+        // a DataException whose own message embeds the offending value - exactly like a real
+        // ValueConverter bug would.
+        JdbcValueConverters delegate = new JdbcValueConverters();
+        ValueConverterProvider provider = new ValueConverterProvider() {
+            @Override
+            public SchemaBuilder schemaBuilder(Column column) {
+                return delegate.schemaBuilder(column);
+            }
+
+            @Override
+            public ValueConverter converter(Column column, Field fieldDefn) {
+                if ("C1".equals(column.name())) {
+                    return (data) -> 424242;
+                }
+                return delegate.converter(column, fieldDefn);
+            }
+        };
+
+        schema = new TableSchemaBuilder(provider, null, adjuster, customConverterRegistry,
+                SchemaBuilder.struct().build(), defaultFieldNamer, false)
+                .create(topicNamingStrategy, table, null, null, null);
+
+        Object[] data = new Object[]{ "c1value", 3.142d, null, null, null, null, null, null, null, null };
+
+        Struct key = schema.keyFromColumnData(data);
+        assertThat(key).isNotNull();
+
+        assertThat(logInterceptor.containsErrorMessage(
+                "Failed to properly convert key value for 'catalog.schema.table.C1' of type VARCHAR (DataException)")).isTrue();
+        // The DataException raised by Struct.put() embeds the wrong-typed value (customer key
+        // data) in its own message; neither the exception nor its message may reach the log.
+        assertThat(logInterceptor.containsThrowableWithCause(DataException.class)).isFalse();
+        assertThat(logInterceptor.containsMessage("424242")).isFalse();
     }
 }
