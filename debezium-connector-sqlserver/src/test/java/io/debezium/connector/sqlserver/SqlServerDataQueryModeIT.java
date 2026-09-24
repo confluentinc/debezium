@@ -7,8 +7,10 @@ package io.debezium.connector.sqlserver;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
@@ -21,6 +23,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import io.debezium.config.Configuration;
+import io.debezium.config.ConfigurationNames;
 import io.debezium.connector.sqlserver.SqlServerConnectorConfig.DataQueryMode;
 import io.debezium.connector.sqlserver.SqlServerConnectorConfig.SnapshotMode;
 import io.debezium.connector.sqlserver.util.TestHelper;
@@ -29,6 +32,9 @@ import io.debezium.data.Envelope.Operation;
 import io.debezium.data.VerifyRecord;
 import io.debezium.doc.FixFor;
 import io.debezium.embedded.async.AbstractAsyncEngineConnectorTest;
+import io.debezium.jdbc.JdbcConfiguration;
+import io.debezium.junit.logging.LogInterceptor;
+import io.debezium.pipeline.ErrorHandler;
 import io.debezium.util.Testing;
 
 /**
@@ -227,6 +233,79 @@ public class SqlServerDataQueryModeIT extends AbstractAsyncEngineConnectorTest {
             assertThat(after(byOperation.get(Operation.CREATE).get(id)).getString("order_ref"))
                     .isEqualTo("REF-" + id + "_v2");
         }
+    }
+
+    @Test
+    public void shouldStreamInDirectModeWhenOffsetWithoutCommandIdPointsBeyondLsnTimeMapping() throws Exception {
+        final LogInterceptor errorLog = new LogInterceptor(ErrorHandler.class);
+
+        // Stream one transaction in function mode, so the committed offset carries no command_id.
+        start(SqlServerConnector.class, config(DataQueryMode.FUNCTION, "dbo.orders", 3));
+        assertConnectorIsRunning();
+        consumeRecordsByTopic(ORDERS_SEED_ROWS);
+        connection.execute(PLAIN_UPDATE);
+        assertThat(consumeOrders(PLAIN_COUNT)).hasSize(PLAIN_COUNT);
+        stopConnector();
+
+        // Simulate CDC cleanup past that transaction: nothing is left in lsn_time_mapping at or after the offset.
+        purgeCdcData(ORDERS);
+
+        // With no max LSN, the first direct-mode iteration returns before reading any change.
+        start(SqlServerConnector.class, config(DataQueryMode.DIRECT, "dbo.orders", 3));
+        assertConnectorIsRunning();
+        TestHelper.waitForStreamingStarted();
+        Thread.sleep(Duration.ofSeconds(3).toMillis());
+
+        // A new transaction makes a max LSN available again; the later iteration must resume without failing.
+        connection.execute("INSERT INTO dbo.orders VALUES (11, 'REF-11', 'NEW');");
+        List<SourceRecord> records = consumeOrders(1);
+
+        assertThat(errorLog.containsStacktraceElement("command_id must not be null in direct mode")).isFalse();
+        assertThat(records).hasSize(1);
+        VerifyRecord.isValidInsert(records.get(0), ID, 11);
+        assertConnectorIsRunning();
+    }
+
+    @Test
+    public void shouldReadWholeTransactionInDirectModeWhenCommandIdIsMissing() throws Exception {
+        connection.execute(DEFERRED_UPDATE);
+        TestHelper.waitForCdcRecord(connection, ORDERS, rs -> rs.getString("order_ref").equals("REF-5_v2"));
+
+        Configuration directConfig = TestHelper.defaultConnectorConfig()
+                .with(ConfigurationNames.DATABASE_CONFIG_PREFIX + JdbcConfiguration.ON_CONNECT_STATEMENTS, "USE [" + TestHelper.TEST_DATABASE_1 + "]")
+                .with(SqlServerConnectorConfig.DATA_QUERY_MODE, DataQueryMode.DIRECT)
+                .build();
+        try (SqlServerConnection directConnection = TestHelper.testConnection(directConfig)) {
+            SqlServerChangeTable changeTable = directConnection.getChangeTables(TestHelper.TEST_DATABASE_1).stream()
+                    .filter(ct -> ct.getSourceTableId().table().equals(ORDERS))
+                    .findFirst()
+                    .orElseThrow();
+            Lsn commitLsn = directConnection.getMaxTransactionLsn(TestHelper.TEST_DATABASE_1);
+
+            List<Lsn> seqvals = new ArrayList<>();
+            try (ResultSet rs = directConnection.getChangesForTable(changeTable, commitLsn, Lsn.ZERO, 0, -1, commitLsn, 0)) {
+                while (rs.next()) {
+                    seqvals.add(Lsn.valueOf(rs.getBytes(2)));
+                }
+            }
+            assertThat(seqvals).hasSize(DEFERRED_RECORDS);
+
+            // An offset without command_id resumes from a position inside the transaction; the whole transaction
+            // must still be read, exactly as for command_id = -1.
+            int rows = 0;
+            try (ResultSet rs = directConnection.getChangesForTable(changeTable, commitLsn, seqvals.get(seqvals.size() - 1), 0, null, commitLsn, 0)) {
+                while (rs.next()) {
+                    rows++;
+                }
+            }
+            assertThat(rows).isEqualTo(DEFERRED_RECORDS);
+        }
+    }
+
+    private void purgeCdcData(String tableName) throws SQLException {
+        connection.execute(
+                "DELETE FROM cdc.[dbo_" + tableName + "_CT]",
+                "DELETE FROM cdc.lsn_time_mapping");
     }
 
     private void assertDeferredUpdate(Map<Operation, Map<Integer, SourceRecord>> byOperation, String prefix, String column) {
