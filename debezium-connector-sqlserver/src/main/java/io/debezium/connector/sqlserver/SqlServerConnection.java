@@ -461,22 +461,20 @@ public class SqlServerConnection extends JdbcConnection {
             statement.setBytes(paramIndex++, intervalToLsn.getBinary());
         }
         else {
-            if (commandIdFrom == null) {
-                throw new IllegalStateException("command_id must not be null in direct mode");
-            }
+            int commandId = commandIdFrom == null ? -1 : commandIdFrom;
 
             // (start_lsn = ? AND command_id = ? AND seqval = ? AND operation > ?)
             statement.setBytes(paramIndex++, fromLsn.getBinary());
-            statement.setInt(paramIndex++, commandIdFrom);
+            statement.setInt(paramIndex++, commandId);
             statement.setBytes(paramIndex++, seqvalFromLsn.getBinary());
             statement.setInt(paramIndex++, operationFrom);
             // OR (start_lsn = ? AND command_id = ? AND seqval > ?)
             statement.setBytes(paramIndex++, fromLsn.getBinary());
-            statement.setInt(paramIndex++, commandIdFrom);
+            statement.setInt(paramIndex++, commandId);
             statement.setBytes(paramIndex++, seqvalFromLsn.getBinary());
             // OR (start_lsn = ? AND command_id > ?)
             statement.setBytes(paramIndex++, fromLsn.getBinary());
-            statement.setInt(paramIndex++, commandIdFrom);
+            statement.setInt(paramIndex++, commandId);
             // OR (start_lsn > ?)
             statement.setBytes(paramIndex++, fromLsn.getBinary());
             // AND start_lsn <= ? AND start_lsn >= ?
