@@ -464,10 +464,14 @@ public class SqlServerConnection extends JdbcConnection {
             statement.setBytes(paramIndex++, intervalToLsn.getBinary());
         }
         else {
+            int commandId;
             if (commandIdFrom == null) {
                 LOGGER.debug("No command id to start after for {} at {}, reading the whole transaction", changeTable, fromLsn);
+                commandId = BASE_COMMAND_ID;
             }
-            int commandId = commandIdFrom == null ? BASE_COMMAND_ID : commandIdFrom;
+            else {
+                commandId = commandIdFrom;
+            }
 
             // (start_lsn = ? AND command_id = ? AND seqval = ? AND operation > ?)
             statement.setBytes(paramIndex++, fromLsn.getBinary());
