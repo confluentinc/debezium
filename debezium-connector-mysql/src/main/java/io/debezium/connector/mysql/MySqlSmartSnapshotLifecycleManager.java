@@ -21,6 +21,7 @@ import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.source.SnapshottingTask;
 import io.debezium.pipeline.source.snapshot.SmartSnapshotHeldConnectionRegistry;
 import io.debezium.pipeline.source.snapshot.SmartSnapshotLifecycleManager;
+import io.debezium.pipeline.source.snapshot.SmartSnapshotLogging;
 import io.debezium.relational.TableId;
 import io.debezium.snapshot.SnapshotterService;
 import io.debezium.util.Clock;
@@ -75,7 +76,7 @@ public class MySqlSmartSnapshotLifecycleManager implements SmartSnapshotLifecycl
         this.notificationService = notificationService;
         this.snapshotterService = snapshotterService;
         this.epoch = epoch;
-        this.heldConnections = new SmartSnapshotHeldConnectionRegistry("Smart snapshot: [role=leader epoch=" + epoch + "]");
+        this.heldConnections = new SmartSnapshotHeldConnectionRegistry(SmartSnapshotLogging.leader(epoch));
     }
 
     @Override
@@ -112,20 +113,20 @@ public class MySqlSmartSnapshotLifecycleManager implements SmartSnapshotLifecycl
 
             String consistentPosition = result.binlogFile + ":" + result.binlogPosition + ":"
                     + (result.gtidSet == null ? "" : result.gtidSet);
-            LOGGER.info("Smart snapshot: [role=leader epoch={}] Locked, captured P=({}), wrote schema history for {} tables",
-                    epoch, consistentPosition, result.tables.size());
+            LOGGER.info("{} Locked, captured P=({}), wrote schema history for {} tables",
+                    SmartSnapshotLogging.leader(epoch), consistentPosition, result.tables.size());
             // MySQL carries no separate consistent-point txId; the binlog coordinates above are the position.
             return new SnapshotSetup(null, consistentPosition, null, result.tables);
         }
         catch (Exception e) {
             releaseSnapshot();
-            throw new DebeziumException("Smart snapshot: [role=leader epoch=" + epoch + "] Failed to prepare snapshot", e);
+            throw new DebeziumException(SmartSnapshotLogging.leader(epoch) + " Failed to prepare snapshot", e);
         }
     }
 
     @Override
     public void onAllTasksStartedTransaction() {
-        LOGGER.info("Smart snapshot: [role=leader epoch={}] All tasks attached; releasing the write lock", epoch);
+        LOGGER.info("{} All tasks attached; releasing the write lock", SmartSnapshotLogging.leader(epoch));
         releaseSnapshot();
     }
 

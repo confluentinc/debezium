@@ -25,6 +25,7 @@ import io.debezium.connector.mysql.jdbc.MySqlConnection;
 import io.debezium.connector.mysql.jdbc.MySqlConnectionConfiguration;
 import io.debezium.connector.mysql.jdbc.MySqlFieldReaderResolver;
 import io.debezium.pipeline.source.snapshot.SmartSnapshotConnectorCoordinator;
+import io.debezium.pipeline.source.snapshot.SmartSnapshotLogging;
 import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.util.ThreadNameContext;
 
@@ -73,13 +74,13 @@ public class MySqlConnector extends BinlogConnector<MySqlConnectorConfig> {
         if (smartSnapshotApplies(config)) {
             Integer maxTask = config.getInteger("tasks.max");
             if (maxTask != null && maxTask <= 1) {
-                LOGGER.info("Smart snapshot: [role=connector] Enabled but tasks.max is 1 or less, falling back to feature-disabled behaviour");
+                LOGGER.info(SmartSnapshotLogging.CONNECTOR + " Enabled but tasks.max is 1 or less, falling back to feature-disabled behaviour");
                 return;
             }
             MySqlConnectorConfig connectorConfig = new MySqlConnectorConfig(config);
 
             if (!SnapshotCoordinationFacade.hasCoordinationBootstrap(config)) {
-                LOGGER.info("Smart snapshot: [role=connector] No coordination bootstrap configured; skipping smart snapshot setup in start()");
+                LOGGER.info(SmartSnapshotLogging.CONNECTOR + " No coordination bootstrap configured; skipping smart snapshot setup in start()");
                 return;
             }
 
