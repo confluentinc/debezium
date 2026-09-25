@@ -442,6 +442,20 @@
                 <artifactId>netty-handler-proxy</artifactId>
                 <version>${version.netty}</version>
             </dependency>
+            <!-- Pulled transitively at a stale, CVE-affected version via
+                 credential-providers -> provider-integration -> azure-identity -> azure-core-http-netty
+                 -> reactor-netty-http, which is not on debezium-bom's managed netty train.
+                 Fixes CVE-2026-45673, CVE-2026-45674, CVE-2026-47691. -->
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-resolver-dns</artifactId>
+                <version>${version.netty}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-codec-dns</artifactId>
+                <version>${version.netty}</version>
+            </dependency>
 
             <!-- gRPC libs -->
             <dependency>
