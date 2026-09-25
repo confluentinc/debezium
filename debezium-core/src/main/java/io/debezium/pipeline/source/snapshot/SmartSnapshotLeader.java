@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
+import io.debezium.config.Configuration;
 import io.debezium.pipeline.ErrorHandler;
 
 /**
@@ -24,7 +25,12 @@ public class SmartSnapshotLeader implements Runnable {
     private static final Logger LOGGER = LoggerFactory.getLogger(SmartSnapshotLeader.class);
 
     private final SmartSnapshotLifecycleManager lifecycle;
-    private final SnapshotCoordinationFacade coordination;
+    private final Configuration config;
+    private final CommonConnectorConfig connectorConfig;
+    // The leader owns its coordination facade end to end: it is created, started, used and stopped on the leader
+    // thread inside run(). Nothing else holds it, so no other thread can use or close its Kafka client, and
+    // SourceTask.start() never blocks on starting it. Set at the start of run() and only used on the leader thread.
+    private SnapshotCoordinationFacade coordination;
     private final ErrorHandler errorHandler;
     private final int epoch;
     private final int numTasks;
@@ -36,11 +42,23 @@ public class SmartSnapshotLeader implements Runnable {
     private final long startedTransactionTimeoutMs;
     private final Runnable loggingContextSetup;
 
-    public SmartSnapshotLeader(SmartSnapshotLifecycleManager lifecycle, SnapshotCoordinationFacade coordination,
-                               ErrorHandler errorHandler, int epoch, int numTasks, boolean shouldStream, long pollMs,
-                               long joinWaitTimeoutMs, long startedTransactionTimeoutMs, Runnable loggingContextSetup) {
+    public SmartSnapshotLeader(SmartSnapshotLifecycleManager lifecycle, ErrorHandler errorHandler, int epoch, int numTasks,
+                               boolean shouldStream, Configuration config, CommonConnectorConfig connectorConfig,
+                               Runnable loggingContextSetup) {
+        this(lifecycle, errorHandler, epoch, numTasks, shouldStream, config, connectorConfig,
+                connectorConfig.getSmartSnapshotLeaderPollIntervalMs(),
+                connectorConfig.getSmartSnapshotLeaderJoinWaitTimeoutMs(),
+                connectorConfig.getSmartSnapshotLeaderStartedTransactionTimeoutMs(),
+                loggingContextSetup);
+    }
+
+    // Visible for testing: set the timings directly.
+    SmartSnapshotLeader(SmartSnapshotLifecycleManager lifecycle, ErrorHandler errorHandler, int epoch, int numTasks,
+                        boolean shouldStream, Configuration config, CommonConnectorConfig connectorConfig, long pollMs,
+                        long joinWaitTimeoutMs, long startedTransactionTimeoutMs, Runnable loggingContextSetup) {
         this.lifecycle = lifecycle;
-        this.coordination = coordination;
+        this.config = config;
+        this.connectorConfig = connectorConfig;
         this.errorHandler = errorHandler;
         this.epoch = epoch;
         this.numTasks = numTasks;
@@ -51,14 +69,13 @@ public class SmartSnapshotLeader implements Runnable {
         this.loggingContextSetup = loggingContextSetup;
     }
 
-    public SmartSnapshotLeader(SmartSnapshotLifecycleManager lifecycle, SnapshotCoordinationFacade coordination,
-                               ErrorHandler errorHandler, int epoch, int numTasks, boolean shouldStream, CommonConnectorConfig connectorConfig,
-                               Runnable loggingContextSetup) {
-        this(lifecycle, coordination, errorHandler, epoch,
-                numTasks, shouldStream, connectorConfig.getSmartSnapshotLeaderPollIntervalMs(),
-                connectorConfig.getSmartSnapshotLeaderJoinWaitTimeoutMs(),
-                connectorConfig.getSmartSnapshotLeaderStartedTransactionTimeoutMs(),
-                loggingContextSetup);
+    /**
+     * Creates this leader's private coordination facade. Called once, on the leader thread, at the start of
+     * {@link #run()}. Non-creating: tasks never create the coordination topic, the connector provisions it.
+     * Visible for testing, so a test can hand in a mock instead of a Kafka-backed facade.
+     */
+    SnapshotCoordinationFacade createCoordination() {
+        return SnapshotCoordinationFacade.nonCreating(config, connectorConfig);
     }
 
     @Override
@@ -74,6 +91,9 @@ public class SmartSnapshotLeader implements Runnable {
         try {
             loggingContextSetup.run();
 
+            // Created here, on the leader thread, so creation and start run where the facade is used. A failure
+            // (e.g. bad client config) lands in the catch below and fails the task after cleanup.
+            coordination = createCoordination();
             // topic is provisioned by the connector before any task starts; fail fast if it is somehow missing
             coordination.start(SnapshotCoordination.MissingTopicPolicy.FAIL);
 
@@ -191,9 +211,12 @@ public class SmartSnapshotLeader implements Runnable {
                 LOGGER.warn("Smart snapshot: [role=leader epoch={}] Failure while releasing the held snapshot connections. error={}", epoch, e.getMessage());
             }
             try {
-                LOGGER.info("Smart snapshot: [role=leader epoch={}] Cleaning up snapshot coordination resources", epoch);
-                // this is leader's private kafka based SnapshotCoordination
-                coordination.stop();
+                // null only if creating the facade itself failed; then there is nothing to close
+                if (coordination != null) {
+                    LOGGER.info("Smart snapshot: [role=leader epoch={}] Cleaning up snapshot coordination resources", epoch);
+                    // this is leader's private kafka based SnapshotCoordination
+                    coordination.stop();
+                }
             }
             catch (Exception e) {
                 LOGGER.warn("Smart snapshot: [role=leader epoch={}] Non-critical failure shutting down coordination log components. error={}", epoch,
