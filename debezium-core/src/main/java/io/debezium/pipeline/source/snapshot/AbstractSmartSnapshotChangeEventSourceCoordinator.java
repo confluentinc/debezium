@@ -275,22 +275,12 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
                 logPrefix(), "snapshot preparation",
                 Duration.ofMillis(snapshotInfoWaitTimeoutMs), Duration.ofMillis(snapshotInfoPollIntervalMs),
                 () -> {
-                    Map<String, Object> snapshotInfo = snapshotCoordination.readSnapshotInfo();
-                    // Readiness keys on the consistent point, which every connector publishes (Postgres also
-                    // publishes a snapshot name, MySQL does not). Do not key on the snapshot name.
-                    if (snapshotInfo != null && snapshotInfo.get(SnapshotCoordinationFacade.CONSISTENT_POINT) != null) {
-                        Integer snapshotInfoEpoch = SnapshotCoordinationFacade.epochOf(snapshotInfo);
-                        if (snapshotInfoEpoch != null) {
-                            if (snapshotInfoEpoch != epoch) {
-                                LOGGER.info(
-                                        "Smart snapshot: [role=task taskId={} epoch={}] Received snapshot info is for a different epoch. receivedEpoch={} currentEpoch={}",
-                                        taskId, epoch, snapshotInfoEpoch, epoch);
-                            }
-                            else {
-                                published.set(snapshotInfo);
-                                return SmartSnapshotPolling.PollResult.READY;
-                            }
-                        }
+                    // null until the leader has published the snapshot info for THIS epoch (a record from another
+                    // round, or one without a consistent point yet, also reads as null)
+                    Map<String, Object> snapshotInfo = snapshotCoordination.readSnapshotInfo(epoch);
+                    if (snapshotInfo != null) {
+                        published.set(snapshotInfo);
+                        return SmartSnapshotPolling.PollResult.READY;
                     }
 
                     // The connector may have moved on to a newer epoch (the leader gave up and restarted the round).
@@ -362,7 +352,7 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
             throw new DebeziumException(String.format("Smart snapshot: [role=task taskId=%s epoch=%d] Snapshot failed, signaling restart_needed", taskId, epoch), e);
         }
 
-        writeCompleted();
+        declareTaskDone();
 
         // Snapshot-only task: nothing more to do here. Return and let the connector monitor detect all tasks done
         // and downscale/reconfigure this task. The task stays alive (RUNNING, empty polls) until then.
@@ -383,7 +373,7 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
         }
     }
 
-    private void writeCompleted() {
+    private void declareTaskDone() {
         try {
             snapshotCoordination.writeTaskDone(taskId, epoch);
         }

@@ -168,7 +168,7 @@ public class MySqlSmartSnapshotChangeEventSourceCoordinatorTest {
         when(coordination.readTaskJoinEpoch(TASK_ID)).thenReturn(EPOCH);
         when(coordination.isTaskStartedTransaction(TASK_ID, EPOCH)).thenReturn(false);
         when(coordination.readEpoch()).thenReturn(null);
-        when(coordination.readSnapshotInfo()).thenReturn(snapshotInfo());
+        when(coordination.readSnapshotInfo(EPOCH)).thenReturn(snapshotInfo());
 
         execute();
 
@@ -194,14 +194,14 @@ public class MySqlSmartSnapshotChangeEventSourceCoordinatorTest {
         when(coordination.isTaskDone(TASK_ID, EPOCH)).thenReturn(false);
         when(coordination.readTaskJoinEpoch(TASK_ID)).thenReturn(null);
         when(coordination.readEpoch()).thenReturn(null);
-        when(coordination.readSnapshotInfo()).thenReturn(snapshotInfo());
+        when(coordination.readSnapshotInfo(EPOCH)).thenReturn(snapshotInfo());
 
         execute();
 
         assertThat(coordinator.doSnapshotCalled).isTrue();
         InOrder order = inOrder(coordination);
         order.verify(coordination).writeTaskJoin(TASK_ID, EPOCH);
-        order.verify(coordination).readSnapshotInfo();
+        order.verify(coordination).readSnapshotInfo(EPOCH);
         order.verify(coordination).writeTaskDone(TASK_ID, EPOCH);
         // MySQL wiring: decode "file:pos:gtids" into (file, pos, gtid) and hand this task's catalog-scoped slice to
         // the smart source. The gtids segment (itself containing ':') must survive the 3-way split intact.
@@ -216,7 +216,7 @@ public class MySqlSmartSnapshotChangeEventSourceCoordinatorTest {
         when(coordination.readEpoch()).thenReturn(null);
         // the first snapshot-info read blips (broker hiccup); the poll loop must keep polling and pick up the
         // snapshot on a later attempt, not fail the task on a single transient read failure.
-        when(coordination.readSnapshotInfo())
+        when(coordination.readSnapshotInfo(EPOCH))
                 .thenThrow(new DebeziumException("read blip"))
                 .thenReturn(snapshotInfo());
 
@@ -232,7 +232,7 @@ public class MySqlSmartSnapshotChangeEventSourceCoordinatorTest {
         when(coordination.isTaskDone(TASK_ID, EPOCH)).thenReturn(false);
         when(coordination.readTaskJoinEpoch(TASK_ID)).thenReturn(null);
         when(coordination.readEpoch()).thenReturn(null);
-        when(coordination.readSnapshotInfo()).thenReturn(snapshotInfo());
+        when(coordination.readSnapshotInfo(EPOCH)).thenReturn(snapshotInfo());
         coordinator.snapshotError = new RuntimeException("snapshot read failed");
 
         assertThatThrownBy(this::execute).isInstanceOf(RuntimeException.class);
@@ -245,7 +245,7 @@ public class MySqlSmartSnapshotChangeEventSourceCoordinatorTest {
         when(coordination.isTaskDone(TASK_ID, EPOCH)).thenReturn(false);
         when(coordination.readTaskJoinEpoch(TASK_ID)).thenReturn(null);
         when(coordination.readEpoch()).thenReturn(null);
-        when(coordination.readSnapshotInfo()).thenReturn(snapshotInfo());
+        when(coordination.readSnapshotInfo(EPOCH)).thenReturn(snapshotInfo());
         coordinator.interruptDuringSnapshot = true;
 
         try {
@@ -271,7 +271,7 @@ public class MySqlSmartSnapshotChangeEventSourceCoordinatorTest {
         when(coordination.isTaskDone(TASK_ID, EPOCH)).thenReturn(false);
         when(coordination.readTaskJoinEpoch(TASK_ID)).thenReturn(null);
         when(coordination.readEpoch()).thenReturn(null);
-        when(coordination.readSnapshotInfo()).thenReturn(snapshotInfo());
+        when(coordination.readSnapshotInfo(EPOCH)).thenReturn(snapshotInfo());
         // Interrupt that surfaces as a wrapped exception (e.g. a JDBC/producer call) rather than
         // InterruptedException: the interrupt flag is set, but the throw is a plain exception.
         coordinator.snapshotError = new RuntimeException("read interrupted");
