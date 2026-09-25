@@ -124,6 +124,8 @@ public class SqlServerConnection extends JdbcConnection {
     private static final String GET_MIN_LSN_FROM_ALL_CHANGE_TABLES = "select min(start_lsn) from #db.cdc.change_tables";
     private static final String OPENING_QUOTING_CHARACTER = "[";
     private static final String CLOSING_QUOTING_CHARACTER = "]";
+    // In direct mode, starting after this command id captures all changes of the transaction
+    private static final int BASE_COMMAND_ID = -1;
 
     private static final String URL_PATTERN = "jdbc:sqlserver://${" + JdbcConfiguration.HOSTNAME + "}";
 
@@ -407,7 +409,8 @@ public class SqlServerConnection extends JdbcConnection {
      * @param intervalFromLsn - closed lower bound of interval of changes to be provided
      * @param seqvalFromLsn - in-transaction sequence value to start after, pass {@link Lsn#ZERO} to fetch all sequence values
      * @param operationFrom - operation number to start after, pass 0 to fetch all operations
-     * @param commandIdFrom - in-transaction command id to start after. Only used in {@code direct} mode;
+     * @param commandIdFrom - in-transaction command id to start after, only used in {@code direct} mode. When
+     *                        {@code null} uses {@code BASE_COMMAND_ID}
      * @param intervalToLsn  - closed upper bound of interval  of changes to be provided
      * @param maxRows - the max number of rows to return, pass 0 for no limit
      * @throws SQLException
@@ -461,22 +464,27 @@ public class SqlServerConnection extends JdbcConnection {
             statement.setBytes(paramIndex++, intervalToLsn.getBinary());
         }
         else {
+            int commandId;
             if (commandIdFrom == null) {
-                throw new IllegalStateException("command_id must not be null in direct mode");
+                LOGGER.debug("No command id to start after for {} at {}, reading the whole transaction", changeTable, fromLsn);
+                commandId = BASE_COMMAND_ID;
+            }
+            else {
+                commandId = commandIdFrom;
             }
 
             // (start_lsn = ? AND command_id = ? AND seqval = ? AND operation > ?)
             statement.setBytes(paramIndex++, fromLsn.getBinary());
-            statement.setInt(paramIndex++, commandIdFrom);
+            statement.setInt(paramIndex++, commandId);
             statement.setBytes(paramIndex++, seqvalFromLsn.getBinary());
             statement.setInt(paramIndex++, operationFrom);
             // OR (start_lsn = ? AND command_id = ? AND seqval > ?)
             statement.setBytes(paramIndex++, fromLsn.getBinary());
-            statement.setInt(paramIndex++, commandIdFrom);
+            statement.setInt(paramIndex++, commandId);
             statement.setBytes(paramIndex++, seqvalFromLsn.getBinary());
             // OR (start_lsn = ? AND command_id > ?)
             statement.setBytes(paramIndex++, fromLsn.getBinary());
-            statement.setInt(paramIndex++, commandIdFrom);
+            statement.setInt(paramIndex++, commandId);
             // OR (start_lsn > ?)
             statement.setBytes(paramIndex++, fromLsn.getBinary());
             // AND start_lsn <= ? AND start_lsn >= ?
