@@ -203,6 +203,11 @@ public class IncrementalSnapshotIT extends AbstractIncrementalSnapshotWithSchema
     }
 
     @Override
+    protected int defaultIncrementalSnapshotChunkSize() {
+        return 250;
+    }
+
+    @Override
     protected String connector() {
         return "sql_server";
     }
