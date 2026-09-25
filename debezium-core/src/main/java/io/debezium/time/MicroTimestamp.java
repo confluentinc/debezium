@@ -70,7 +70,15 @@ public class MicroTimestamp {
         if (adjuster != null) {
             dateTime = dateTime.with(adjuster);
         }
-        return Conversions.toEpochMicros(dateTime.toInstant(ZoneOffset.UTC));
+
+        try {
+            return Conversions.toEpochMicros(dateTime.toInstant(ZoneOffset.UTC));
+        }
+        catch (NullPointerException e) {
+            // Fallback for NPE from ChronoLocalDateTime#toLocalDate, see debezium/dbz#1732
+            var ignored = dateTime.toString();
+            return Conversions.toEpochMicros(dateTime.toInstant(ZoneOffset.UTC));
+        }
     }
 
     private MicroTimestamp() {
