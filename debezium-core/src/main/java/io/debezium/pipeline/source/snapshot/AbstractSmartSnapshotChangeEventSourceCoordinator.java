@@ -97,17 +97,13 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
         // knobs, so a test that deliberately shortens one must still be able to run.
         long leaderJoinWaitTimeoutMs = connectorConfig.getSmartSnapshotLeaderJoinWaitTimeoutMs();
         if (snapshotInfoWaitTimeoutMs <= leaderJoinWaitTimeoutMs) {
-            LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Misconfigured timeouts: the task snapshot-info wait ({}ms) is not larger than the "
+            LOGGER.warn("{} Misconfigured timeouts: the task snapshot-info wait ({}ms) is not larger than the "
                     + "leader join wait ({}ms), so tasks may give up before the leader publishes the snapshot info. "
                     + "Increase '{}' above '{}' plus the expected snapshot preparation time.",
-                    taskId, epoch, snapshotInfoWaitTimeoutMs, leaderJoinWaitTimeoutMs,
+                    SmartSnapshotLogging.task(taskId, epoch), snapshotInfoWaitTimeoutMs, leaderJoinWaitTimeoutMs,
                     CommonConnectorConfig.SMART_SNAPSHOT_TASK_SNAPSHOT_INFO_WAIT_TIMEOUT_MS.name(),
                     CommonConnectorConfig.SMART_SNAPSHOT_LEADER_JOIN_WAIT_TIMEOUT_MS.name());
         }
-    }
-
-    private String logPrefix() {
-        return "Smart snapshot: [role=task taskId=" + taskId + " epoch=" + epoch + "]";
     }
 
     // Visible for testing: shorten the snapshot-info poll interval so tests do not sleep the default.
@@ -188,8 +184,8 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
             snapshotCoordination.stop();
         }
         catch (Exception e) {
-            LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Failed to cleanly close the coordination facade. error={}",
-                    taskId, epoch, e.getMessage());
+            LOGGER.warn("{} Failed to cleanly close the coordination facade. error={}",
+                    SmartSnapshotLogging.task(taskId, epoch), e.getMessage());
         }
         finally {
             if (wasInterrupted) {
@@ -213,8 +209,8 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
         if (previousOffset != null) {
             Integer offsetEpoch = epochOf(previousOffset);
             if (offsetEpoch != null && !offsetEpoch.equals(epoch)) {
-                LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Epoch mismatch, clearing offset. offsetEpoch={} configEpoch={}",
-                        taskId, epoch, offsetEpoch, epoch);
+                LOGGER.info("{} Epoch mismatch, clearing offset. offsetEpoch={} configEpoch={}",
+                        SmartSnapshotLogging.task(taskId, epoch), offsetEpoch, epoch);
                 previousOffsets.resetOffset(partition);
                 previousOffset = null;
             }
@@ -226,7 +222,7 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
         // NOT a crash. Do not treat it as a rejoin; return and let the connector downscale.
         boolean done = snapshotCoordination.isTaskDone(taskId, epoch);
         if (done) {
-            LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Already completed, waiting for downscale", taskId, epoch);
+            LOGGER.info("{} Already completed, waiting for downscale", SmartSnapshotLogging.task(taskId, epoch));
             return;
         }
 
@@ -240,7 +236,7 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
         // join marker (as before) wrongly bumped the epoch when a task simply died while waiting for the snapshot
         // to be prepared.
         if (snapshotCoordination.isTaskStartedTransaction(taskId, epoch)) {
-            LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Rejoin after transaction start detected, signaling `restart_needed`", taskId, epoch);
+            LOGGER.warn("{} Rejoin after transaction start detected, signaling `restart_needed`", SmartSnapshotLogging.task(taskId, epoch));
             writeRestartNeeded();
             return;
         }
@@ -255,8 +251,8 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
         // after the snapshot-info match, so a first-iteration match would attach before it ever fires.
         Integer readEpoch = snapshotCoordination.readEpoch();
         if (readEpoch != null && readEpoch > epoch) {
-            LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Saved epoch is greater than current epoch, waiting for restart. savedEpoch={} currentEpoch={}",
-                    taskId, epoch, readEpoch, epoch);
+            LOGGER.warn("{} Saved epoch is greater than current epoch, waiting for restart. savedEpoch={} currentEpoch={}",
+                    SmartSnapshotLogging.task(taskId, epoch), readEpoch, epoch);
             return;
         }
 
@@ -272,7 +268,7 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
         // interrupt-aware park (it throws InterruptedException, propagated by this method, when the task is stopped).
         AtomicReference<Map<String, Object>> published = new AtomicReference<>();
         SmartSnapshotPolling.Outcome outcome = SmartSnapshotPolling.pollUntil(
-                logPrefix(), "snapshot preparation",
+                SmartSnapshotLogging.task(taskId, epoch), "snapshot preparation",
                 Duration.ofMillis(snapshotInfoWaitTimeoutMs), Duration.ofMillis(snapshotInfoPollIntervalMs),
                 () -> {
                     // null until the leader has published the snapshot info for THIS epoch (a record from another
@@ -288,8 +284,8 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
                     // waiting and let this task be reconfigured for the new epoch.
                     Integer newerEpoch = snapshotCoordination.readEpoch();
                     if (newerEpoch != null && newerEpoch > epoch) {
-                        LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Connector advanced to a newer epoch while waiting for snapshot info, "
-                                + "waiting for restart. savedEpoch={}", taskId, epoch, newerEpoch);
+                        LOGGER.warn("{} Connector advanced to a newer epoch while waiting for snapshot info, "
+                                + "waiting for restart. savedEpoch={}", SmartSnapshotLogging.task(taskId, epoch), newerEpoch);
                         return SmartSnapshotPolling.PollResult.ABORT;
                     }
                     return SmartSnapshotPolling.PollResult.CONTINUE;
@@ -301,7 +297,7 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
             return;
         }
         if (outcome == SmartSnapshotPolling.Outcome.TIMED_OUT) {
-            throw new DebeziumException(String.format("Smart snapshot: [role=task taskId=%s epoch=%d] Timed out waiting for snapshot preparation", taskId, epoch));
+            throw new DebeziumException(SmartSnapshotLogging.task(taskId, epoch) + " Timed out waiting for snapshot preparation");
         }
 
         Map<String, Object> snapshotInfo = published.get();
@@ -311,21 +307,21 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
         Object assignmentForTask = SmartSnapshotTableAssignments.assignmentForTask(
                 snapshotInfo.get(SnapshotCoordinationFacade.ASSIGNMENTS), Integer.parseInt(taskId));
 
-        LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Read snapshot info, executing snapshot-only. snapshot={}, position={}, txId={}",
-                taskId, epoch, snapshotName, consistentPoint, snapshotTxId);
+        LOGGER.info("{} Read snapshot info, executing snapshot-only. snapshot={}, position={}, txId={}",
+                SmartSnapshotLogging.task(taskId, epoch), snapshotName, consistentPoint, snapshotTxId);
 
         // Hand the published info to the connector's smart snapshot source (decode position + parse assignment).
         configureSmartSource(snapshotSource, epoch, snapshotName, consistentPoint, snapshotTxId, assignmentForTask, snapshotCoordination);
 
         try {
             SnapshotResult<O> snapshotResult = doSnapshot(snapshotSource, context, partition, previousOffset);
-            LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Snapshot completed. status={}", taskId, epoch, snapshotResult.getStatus());
+            LOGGER.info("{} Snapshot completed. status={}", SmartSnapshotLogging.task(taskId, epoch), snapshotResult.getStatus());
         }
         catch (InterruptedException e) {
             // Interrupt means the task is being stopped/restarted; the snapshot did NOT complete.
             // Do NOT fall through to writeCompleted() — marking an unfinished subset "done" would let the
             // monitor downscale it and cause isTaskDone() to skip the snapshot on the next restart.
-            LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Interrupted during snapshot, exiting gracefully", taskId, epoch, e);
+            LOGGER.warn("{} Interrupted during snapshot, exiting gracefully", SmartSnapshotLogging.task(taskId, epoch), e);
             Thread.currentThread().interrupt();
             return;
         }
@@ -337,8 +333,8 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
             // otherwise it re-runs cleanly), and writeRestartNeeded() is a blocking Kafka write that would
             // likely fail under interrupt anyway.
             if (Thread.currentThread().isInterrupted()) {
-                LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Interrupted during snapshot (surfaced as {}), exiting gracefully",
-                        taskId, epoch, e.getClass().getSimpleName(), e);
+                LOGGER.warn("{} Interrupted during snapshot (surfaced as {}), exiting gracefully",
+                        SmartSnapshotLogging.task(taskId, epoch), e.getClass().getSimpleName(), e);
                 return;
             }
 
@@ -347,16 +343,16 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
             // (the failure was in the snapshot, not the write), so the signal should go through and the monitor
             // acts on its next poll. If the write also fails, writeRestartNeeded throws and the marker handles it
             // on restart.
-            LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Snapshot failed, signaling `restart_needed`", taskId, epoch, e);
+            LOGGER.warn("{} Snapshot failed, signaling `restart_needed`", SmartSnapshotLogging.task(taskId, epoch), e);
             writeRestartNeeded();
-            throw new DebeziumException(String.format("Smart snapshot: [role=task taskId=%s epoch=%d] Snapshot failed, signaling restart_needed", taskId, epoch), e);
+            throw new DebeziumException(SmartSnapshotLogging.task(taskId, epoch) + " Snapshot failed, signaling restart_needed", e);
         }
 
         declareTaskDone();
 
         // Snapshot-only task: nothing more to do here. Return and let the connector monitor detect all tasks done
         // and downscale/reconfigure this task. The task stays alive (RUNNING, empty polls) until then.
-        LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Slice complete, waiting for downscale", taskId, epoch);
+        LOGGER.info("{} Slice complete, waiting for downscale", SmartSnapshotLogging.task(taskId, epoch));
     }
 
     private void writeRestartNeeded() {
@@ -369,7 +365,7 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
             // down it keeps failing and restarting until the topic is back, then the signal goes through.
             // Nothing is committed in the meantime, so this is safe.
             throw new DebeziumException(
-                    String.format("Smart snapshot: [role=task taskId=%s epoch=%d] Failed to write restart_needed", taskId, epoch), e);
+                    SmartSnapshotLogging.task(taskId, epoch) + " Failed to write restart_needed", e);
         }
     }
 
@@ -380,7 +376,7 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
         catch (Exception e) {
             // can't record completion, the monitor would never downscale; fail so the task retries
             throw new DebeziumException(
-                    String.format("Smart snapshot: [role=task taskId=%s epoch=%d] Failed to write completion", taskId, epoch), e);
+                    SmartSnapshotLogging.task(taskId, epoch) + " Failed to write completion", e);
         }
     }
 }
