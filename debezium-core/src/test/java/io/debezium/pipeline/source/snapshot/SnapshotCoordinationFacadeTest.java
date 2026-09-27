@@ -242,6 +242,28 @@ public class SnapshotCoordinationFacadeTest {
     }
 
     @Test
+    public void readSnapshotInfoForEpochReturnsOnlyAPublishedRecordForThatEpoch() {
+        Map<String, String> key = Collect.hashMapOf("server", SERVER, "type", "snapshot_info");
+        when(coordination.read(key)).thenReturn(Collect.hashMapOf("consistent_point", "0/16B3748", "epoch", 5));
+
+        assertThat(facade.readSnapshotInfo(5)).containsEntry("consistent_point", "0/16B3748");
+        // the record is keyed by server only, so the latest one may belong to another round
+        assertThat(facade.readSnapshotInfo(6)).isNull();
+    }
+
+    @Test
+    public void readSnapshotInfoForEpochIsNullUntilTheConsistentPointIsPublished() {
+        Map<String, String> key = Collect.hashMapOf("server", SERVER, "type", "snapshot_info");
+
+        when(coordination.read(key)).thenReturn(null);
+        assertThat(facade.readSnapshotInfo(5)).isNull();
+
+        // readiness keys on the consistent point, not on the snapshot name (MySQL publishes none)
+        when(coordination.read(key)).thenReturn(Collect.hashMapOf("snapshot_name", "snap", "epoch", 5));
+        assertThat(facade.readSnapshotInfo(5)).isNull();
+    }
+
+    @Test
     public void epochOfIsNullSafeAndCoercesNumbers() {
         assertThat(SnapshotCoordinationFacade.epochOf(null)).isNull();
         assertThat(SnapshotCoordinationFacade.epochOf(Collect.hashMapOf("x", 1))).isNull();

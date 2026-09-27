@@ -134,6 +134,19 @@ public class SnapshotCoordinationFacade {
         return coordination.read(snapshotInfoKey());
     }
 
+    /**
+     * The snapshot info published for {@code epoch}, or {@code null} if none has been published for it yet. The
+     * snapshot_info record is keyed by server only, so the latest one on the topic may belong to another round; that,
+     * and a record without a consistent point, both read as "not published yet". Readiness keys on the consistent
+     * point because every connector publishes one (Postgres also publishes a snapshot name, MySQL does not).
+     */
+    public Map<String, Object> readSnapshotInfo(int epoch) {
+        Map<String, Object> snapshotInfo = readSnapshotInfo();
+        return snapshotInfo != null && snapshotInfo.get(CONSISTENT_POINT) != null && isAtEpoch(snapshotInfo, epoch)
+                ? snapshotInfo
+                : null;
+    }
+
     public Map<String, Object> readCompletion() {
         // has consistent_point + epoch; non-null = done
         return coordination.read(snapshotDoneKey());
