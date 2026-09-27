@@ -14,7 +14,25 @@ public interface SnapshotCoordination {
 
     void write(Map<String, String> key, Map<String, Object> data) throws Exception;
 
+    /**
+     * Synchronous read: catches up to the end of the coordination topic, then returns the value for {@code key}.
+     * The result reflects everything written to the topic before this call.
+     */
     Map<String, Object> read(Map<String, String> key);
+
+    /**
+     * Catch the local view up to the end of the coordination topic, so that following {@link #readCached} calls
+     * see everything written before this call. {@link #read} does this on every call; a caller that checks many
+     * keys (one marker per task) calls this once and then {@link #readCached} per key, which costs one catch-up
+     * instead of one per key.
+     */
+    void catchUp();
+
+    /**
+     * The value for {@code key} in the local view, without catching up first. Reflects everything up to the last
+     * {@link #catchUp()} or {@link #read}, plus whatever has been consumed in the background since.
+     */
+    Map<String, Object> readCached(Map<String, String> key);
 
     /**
      * Start reaching the coordination topic. {@code policy} decides what happens when the topic is missing:

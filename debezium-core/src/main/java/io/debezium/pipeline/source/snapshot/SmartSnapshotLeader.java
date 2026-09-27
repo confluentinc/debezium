@@ -230,12 +230,12 @@ public class SmartSnapshotLeader implements Runnable {
         final SmartSnapshotPolling.Outcome outcome = SmartSnapshotPolling.pollUntil(
                 logPrefix(), "all tasks to join", Duration.ofMillis(joinWaitTimeoutMs), Duration.ofMillis(pollMs),
                 () -> {
-                    if (anyRestartNeeded()) {
+                    if (coordination.anyRestartNeeded(numTasks, epoch)) {
                         LOGGER.warn("Smart snapshot: [role=leader epoch={}] Detected `restart_needed` marker while waiting for tasks to join, "
                                 + "skipping snapshot preparation", epoch);
                         return SmartSnapshotPolling.PollResult.ABORT;
                     }
-                    if (allTasksJoined()) {
+                    if (coordination.allTasksJoined(numTasks, epoch)) {
                         LOGGER.info("Smart snapshot: [role=leader epoch={}] All {} tasks joined, preparing snapshot", epoch, numTasks);
                         return SmartSnapshotPolling.PollResult.READY;
                     }
@@ -268,10 +268,12 @@ public class SmartSnapshotLeader implements Runnable {
                 logPrefix(), "all tasks to start their transaction",
                 Duration.ofMillis(startedTransactionTimeoutMs), Duration.ofMillis(pollMs),
                 () -> {
-                    if (anyRestartNeeded()) {
+                    if (coordination.anyRestartNeeded(numTasks, epoch)) {
                         return SmartSnapshotPolling.PollResult.ABORT;
                     }
-                    return allTasksStartedTransaction() ? SmartSnapshotPolling.PollResult.READY : SmartSnapshotPolling.PollResult.CONTINUE;
+                    return coordination.allTasksStartedTransaction(numTasks, epoch)
+                            ? SmartSnapshotPolling.PollResult.READY
+                            : SmartSnapshotPolling.PollResult.CONTINUE;
                 },
                 // keep the held connections/slot alive while we wait, after each park
                 lifecycle::keepAlive);
@@ -293,33 +295,6 @@ public class SmartSnapshotLeader implements Runnable {
         catch (Exception e) {
             LOGGER.warn("Smart snapshot: [role=leader epoch={}] Failed to write restart_needed; task-0 rejoin path will retry", epoch, e);
         }
-    }
-
-    boolean allTasksJoined() {
-        for (int i = 0; i < numTasks; i++) {
-            if (!coordination.isTaskJoined(String.valueOf(i), epoch)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    boolean allTasksStartedTransaction() {
-        for (int i = 0; i < numTasks; i++) {
-            if (!coordination.isTaskStartedTransaction(String.valueOf(i), epoch)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    boolean anyRestartNeeded() {
-        for (int i = 0; i < numTasks; i++) {
-            if (coordination.isRestartNeeded(String.valueOf(i), epoch)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
