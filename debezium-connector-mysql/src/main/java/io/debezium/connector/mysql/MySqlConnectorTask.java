@@ -360,10 +360,10 @@ public class MySqlConnectorTask extends BinlogSourceTask<MySqlPartition, MySqlOf
                     notificationService, snapshotterService, leaderEpoch);
             this.smartSnapshotLifecycleManager = lifecycle;
 
-            final SnapshotCoordinationFacade leaderCoordination = SnapshotCoordinationFacade.nonCreating(config, connectorConfig);
+            // the leader creates, starts and stops its own private coordination facade on its thread
             this.smartSnapshotLeaderThread = new Thread(
-                    new SmartSnapshotLeader(lifecycle, leaderCoordination, this.errorHandler,
-                            leaderEpoch, numTasks, shouldStream, connectorConfig,
+                    new SmartSnapshotLeader(lifecycle, this.errorHandler,
+                            leaderEpoch, numTasks, shouldStream, config, connectorConfig,
                             () -> taskContext.configureLoggingContext("smart-snapshot-leader")),
                     "smart-snapshot-leader");
             this.smartSnapshotLeaderThread.setDaemon(true);
