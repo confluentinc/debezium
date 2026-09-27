@@ -24,9 +24,9 @@ public class SmartSnapshotLeader implements Runnable {
     private static final Logger LOGGER = LoggerFactory.getLogger(SmartSnapshotLeader.class);
 
     private final SmartSnapshotLifecycleManager lifecycle;
-    private final SnapshotCoordinationFacade leaderSnapshotCoordination;
+    private final SnapshotCoordinationFacade coordination;
     private final ErrorHandler errorHandler;
-    private final int leaderEpoch;
+    private final int epoch;
     private final int numTasks;
     private final boolean shouldStream;
     private final long pollMs;
@@ -36,13 +36,13 @@ public class SmartSnapshotLeader implements Runnable {
     private final long startedTransactionTimeoutMs;
     private final Runnable loggingContextSetup;
 
-    public SmartSnapshotLeader(SmartSnapshotLifecycleManager lifecycle, SnapshotCoordinationFacade leaderSnapshotCoordination,
-                               ErrorHandler errorHandler, int leaderEpoch, int numTasks, boolean shouldStream, long pollMs,
+    public SmartSnapshotLeader(SmartSnapshotLifecycleManager lifecycle, SnapshotCoordinationFacade coordination,
+                               ErrorHandler errorHandler, int epoch, int numTasks, boolean shouldStream, long pollMs,
                                long joinWaitTimeoutMs, long startedTransactionTimeoutMs, Runnable loggingContextSetup) {
         this.lifecycle = lifecycle;
-        this.leaderSnapshotCoordination = leaderSnapshotCoordination;
+        this.coordination = coordination;
         this.errorHandler = errorHandler;
-        this.leaderEpoch = leaderEpoch;
+        this.epoch = epoch;
         this.numTasks = numTasks;
         this.shouldStream = shouldStream;
         this.pollMs = pollMs;
@@ -51,10 +51,10 @@ public class SmartSnapshotLeader implements Runnable {
         this.loggingContextSetup = loggingContextSetup;
     }
 
-    public SmartSnapshotLeader(SmartSnapshotLifecycleManager lifecycle, SnapshotCoordinationFacade leaderSnapshotCoordination,
-                               ErrorHandler errorHandler, int leaderEpoch, int numTasks, boolean shouldStream, CommonConnectorConfig connectorConfig,
+    public SmartSnapshotLeader(SmartSnapshotLifecycleManager lifecycle, SnapshotCoordinationFacade coordination,
+                               ErrorHandler errorHandler, int epoch, int numTasks, boolean shouldStream, CommonConnectorConfig connectorConfig,
                                Runnable loggingContextSetup) {
-        this(lifecycle, leaderSnapshotCoordination, errorHandler, leaderEpoch,
+        this(lifecycle, coordination, errorHandler, epoch,
                 numTasks, shouldStream, connectorConfig.getSmartSnapshotLeaderPollIntervalMs(),
                 connectorConfig.getSmartSnapshotLeaderJoinWaitTimeoutMs(),
                 connectorConfig.getSmartSnapshotLeaderStartedTransactionTimeoutMs(),
@@ -75,21 +75,12 @@ public class SmartSnapshotLeader implements Runnable {
             loggingContextSetup.run();
 
             // topic is provisioned by the connector before any task starts; fail fast if it is somehow missing
-            leaderSnapshotCoordination.start(SnapshotCoordination.MissingTopicPolicy.FAIL);
+            coordination.start(SnapshotCoordination.MissingTopicPolicy.FAIL);
 
             // a completed task-0 that got restarted must NOT re-prepare, if other task can't finish the coordinator would start a new round
-            if (leaderSnapshotCoordination.isTaskDone("0", leaderEpoch)) {
-                LOGGER.info("Smart snapshot: [role=leader epoch={}] Snapshot already completed, skipping leader preparation", leaderEpoch);
+            if (coordination.isTaskDone("0", epoch)) {
+                LOGGER.info("Smart snapshot: [role=leader epoch={}] Snapshot already completed, skipping leader preparation", epoch);
                 // thread ends; no re-export, no re-lock, {server} key untouched. Foreground idles until downscale.
-                return;
-            }
-
-            // A restart was already flagged for this epoch (for example by a task that had attached and then
-            // failed). The stop path will bounce this task anyway once the monitor acts on the marker, but
-            // checking here is worth it: it skips prepareSnapshot(), so we do not create the slot / export the
-            // snapshot / take table locks for a round that is about to be thrown away.
-            if (anyRestartNeeded()) {
-                LOGGER.info("Smart snapshot: [role=leader epoch={}] Detected restart_needed marker, skipping snapshot preparation", leaderEpoch);
                 return;
             }
 
@@ -97,10 +88,15 @@ public class SmartSnapshotLeader implements Runnable {
             // costs the source database nothing; it just makes sure all tasks are up and already polling for
             // the snapshot info. That way, once we lock the tables below, the tasks attach almost at once and
             // the locked window (the critical section) stays as small as possible.
+            //
+            // The wait checks for a restart_needed marker on every poll, the first poll included, so a restart
+            // that was already flagged for this epoch before the leader started (for example by a task that had
+            // attached and then failed) is caught here too, before prepareSnapshot() creates the slot / exports
+            // the snapshot / takes table locks for a round that is about to be thrown away.
             if (!waitForAllTasksJoined()) {
-                // A restart was signaled while waiting. Nothing is prepared and no locks are held, so just end
-                // the thread; the monitor bumps the epoch and the round starts over. (A join timeout does not
-                // land here — it throws, so the task is failed after this thread's cleanup.)
+                // A restart was signaled, before or while waiting. Nothing is prepared and no locks are held, so
+                // just end the thread; the monitor bumps the epoch and the round starts over. (A join timeout does
+                // not land here — it throws, so the task is failed after this thread's cleanup.)
                 return;
             }
 
@@ -112,41 +108,41 @@ public class SmartSnapshotLeader implements Runnable {
             // ceiling (topic-level compression, or splitting the assignments across records) is tracked
             // separately and is not needed for the table counts this supports today.
             // https://confluentinc.atlassian.net/browse/CC-43566
-            leaderSnapshotCoordination.writeSnapshotInfo(
+            coordination.writeSnapshotInfo(
                     setup.snapshotName(), setup.consistentPosition(),
-                    setup.snapshotTxId(), leaderEpoch, setup.tables(),
+                    setup.snapshotTxId(), epoch, setup.tables(),
                     numTasks);
             snapshotPublished = true;
 
             LOGGER.info("Smart snapshot: [role=leader epoch={}] Prepared snapshot={}, LSN={}",
-                    leaderEpoch, setup.snapshotName(), setup.consistentPosition());
+                    epoch, setup.snapshotName(), setup.consistentPosition());
 
             // From here the table locks are held, so this wait is bounded: a task that joined but then died
             // before starting its transaction can no longer pin the locks forever.
-            if (waitForAllTasksStartedTransaction()) {
+            final SmartSnapshotPolling.Outcome startedTransactionOutcome = waitForAllTasksStartedTransaction();
+            if (startedTransactionOutcome == SmartSnapshotPolling.Outcome.READY) {
                 // hands the locks back where the connector needs it (MySQL: UNLOCK TABLES); the slot persists
                 lifecycle.onAllTasksStartedTransaction();
-                LOGGER.info("Smart snapshot: [role=leader epoch={}] All tasks have started their transaction, stopping the leader thread", leaderEpoch);
+                LOGGER.info("Smart snapshot: [role=leader epoch={}] All tasks have started their transaction, stopping the leader thread", epoch);
+            }
+            else if (startedTransactionOutcome == SmartSnapshotPolling.Outcome.ABORTED) {
+                // A task already signaled a restart, so the monitor bumps the epoch; the finally below drops the locks.
+                LOGGER.warn("Smart snapshot: [role=leader epoch={}] Detected `restart_needed` marker, releasing locks early", epoch);
             }
             else {
-                // Timed out or a restart was signaled. The finally below drops the locks; make sure the round
-                // restarts too, so the monitor bumps the epoch and retries from scratch. The restart signal is a
-                // single Kafka write, so the locks are held for a negligible moment longer than before.
-                if (anyRestartNeeded()) {
-                    LOGGER.warn("Smart snapshot: [role=leader epoch={}] Detected `restart_needed` marker, releasing locks early", leaderEpoch);
-                }
-                else {
-                    LOGGER.warn("Smart snapshot: [role=leader epoch={}] Timed out after {}ms waiting for all tasks to start their "
-                            + "transaction, releasing locks and signaling restart", leaderEpoch, startedTransactionTimeoutMs);
-                    signalRestart();
-                }
+                // Timed out. The finally below drops the locks; make sure the round restarts too, so the monitor bumps
+                // the epoch and retries from scratch. The restart signal is a single Kafka write, so the locks are held
+                // for a negligible moment longer than before.
+                LOGGER.warn("Smart snapshot: [role=leader epoch={}] Timed out after {}ms waiting for all tasks to start their "
+                        + "transaction, releasing locks and signaling restart", epoch, startedTransactionTimeoutMs);
+                signalRestart();
             }
         }
         catch (InterruptedException e) {
             // Path A: an interrupt-aware wait (the park inside a poll loop) was interrupted by the task-stop
             // path. The flag was cleared when InterruptedException was thrown, so restore it and end the thread.
             // The finally below releases whatever was held.
-            LOGGER.info("Smart snapshot: [role=leader epoch={}] Interrupted while waiting, stopping snapshot preparation", leaderEpoch);
+            LOGGER.info("Smart snapshot: [role=leader epoch={}] Interrupted while waiting, stopping snapshot preparation", epoch);
             Thread.currentThread().interrupt();
         }
         catch (Throwable throwable) {
@@ -160,7 +156,7 @@ public class SmartSnapshotLeader implements Runnable {
                 // the task-stop path aborted it by closing the connection. The exception here is that
                 // abort (for example a SQLException), not an InterruptedException, but the interrupt
                 // flag is still set, which tells us this is a shutdown rather than a real failure.
-                LOGGER.error("Smart snapshot: [role=leader epoch={}] Snapshot preparation aborted by shutdown, held connection closed", leaderEpoch, throwable);
+                LOGGER.error("Smart snapshot: [role=leader epoch={}] Snapshot preparation aborted by shutdown, held connection closed", epoch, throwable);
                 return;
             }
             // If the snapshot was already published (e.g. keepAlive threw because the DB connection was killed
@@ -176,26 +172,31 @@ public class SmartSnapshotLeader implements Runnable {
             failure = throwable;
         }
         finally {
+            // Clear the interrupt flag (and restore it at the end) instead of just reading it with isInterrupted():
+            // the cleanup below must not run on an interrupted thread. coordination.stop() ends in
+            // KafkaBasedLog.stop(), which join()s its work thread. With the flag set, that join() throws at once and
+            // KafkaBasedLog gives up without closing its producer and consumer, leaking both. A task stop always
+            // interrupts this thread, so this is the normal shutdown path, not a corner case.
             boolean wasInterrupted = Thread.interrupted();
             // The single release for every path out of the block above: success, restart signaled, join/started
-            // timeout, interrupt, and failure. It is idempotent and a no-op when nothing is held, so the paths
-            // that never prepared anything (already-done, restart-marker, join wait) are unaffected. It must run
-            // BEFORE the coordination facade is stopped: releasing drops the database locks, which is the thing
-            // other tasks are waiting on, and it never touches Kafka. Guarded so a release failure cannot skip
-            // the coordination shutdown below (or mask the failure being reported after this block).
+            // timeout, interrupt, and failure. It is idempotent and a no-op when nothing is held, so the paths that
+            // never prepared anything (already-done, restart signaled or timed out during the join wait) are
+            // unaffected. It must run BEFORE the coordination facade is stopped: releasing drops the database locks,
+            // which is the thing other tasks are waiting on, and it never touches Kafka. Guarded so a release failure
+            // cannot skip the coordination shutdown below (or mask the failure being reported after this block).
             try {
                 lifecycle.releaseSnapshot();
             }
             catch (Exception e) {
-                LOGGER.warn("Smart snapshot: [role=leader epoch={}] Failure while releasing the held snapshot connections. error={}", leaderEpoch, e.getMessage());
+                LOGGER.warn("Smart snapshot: [role=leader epoch={}] Failure while releasing the held snapshot connections. error={}", epoch, e.getMessage());
             }
             try {
-                LOGGER.info("Smart snapshot: [role=leader epoch={}] Cleaning up snapshot coordination resources", leaderEpoch);
+                LOGGER.info("Smart snapshot: [role=leader epoch={}] Cleaning up snapshot coordination resources", epoch);
                 // this is leader's private kafka based SnapshotCoordination
-                leaderSnapshotCoordination.stop();
+                coordination.stop();
             }
             catch (Exception e) {
-                LOGGER.warn("Smart snapshot: [role=leader epoch={}] Non-critical failure shutting down coordination log components. error={}", leaderEpoch,
+                LOGGER.warn("Smart snapshot: [role=leader epoch={}] Non-critical failure shutting down coordination log components. error={}", epoch,
                         e.getMessage());
             }
             if (wasInterrupted) {
@@ -206,16 +207,16 @@ public class SmartSnapshotLeader implements Runnable {
         // Signaled only now — after this thread's coordination facade is closed — so the task restart it triggers
         // does not race with (and interrupt) our own cleanup above.
         if (failure != null) {
-            LOGGER.error("Smart snapshot: [role=leader epoch={}] Snapshot preparation failed", leaderEpoch, failure);
+            LOGGER.error("Smart snapshot: [role=leader epoch={}] Snapshot preparation failed", epoch, failure);
             errorHandler.setProducerThrowable(new DebeziumException(
-                    "Smart snapshot: [role=leader epoch=" + leaderEpoch + "] Snapshot preparation failed", failure));
+                    "Smart snapshot: [role=leader epoch=" + epoch + "] Snapshot preparation failed", failure));
         }
     }
 
     /**
      * Wait until every task has written its join marker, or until {@link #joinWaitTimeoutMs} elapses.
-     * Returns true if all tasks joined, false if a restart was signaled while waiting (the leader must stop
-     * without preparing). Throws on timeout.
+     * Returns true if all tasks joined, false if a restart was signaled for this epoch, either before the wait
+     * started or while waiting (the leader must stop without preparing). Throws on timeout.
      *
      * <p>On timeout we do NOT bump the epoch: nothing has been prepared, published, or locked yet, so there
      * is no partial work to throw away. We just fail the task; Kafka Connect restarts it and the join wait is
@@ -230,11 +231,12 @@ public class SmartSnapshotLeader implements Runnable {
                 logPrefix(), "all tasks to join", Duration.ofMillis(joinWaitTimeoutMs), Duration.ofMillis(pollMs),
                 () -> {
                     if (anyRestartNeeded()) {
-                        LOGGER.warn("Smart snapshot: [role=leader epoch={}] Restart signaled while waiting for tasks to join, aborting round", leaderEpoch);
+                        LOGGER.warn("Smart snapshot: [role=leader epoch={}] Detected `restart_needed` marker while waiting for tasks to join, "
+                                + "skipping snapshot preparation", epoch);
                         return SmartSnapshotPolling.PollResult.ABORT;
                     }
                     if (allTasksJoined()) {
-                        LOGGER.info("Smart snapshot: [role=leader epoch={}] All {} tasks joined, preparing snapshot", leaderEpoch, numTasks);
+                        LOGGER.info("Smart snapshot: [role=leader epoch={}] All {} tasks joined, preparing snapshot", epoch, numTasks);
                         return SmartSnapshotPolling.PollResult.READY;
                     }
                     return SmartSnapshotPolling.PollResult.CONTINUE;
@@ -243,24 +245,26 @@ public class SmartSnapshotLeader implements Runnable {
 
         if (outcome == SmartSnapshotPolling.Outcome.TIMED_OUT) {
             LOGGER.warn("Smart snapshot: [role=leader epoch={}] Timed out after {}ms waiting for all tasks to join; nothing prepared yet, "
-                    + "failing the task to retry without bumping the epoch", leaderEpoch, joinWaitTimeoutMs);
+                    + "failing the task to retry without bumping the epoch", epoch, joinWaitTimeoutMs);
             throw new DebeziumException(
-                    "Smart snapshot: [role=leader epoch=" + leaderEpoch + "] Timed out waiting for all tasks to join");
+                    "Smart snapshot: [role=leader epoch=" + epoch + "] Timed out waiting for all tasks to join");
         }
         return outcome == SmartSnapshotPolling.Outcome.READY;
     }
 
     /**
      * Wait until every task has started its snapshot transaction, or until {@link #startedTransactionTimeoutMs}
-     * elapses. Table locks are held for the duration, so the timeout caps the critical section. Returns true if
-     * all tasks started; false on timeout, restart signal, or interruption. Calls keepAlive() each poll so the
-     * held connection/slot does not drop while waiting.
+     * elapses. Table locks are held for the duration, so the timeout caps the critical section. Returns
+     * {@link SmartSnapshotPolling.Outcome#READY} if all tasks started, {@link SmartSnapshotPolling.Outcome#ABORTED}
+     * if a restart was signaled, or {@link SmartSnapshotPolling.Outcome#TIMED_OUT}, so the caller can tell the two
+     * failure cases apart without reading the restart markers again. Throws {@link InterruptedException} when the
+     * task is stopped. Calls keepAlive() each poll so the held connection/slot does not drop while waiting.
      */
-    boolean waitForAllTasksStartedTransaction() throws InterruptedException {
+    SmartSnapshotPolling.Outcome waitForAllTasksStartedTransaction() throws InterruptedException {
         // Table locks are held here, so a transient coordination read failure must NOT abort the round: that would
         // drop the locks and discard the prepared snapshot on a single broker blip. The shared poll loop logs and
         // keeps polling until the timeout, which is what caps the critical section.
-        final SmartSnapshotPolling.Outcome outcome = SmartSnapshotPolling.pollUntil(
+        return SmartSnapshotPolling.pollUntil(
                 logPrefix(), "all tasks to start their transaction",
                 Duration.ofMillis(startedTransactionTimeoutMs), Duration.ofMillis(pollMs),
                 () -> {
@@ -271,11 +275,10 @@ public class SmartSnapshotLeader implements Runnable {
                 },
                 // keep the held connections/slot alive while we wait, after each park
                 lifecycle::keepAlive);
-        return outcome == SmartSnapshotPolling.Outcome.READY;
     }
 
     private String logPrefix() {
-        return "Smart snapshot: [role=leader epoch=" + leaderEpoch + "]";
+        return "Smart snapshot: [role=leader epoch=" + epoch + "]";
     }
 
     /**
@@ -285,16 +288,16 @@ public class SmartSnapshotLeader implements Runnable {
      */
     void signalRestart() {
         try {
-            leaderSnapshotCoordination.writeRestartNeeded("0", leaderEpoch);
+            coordination.writeRestartNeeded("0", epoch);
         }
         catch (Exception e) {
-            LOGGER.warn("Smart snapshot: [role=leader epoch={}] Failed to write restart_needed; task-0 rejoin path will retry", leaderEpoch, e);
+            LOGGER.warn("Smart snapshot: [role=leader epoch={}] Failed to write restart_needed; task-0 rejoin path will retry", epoch, e);
         }
     }
 
     boolean allTasksJoined() {
         for (int i = 0; i < numTasks; i++) {
-            if (!leaderSnapshotCoordination.isTaskJoined(String.valueOf(i), leaderEpoch)) {
+            if (!coordination.isTaskJoined(String.valueOf(i), epoch)) {
                 return false;
             }
         }
@@ -303,7 +306,7 @@ public class SmartSnapshotLeader implements Runnable {
 
     boolean allTasksStartedTransaction() {
         for (int i = 0; i < numTasks; i++) {
-            if (!leaderSnapshotCoordination.isTaskStartedTransaction(String.valueOf(i), leaderEpoch)) {
+            if (!coordination.isTaskStartedTransaction(String.valueOf(i), epoch)) {
                 return false;
             }
         }
@@ -312,7 +315,7 @@ public class SmartSnapshotLeader implements Runnable {
 
     boolean anyRestartNeeded() {
         for (int i = 0; i < numTasks; i++) {
-            if (leaderSnapshotCoordination.isRestartNeeded(String.valueOf(i), leaderEpoch)) {
+            if (coordination.isRestartNeeded(String.valueOf(i), epoch)) {
                 return true;
             }
         }

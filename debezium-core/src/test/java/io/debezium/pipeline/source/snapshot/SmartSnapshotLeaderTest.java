@@ -188,6 +188,26 @@ public class SmartSnapshotLeaderTest {
     }
 
     @Test
+    public void restartSignalledDuringStartedTransactionWaitReleasesWithoutSignallingAgain() {
+        when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
+        allTasksJoined(2);
+        when(lifecycle.prepareSnapshot(true)).thenReturn(new SmartSnapshotLifecycleManager.SnapshotSetup("snap", "0/16B3748", 99L, TABLES));
+        // no restart during the join wait; task-1 signals one after the snapshot is published
+        when(coordination.isRestartNeeded("1", EPOCH)).thenReturn(false, true);
+        when(coordination.isTaskStartedTransaction("0", EPOCH)).thenReturn(false);
+        when(coordination.isTaskStartedTransaction("1", EPOCH)).thenReturn(false);
+
+        prep(2, true).run();
+
+        verify(coordination).writeSnapshotInfo("snap", "0/16B3748", 99L, EPOCH, TABLES, 2);
+        verify(lifecycle).releaseSnapshot();
+        verify(lifecycle, never()).onAllTasksStartedTransaction();
+        // the restart is already on the topic; the leader must not write a second one
+        verify(coordination, never()).writeRestartNeeded(any(), eq(EPOCH));
+        verify(errorHandler, never()).setProducerThrowable(any());
+    }
+
+    @Test
     public void transientReadFailureDuringStartedTransactionWaitIsToleratedNotAborted() {
         when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
         allTasksJoined(2);
