@@ -50,7 +50,6 @@ import io.debezium.pipeline.metrics.DefaultChangeEventSourceMetricsFactory;
 import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.signal.SignalProcessor;
 import io.debezium.pipeline.source.snapshot.SmartSnapshotLeader;
-import io.debezium.pipeline.source.snapshot.SmartSnapshotLifecycleManager;
 import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.pipeline.spi.OffsetContext;
 import io.debezium.pipeline.spi.Offsets;
@@ -84,21 +83,17 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
     private volatile ErrorHandler errorHandler;
     private volatile PostgresSchema schema;
-    private volatile SnapshotCoordinationFacade snapshotCoordination;
     // a data snapshotting task in the smart snapshot mode
     private volatile boolean isSmartSnapshotTask;
     // primarily for logging purpose
     private volatile int epoch = -1;
-    private volatile String taskId;
-    private volatile SmartSnapshotLifecycleManager smartSnapshotLifecycleManager;
 
     /*
-     * This thread manages creation of snapshot and writing the snapshot info to the coordination topic
-     * for the tasks to discover the snapshot details and attach to it
-     * This involves slot creation or snapshot creation
-     * called in start() during the task startup
+     * Task-0 only. The leader runs on its own background thread and manages creation of the snapshot and
+     * writing the snapshot info to the coordination topic for the tasks to discover the snapshot details and
+     * attach to it. This involves slot creation or snapshot creation. Started in start() during the task startup.
      */
-    private volatile Thread smartSnapshotLeaderThread;
+    private volatile SmartSnapshotLeader smartSnapshotLeader;
 
     private Partition.Provider<PostgresPartition> partitionProvider = null;
     private OffsetContext.Loader<PostgresOffsetContext> offsetContextLoader = null;
@@ -578,10 +573,8 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
         }
 
         this.epoch = Integer.parseInt(config.getString(SnapshotCoordinationFacade.EPOCH));
-        this.taskId = taskId;
         LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Starting task", taskId, epoch);
 
-        this.snapshotCoordination = SnapshotCoordinationFacade.nonCreating(config, connectorConfig);
         try {
             // end the setup txn (guardrail query, etc.) so the snapshot's SET is the first
             jdbcConnection.commit();
@@ -599,19 +592,15 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
             final PostgresSmartSnapshotLifecycleManager lifecycle = new PostgresSmartSnapshotLifecycleManager(
                     connectorConfig, connectionFactory, taskContext, snapshotterService,
                     schema, dispatcher, notificationService, clock, leaderEpoch);
-            this.smartSnapshotLifecycleManager = lifecycle;
 
             // only used for logging
             final PostgresPartition leaderPartition = new PostgresPartition(connectorConfig.getConnectorName(), "", "0");
-            // the leader creates, starts and stops its own private coordination facade on its thread
-            this.smartSnapshotLeaderThread = new Thread(
-                    new SmartSnapshotLeader(
-                            lifecycle, this.errorHandler,
-                            leaderEpoch, numTasks, shouldStream, config, connectorConfig,
-                            () -> taskContext.configureLoggingContext("smart-snapshot-leader", leaderPartition)),
-                    "smart-snapshot-leader");
-            this.smartSnapshotLeaderThread.setDaemon(true);
-            this.smartSnapshotLeaderThread.start();
+            // the leader owns its thread and its private coordination facade
+            this.smartSnapshotLeader = new SmartSnapshotLeader(
+                    lifecycle, this.errorHandler,
+                    leaderEpoch, numTasks, shouldStream, config, connectorConfig,
+                    () -> taskContext.configureLoggingContext("smart-snapshot-leader", leaderPartition));
+            this.smartSnapshotLeader.start();
         }
 
         // The leader task background thread handles slot creation & replication connection creation, skip those
@@ -626,7 +615,8 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                 dispatcher, schema, snapshotterService,
                 signalProcessor,
                 notificationService,
-                epoch, snapshotCoordination, connectorConfig.getTaskId());
+                // the coordinator creates, starts and stops its own task-side coordination facade
+                epoch, config, connectorConfig.getTaskId());
 
         coordinator.start(taskContext, this.queue, metadataProvider);
         return coordinator;
@@ -653,10 +643,10 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
         if (!isSmartSnapshotTask) {
             return;
         }
-        SmartSnapshotLeader.stopSmartSnapshot(
-                smartSnapshotLeaderThread, smartSnapshotLifecycleManager,
-                snapshotCoordination, 10_000, taskId, epoch);
-        smartSnapshotLeaderThread = null;
-        smartSnapshotLifecycleManager = null;
+        // task-0 only: stop the leader (it closes its own coordination facade)
+        if (smartSnapshotLeader != null) {
+            smartSnapshotLeader.stop(10_000);
+            smartSnapshotLeader = null;
+        }
     }
 }
