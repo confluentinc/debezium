@@ -23,6 +23,7 @@ import io.debezium.jdbc.MainConnectionProvidingConnectionFactory;
 import io.debezium.pipeline.EventDispatcher;
 import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.source.SnapshottingTask;
+import io.debezium.pipeline.source.snapshot.SmartSnapshotLogging;
 import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.pipeline.source.spi.SnapshotProgressListener;
 import io.debezium.relational.TableId;
@@ -94,7 +95,7 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
         LinkedHashSet<TableId> mine = new LinkedHashSet<>(smartSnapshotTables);
         ctx.capturedTables = mine;
         ctx.capturedSchemaTables = mine; // unused on the Postgres path (readTableStructure derives schemas from capturedTables)
-        LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Determining captured tables using the slice from the leader", taskId, epoch);
+        LOGGER.info("{} Determining captured tables using the slice from the leader", SmartSnapshotLogging.task(taskId, epoch));
     }
 
     @Override
@@ -116,7 +117,7 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
         // agrees on one consistent point.
         offset.updateWalPosition(smartSnapshotLsn, null, getClock().currentTime(),
                 smartSnapshotTxId, null, null, null);
-        LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Set offset LSN={}, txId={}", taskId, epoch, smartSnapshotLsn, smartSnapshotTxId);
+        LOGGER.info("{} Set offset LSN={}, txId={}", SmartSnapshotLogging.task(taskId, epoch), smartSnapshotLsn, smartSnapshotTxId);
     }
 
     @Override
@@ -124,7 +125,7 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
         if (smartSnapshotName != null && !isOnDemand) {
             // Reuse the parent's statement builder; only the exported snapshot name differs (leader's, not the slot's).
             String combined = importExportedSnapshotStatement(smartSnapshotName);
-            LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Opening snapshot transaction: {}", taskId, epoch, combined);
+            LOGGER.info("{} Opening snapshot transaction: {}", SmartSnapshotLogging.task(taskId, epoch), combined);
             jdbcConnection.executeWithoutCommitting(combined);
             return;
         }
@@ -141,6 +142,6 @@ public class PostgresSmartSnapshotChangeEventSource extends PostgresSnapshotChan
 
         // don't catch write failure, let the task fail instead
         snapshotCoordination.writeTaskStartedTransaction(taskId, epoch);
-        LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Signaled task_started_transaction (schema read done)", taskId, epoch);
+        LOGGER.info("{} Signaled task_started_transaction (schema read done)", SmartSnapshotLogging.task(taskId, epoch));
     }
 }
