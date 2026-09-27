@@ -83,7 +83,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
     @Test
     public void restartBumpsEpochOnNextTaskConfigs() throws Exception {
         coordinator.taskConfigs(2, baseProps()); // sets numTasks = 2, epoch = 1
-        when(facade.isRestartNeeded("0", 1)).thenReturn(true);
+        when(facade.anyRestartNeeded(2, 1)).thenReturn(true);
         // the monitor bumps the epoch; the runtime honors the request by running taskConfigs
         doAnswer(inv -> {
             coordinator.taskConfigs(2, baseProps());
@@ -101,9 +101,8 @@ public class SmartSnapshotConnectorCoordinatorTest {
     @Test
     public void allTasksDoneCompletesAndWritesCompletion() throws Exception {
         coordinator.taskConfigs(2, baseProps()); // numTasks = 2, epoch = 1
-        when(facade.isRestartNeeded(anyString(), eq(1))).thenReturn(false);
-        when(facade.isTaskDone("0", 1)).thenReturn(true);
-        when(facade.isTaskDone("1", 1)).thenReturn(true);
+        when(facade.anyRestartNeeded(2, 1)).thenReturn(false);
+        when(facade.allTasksDone(2, 1)).thenReturn(true);
         when(facade.readSnapshotInfo()).thenReturn(Collect.hashMapOf(SnapshotCoordinationFacade.CONSISTENT_POINT, "0/16B3748"));
         // the monitor writes completion; the runtime honors the request by running taskConfigs
         doAnswer(inv -> {
@@ -180,7 +179,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
 
         CountDownLatch inRead = new CountDownLatch(1);
         CountDownLatch proceed = new CountDownLatch(1);
-        when(facade.isRestartNeeded(anyString(), anyInt())).thenAnswer(inv -> {
+        when(facade.anyRestartNeeded(anyInt(), anyInt())).thenAnswer(inv -> {
             inRead.countDown();
             proceed.await();
             return false;
@@ -215,8 +214,8 @@ public class SmartSnapshotConnectorCoordinatorTest {
         when(facade.readSnapshotInfo()).thenReturn(null);
         when(facade.readCompletion()).thenReturn(null);
         when(facade.readEpoch()).thenReturn(1);
-        when(facade.isRestartNeeded(anyString(), anyInt())).thenReturn(false);
-        when(facade.isTaskDone(anyString(), anyInt())).thenReturn(false);
+        when(facade.anyRestartNeeded(anyInt(), anyInt())).thenReturn(false);
+        when(facade.allTasksDone(anyInt(), anyInt())).thenReturn(false);
 
         coordinator.start(); // launches the monitor thread
         coordinator.taskConfigs(2, baseProps()); // lastNumTasks=2 so the loop does real work
@@ -243,14 +242,14 @@ public class SmartSnapshotConnectorCoordinatorTest {
 
         CountDownLatch keptPolling = new CountDownLatch(3); // needs 3 iterations -> proves it survived
         AtomicInteger calls = new AtomicInteger();
-        when(facade.isRestartNeeded(anyString(), anyInt())).thenAnswer(inv -> {
+        when(facade.anyRestartNeeded(anyInt(), anyInt())).thenAnswer(inv -> {
             keptPolling.countDown();
             if (calls.getAndIncrement() == 0) {
                 throw new RuntimeException("Fetching restart info threw"); // first iteration explodes
             }
             return false;
         });
-        when(facade.isTaskDone(anyString(), anyInt())).thenReturn(false);
+        when(facade.allTasksDone(anyInt(), anyInt())).thenReturn(false);
 
         coordinator.start();
         coordinator.taskConfigs(2, baseProps());
@@ -297,10 +296,10 @@ public class SmartSnapshotConnectorCoordinatorTest {
         // Coordination state the two threads observe:
         // epoch 1 -> a task needs a restart, nobody is done
         // epoch 2 -> no restart, everybody is done
-        when(facade.isRestartNeeded(anyString(), eq(1))).thenReturn(true);
-        when(facade.isRestartNeeded(anyString(), eq(2))).thenReturn(false);
-        when(facade.isTaskDone(anyString(), eq(1))).thenReturn(false);
-        when(facade.isTaskDone(anyString(), eq(2))).thenReturn(true);
+        when(facade.anyRestartNeeded(anyInt(), eq(1))).thenReturn(true);
+        when(facade.anyRestartNeeded(anyInt(), eq(2))).thenReturn(false);
+        when(facade.allTasksDone(anyInt(), eq(1))).thenReturn(false);
+        when(facade.allTasksDone(anyInt(), eq(2))).thenReturn(true);
 
         // fires when the connector thread writes completion for the final epoch
         CountDownLatch completed = new CountDownLatch(1);
@@ -343,7 +342,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
     @Test
     public void restartReconfigurationSubmitFailureFailsConnector() throws Exception {
         coordinator.taskConfigs(2, baseProps()); // epoch = 1, numTasks = 2, state ACTIVE
-        when(facade.isRestartNeeded("0", 1)).thenReturn(true);
+        when(facade.anyRestartNeeded(2, 1)).thenReturn(true);
         doThrow(new RuntimeException("kafka down")).when(connectorContext).requestTaskReconfiguration();
 
         assertThat(coordinator.monitorIteration()).isEqualTo(MonitorAction.STOP); // submit failed -> connector failed
@@ -357,9 +356,8 @@ public class SmartSnapshotConnectorCoordinatorTest {
     @Test
     public void completionReconfigurationSubmitFailureFailsConnector() throws Exception {
         coordinator.taskConfigs(2, baseProps()); // epoch = 1, numTasks = 2
-        when(facade.isRestartNeeded(anyString(), eq(1))).thenReturn(false);
-        when(facade.isTaskDone("0", 1)).thenReturn(true);
-        when(facade.isTaskDone("1", 1)).thenReturn(true);
+        when(facade.anyRestartNeeded(2, 1)).thenReturn(false);
+        when(facade.allTasksDone(2, 1)).thenReturn(true);
         when(facade.readSnapshotInfo()).thenReturn(Collect.hashMapOf(SnapshotCoordinationFacade.CONSISTENT_POINT, "0/16B3748"));
         doThrow(new RuntimeException("kafka down")).when(connectorContext).requestTaskReconfiguration();
 
@@ -375,7 +373,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
     @Test
     public void monitorDoesNotWaitForTheRuntimeToHonorTheRequest() {
         coordinator.taskConfigs(2, baseProps()); // epoch = 1, numTasks = 2
-        when(facade.isRestartNeeded("0", 1)).thenReturn(true);
+        when(facade.anyRestartNeeded(2, 1)).thenReturn(true);
         // requestTaskReconfiguration is a plain no-op mock: the runtime never calls taskConfigs back
 
         assertThat(coordinator.monitorIteration()).isEqualTo(MonitorAction.CONTINUE_POLLING); // returned without waiting
