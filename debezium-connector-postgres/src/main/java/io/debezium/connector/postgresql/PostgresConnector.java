@@ -31,6 +31,7 @@ import io.debezium.connector.postgresql.PostgresConnectorConfig.LogicalDecoder;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.connector.postgresql.connection.ServerInfo;
 import io.debezium.pipeline.source.snapshot.SmartSnapshotConnectorCoordinator;
+import io.debezium.pipeline.source.snapshot.SmartSnapshotLogging;
 import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.relational.TableId;
@@ -95,13 +96,13 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
             Integer maxTask = config.getInteger("tasks.max");
             if (maxTask != null && maxTask <= 1) {
                 // todo check if runtime passes tasks.max correctly
-                LOGGER.info("Smart snapshot: [role=connector] Enabled but tasks.max is 1 or less, falling back to feature-disabled behaviour");
+                LOGGER.info(SmartSnapshotLogging.CONNECTOR + " Enabled but tasks.max is 1 or less, falling back to feature-disabled behaviour");
                 return;
             }
             PostgresConnectorConfig connectorConfig = new PostgresConnectorConfig(config);
 
             if (!SnapshotCoordinationFacade.hasCoordinationBootstrap(config)) {
-                LOGGER.info("Smart snapshot: [role=connector] No coordination bootstrap configured; skipping smart snapshot setup in start()");
+                LOGGER.info(SmartSnapshotLogging.CONNECTOR + " No coordination bootstrap configured; skipping smart snapshot setup in start()");
                 return;
             }
 

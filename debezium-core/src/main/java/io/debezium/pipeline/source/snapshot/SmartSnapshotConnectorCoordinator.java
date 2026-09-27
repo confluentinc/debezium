@@ -104,7 +104,7 @@ public class SmartSnapshotConnectorCoordinator {
         // that snapshotted before smart snapshot existed (or while it was disabled): there is no completion marker
         // on the coordination topic to find, only the streaming offset.
         if (offsetExists && !snapshotInProgress) {
-            LOGGER.info("Smart snapshot: [role=connector] Existing streaming offset present, skipping smart snapshot");
+            LOGGER.info(SmartSnapshotLogging.CONNECTOR + " Existing streaming offset present, skipping smart snapshot");
             this.smartSnapshotState = SmartSnapshotState.COMPLETE;
             return;
         }
@@ -113,8 +113,8 @@ public class SmartSnapshotConnectorCoordinator {
 
         Map<String, Object> completionInfo = snapshotCoordination.readCompletion();
         if (completionInfo != null) {
-            LOGGER.info("Smart snapshot: [role=connector epoch={}] Coordination topic shows snapshot completed, skipping",
-                    SnapshotCoordinationFacade.epochOf(completionInfo));
+            LOGGER.info("{} Coordination topic shows snapshot completed, skipping",
+                    SmartSnapshotLogging.connector(SnapshotCoordinationFacade.epochOf(completionInfo)));
             this.smartSnapshotState = SmartSnapshotState.COMPLETE;
             return;
         }
@@ -150,7 +150,7 @@ public class SmartSnapshotConnectorCoordinator {
         }
 
         if (complete) {
-            LOGGER.info("Smart snapshot: [role=connector epoch={}] Snapshot complete, downscaling to a single task", epoch);
+            LOGGER.info("{} Snapshot complete, downscaling to a single task", SmartSnapshotLogging.connector(epoch));
             return Collections.singletonList(new HashMap<>(baseProps));
         }
 
@@ -169,7 +169,7 @@ public class SmartSnapshotConnectorCoordinator {
         Thread thread = new Thread(() -> {
             // The monitor runs on its own thread and does not inherit the connector thread's MDC; set it here.
             LoggingContext.forConnector(connectorType, serverName, "smart-snapshot-monitor");
-            LOGGER.info("Smart snapshot: [role=monitor epoch={}] Monitor thread started", currentEpoch.get());
+            LOGGER.info("{} Monitor thread started", SmartSnapshotLogging.monitor(currentEpoch.get()));
             Metronome metronome = Metronome.sleeper(Duration.ofMillis(monitorPollIntervalMs), Clock.SYSTEM);
             while (true) {
                 try {
@@ -181,12 +181,12 @@ public class SmartSnapshotConnectorCoordinator {
                 catch (InterruptedException e) {
                     // The only interrupt source is stop(); end the monitor thread.
                     Thread.currentThread().interrupt();
-                    LOGGER.info("Smart snapshot: [role=monitor epoch={}] Monitor thread interrupted, stopping", currentEpoch.get());
+                    LOGGER.info("{} Monitor thread interrupted, stopping", SmartSnapshotLogging.monitor(currentEpoch.get()));
                     return;
                 }
                 catch (Throwable t) {
                     // A single bad iteration must not kill the monitor; log and retry on the next poll.
-                    LOGGER.warn("Smart snapshot: [role=monitor epoch={}] Monitor iteration failed, will retry", currentEpoch.get(), t);
+                    LOGGER.warn("{} Monitor iteration failed, will retry", SmartSnapshotLogging.monitor(currentEpoch.get()), t);
                 }
             }
         }, "smart-snapshot-monitor");
@@ -246,7 +246,7 @@ public class SmartSnapshotConnectorCoordinator {
      */
     private MonitorAction handleRestart(int epoch) {
         int newEpoch = epoch + 1;
-        LOGGER.info("Smart snapshot: [role=monitor epoch={}] Restart needed, bumping epoch from {} to {}", epoch, epoch, newEpoch);
+        LOGGER.info("{} Restart needed, bumping epoch from {} to {}", SmartSnapshotLogging.monitor(epoch), epoch, newEpoch);
         boolean requested = applyTransition("restart", newEpoch,
                 // Persist the new epoch before the runtime hands it to the tasks.
                 () -> persistEpoch(newEpoch),
@@ -266,7 +266,7 @@ public class SmartSnapshotConnectorCoordinator {
      *
      */
     private MonitorAction handleDownscale(int epoch) {
-        LOGGER.info("Smart snapshot: [role=monitor epoch={}] All tasks done, snapshot complete, downscaling", epoch);
+        LOGGER.info("{} All tasks done, snapshot complete, downscaling", SmartSnapshotLogging.monitor(epoch));
         applyTransition("downscale", epoch,
                 // Write the completion marker before marking complete, so a write failure just retries on the next
                 // iteration with the state still ACTIVE.
@@ -300,7 +300,7 @@ public class SmartSnapshotConnectorCoordinator {
         synchronized (stateLock) {
             stateChange.run();
         }
-        LOGGER.info("Smart snapshot: [role=monitor epoch={}] Requesting task reconfiguration for {}", epoch, action);
+        LOGGER.info("{} Requesting task reconfiguration for {}", SmartSnapshotLogging.monitor(epoch), action);
         try {
             connectorContext.requestTaskReconfiguration();
         }
@@ -316,7 +316,7 @@ public class SmartSnapshotConnectorCoordinator {
      * are made durable before they are acted on.
      */
     private void failConnector(String reason, Throwable cause) {
-        LOGGER.error("Smart snapshot: [role=monitor epoch={}] {}, failing the connector", currentEpoch.get(), reason, cause);
+        LOGGER.error("{} {}, failing the connector", SmartSnapshotLogging.monitor(currentEpoch.get()), reason, cause);
         connectorContext.raiseError(new RuntimeException("Smart snapshot: " + reason, cause));
     }
 
@@ -337,7 +337,7 @@ public class SmartSnapshotConnectorCoordinator {
             try {
                 monitorThreadCopy.join(5000);
                 if (monitorThreadCopy.isAlive()) {
-                    LOGGER.warn("Smart snapshot: [role=connector epoch={}] Monitor thread did not stop within 5s", currentEpoch.get());
+                    LOGGER.warn("{} Monitor thread did not stop within 5s", SmartSnapshotLogging.connector(currentEpoch.get()));
                 }
             }
             catch (InterruptedException e) {
