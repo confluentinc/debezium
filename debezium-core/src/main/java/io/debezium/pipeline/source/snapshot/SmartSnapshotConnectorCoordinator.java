@@ -218,8 +218,8 @@ public class SmartSnapshotConnectorCoordinator {
         }
 
         // Coordination reads are done outside the lock so a slow read never blocks the connector thread.
-        boolean restartNeeded = anyTaskNeedsRestart(epoch, numTasks);
-        boolean allDone = !restartNeeded && allTasksDone(epoch, numTasks);
+        boolean restartNeeded = snapshotCoordination.anyRestartNeeded(numTasks, epoch);
+        boolean allDone = !restartNeeded && snapshotCoordination.allTasksDone(numTasks, epoch);
 
         if (restartNeeded) {
             return handleRestart(epoch);
@@ -318,24 +318,6 @@ public class SmartSnapshotConnectorCoordinator {
     private void failConnector(String reason, Throwable cause) {
         LOGGER.error("Smart snapshot: [role=monitor epoch={}] {}, failing the connector", currentEpoch.get(), reason, cause);
         connectorContext.raiseError(new RuntimeException("Smart snapshot: " + reason, cause));
-    }
-
-    private boolean anyTaskNeedsRestart(int epoch, int numTasks) {
-        for (int i = 0; i < numTasks; i++) {
-            if (snapshotCoordination.isRestartNeeded(String.valueOf(i), epoch)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean allTasksDone(int epoch, int numTasks) {
-        for (int i = 0; i < numTasks; i++) {
-            if (!snapshotCoordination.isTaskDone(String.valueOf(i), epoch)) {
-                return false;
-            }
-        }
-        return true;
     }
 
     public boolean isComplete() {
