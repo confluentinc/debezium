@@ -307,6 +307,7 @@ public class MySqlSmartSnapshotChangeEventSourceCoordinatorTest {
         RuntimeException snapshotError;
         boolean interruptDuringSnapshot;
         boolean setInterruptFlagBeforeError;
+        private final SnapshotCoordinationFacade coordination;
 
         TestCoordinator(Offsets<MySqlPartition, MySqlOffsetContext> previousOffsets, ErrorHandler errorHandler,
                         MySqlConnectorConfig connectorConfig, MySqlChangeEventSourceFactory changeEventSourceFactory,
@@ -317,7 +318,14 @@ public class MySqlSmartSnapshotChangeEventSourceCoordinatorTest {
                         SnapshotCoordinationFacade coordination, String taskId) {
             super(previousOffsets, errorHandler, MySqlConnector.class, connectorConfig, changeEventSourceFactory,
                     metricsFactory, eventDispatcher, schema, snapshotterService, signalProcessor,
-                    notificationService, epoch, coordination, taskId);
+                    notificationService, epoch, null, taskId);
+            this.coordination = coordination;
+        }
+
+        // the coordinator creates its own facade; hand it the mock instead of a Kafka-backed one
+        @Override
+        protected SnapshotCoordinationFacade createCoordination() {
+            return coordination;
         }
 
         // widen visibility so the test (same package, not a subclass) can shorten the poll interval
