@@ -603,11 +603,11 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
 
             // only used for logging
             final PostgresPartition leaderPartition = new PostgresPartition(connectorConfig.getConnectorName(), "", "0");
-            SnapshotCoordinationFacade leaderSnapshotCoordination = SnapshotCoordinationFacade.nonCreating(config, connectorConfig);
+            // the leader creates, starts and stops its own private coordination facade on its thread
             this.smartSnapshotLeaderThread = new Thread(
                     new SmartSnapshotLeader(
-                            lifecycle, leaderSnapshotCoordination, this.errorHandler,
-                            leaderEpoch, numTasks, shouldStream, connectorConfig,
+                            lifecycle, this.errorHandler,
+                            leaderEpoch, numTasks, shouldStream, config, connectorConfig,
                             () -> taskContext.configureLoggingContext("smart-snapshot-leader", leaderPartition)),
                     "smart-snapshot-leader");
             this.smartSnapshotLeaderThread.setDaemon(true);
