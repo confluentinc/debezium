@@ -24,6 +24,7 @@ import io.debezium.jdbc.MainConnectionProvidingConnectionFactory;
 import io.debezium.pipeline.EventDispatcher;
 import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.source.SnapshottingTask;
+import io.debezium.pipeline.source.snapshot.SmartSnapshotLogging;
 import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.relational.TableId;
 import io.debezium.schema.SchemaChangeEvent;
@@ -89,7 +90,7 @@ public class MySqlSmartSnapshotChangeEventSource extends MySqlSnapshotChangeEven
         LinkedHashSet<TableId> mine = new LinkedHashSet<>(smartSnapshotTables);
         ctx.capturedTables = mine;
         ctx.capturedSchemaTables = mine;
-        LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Using the {}-table slice from the leader", taskId, epoch, mine.size());
+        LOGGER.info("{} Using the {}-table slice from the leader", SmartSnapshotLogging.task(taskId, epoch), mine.size());
     }
 
     @Override
@@ -103,7 +104,7 @@ public class MySqlSmartSnapshotChangeEventSource extends MySqlSnapshotChangeEven
         offset.setCompletedGtidSet(pGtidSet);
         ctx.offset = offset;
         tryStartingSnapshot(ctx);
-        LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Set offset to P=({}:{}) gtid={}", taskId, epoch, pBinlogFile, pBinlogPos, pGtidSet);
+        LOGGER.info("{} Set offset to P=({}:{}) gtid={}", SmartSnapshotLogging.task(taskId, epoch), pBinlogFile, pBinlogPos, pGtidSet);
     }
 
     @Override
@@ -114,7 +115,7 @@ public class MySqlSmartSnapshotChangeEventSource extends MySqlSnapshotChangeEven
         // consistent-snapshot transaction while the leader's lock is held, which freezes its reads at P.
         connection.connection().setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
         connection.executeWithoutCommitting("START TRANSACTION WITH CONSISTENT SNAPSHOT");
-        LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Opened consistent-snapshot transaction (leader holds the lock)", taskId, epoch);
+        LOGGER.info("{} Opened consistent-snapshot transaction (leader holds the lock)", SmartSnapshotLogging.task(taskId, epoch));
     }
 
     @Override
@@ -136,6 +137,6 @@ public class MySqlSmartSnapshotChangeEventSource extends MySqlSnapshotChangeEven
         // Signal transaction_started AFTER the schema read, so the leader knows this task has attached and can
         // release the global lock once every task has attached. Let a write failure fail the task.
         snapshotCoordination.writeTaskStartedTransaction(taskId, epoch);
-        LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Signaled task_started_transaction (schema read done)", taskId, epoch);
+        LOGGER.info("{} Signaled task_started_transaction (schema read done)", SmartSnapshotLogging.task(taskId, epoch));
     }
 }

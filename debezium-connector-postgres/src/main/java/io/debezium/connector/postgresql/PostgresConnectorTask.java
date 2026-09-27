@@ -50,6 +50,7 @@ import io.debezium.pipeline.metrics.DefaultChangeEventSourceMetricsFactory;
 import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.signal.SignalProcessor;
 import io.debezium.pipeline.source.snapshot.SmartSnapshotLeader;
+import io.debezium.pipeline.source.snapshot.SmartSnapshotLogging;
 import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.pipeline.spi.OffsetContext;
 import io.debezium.pipeline.spi.Offsets;
@@ -569,11 +570,11 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
         if (config.getString(SnapshotCoordinationFacade.EPOCH) == null || config.getString(SnapshotCoordinationFacade.NUM_TASKS) == null) {
             // if taskId is null, we would never enter this branch
             throw new DebeziumException(
-                    String.format("Smart snapshot: [role=task taskId=%s] Failing as required configs [epoch, num_tasks] are missing.", taskId));
+                    SmartSnapshotLogging.task(taskId) + " Failing as required configs [epoch, num_tasks] are missing.");
         }
 
         this.epoch = Integer.parseInt(config.getString(SnapshotCoordinationFacade.EPOCH));
-        LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Starting task", taskId, epoch);
+        LOGGER.info("{} Starting task", SmartSnapshotLogging.task(taskId, epoch));
 
         try {
             // end the setup txn (guardrail query, etc.) so the snapshot's SET is the first
@@ -627,7 +628,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                                                                            PostgresConnection jdbcConnection, Clock clock) {
         return cp -> {
             Lsn lsn = Lsn.valueOf(cp);
-            LOGGER.info("Smart snapshot: [role=task] Post-downscale streaming task, using LSN={} from coordination topic", lsn);
+            LOGGER.info(SmartSnapshotLogging.TASK + " Post-downscale streaming task, using LSN={} from coordination topic", lsn);
             // Create synthetic offset — snapshot completed, start streaming from this LSN
             PostgresOffsetContext syntheticOffset = PostgresOffsetContext.initialContext(connectorConfig, jdbcConnection, clock);
             syntheticOffset.updateWalPosition(
