@@ -64,9 +64,19 @@ public class SmartSnapshotLeaderTest {
     }
 
     private SmartSnapshotLeader prep(int numTasks, boolean shouldStream, long joinWaitTimeoutMs, long startedTransactionTimeoutMs) {
-        return new SmartSnapshotLeader(lifecycle, coordination, errorHandler, EPOCH, numTasks, shouldStream,
-                0L, joinWaitTimeoutMs, startedTransactionTimeoutMs, () -> {
-                });
+        return leader(numTasks, shouldStream, 0L, joinWaitTimeoutMs, startedTransactionTimeoutMs);
+    }
+
+    // The leader creates its own coordination facade in run(); hand it the mock instead of a Kafka-backed one.
+    private SmartSnapshotLeader leader(int numTasks, boolean shouldStream, long pollMs, long joinWaitTimeoutMs, long startedTransactionTimeoutMs) {
+        return new SmartSnapshotLeader(lifecycle, errorHandler, EPOCH, numTasks, shouldStream, null, null,
+                pollMs, joinWaitTimeoutMs, startedTransactionTimeoutMs, () -> {
+                }) {
+            @Override
+            SnapshotCoordinationFacade createCoordination() {
+                return coordination;
+            }
+        };
     }
 
     private void allTasksJoined(int numTasks) {
@@ -232,6 +242,25 @@ public class SmartSnapshotLeaderTest {
     }
 
     @Test
+    public void coordinationCreationFailureFailsTheTaskWithoutPreparing() {
+        SmartSnapshotLeader leader = new SmartSnapshotLeader(lifecycle, errorHandler, EPOCH, 2, true, null, null,
+                0L, 60_000L, 60_000L, () -> {
+                }) {
+            @Override
+            SnapshotCoordinationFacade createCoordination() {
+                throw new DebeziumException("bad coordination client config");
+            }
+        };
+
+        leader.run();
+
+        // nothing was created, so there is nothing to stop; the cleanup must not trip over the missing facade
+        verify(lifecycle, never()).prepareSnapshot(anyBoolean());
+        verify(lifecycle).releaseSnapshot();
+        verify(errorHandler).setProducerThrowable(any(DebeziumException.class));
+    }
+
+    @Test
     public void onPreparationFailureReleasesAndFailsTheTask() {
         when(coordination.isTaskDone("0", EPOCH)).thenReturn(false);
         allTasksJoined(2);
@@ -274,9 +303,7 @@ public class SmartSnapshotLeaderTest {
         // never joined, so the join-wait loop reaches metronome.pause(), which throws on the pre-set interrupt.
         // pollMs must be > 0 here: with a 0 period, parker.pause() returns without ever checking the interrupt.
         when(coordination.allTasksJoined(2, EPOCH)).thenReturn(false);
-        SmartSnapshotLeader leader = new SmartSnapshotLeader(lifecycle, coordination, errorHandler, EPOCH, 2, true,
-                10L, 60_000L, 60_000L, () -> {
-                });
+        SmartSnapshotLeader leader = leader(2, true, 10L, 60_000L, 60_000L);
 
         Thread.currentThread().interrupt();
         try {
