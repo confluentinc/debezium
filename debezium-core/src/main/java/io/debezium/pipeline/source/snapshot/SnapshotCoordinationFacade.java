@@ -183,6 +183,42 @@ public class SnapshotCoordinationFacade {
         return existsAtEpoch(taskDoneKey(taskId), epoch);
     }
 
+    // Checks across every task (task ids 0..numTasks-1) of one round. The leader and the connector monitor run these
+    // on every poll, so each one catches up with the coordination topic ONCE and then answers every per-task lookup
+    // from the local view: one broker round trip per check instead of one per task. This gives the same guarantee
+    // as the per-task methods above (everything written before the call is seen), for all tasks at one point.
+    public boolean allTasksJoined(int numTasks, int epoch) {
+        return allTasksAtEpoch(numTasks, epoch, this::taskJoinKey);
+    }
+
+    public boolean allTasksStartedTransaction(int numTasks, int epoch) {
+        return allTasksAtEpoch(numTasks, epoch, this::taskStartedTransactionKey);
+    }
+
+    public boolean allTasksDone(int numTasks, int epoch) {
+        return allTasksAtEpoch(numTasks, epoch, this::taskDoneKey);
+    }
+
+    public boolean anyRestartNeeded(int numTasks, int epoch) {
+        coordination.catchUp();
+        for (int i = 0; i < numTasks; i++) {
+            if (isAtEpoch(coordination.readCached(taskRestartKey(String.valueOf(i))), epoch)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean allTasksAtEpoch(int numTasks, int epoch, Function<String, Map<String, String>> keyForTask) {
+        coordination.catchUp();
+        for (int i = 0; i < numTasks; i++) {
+            if (!isAtEpoch(coordination.readCached(keyForTask.apply(String.valueOf(i))), epoch)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public static Integer epochOf(Map<String, Object> value) {
         return (value != null &&
                 value.get(EPOCH) != null) ? ((Number) value.get(EPOCH)).intValue() : null;
@@ -229,11 +265,12 @@ public class SnapshotCoordinationFacade {
     }
 
     private boolean existsAtEpoch(Map<String, String> key, int epoch) {
-        Map<String, Object> value = coordination.read(key);
+        return isAtEpoch(coordination.read(key), epoch);
+    }
+
+    private static boolean isAtEpoch(Map<String, Object> value, int epoch) {
         Integer epochOfValue = epochOf(value);
-        return value != null &&
-                epochOfValue != null &&
-                epochOfValue == epoch;
+        return epochOfValue != null && epochOfValue == epoch;
     }
 
     private void write(Map<String, String> key, Map<String, Object> value) {
