@@ -43,6 +43,7 @@ import io.debezium.pipeline.metrics.TaskStateMetrics;
 import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.signal.SignalProcessor;
 import io.debezium.pipeline.source.snapshot.SmartSnapshotLeader;
+import io.debezium.pipeline.source.snapshot.SmartSnapshotLogging;
 import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.pipeline.source.snapshot.incremental.SignalBasedIncrementalSnapshotContext;
 import io.debezium.pipeline.spi.Offsets;
@@ -316,7 +317,7 @@ public class MySqlConnectorTask extends BinlogSourceTask<MySqlPartition, MySqlOf
                     new SourceInfo(connectorConfig)); // snapshotCompleted=true -> ctor calls postSnapshotCompletion()
             offset.setBinlogStartPoint(file, pos);
             offset.setCompletedGtidSet(gtids);
-            LOGGER.info("Smart snapshot: [role=task] Post-downscale streaming task, seeding from P=({}:{}) gtid={}", file, pos, gtids);
+            LOGGER.info(SmartSnapshotLogging.TASK + " Post-downscale streaming task, seeding from P=({}:{}) gtid={}", file, pos, gtids);
             return offset;
         };
     }
@@ -336,12 +337,10 @@ public class MySqlConnectorTask extends BinlogSourceTask<MySqlPartition, MySqlOf
                                                                                                     MySqlStreamingChangeEventSourceMetrics streamingMetrics) {
         this.taskId = connectorConfig.getTaskId();
         if (config.getString(SnapshotCoordinationFacade.EPOCH) == null || config.getString(SnapshotCoordinationFacade.NUM_TASKS) == null) {
-            throw new DebeziumException(String.format(
-                    "Smart snapshot: [role=task taskId=%s] Failing as required configs [epoch, num_tasks] are missing.", taskId));
+            throw new DebeziumException(SmartSnapshotLogging.task(taskId) + " Failing as required configs [epoch, num_tasks] are missing.");
         }
         this.epoch = Integer.parseInt(config.getString(SnapshotCoordinationFacade.EPOCH));
-        LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Starting task", taskId, epoch);
-
+        LOGGER.info("{} Starting task", SmartSnapshotLogging.task(taskId, epoch));
 
         // task-0 is the leader: on a background thread lock, capture P, write the full schema history, publish.
         if ("0".equals(taskId)) {
