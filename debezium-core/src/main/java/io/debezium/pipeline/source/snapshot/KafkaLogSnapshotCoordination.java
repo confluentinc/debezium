@@ -170,12 +170,23 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
      */
     @Override
     public Map<String, Object> read(Map<String, String> key) {
+        catchUp();
+        return cache.get(key);
+    }
+
+    /**
+     * The cache is already kept current by KafkaBasedLog's background work thread, which tails the topic and feeds
+     * every record to {@link #onRecordConsumed}. This only adds the guarantee that everything written before the call
+     * has been consumed. The cost is one ListOffsets round trip to the broker (plus waking the in-flight fetch), which
+     * is why callers checking many keys should catch up once and then use {@link #readCached}.
+     */
+    @Override
+    public void catchUp() {
         try {
             // catches the consumer up from its current position to the
             // current end offset (just the backlog since it last read),
             // then completes the future, it doesn't re-read from the beginning each call.
             log.readToEnd().get(READ_WRITE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-            return cache.get(key);
         }
         catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -185,6 +196,11 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
             LOGGER.error("Smart snapshot: [role=coordination] Failed to read coordination topic: ", e);
             throw new DebeziumException("Error reading coordination topic", e);
         }
+    }
+
+    @Override
+    public Map<String, Object> readCached(Map<String, String> key) {
+        return cache.get(key);
     }
 
     @SuppressWarnings("unchecked")
