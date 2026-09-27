@@ -12,7 +12,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -20,7 +19,9 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -335,45 +336,59 @@ public class SmartSnapshotLeaderTest {
         verify(lifecycle).onAllTasksStartedTransaction();
     }
 
-    // The join exists so we never close the coordination facade while the leader thread is still using
-    // it. Here the leader thread is blocked in a call that ignores interrupts (like a JDBC call) and only
-    // ends when releaseSnapshot runs. The test asserts that when coordination.stop() is finally called,
-    // the leader thread has already finished.
+    // Here the leader thread is blocked in a call that ignores interrupts (like a JDBC call) and only ends when
+    // releaseSnapshot aborts it. stop() must interrupt it first (so the aborted call reads as a shutdown), release,
+    // and then wait for the thread to actually end, so its own cleanup has run by the time stop() returns.
     @Test
-    public void stopClosesCoordinationOnlyAfterLeaderThreadHasEnded() throws Exception {
+    public void stopInterruptsReleasesAndWaitsForTheLeaderThreadToEnd() throws Exception {
         CountDownLatch released = new CountDownLatch(1);
-        Thread leader = new Thread(() -> {
-            while (released.getCount() > 0) {
-                try {
-                    released.await();
-                }
-                catch (InterruptedException e) {
-                    // ignore, to model a database call that cannot be interrupted
-                }
-            }
-        }, "leader");
-        leader.start();
+        CountDownLatch running = new CountDownLatch(1);
+        AtomicBoolean interruptedBeforeRelease = new AtomicBoolean(false);
+        AtomicReference<Thread> leaderThread = new AtomicReference<>();
 
-        SmartSnapshotLifecycleManager lifecycle = mock(SmartSnapshotLifecycleManager.class);
         // releaseSnapshot is what ends the blocked leader thread, standing in for aborting the connection
         doAnswer(inv -> {
+            // give the interrupt time to land before the release unblocks the thread
+            Thread.sleep(50);
             released.countDown();
             return null;
         }).when(lifecycle).releaseSnapshot();
 
-        AtomicBoolean leaderAliveAtCoordinationStop = new AtomicBoolean(true);
-        SnapshotCoordinationFacade coordination = mock(SnapshotCoordinationFacade.class);
-        doAnswer(inv -> {
-            leaderAliveAtCoordinationStop.set(leader.isAlive());
-            return null;
-        }).when(coordination).stop();
+        SmartSnapshotLeader leader = new SmartSnapshotLeader(lifecycle, errorHandler, EPOCH, 2, true, null, null,
+                0L, 60_000L, 60_000L, () -> {
+                }) {
+            @Override
+            public void run() {
+                leaderThread.set(Thread.currentThread());
+                running.countDown();
+                while (released.getCount() > 0) {
+                    try {
+                        released.await();
+                    }
+                    catch (InterruptedException e) {
+                        // ignore, to model a database call that cannot be interrupted
+                        interruptedBeforeRelease.set(released.getCount() > 0);
+                    }
+                }
+            }
+        };
 
-        SmartSnapshotLeader.stopSmartSnapshot(leader, lifecycle, coordination, 2000, "0", 1);
+        leader.start();
+        assertThat(running.await(5, TimeUnit.SECONDS)).isTrue();
+
+        leader.stop(2000);
 
         verify(lifecycle).releaseSnapshot();
-        verify(coordination).stop();
-        assertThat(leader.isAlive()).isFalse();
-        // the key property: coordination was stopped only after the prep thread had finished
-        assertThat(leaderAliveAtCoordinationStop.get()).isFalse();
+        assertThat(interruptedBeforeRelease.get()).isTrue();
+        // the key property: stop() returned only after the leader thread had finished
+        assertThat(leaderThread.get().isAlive()).isFalse();
+    }
+
+    @Test
+    public void stopWithoutStartOnlyReleases() {
+        // e.g. the task is stopped after creating the leader but before starting it: nothing to interrupt or join
+        leader(2, true, 0L, 60_000L, 60_000L).stop(2000);
+
+        verify(lifecycle).releaseSnapshot();
     }
 }

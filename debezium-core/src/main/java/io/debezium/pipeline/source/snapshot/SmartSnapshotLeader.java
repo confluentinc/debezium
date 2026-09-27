@@ -41,6 +41,8 @@ public class SmartSnapshotLeader implements Runnable {
     // Bounds the wait for every task to start its transaction AFTER the snapshot is prepared (locks held).
     private final long startedTransactionTimeoutMs;
     private final Runnable loggingContextSetup;
+    // The thread run() executes on. Created by start(), read by stop() on the task-stop thread.
+    private volatile Thread thread;
 
     public SmartSnapshotLeader(SmartSnapshotLifecycleManager lifecycle, ErrorHandler errorHandler, int epoch, int numTasks,
                                boolean shouldStream, Configuration config, CommonConnectorConfig connectorConfig,
@@ -321,66 +323,56 @@ public class SmartSnapshotLeader implements Runnable {
     }
 
     /**
-     * Stops the smart snapshot related stuff for this task. This runs on the Kafka Connect task-stop
-     * thread, which is a different thread from the leader thread.
+     * Starts {@link #run()} on the leader's own background (daemon) thread. Called once by task-0.
+     */
+    public void start() {
+        final Thread leaderThread = new Thread(this, "smart-snapshot-leader");
+        leaderThread.setDaemon(true);
+        this.thread = leaderThread;
+        leaderThread.start();
+    }
+
+    /**
+     * Stops the leader. This runs on the Kafka Connect task-stop thread, which is a different thread from the
+     * leader thread. Safe to call if {@link #start()} was never called.
      * <p>
-     * Only smart snapshot tasks set up any of these resources, so for every other task this method
-     * returns early. Even among smart snapshot tasks, the prep thread and lifecycle manager exist
-     * only on the leader (task-0); followers have just the coordination facade.
+     * This does not touch any coordination facade: the leader closes its own in the {@code finally} of
+     * {@link #run()}, and the task-side facade is closed by the task coordinator that uses it.
      * <p>
      * The steps must run in this order:
-     * 1. interrupt() wakes the leader thread if it is sleeping in the keep-alive loop.
-     * 2. releaseSnapshot() closes the held connections. If the prep thread is waiting on a
+     * 1. interrupt() wakes the leader thread if it is parked in one of its poll loops.
+     * 2. releaseSnapshot() closes the held connections. If the leader thread is waiting on a
      * database call that cannot be interrupted, closing the connection aborts that call so the
      * thread can finish. interrupt() is done first so that the error raised by the aborted
      * call is recognised as a shutdown rather than a real failure.
-     * 3. join() waits for the prep thread to actually finish, so that it is no longer using the
-     * coordination facade when we stop it in the next step. The wait is bounded so that stop
-     * can never block forever.
-     * 4. stop() closes the coordination facade last, because it wraps a Kafka client that is not
-     * safe to use on one thread and close on another at the same time.
+     * 3. join() waits for the leader thread to actually finish, which includes its own cleanup (releasing
+     * the snapshot and closing its coordination facade), so a restarted task-0 does not start a new leader
+     * while the old one is still tearing down. The wait is bounded so that stop can never block forever.
      */
-    public static void stopSmartSnapshot(Thread leaderThread, SmartSnapshotLifecycleManager lifecycle,
-                                         SnapshotCoordinationFacade coordinationFacade, long joinMs, String taskId, int epoch) {
+    public void stop(long joinMs) {
+        final Thread leaderThread = this.thread;
+
         // 1. Signal the leader thread to stop and unblock it wherever it may be waiting.
-        // interrupt() wakes it from sleep(); releaseSnapshot() closes and aborts the held
+        // interrupt() wakes it from a park; releaseSnapshot() closes and aborts the held
         // connections, ending any query it is waiting on.
         if (leaderThread != null) {
-            LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Stopping snapshot preparation and releasing held connections", taskId, epoch);
+            LOGGER.info("Smart snapshot: [role=leader epoch={}] Stopping snapshot preparation and releasing held connections", epoch);
             leaderThread.interrupt();
         }
-        if (lifecycle != null) {
-            lifecycle.releaseSnapshot();
-        }
+        lifecycle.releaseSnapshot();
 
-        boolean currentThreadWasInterrupted = false;
-
-        // 2. Wait for the prep thread to finish, so it is no longer using the coordination
-        // facade when we close it below. Bounded so stop can never block forever.
+        // 2. Wait for the leader thread to finish its own cleanup. Bounded so stop can never block forever.
         if (leaderThread != null) {
             try {
                 leaderThread.join(joinMs);
                 if (leaderThread.isAlive()) {
-                    LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Leader thread did not stop within {} ms", taskId, epoch, joinMs);
+                    LOGGER.warn("Smart snapshot: [role=leader epoch={}] Leader thread did not stop within {} ms", epoch, joinMs);
                 }
             }
             catch (InterruptedException e) {
-                LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Task thread was interrupted while waiting for leader thread join", taskId, epoch);
-                currentThreadWasInterrupted = true;
+                LOGGER.warn("Smart snapshot: [role=leader epoch={}] Task thread was interrupted while waiting for leader thread join", epoch);
+                Thread.currentThread().interrupt();
             }
-        }
-        if (coordinationFacade != null) {
-            try {
-                LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Stopping coordination facade", taskId, epoch);
-                coordinationFacade.stop();
-            }
-            catch (Exception e) {
-                LOGGER.error("Smart snapshot: [role=task taskId={} epoch={}] Failed to cleanly close coordination facade log. error={}", taskId, epoch, e.getMessage());
-            }
-        }
-
-        if (currentThreadWasInterrupted) {
-            Thread.currentThread().interrupt();
         }
     }
 }

@@ -125,6 +125,21 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
 
         assertThat(coordinator.doSnapshotCalled).isFalse();
         verify(coordination, never()).writeTaskJoin(anyString(), anyInt());
+        // the coordinator owns the facade: it is closed on the early-return path too
+        verify(coordination).stop();
+    }
+
+    @Test
+    public void coordinationCreationFailureFailsWithoutTouchingTheFacade() {
+        coordinator.createCoordinationError = new DebeziumException("bad coordination client config");
+
+        // propagates to the base coordinator, which fails the task
+        assertThatThrownBy(this::execute).isInstanceOf(DebeziumException.class);
+
+        // nothing was created, so nothing is started or stopped (the cleanup must not trip over the missing facade)
+        verify(coordination, never()).start(any());
+        verify(coordination, never()).stop();
+        assertThat(coordinator.doSnapshotCalled).isFalse();
     }
 
     @Test
@@ -195,6 +210,8 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
         order.verify(coordination).writeTaskDone(TASK_ID, EPOCH);
         // the published txId is decoded and forwarded to the smart source alongside the name and LSN
         verify(snapshotSource).setSnapshotCoordination(eq(EPOCH), eq("snap"), any(), eq(123L), any(), eq(coordination));
+        // closed only once the slice is done and completion recorded
+        order.verify(coordination).stop();
     }
 
     @Test
@@ -236,6 +253,10 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
         assertThatThrownBy(this::execute).isInstanceOf(RuntimeException.class);
 
         verify(coordination).writeRestartNeeded(TASK_ID, EPOCH);
+        // closed on the failure path too, after the restart signal went out
+        InOrder order = inOrder(coordination);
+        order.verify(coordination).writeRestartNeeded(TASK_ID, EPOCH);
+        order.verify(coordination).stop();
     }
 
     @Test
@@ -260,7 +281,9 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
             verify(coordination, never()).writeTaskDone(anyString(), anyInt());
             // The task is stopping, not crashing mid-snapshot, so no restart is signalled either.
             verify(coordination, never()).writeRestartNeeded(anyString(), anyInt());
-            // The interrupt status is preserved so the caller can shut down cleanly.
+            // The facade is still closed, and the interrupt status is preserved so the caller can shut down
+            // cleanly (the close runs with the flag cleared and restores it afterwards).
+            verify(coordination).stop();
             assertThat(Thread.currentThread().isInterrupted()).isTrue();
         }
         finally {
@@ -315,6 +338,8 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
         RuntimeException snapshotError;
         boolean interruptDuringSnapshot;
         boolean setInterruptFlagBeforeError;
+        private final SnapshotCoordinationFacade coordination;
+        RuntimeException createCoordinationError;
 
         TestCoordinator(Offsets<PostgresPartition, PostgresOffsetContext> previousOffsets, ErrorHandler errorHandler,
                         PostgresConnectorConfig connectorConfig, PostgresChangeEventSourceFactory changeEventSourceFactory,
@@ -325,7 +350,17 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
                         SnapshotCoordinationFacade coordination, String taskId) {
             super(previousOffsets, errorHandler, PostgresConnector.class, connectorConfig, changeEventSourceFactory,
                     metricsFactory, eventDispatcher, schema, snapshotterService, signalProcessor,
-                    notificationService, epoch, coordination, taskId);
+                    notificationService, epoch, null, taskId);
+            this.coordination = coordination;
+        }
+
+        // the coordinator creates its own facade; hand it the mock instead of a Kafka-backed one
+        @Override
+        protected SnapshotCoordinationFacade createCoordination() {
+            if (createCoordinationError != null) {
+                throw createCoordinationError;
+            }
+            return coordination;
         }
 
         // widen visibility so the test (same package, not a subclass) can shorten the poll interval

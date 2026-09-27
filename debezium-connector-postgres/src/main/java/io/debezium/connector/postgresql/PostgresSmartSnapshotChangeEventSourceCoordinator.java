@@ -10,6 +10,7 @@ import java.util.List;
 import org.apache.kafka.connect.source.SourceConnector;
 
 import io.debezium.config.CommonConnectorConfig;
+import io.debezium.config.Configuration;
 import io.debezium.connector.postgresql.connection.Lsn;
 import io.debezium.pipeline.ErrorHandler;
 import io.debezium.pipeline.EventDispatcher;
@@ -47,12 +48,12 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinator
                                                              SignalProcessor<PostgresPartition, PostgresOffsetContext> signalProcessor,
                                                              NotificationService<PostgresPartition, PostgresOffsetContext> notificationService,
                                                              int epoch,
-                                                             SnapshotCoordinationFacade snapshotCoordination,
+                                                             Configuration config,
                                                              String taskId) {
         super(previousOffsets, errorHandler, connectorType, connectorConfig,
                 changeEventSourceFactory, changeEventSourceMetricsFactory,
                 eventDispatcher, schema, signalProcessor, notificationService, snapshotterService,
-                epoch, snapshotCoordination, taskId);
+                epoch, config, taskId);
     }
 
     @Override
