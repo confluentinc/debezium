@@ -10,6 +10,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -101,6 +103,56 @@ public class SnapshotCoordinationFacadeTest {
 
         assertThat(facade.isTaskStartedTransaction("1", 9)).isTrue();
         assertThat(facade.isTaskStartedTransaction("1", 8)).isFalse();
+    }
+
+    @Test
+    public void allTasksJoinedCatchesUpOnceThenReadsEveryTaskFromTheLocalView() {
+        for (int i = 0; i < 3; i++) {
+            when(coordination.readCached(taskKey(i, "task_join"))).thenReturn(Collect.hashMapOf("epoch", 4));
+        }
+
+        assertThat(facade.allTasksJoined(3, 4)).isTrue();
+
+        // one catch-up for the whole check, no synchronous per-task read
+        verify(coordination, times(1)).catchUp();
+        verify(coordination, times(3)).readCached(any());
+        verify(coordination, never()).read(any());
+    }
+
+    @Test
+    public void allTasksChecksRequireEveryTaskAtTheMatchingEpoch() {
+        when(coordination.readCached(taskKey(0, "task_started_transaction"))).thenReturn(Collect.hashMapOf("epoch", 4));
+        when(coordination.readCached(taskKey(1, "task_started_transaction"))).thenReturn(Collect.hashMapOf("epoch", 3)); // stale
+        when(coordination.readCached(taskKey(0, "task_done"))).thenReturn(Collect.hashMapOf("epoch", 4));
+        // task-1 has no done marker at all
+
+        assertThat(facade.allTasksStartedTransaction(2, 4)).isFalse();
+        assertThat(facade.allTasksStartedTransaction(1, 4)).isTrue();
+        assertThat(facade.allTasksDone(2, 4)).isFalse();
+    }
+
+    @Test
+    public void anyRestartNeededMatchesOnlyTheGivenEpochAndCatchesUpOnce() {
+        when(coordination.readCached(taskKey(1, "task_restart"))).thenReturn(Collect.hashMapOf("epoch", 2));
+
+        assertThat(facade.anyRestartNeeded(3, 2)).isTrue();
+        assertThat(facade.anyRestartNeeded(3, 3)).isFalse(); // the marker is from another round
+
+        verify(coordination, times(2)).catchUp();
+        verify(coordination, never()).read(any());
+    }
+
+    @Test
+    public void allTasksCheckPropagatesACatchUpFailure() {
+        doThrow(new DebeziumException("broker down")).when(coordination).catchUp();
+
+        // the poll loops treat a DebeziumException as a transient failure and retry
+        assertThatThrownBy(() -> facade.allTasksJoined(2, 1)).isInstanceOf(DebeziumException.class);
+        verify(coordination, never()).readCached(any());
+    }
+
+    private static Map<String, String> taskKey(int taskId, String type) {
+        return Collect.hashMapOf("server", SERVER, "task", String.valueOf(taskId), "type", type);
     }
 
     @Test
