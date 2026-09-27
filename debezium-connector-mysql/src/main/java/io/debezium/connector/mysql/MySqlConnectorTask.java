@@ -43,7 +43,6 @@ import io.debezium.pipeline.metrics.TaskStateMetrics;
 import io.debezium.pipeline.notification.NotificationService;
 import io.debezium.pipeline.signal.SignalProcessor;
 import io.debezium.pipeline.source.snapshot.SmartSnapshotLeader;
-import io.debezium.pipeline.source.snapshot.SmartSnapshotLifecycleManager;
 import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.pipeline.source.snapshot.incremental.SignalBasedIncrementalSnapshotContext;
 import io.debezium.pipeline.spi.Offsets;
@@ -77,13 +76,11 @@ public class MySqlConnectorTask extends BinlogSourceTask<MySqlPartition, MySqlOf
     private volatile MySqlDatabaseSchema schema;
 
     // Smart snapshot state (only set when this is a smart snapshot data task).
-    private volatile SnapshotCoordinationFacade snapshotCoordination;
     private volatile boolean isSmartSnapshotTask;
     private volatile int epoch = -1;
     private volatile String taskId;
-    private volatile SmartSnapshotLifecycleManager smartSnapshotLifecycleManager;
-    // The leader (task-0) background thread that prepares the shared snapshot and publishes it.
-    private volatile Thread smartSnapshotLeaderThread;
+    // Task-0 only: the leader, which prepares the shared snapshot and publishes it on its own background thread.
+    private volatile SmartSnapshotLeader smartSnapshotLeader;
 
     @Override
     public String version() {
@@ -345,7 +342,6 @@ public class MySqlConnectorTask extends BinlogSourceTask<MySqlPartition, MySqlOf
         this.epoch = Integer.parseInt(config.getString(SnapshotCoordinationFacade.EPOCH));
         LOGGER.info("Smart snapshot: [role=task taskId={} epoch={}] Starting task", taskId, epoch);
 
-        this.snapshotCoordination = SnapshotCoordinationFacade.nonCreating(config, connectorConfig);
 
         // task-0 is the leader: on a background thread lock, capture P, write the full schema history, publish.
         if ("0".equals(taskId)) {
@@ -358,16 +354,12 @@ public class MySqlConnectorTask extends BinlogSourceTask<MySqlPartition, MySqlOf
             final MySqlSmartSnapshotLifecycleManager lifecycle = new MySqlSmartSnapshotLifecycleManager(
                     connectorConfig, connectionFactory, schema, dispatcher, clock, leaderMetrics,
                     notificationService, snapshotterService, leaderEpoch);
-            this.smartSnapshotLifecycleManager = lifecycle;
 
-            // the leader creates, starts and stops its own private coordination facade on its thread
-            this.smartSnapshotLeaderThread = new Thread(
-                    new SmartSnapshotLeader(lifecycle, this.errorHandler,
-                            leaderEpoch, numTasks, shouldStream, config, connectorConfig,
-                            () -> taskContext.configureLoggingContext("smart-snapshot-leader")),
-                    "smart-snapshot-leader");
-            this.smartSnapshotLeaderThread.setDaemon(true);
-            this.smartSnapshotLeaderThread.start();
+            // the leader owns its thread and its private coordination facade
+            this.smartSnapshotLeader = new SmartSnapshotLeader(lifecycle, this.errorHandler,
+                    leaderEpoch, numTasks, shouldStream, config, connectorConfig,
+                    () -> taskContext.configureLoggingContext("smart-snapshot-leader"));
+            this.smartSnapshotLeader.start();
         }
 
         return new MySqlSmartSnapshotChangeEventSourceCoordinator(
@@ -376,7 +368,8 @@ public class MySqlConnectorTask extends BinlogSourceTask<MySqlPartition, MySqlOf
                         clock, schema, taskContext, streamingMetrics, queue, snapshotterService),
                 new MySqlChangeEventSourceMetricsFactory(streamingMetrics),
                 dispatcher, schema, snapshotterService, signalProcessor, notificationService,
-                epoch, snapshotCoordination, taskId);
+                // the coordinator creates, starts and stops its own task-side coordination facade
+                epoch, config, taskId);
     }
 
     private MySqlValueConverters getValueConverters(MySqlConnectorConfig configuration) {
@@ -404,11 +397,11 @@ public class MySqlConnectorTask extends BinlogSourceTask<MySqlPartition, MySqlOf
     @Override
     protected void doStop() {
         if (isSmartSnapshotTask) {
-            SmartSnapshotLeader.stopSmartSnapshot(
-                    smartSnapshotLeaderThread, smartSnapshotLifecycleManager,
-                    snapshotCoordination, 10_000, taskId, epoch);
-            smartSnapshotLeaderThread = null;
-            smartSnapshotLifecycleManager = null;
+            // task-0 only: stop the leader (it closes its own coordination facade)
+            if (smartSnapshotLeader != null) {
+                smartSnapshotLeader.stop(10_000);
+                smartSnapshotLeader = null;
+            }
         }
 
         shutdownQueue(queue);
