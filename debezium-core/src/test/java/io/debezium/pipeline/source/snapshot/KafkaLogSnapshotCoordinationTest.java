@@ -122,6 +122,58 @@ public class KafkaLogSnapshotCoordinationTest {
     }
 
     @Test
+    public void oneCatchUpMakesEveryKeyWrittenByAnotherClientVisibleToReadCached() throws Exception {
+        // the reader starts first and catches up to an (empty) topic
+        KafkaLogSnapshotCoordination reader = newCoordination();
+
+        // another client writes one marker per task AFTER the reader started, like tasks writing join markers
+        KafkaLogSnapshotCoordination writer = newCoordination();
+        for (int i = 0; i < 3; i++) {
+            writer.write(taskKey(i), Collect.hashMapOf("epoch", 5));
+        }
+
+        // a single catch-up is enough for every key: no per-key synchronous read, no polling/await
+        reader.catchUp();
+        for (int i = 0; i < 3; i++) {
+            assertThat(reader.readCached(taskKey(i))).containsEntry("epoch", 5);
+        }
+    }
+
+    @Test
+    public void readCachedSeesTheLatestValueAfterCatchUp() throws Exception {
+        KafkaLogSnapshotCoordination reader = newCoordination();
+        KafkaLogSnapshotCoordination writer = newCoordination();
+        writer.write(taskKey(0), Collect.hashMapOf("epoch", 1));
+        writer.write(taskKey(0), Collect.hashMapOf("epoch", 2));
+
+        reader.catchUp();
+
+        assertThat(reader.readCached(taskKey(0))).containsEntry("epoch", 2);
+    }
+
+    @Test
+    public void readCachedSeesOwnWritesWithoutACatchUp() throws Exception {
+        // write() waits for the broker ack and then updates the local view, so the writer's own value is visible
+        // straight away (read-your-writes) without a catch-up
+        KafkaLogSnapshotCoordination coordination = newCoordination();
+        coordination.write(taskKey(0), Collect.hashMapOf("epoch", 4));
+
+        assertThat(coordination.readCached(taskKey(0))).containsEntry("epoch", 4);
+    }
+
+    @Test
+    public void readCachedReturnsNullForAnUnknownKey() {
+        KafkaLogSnapshotCoordination coordination = newCoordination();
+        coordination.catchUp();
+
+        assertThat(coordination.readCached(Collect.hashMapOf("server", SERVER, "type", "missing"))).isNull();
+    }
+
+    private static Map<String, String> taskKey(int taskId) {
+        return Collect.hashMapOf("server", SERVER, "task", String.valueOf(taskId), "type", "task_join");
+    }
+
+    @Test
     public void latestValuePerKeyWins() throws Exception {
         Map<String, String> key = Collect.hashMapOf("server", SERVER, "type", "epoch");
         KafkaLogSnapshotCoordination writer = newCoordination();
