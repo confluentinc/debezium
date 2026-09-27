@@ -162,7 +162,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
         when(coordination.readTaskJoinEpoch(TASK_ID)).thenReturn(EPOCH);
         when(coordination.isTaskStartedTransaction(TASK_ID, EPOCH)).thenReturn(false);
         when(coordination.readEpoch()).thenReturn(null);
-        when(coordination.readSnapshotInfo()).thenReturn(Collect.hashMapOf(
+        when(coordination.readSnapshotInfo(EPOCH)).thenReturn(Collect.hashMapOf(
                 SnapshotCoordinationFacade.SNAPSHOT_NAME, "snap",
                 SnapshotCoordinationFacade.EPOCH, EPOCH,
                 SnapshotCoordinationFacade.CONSISTENT_POINT, "0/16B3748",
@@ -193,7 +193,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
         when(coordination.isTaskDone(TASK_ID, EPOCH)).thenReturn(false);
         when(coordination.readTaskJoinEpoch(TASK_ID)).thenReturn(null);
         when(coordination.readEpoch()).thenReturn(null);
-        when(coordination.readSnapshotInfo()).thenReturn(Collect.hashMapOf(
+        when(coordination.readSnapshotInfo(EPOCH)).thenReturn(Collect.hashMapOf(
                 SnapshotCoordinationFacade.SNAPSHOT_NAME, "snap",
                 SnapshotCoordinationFacade.EPOCH, EPOCH,
                 SnapshotCoordinationFacade.CONSISTENT_POINT, "0/16B3748",
@@ -206,7 +206,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
         assertThat(coordinator.doSnapshotCalled).isTrue();
         InOrder order = inOrder(coordination);
         order.verify(coordination).writeTaskJoin(TASK_ID, EPOCH);
-        order.verify(coordination).readSnapshotInfo();
+        order.verify(coordination).readSnapshotInfo(EPOCH);
         order.verify(coordination).writeTaskDone(TASK_ID, EPOCH);
         // the published txId is decoded and forwarded to the smart source alongside the name and LSN
         verify(snapshotSource).setSnapshotCoordination(eq(EPOCH), eq("snap"), any(), eq(123L), any(), eq(coordination));
@@ -221,7 +221,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
         when(coordination.readEpoch()).thenReturn(null);
         // the first snapshot-info read blips (broker hiccup); the poll loop must keep polling and pick up the
         // snapshot on a later attempt, not fail the task on a single transient read failure.
-        when(coordination.readSnapshotInfo())
+        when(coordination.readSnapshotInfo(EPOCH))
                 .thenThrow(new DebeziumException("read blip"))
                 .thenReturn(Collect.hashMapOf(
                         SnapshotCoordinationFacade.SNAPSHOT_NAME, "snap",
@@ -242,7 +242,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
         when(coordination.isTaskDone(TASK_ID, EPOCH)).thenReturn(false);
         when(coordination.readTaskJoinEpoch(TASK_ID)).thenReturn(null);
         when(coordination.readEpoch()).thenReturn(null);
-        when(coordination.readSnapshotInfo()).thenReturn(Collect.hashMapOf(
+        when(coordination.readSnapshotInfo(EPOCH)).thenReturn(Collect.hashMapOf(
                 SnapshotCoordinationFacade.SNAPSHOT_NAME, "snap",
                 SnapshotCoordinationFacade.EPOCH, EPOCH,
                 SnapshotCoordinationFacade.CONSISTENT_POINT, "0/16B3748",
@@ -264,7 +264,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
         when(coordination.isTaskDone(TASK_ID, EPOCH)).thenReturn(false);
         when(coordination.readTaskJoinEpoch(TASK_ID)).thenReturn(null);
         when(coordination.readEpoch()).thenReturn(null);
-        when(coordination.readSnapshotInfo()).thenReturn(Collect.hashMapOf(
+        when(coordination.readSnapshotInfo(EPOCH)).thenReturn(Collect.hashMapOf(
                 SnapshotCoordinationFacade.SNAPSHOT_NAME, "snap",
                 SnapshotCoordinationFacade.EPOCH, EPOCH,
                 SnapshotCoordinationFacade.CONSISTENT_POINT, "0/16B3748",
@@ -297,7 +297,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
         when(coordination.isTaskDone(TASK_ID, EPOCH)).thenReturn(false);
         when(coordination.readTaskJoinEpoch(TASK_ID)).thenReturn(null);
         when(coordination.readEpoch()).thenReturn(null);
-        when(coordination.readSnapshotInfo()).thenReturn(Collect.hashMapOf(
+        when(coordination.readSnapshotInfo(EPOCH)).thenReturn(Collect.hashMapOf(
                 SnapshotCoordinationFacade.SNAPSHOT_NAME, "snap",
                 SnapshotCoordinationFacade.EPOCH, EPOCH,
                 SnapshotCoordinationFacade.CONSISTENT_POINT, "0/16B3748",
