@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
+import io.debezium.config.Configuration;
 import io.debezium.connector.common.CdcSourceTaskContext;
 import io.debezium.pipeline.ChangeEventSourceCoordinator;
 import io.debezium.pipeline.ErrorHandler;
@@ -55,7 +56,11 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
     private static final int DEFAULT_SNAPSHOT_INFO_POLL_INTERVAL_MS = 10_000;
 
     protected final int epoch;
-    protected final SnapshotCoordinationFacade snapshotCoordination;
+    // Used only to create the task-side coordination facade (see createCoordination()).
+    private final Configuration config;
+    // This coordinator owns the task-side facade end to end: created, started, used and stopped inside
+    // executeChangeEventSources(), all on the executor thread. Set there and only used on that thread.
+    private SnapshotCoordinationFacade snapshotCoordination;
     protected final String taskId;
     // How long to wait for the leader to publish the snapshot info before failing this task.
     private final long snapshotInfoWaitTimeoutMs;
@@ -75,13 +80,13 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
                                                                 NotificationService<P, O> notificationService,
                                                                 SnapshotterService snapshotterService,
                                                                 int epoch,
-                                                                SnapshotCoordinationFacade snapshotCoordination,
+                                                                Configuration config,
                                                                 String taskId) {
         super(previousOffsets, errorHandler, connectorType, connectorConfig, changeEventSourceFactory,
                 changeEventSourceMetricsFactory, eventDispatcher, schema, signalProcessor, notificationService,
                 snapshotterService);
         this.epoch = epoch;
-        this.snapshotCoordination = snapshotCoordination;
+        this.config = config;
         this.taskId = taskId;
         this.snapshotInfoWaitTimeoutMs = connectorConfig.getSmartSnapshotTaskSnapshotInfoWaitTimeoutMs();
 
@@ -145,8 +150,60 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
                                              ChangeEventSourceContext context)
             throws InterruptedException {
 
-        snapshotCoordination.start(SnapshotCoordination.MissingTopicPolicy.FAIL);
+        // This coordinator owns the task-side facade's lifecycle: it is created, started, used (directly and,
+        // through configureSmartSource, by the smart snapshot source during doSnapshot) and stopped here, all on
+        // this executor thread. Nothing uses it after this method returns, so closing it here also frees the Kafka
+        // clients as soon as this task's slice is done instead of holding them while the task idles until the
+        // downscale. Creation and start are inside the try, so a facade that fails half-way through either is
+        // still closed; a failure propagates to the base coordinator, which fails the task.
+        try {
+            snapshotCoordination = createCoordination();
+            snapshotCoordination.start(SnapshotCoordination.MissingTopicPolicy.FAIL);
+            executeSmartSnapshot(taskContext, snapshotSource, previousOffsets, previousLogContext, context);
+        }
+        finally {
+            stopCoordination();
+        }
+    }
 
+    /**
+     * Creates the task-side coordination facade. Called once, on the executor thread, at the start of
+     * {@link #executeChangeEventSources}. Non-creating: tasks never create the coordination topic, the connector
+     * provisions it. Visible for testing, so a test can hand in a mock instead of a Kafka-backed facade.
+     */
+    protected SnapshotCoordinationFacade createCoordination() {
+        return SnapshotCoordinationFacade.nonCreating(config, connectorConfig);
+    }
+
+    private void stopCoordination() {
+        // null only if creating the facade itself failed; then there is nothing to close
+        if (snapshotCoordination == null) {
+            return;
+        }
+        // Same reason as the leader's cleanup: a task stop can interrupt this thread (executor.shutdownNow()), and
+        // KafkaBasedLog.stop() join()s its work thread, which throws at once on an interrupted thread and skips
+        // closing the producer and consumer. Clear the flag for the close and restore it afterwards.
+        boolean wasInterrupted = Thread.interrupted();
+        try {
+            snapshotCoordination.stop();
+        }
+        catch (Exception e) {
+            LOGGER.warn("Smart snapshot: [role=task taskId={} epoch={}] Failed to cleanly close the coordination facade. error={}",
+                    taskId, epoch, e.getMessage());
+        }
+        finally {
+            if (wasInterrupted) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    private void executeSmartSnapshot(CdcSourceTaskContext taskContext,
+                                      SnapshotChangeEventSource<P, O> snapshotSource,
+                                      Offsets<P, O> previousOffsets,
+                                      AtomicReference<LoggingContext.PreviousContext> previousLogContext,
+                                      ChangeEventSourceContext context)
+            throws InterruptedException {
         P partition = previousOffsets.getTheOnlyPartition();
         previousLogContext.set(taskContext.configureLoggingContext("snapshot", partition));
 
