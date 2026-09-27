@@ -292,7 +292,7 @@ public class SnapshotCoordinationFacade {
             coordination.write(key, value);
         }
         catch (Exception e) {
-            throw new DebeziumException("Smart snapshot: [role=coordination] Coordination write failed for " + key, e);
+            throw new DebeziumException(SmartSnapshotLogging.COORDINATION + " Coordination write failed for " + key, e);
         }
     }
 }
