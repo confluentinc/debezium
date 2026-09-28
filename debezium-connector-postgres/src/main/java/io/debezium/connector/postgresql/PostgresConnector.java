@@ -122,14 +122,15 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         Configuration config = Configuration.from(props);
         SmartSnapshotConnectorCoordinator coordinator = this.smartSnapshotConnectorCoordinator;
         if (smartSnapshotApplies(config) && coordinator != null && maxTasks > 1) {
+            // The coordinator decides what to hand back: the parallel data-snapshot configs while the snapshot is
+            // in progress, or the single streaming config once it is complete. Either way we return whatever it
+            // computed; the only extra work is dropping and stopping the coordinator when the snapshot is done.
             List<Map<String, String>> taskConfigs = coordinator.taskConfigs(maxTasks, props);
-            if (!coordinator.isComplete()) {
-                return taskConfigs;
+            if (coordinator.isComplete()) {
+                // Null the field first as stopping might throw.
+                smartSnapshotConnectorCoordinator = null;
+                coordinator.stop();
             }
-            // Snapshot complete: the coordinator returned the single streaming config. Drop and stop the coordinator.
-            // Set it to null first as stopping might throw.
-            smartSnapshotConnectorCoordinator = null;
-            coordinator.stop();
             return taskConfigs;
         }
 
