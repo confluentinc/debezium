@@ -179,11 +179,6 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
         heldConnections.registerResource("replication", replConn);
         this.replicationConnection = replConn;
 
-        if (connectorConfig.isReadOnlyConnection()) {
-            LOGGER.warn("{} Connector is configured to be in read-only mode but replication slot "
-                    + "was not found. The attempt to create it can fail", SmartSnapshotLogging.leader(epoch));
-        }
-
         try {
             SlotCreationResult result = replConn.createReplicationSlot()
                     .orElseThrow(() -> new DebeziumException(SmartSnapshotLogging.leader(epoch) + " Slot creation returned no result"));
@@ -220,21 +215,7 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
 
     private SlotCreateOrExportResult exportSnapshotFromExistingSlot(SlotState slotInfo) {
         try {
-            final PostgresConnection holder = connectionFactory.newConnection();
-            heldConnections.registerConnection("snapshot holder", holder);
-            holder.connection().setAutoCommit(false);
-            holder.executeWithoutCommitting(
-                    "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
-
-            String walBefore = holder.queryAndMap(
-                    "SELECT pg_current_wal_lsn()::text",
-                    holder.singleResultMapper(
-                            rs -> rs.getString(1), SmartSnapshotLogging.leader(epoch) + " Failed to get WAL LSN"));
-
-            String currentSnapshotName = holder.queryAndMap(
-                    "SELECT pg_export_snapshot()",
-                    holder.singleResultMapper(
-                            rs -> rs.getString(1), SmartSnapshotLogging.leader(epoch) + " Failed to export snapshot"));
+            ExportedSnapshot exported = exportSnapshotOnHeldConnection();
 
             // Mirror PostgresSnapshotChangeEventSource#getTransactionStartLsn: only resume from the slot's
             // last flushed LSN when the snapshotter does NOT stream starting from the snapshot point (e.g.
@@ -247,12 +228,12 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
                 currentSlotLsn = slotInfo.slotLastFlushedLsn().asString();
             }
             else {
-                currentSlotLsn = walBefore;
+                currentSlotLsn = exported.walLsn;
             }
             LOGGER.info("{} Exported snapshot={}, LSN={}",
-                    SmartSnapshotLogging.leader(epoch), currentSnapshotName, currentSlotLsn);
+                    SmartSnapshotLogging.leader(epoch), exported.snapshotName, currentSlotLsn);
 
-            return new SlotCreateOrExportResult(null, slotInfo, currentSnapshotName, currentSlotLsn);
+            return new SlotCreateOrExportResult(null, slotInfo, exported.snapshotName, currentSlotLsn);
         }
         catch (SQLException e) {
             releaseSnapshot();
@@ -262,31 +243,53 @@ public class PostgresSmartSnapshotLifecycleManager implements SmartSnapshotLifec
 
     private SlotCreateOrExportResult exportSnapshotWithoutSlot() {
         try {
-            final PostgresConnection holder = connectionFactory.newConnection();
-            heldConnections.registerConnection("snapshot holder", holder);
-            holder.connection().setAutoCommit(false);
-            holder.executeWithoutCommitting(
-                    "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
+            ExportedSnapshot exported = exportSnapshotOnHeldConnection();
 
             // No slot, so no slot LSN. Use current WAL position as reference.
-            String currentSlotLsn = holder.queryAndMap(
-                    "SELECT pg_current_wal_lsn()::text",
-                    holder.singleResultMapper(
-                            rs -> rs.getString(1), SmartSnapshotLogging.leader(epoch) + " Failed to get WAL LSN"));
-
-            String currentSnapshotName = holder.queryAndMap(
-                    "SELECT pg_export_snapshot()",
-                    holder.singleResultMapper(
-                            rs -> rs.getString(1), SmartSnapshotLogging.leader(epoch) + " Failed to export snapshot"));
-
             LOGGER.info("{} Exported snapshot={}, LSN={} (no-stream)",
-                    SmartSnapshotLogging.leader(epoch), currentSnapshotName, currentSlotLsn);
+                    SmartSnapshotLogging.leader(epoch), exported.snapshotName, exported.walLsn);
 
-            return new SlotCreateOrExportResult(null, null, currentSnapshotName, currentSlotLsn);
+            return new SlotCreateOrExportResult(null, null, exported.snapshotName, exported.walLsn);
         }
         catch (SQLException e) {
             releaseSnapshot();
             throw new DebeziumException(SmartSnapshotLogging.leader(epoch) + " Failed to export snapshot", e);
+        }
+    }
+
+    /**
+     * Opens a fresh held connection in a REPEATABLE READ transaction, exports a snapshot from it and returns
+     * the current WAL LSN together with the exported snapshot name. Shared by the existing-slot and no-slot
+     * export paths (the new-slot path gets its snapshot from CREATE_REPLICATION_SLOT instead). The connection
+     * is registered with {@link #heldConnections} so it stays open — the exported snapshot is only valid while
+     * its transaction lives — and is closed by {@link #releaseSnapshot()}.
+     */
+    private ExportedSnapshot exportSnapshotOnHeldConnection() throws SQLException {
+        final PostgresConnection holder = connectionFactory.newConnection();
+        heldConnections.registerConnection("snapshot holder", holder);
+        holder.connection().setAutoCommit(false);
+        holder.executeWithoutCommitting("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
+
+        String walLsn = holder.queryAndMap(
+                "SELECT pg_current_wal_lsn()::text",
+                holder.singleResultMapper(
+                        rs -> rs.getString(1), SmartSnapshotLogging.leader(epoch) + " Failed to get WAL LSN"));
+
+        String snapshotName = holder.queryAndMap(
+                "SELECT pg_export_snapshot()",
+                holder.singleResultMapper(
+                        rs -> rs.getString(1), SmartSnapshotLogging.leader(epoch) + " Failed to export snapshot"));
+
+        return new ExportedSnapshot(walLsn, snapshotName);
+    }
+
+    private static final class ExportedSnapshot {
+        private final String walLsn;
+        private final String snapshotName;
+
+        private ExportedSnapshot(String walLsn, String snapshotName) {
+            this.walLsn = walLsn;
+            this.snapshotName = snapshotName;
         }
     }
 

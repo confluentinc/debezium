@@ -76,6 +76,12 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
     private static final Logger LOGGER = LoggerFactory.getLogger(PostgresConnectorTask.class);
     private static final String CONTEXT_NAME = "postgres-connector-task";
 
+    // Bounds how long doStop() waits for the leader thread to finish its own teardown. Before this join the leader
+    // is already signaled to stop (interrupt + held-connection abort in SmartSnapshotLeader#stop), so the join
+    // normally returns near-immediately; the bound only guards against a stuck cleanup. Kept well under CCloud's
+    // 30s graceful-shutdown budget so the top-level stop() always completes in time.
+    private static final long SMART_SNAPSHOT_LEADER_STOP_TIMEOUT_MS = 10_000;
+
     private volatile PostgresTaskContext taskContext;
     private volatile ChangeEventQueue<DataChangeEvent> queue;
     private volatile PostgresConnection jdbcConnection;
@@ -646,7 +652,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
         }
         // task-0 only: stop the leader (it closes its own coordination facade)
         if (smartSnapshotLeader != null) {
-            smartSnapshotLeader.stop(10_000);
+            smartSnapshotLeader.stop(SMART_SNAPSHOT_LEADER_STOP_TIMEOUT_MS);
             smartSnapshotLeader = null;
         }
     }
