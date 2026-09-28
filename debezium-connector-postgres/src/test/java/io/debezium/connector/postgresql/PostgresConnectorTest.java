@@ -31,6 +31,9 @@ import io.debezium.config.Configuration;
 import io.debezium.pipeline.source.snapshot.SmartSnapshotConnectorCoordinator;
 
 public class PostgresConnectorTest {
+    private static final String TASKS_MAX = "tasks.max";
+    private static final String PRODUCER_BOOTSTRAP = "producer.override.bootstrap.servers";
+
     PostgresConnector connector;
 
     @Before
@@ -47,6 +50,8 @@ public class PostgresConnectorTest {
         config.put(PostgresConnectorConfig.USER.name(), "pikachu");
         config.put(PostgresConnectorConfig.PASSWORD.name(), "pika");
         config.put(PostgresConnectorConfig.TOPIC_PREFIX.name(), "topic-prefix");
+        // This test exercises connection validation only; keep it independent of the smart-snapshot feature default.
+        config.put(CommonConnectorConfig.SMART_SNAPSHOT_ENABLED.name(), "false");
 
         Config validated = connector.validate(config);
         for (ConfigValue value : validated.configValues()) {
@@ -140,6 +145,82 @@ public class PostgresConnectorTest {
     public void taskConfigsReturnsEmptyWhenNotStarted() {
         connector.initForTesting(null, null);
         assertThat(connector.taskConfigs(2), is(Collections.emptyList()));
+    }
+
+    // --- Smart snapshot config validation (RelationalBaseSourceConnector#validateSmartSnapshotConfig +
+    // PostgresConnector#validateSmartSnapshotMode) ---
+
+    // Unsupported snapshot mode with the feature on: rejected with a user-facing error on snapshot.mode.
+    @Test
+    public void validateRejectsUnsupportedSnapshotModeWhenSmartSnapshotEnabled() {
+        Config validated = connector.validate(validateProps(true, "always", 2, true));
+        assertThat(hasSmartSnapshotError(validated, PostgresConnectorConfig.SNAPSHOT_MODE.name()), is(true));
+    }
+
+    // Feature on but only one task: nothing to parallelize, rejected on tasks.max.
+    @Test
+    public void validateRejectsSingleTaskWhenSmartSnapshotEnabled() {
+        Config validated = connector.validate(validateProps(true, "initial", 1, true));
+        assertThat(hasSmartSnapshotError(validated, TASKS_MAX), is(true));
+    }
+
+    // Feature on but no coordination bootstrap: tasks cannot coordinate, rejected on the bootstrap override.
+    @Test
+    public void validateRejectsMissingCoordinationBootstrapWhenSmartSnapshotEnabled() {
+        Config validated = connector.validate(validateProps(true, "initial", 2, false));
+        assertThat(hasSmartSnapshotError(validated, PRODUCER_BOOTSTRAP), is(true));
+    }
+
+    // All prerequisites wrong at once: every offending key is reported (no short-circuiting between checks).
+    @Test
+    public void validateReportsAllSmartSnapshotPrerequisiteErrors() {
+        Config validated = connector.validate(validateProps(true, "always", 1, false));
+        assertThat(hasSmartSnapshotError(validated, PostgresConnectorConfig.SNAPSHOT_MODE.name()), is(true));
+        assertThat(hasSmartSnapshotError(validated, TASKS_MAX), is(true));
+        assertThat(hasSmartSnapshotError(validated, PRODUCER_BOOTSTRAP), is(true));
+    }
+
+    // Well-formed smart snapshot config: no prerequisite errors (any remaining errors are just the unreachable DB).
+    @Test
+    public void validateAcceptsWellFormedSmartSnapshotConfig() {
+        Config validated = connector.validate(validateProps(true, "initial", 2, true));
+        assertThat(hasSmartSnapshotError(validated, PostgresConnectorConfig.SNAPSHOT_MODE.name()), is(false));
+        assertThat(hasSmartSnapshotError(validated, TASKS_MAX), is(false));
+        assertThat(hasSmartSnapshotError(validated, PRODUCER_BOOTSTRAP), is(false));
+    }
+
+    // Feature off: an otherwise-incompatible config (always mode, single task, no bootstrap) is left alone.
+    @Test
+    public void validateSkipsSmartSnapshotChecksWhenDisabled() {
+        Config validated = connector.validate(validateProps(false, "always", 1, false));
+        assertThat(hasSmartSnapshotError(validated, PostgresConnectorConfig.SNAPSHOT_MODE.name()), is(false));
+        assertThat(hasSmartSnapshotError(validated, TASKS_MAX), is(false));
+        assertThat(hasSmartSnapshotError(validated, PRODUCER_BOOTSTRAP), is(false));
+    }
+
+    private static Map<String, String> validateProps(boolean enabled, String snapshotMode, int tasksMax, boolean withBootstrap) {
+        Map<String, String> props = new HashMap<>();
+        // Unresolvable host keeps the test hermetic: connection validation fails fast without a real database.
+        props.put(PostgresConnectorConfig.HOSTNAME.name(), "narnia");
+        props.put(PostgresConnectorConfig.PORT.name(), "1234");
+        props.put(PostgresConnectorConfig.DATABASE_NAME.name(), "postgres");
+        props.put(PostgresConnectorConfig.USER.name(), "user");
+        props.put(PostgresConnectorConfig.PASSWORD.name(), "pass");
+        props.put(CommonConnectorConfig.TOPIC_PREFIX.name(), "srv");
+        props.put(CommonConnectorConfig.SMART_SNAPSHOT_ENABLED.name(), String.valueOf(enabled));
+        props.put(PostgresConnectorConfig.SNAPSHOT_MODE.name(), snapshotMode);
+        props.put(TASKS_MAX, String.valueOf(tasksMax));
+        if (withBootstrap) {
+            props.put(PRODUCER_BOOTSTRAP, "localhost:9092");
+        }
+        return props;
+    }
+
+    private static boolean hasSmartSnapshotError(Config validated, String key) {
+        return validated.configValues().stream()
+                .filter(value -> value.name().equals(key))
+                .flatMap(value -> value.errorMessages().stream())
+                .anyMatch(message -> message.contains("Smart snapshot"));
     }
 
     private static Map<String, String> smartProps() {
