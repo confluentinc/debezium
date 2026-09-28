@@ -25,11 +25,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.debezium.DebeziumException;
+import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.connector.common.RelationalBaseSourceConnector;
 import io.debezium.connector.postgresql.PostgresConnectorConfig.LogicalDecoder;
+import io.debezium.connector.postgresql.PostgresConnectorConfig.SnapshotIsolationMode;
+import io.debezium.connector.postgresql.PostgresConnectorConfig.SnapshotMode;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.connector.postgresql.connection.ServerInfo;
+import io.debezium.pipeline.source.snapshot.SmartSnapshotConnectorCoordinator;
+import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.relational.TableId;
 import io.debezium.util.ThreadNameContext;
@@ -50,8 +55,21 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
     public static final int READ_ONLY_SUPPORTED_VERSION = 13;
 
     private Map<String, String> props;
+    private volatile SmartSnapshotConnectorCoordinator smartSnapshotConnectorCoordinator;
 
     public PostgresConnector() {
+    }
+
+    // visible for testing: seed the state that start() would normally set, so taskConfigs() can be exercised
+    // without a live database or coordination topic.
+    void initForTesting(Map<String, String> props, SmartSnapshotConnectorCoordinator coordinator) {
+        this.props = props;
+        this.smartSnapshotConnectorCoordinator = coordinator;
+    }
+
+    // visible for testing
+    SmartSnapshotConnectorCoordinator smartSnapshotConnectorCoordinator() {
+        return smartSnapshotConnectorCoordinator;
     }
 
     @Override
@@ -67,17 +85,69 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
     @Override
     public void start(Map<String, String> props) {
         this.props = props;
+
+        Configuration config = Configuration.from(props);
+
+        // Smart snapshot applies only when the feature is on and the snapshot mode is one of initial, initial_only or
+        // when_needed. The other prerequisites (tasks.max > 1 and a coordination bootstrap) are enforced by
+        // validateSmartSnapshotConfig() at config-validation time, so start() can assume they hold.
+        if (smartSnapshotApplies(config)) {
+            PostgresConnectorConfig connectorConfig = new PostgresConnectorConfig(config);
+
+            SnapshotCoordinationFacade coordinationFacade = new SnapshotCoordinationFacade(config, connectorConfig);
+            smartSnapshotConnectorCoordinator = new SmartSnapshotConnectorCoordinator(coordinationFacade, context(),
+                    connectorConfig.getLogicalName(), connectorConfig.getSmartSnapshotMonitorPollIntervalMs(),
+                    connectorConfig.getContextName());
+
+            // this involves reading the coordination topic synchronously
+            // ideally it should be quick
+            // there doesn't seem to be a clean way to avoid reading it here
+            // todo should this be made async? so that by the time taskConfig is called reading is done?
+            smartSnapshotConnectorCoordinator.start();
+
+            // If previous snapshot was already complete, skip smart snapshot
+            SmartSnapshotConnectorCoordinator oldCoordinator = this.smartSnapshotConnectorCoordinator;
+            if (oldCoordinator.isComplete()) {
+                smartSnapshotConnectorCoordinator = null;
+                oldCoordinator.stop();
+            }
+        }
     }
 
     @Override
     public List<Map<String, String>> taskConfigs(int maxTasks) {
-        // this will always have just one task with the given list of properties
-        return props == null ? Collections.emptyList() : Collections.singletonList(new HashMap<>(props));
+        if (props == null)
+            return Collections.emptyList();
+
+        Configuration config = Configuration.from(props);
+        SmartSnapshotConnectorCoordinator coordinator = this.smartSnapshotConnectorCoordinator;
+        if (smartSnapshotApplies(config) && coordinator != null && maxTasks > 1) {
+            // The coordinator decides what to hand back: the parallel data-snapshot configs while the snapshot is
+            // in progress, or the single streaming config once it is complete. Either way we return whatever it
+            // computed; the only extra work is dropping and stopping the coordinator when the snapshot is done.
+            List<Map<String, String>> taskConfigs = coordinator.taskConfigs(maxTasks, props);
+            if (coordinator.isComplete()) {
+                // Null the field first as stopping might throw.
+                smartSnapshotConnectorCoordinator = null;
+                coordinator.stop();
+            }
+            return taskConfigs;
+        }
+
+        // Feature not applicable, or maxTasks == 1: stop the coordinator if present and hand out a single config.
+        if (coordinator != null) {
+            smartSnapshotConnectorCoordinator = null;
+            coordinator.stop();
+        }
+        return Collections.singletonList(new HashMap<>(props));
     }
 
     @Override
     public void stop() {
         this.props = null;
+        if (smartSnapshotConnectorCoordinator != null) {
+            smartSnapshotConnectorCoordinator.stop();
+        }
     }
 
     @Override
@@ -213,6 +283,30 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         return config.validate(PostgresConnectorConfig.ALL_FIELDS);
     }
 
+    @Override
+    protected void validateSmartSnapshotMode(Configuration config, Map<String, ConfigValue> results) {
+        // Smart snapshot parallelizes the initial data copy, so it only applies to snapshot modes that copy data on
+        // startup. The other modes have nothing to parallelize or are unsupported on this path.
+        final String snapshotMode = config.getString(PostgresConnectorConfig.SNAPSHOT_MODE);
+        final SnapshotMode mode = SnapshotMode.parse(snapshotMode, PostgresConnectorConfig.SNAPSHOT_MODE.defaultValueAsString());
+        if (mode != SnapshotMode.INITIAL && mode != SnapshotMode.INITIAL_ONLY && mode != SnapshotMode.WHEN_NEEDED) {
+            results.computeIfAbsent(PostgresConnectorConfig.SNAPSHOT_MODE.name(), ConfigValue::new)
+                    .addErrorMessage("Smart snapshot (" + CommonConnectorConfig.SMART_SNAPSHOT_ENABLED.name()
+                            + "=true) is only supported with '" + SnapshotMode.INITIAL.getValue() + "', '"
+                            + SnapshotMode.INITIAL_ONLY.getValue() + "' or '" + SnapshotMode.WHEN_NEEDED.getValue()
+                            + "' snapshot modes, but '" + snapshotMode + "' is configured. Change '"
+                            + PostgresConnectorConfig.SNAPSHOT_MODE.name() + "' or disable smart snapshot.");
+        }
+
+        // Warn-only: the smart snapshot always runs in REPEATABLE READ, so any other configured isolation mode is
+        // silently overridden.
+        final String isolationMode = config.getString(PostgresConnectorConfig.SNAPSHOT_ISOLATION_MODE.name());
+        if (isolationMode != null && SnapshotIsolationMode.parse(isolationMode) != SnapshotIsolationMode.REPEATABLE_READ) {
+            LOGGER.warn("Smart snapshot always runs in REPEATABLE READ; the configured '{}={}' will be ignored.",
+                    PostgresConnectorConfig.SNAPSHOT_ISOLATION_MODE.name(), isolationMode);
+        }
+    }
+
     @SuppressWarnings("unchecked")
     @Override
     public List<TableId> getMatchingCollections(Configuration config) {
@@ -226,6 +320,26 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
         }
         catch (SQLException e) {
             throw new DebeziumException(e);
+        }
+    }
+
+    // visible for testing
+    static boolean smartSnapshotApplies(Configuration configuration) {
+        PostgresConnectorConfig connectorConfig = new PostgresConnectorConfig(configuration);
+        if (!connectorConfig.isSmartSnapshotEnabled()) {
+            return false;
+        }
+        switch (connectorConfig.getSnapshotMode()) {
+            case INITIAL:
+            case INITIAL_ONLY:
+            case WHEN_NEEDED:
+                return true; // parallelizable data snapshot
+            case CONFIGURATION_BASED: // not supported on ccloud
+            case ALWAYS: // avoid the post-downscale double snapshot -> single-task
+            case NEVER:
+            case NO_DATA: // no data copy -> nothing to parallelize
+            default:
+                return false;
         }
     }
 }
