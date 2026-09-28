@@ -89,21 +89,8 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
         this.config = config;
         this.taskId = taskId;
         this.snapshotInfoWaitTimeoutMs = connectorConfig.getSmartSnapshotTaskSnapshotInfoWaitTimeoutMs();
-
-        // These two timeouts are coupled: a task must not give up before the leader has had time to wait for all
-        // tasks to join AND prepare the snapshot. Both field descriptions say so, but nothing enforces it, so a
-        // misconfiguration would otherwise show up only as tasks timing out while the leader is still working.
-        // Warn loudly at startup instead of failing: the defaults are correct and these are internal, test-facing
-        // knobs, so a test that deliberately shortens one must still be able to run.
-        long leaderJoinWaitTimeoutMs = connectorConfig.getSmartSnapshotLeaderJoinWaitTimeoutMs();
-        if (snapshotInfoWaitTimeoutMs <= leaderJoinWaitTimeoutMs) {
-            LOGGER.warn("{} Misconfigured timeouts: the task snapshot-info wait ({}ms) is not larger than the "
-                    + "leader join wait ({}ms), so tasks may give up before the leader publishes the snapshot info. "
-                    + "Increase '{}' above '{}' plus the expected snapshot preparation time.",
-                    SmartSnapshotLogging.task(taskId, epoch), snapshotInfoWaitTimeoutMs, leaderJoinWaitTimeoutMs,
-                    CommonConnectorConfig.SMART_SNAPSHOT_TASK_SNAPSHOT_INFO_WAIT_TIMEOUT_MS.name(),
-                    CommonConnectorConfig.SMART_SNAPSHOT_LEADER_JOIN_WAIT_TIMEOUT_MS.name());
-        }
+        // The coupling between this timeout and the leader join-wait timeout is validated at config time in
+        // RelationalBaseSourceConnector#validateSmartSnapshotConfig.
     }
 
     // Visible for testing: shorten the snapshot-info poll interval so tests do not sleep the default.

@@ -25,13 +25,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.debezium.DebeziumException;
+import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.connector.common.RelationalBaseSourceConnector;
 import io.debezium.connector.postgresql.PostgresConnectorConfig.LogicalDecoder;
+import io.debezium.connector.postgresql.PostgresConnectorConfig.SnapshotIsolationMode;
+import io.debezium.connector.postgresql.PostgresConnectorConfig.SnapshotMode;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.connector.postgresql.connection.ServerInfo;
 import io.debezium.pipeline.source.snapshot.SmartSnapshotConnectorCoordinator;
-import io.debezium.pipeline.source.snapshot.SmartSnapshotLogging;
 import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import io.debezium.relational.TableId;
@@ -86,25 +88,11 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
 
         Configuration config = Configuration.from(props);
 
-        // smart snapshot applies only when the feature is on and snapshot mode is
-        // one of initial, initial_only & when_needed
-        // ideally we should also gate on number of task being > 1 but there doesn't seem to be a
-        // way to access that config here, it is passed in the #taskConfigs method
-        // if number of task is 1 and above conditions apply we do some wasteful work here
-        // but all of that is cleared up in the taskConfigs method
+        // Smart snapshot applies only when the feature is on and the snapshot mode is one of initial, initial_only or
+        // when_needed. The other prerequisites (tasks.max > 1 and a coordination bootstrap) are enforced by
+        // validateSmartSnapshotConfig() at config-validation time, so start() can assume they hold.
         if (smartSnapshotApplies(config)) {
-            Integer maxTask = config.getInteger("tasks.max");
-            if (maxTask != null && maxTask <= 1) {
-                // todo check if runtime passes tasks.max correctly
-                LOGGER.info(SmartSnapshotLogging.CONNECTOR + " Enabled but tasks.max is 1 or less, falling back to feature-disabled behaviour");
-                return;
-            }
             PostgresConnectorConfig connectorConfig = new PostgresConnectorConfig(config);
-
-            if (!SnapshotCoordinationFacade.hasCoordinationBootstrap(config)) {
-                LOGGER.info(SmartSnapshotLogging.CONNECTOR + " No coordination bootstrap configured; skipping smart snapshot setup in start()");
-                return;
-            }
 
             SnapshotCoordinationFacade coordinationFacade = new SnapshotCoordinationFacade(config, connectorConfig);
             smartSnapshotConnectorCoordinator = new SmartSnapshotConnectorCoordinator(coordinationFacade, context(),
@@ -292,6 +280,30 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
     @Override
     protected Map<String, ConfigValue> validateAllFields(Configuration config) {
         return config.validate(PostgresConnectorConfig.ALL_FIELDS);
+    }
+
+    @Override
+    protected void validateSmartSnapshotMode(Configuration config, Map<String, ConfigValue> results) {
+        // Smart snapshot parallelizes the initial data copy, so it only applies to snapshot modes that copy data on
+        // startup. The other modes have nothing to parallelize or are unsupported on this path.
+        final String snapshotMode = config.getString(PostgresConnectorConfig.SNAPSHOT_MODE);
+        final SnapshotMode mode = SnapshotMode.parse(snapshotMode, PostgresConnectorConfig.SNAPSHOT_MODE.defaultValueAsString());
+        if (mode != SnapshotMode.INITIAL && mode != SnapshotMode.INITIAL_ONLY && mode != SnapshotMode.WHEN_NEEDED) {
+            results.computeIfAbsent(PostgresConnectorConfig.SNAPSHOT_MODE.name(), ConfigValue::new)
+                    .addErrorMessage("Smart snapshot (" + CommonConnectorConfig.SMART_SNAPSHOT_ENABLED.name()
+                            + "=true) is only supported with '" + SnapshotMode.INITIAL.getValue() + "', '"
+                            + SnapshotMode.INITIAL_ONLY.getValue() + "' or '" + SnapshotMode.WHEN_NEEDED.getValue()
+                            + "' snapshot modes, but '" + snapshotMode + "' is configured. Change '"
+                            + PostgresConnectorConfig.SNAPSHOT_MODE.name() + "' or disable smart snapshot.");
+        }
+
+        // Warn-only: the smart snapshot always runs in REPEATABLE READ, so any other configured isolation mode is
+        // silently overridden.
+        final String isolationMode = config.getString(PostgresConnectorConfig.SNAPSHOT_ISOLATION_MODE.name());
+        if (isolationMode != null && SnapshotIsolationMode.parse(isolationMode) != SnapshotIsolationMode.REPEATABLE_READ) {
+            LOGGER.warn("Smart snapshot always runs in REPEATABLE READ; the configured '{}={}' will be ignored.",
+                    PostgresConnectorConfig.SNAPSHOT_ISOLATION_MODE.name(), isolationMode);
+        }
     }
 
     @SuppressWarnings("unchecked")
