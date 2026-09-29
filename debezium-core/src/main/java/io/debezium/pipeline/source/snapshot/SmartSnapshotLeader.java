@@ -7,6 +7,7 @@ package io.debezium.pipeline.source.snapshot;
 
 import java.time.Duration;
 
+import org.apache.kafka.connect.source.SourceConnector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,6 +15,8 @@ import io.debezium.DebeziumException;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.pipeline.ErrorHandler;
+import io.debezium.util.ThreadNameContext;
+import io.debezium.util.Threads;
 
 /**
  * Runs on task-0 (the leader) on a background thread: prepares the shared snapshot (slot create / export
@@ -27,6 +30,8 @@ public class SmartSnapshotLeader implements Runnable {
     private final SmartSnapshotLifecycleManager lifecycle;
     private final Configuration config;
     private final CommonConnectorConfig connectorConfig;
+    // The connector class, used only to name the leader thread following the standard Debezium thread-naming convention.
+    private final Class<? extends SourceConnector> connectorType;
     // The leader owns its coordination facade end to end: it is created, started, used and stopped on the leader
     // thread inside run(). Nothing else holds it, so no other thread can use or close its Kafka client, and
     // SourceTask.start() never blocks on starting it. Set at the start of run() and only used on the leader thread.
@@ -46,8 +51,8 @@ public class SmartSnapshotLeader implements Runnable {
 
     public SmartSnapshotLeader(SmartSnapshotLifecycleManager lifecycle, ErrorHandler errorHandler, int epoch, int numTasks,
                                boolean shouldStream, Configuration config, CommonConnectorConfig connectorConfig,
-                               Runnable loggingContextSetup) {
-        this(lifecycle, errorHandler, epoch, numTasks, shouldStream, config, connectorConfig,
+                               Class<? extends SourceConnector> connectorType, Runnable loggingContextSetup) {
+        this(lifecycle, errorHandler, epoch, numTasks, shouldStream, config, connectorConfig, connectorType,
                 connectorConfig.getSmartSnapshotLeaderPollIntervalMs(),
                 connectorConfig.getSmartSnapshotLeaderJoinWaitTimeoutMs(),
                 connectorConfig.getSmartSnapshotLeaderStartedTransactionTimeoutMs(),
@@ -56,11 +61,13 @@ public class SmartSnapshotLeader implements Runnable {
 
     // Visible for testing: set the timings directly.
     SmartSnapshotLeader(SmartSnapshotLifecycleManager lifecycle, ErrorHandler errorHandler, int epoch, int numTasks,
-                        boolean shouldStream, Configuration config, CommonConnectorConfig connectorConfig, long pollMs,
+                        boolean shouldStream, Configuration config, CommonConnectorConfig connectorConfig,
+                        Class<? extends SourceConnector> connectorType, long pollMs,
                         long joinWaitTimeoutMs, long startedTransactionTimeoutMs, Runnable loggingContextSetup) {
         this.lifecycle = lifecycle;
         this.config = config;
         this.connectorConfig = connectorConfig;
+        this.connectorType = connectorType;
         this.errorHandler = errorHandler;
         this.epoch = epoch;
         this.numTasks = numTasks;
@@ -322,7 +329,12 @@ public class SmartSnapshotLeader implements Runnable {
      * Starts {@link #run()} on the leader's own background (daemon) thread. Called once by task-0.
      */
     public void start() {
-        final Thread leaderThread = new Thread(this, "smart-snapshot-leader");
+        // Name the thread via the standard Debezium convention (honours connector.thread.name.pattern), the same way
+        // ChangeEventSourceCoordinator and the connectors' other threads do. This includes the connector's logical
+        // name, so two connectors' leader threads on the same worker/pod are distinguishable.
+        final String threadName = Threads.buildThreadName(connectorType, connectorConfig.getLogicalName(),
+                "smart-snapshot-leader", ThreadNameContext.from(connectorConfig));
+        final Thread leaderThread = new Thread(this, threadName);
         leaderThread.setDaemon(true);
         this.thread = leaderThread;
         leaderThread.start();

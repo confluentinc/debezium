@@ -33,6 +33,11 @@ public class PostgresTaskContext extends CdcSourceTaskContext {
 
     protected final static Logger LOGGER = LoggerFactory.getLogger(PostgresTaskContext.class);
 
+    /**
+     * Task id of the smart-snapshot leader (task-0), and the id used for the single task in the non-smart-snapshot flow.
+     */
+    public static final String LEADER_TASK_ID = "0";
+
     private final CommonConnectorConfig config;
     private final TopicNamingStrategy<TableId> topicNamingStrategy;
     private final PostgresSchema schema;
@@ -53,7 +58,7 @@ public class PostgresTaskContext extends CdcSourceTaskContext {
     }
 
     protected PostgresTaskContext(PostgresConnectorConfig config, PostgresSchema schema, TopicNamingStrategy<TableId> topicNamingStrategy) {
-        this(config, "0", schema, topicNamingStrategy);
+        this(config, LEADER_TASK_ID, schema, topicNamingStrategy);
     }
 
     protected TopicNamingStrategy<TableId> topicNamingStrategy() {

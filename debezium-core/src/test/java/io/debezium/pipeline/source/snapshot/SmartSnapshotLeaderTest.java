@@ -12,6 +12,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -23,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.apache.kafka.connect.source.SourceConnector;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.InOrder;
@@ -30,6 +32,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import io.debezium.DebeziumException;
+import io.debezium.config.CommonConnectorConfig;
 import io.debezium.pipeline.ErrorHandler;
 import io.debezium.relational.TableId;
 
@@ -70,7 +73,7 @@ public class SmartSnapshotLeaderTest {
 
     // The leader creates its own coordination facade in run(); hand it the mock instead of a Kafka-backed one.
     private SmartSnapshotLeader leader(int numTasks, boolean shouldStream, long pollMs, long joinWaitTimeoutMs, long startedTransactionTimeoutMs) {
-        return new SmartSnapshotLeader(lifecycle, errorHandler, EPOCH, numTasks, shouldStream, null, null,
+        return new SmartSnapshotLeader(lifecycle, errorHandler, EPOCH, numTasks, shouldStream, null, null, null,
                 pollMs, joinWaitTimeoutMs, startedTransactionTimeoutMs, () -> {
                 }) {
             @Override
@@ -244,7 +247,7 @@ public class SmartSnapshotLeaderTest {
 
     @Test
     public void coordinationCreationFailureFailsTheTaskWithoutPreparing() {
-        SmartSnapshotLeader leader = new SmartSnapshotLeader(lifecycle, errorHandler, EPOCH, 2, true, null, null,
+        SmartSnapshotLeader leader = new SmartSnapshotLeader(lifecycle, errorHandler, EPOCH, 2, true, null, null, null,
                 0L, 60_000L, 60_000L, () -> {
                 }) {
             @Override
@@ -354,8 +357,14 @@ public class SmartSnapshotLeaderTest {
             return null;
         }).when(lifecycle).releaseSnapshot();
 
-        SmartSnapshotLeader leader = new SmartSnapshotLeader(lifecycle, errorHandler, EPOCH, 2, true, null, null,
-                0L, 60_000L, 60_000L, () -> {
+        // start() names the thread via the standard convention, so it needs a config with the naming fields.
+        CommonConnectorConfig connectorConfig = mock(CommonConnectorConfig.class);
+        when(connectorConfig.getLogicalName()).thenReturn("test-server");
+        when(connectorConfig.getConnectorThreadNamePattern())
+                .thenReturn("${debezium}-${connector.class.simple}-${topic.prefix}-${functionality}");
+
+        SmartSnapshotLeader leader = new SmartSnapshotLeader(lifecycle, errorHandler, EPOCH, 2, true, null, connectorConfig,
+                SourceConnector.class, 0L, 60_000L, 60_000L, () -> {
                 }) {
             @Override
             public void run() {
