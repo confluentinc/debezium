@@ -34,6 +34,9 @@ public class SmartSnapshotConnectorCoordinator {
     private final ConnectorContext connectorContext;
     private final String serverName;
     private final long monitorPollIntervalMs;
+    // Name for the monitor thread, built by the connector via the standard Debezium naming convention so it honours
+    // connector.thread.name.pattern and is distinguishable per connector on a shared worker/pod.
+    private final String monitorThreadName;
     // Connector type (MDC connectorType) used to establish the Debezium logging context on the monitor
     // thread. The monitor runs on its own thread, which does not inherit the connector thread's MDC, so
     // without setting it the log-pattern fields (connector type/name) would be blank on monitor lines.
@@ -85,12 +88,14 @@ public class SmartSnapshotConnectorCoordinator {
                                              ConnectorContext connectorContext,
                                              String serverName,
                                              long monitorPollIntervalMs,
-                                             String connectorType) {
+                                             String connectorType,
+                                             String monitorThreadName) {
         this.snapshotCoordination = snapshotCoordination;
         this.connectorContext = connectorContext;
         this.serverName = serverName;
         this.monitorPollIntervalMs = monitorPollIntervalMs;
         this.connectorType = connectorType;
+        this.monitorThreadName = monitorThreadName;
     }
 
     public void start() {
@@ -189,7 +194,7 @@ public class SmartSnapshotConnectorCoordinator {
                     LOGGER.warn("{} Monitor iteration failed, will retry", SmartSnapshotLogging.monitor(currentEpoch.get()), t);
                 }
             }
-        }, "smart-snapshot-monitor");
+        }, monitorThreadName);
         thread.setDaemon(true);
 
         // If the monitor thread dies from something the loop did not catch, fail the connector so the runtime
