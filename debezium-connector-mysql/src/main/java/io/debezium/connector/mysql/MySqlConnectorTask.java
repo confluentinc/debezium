@@ -356,7 +356,7 @@ public class MySqlConnectorTask extends BinlogSourceTask<MySqlPartition, MySqlOf
 
             // the leader owns its thread and its private coordination facade
             this.smartSnapshotLeader = new SmartSnapshotLeader(lifecycle, this.errorHandler,
-                    leaderEpoch, numTasks, shouldStream, config, connectorConfig,
+                    leaderEpoch, numTasks, shouldStream, config, connectorConfig, MySqlConnector.class,
                     () -> taskContext.configureLoggingContext("smart-snapshot-leader"));
             this.smartSnapshotLeader.start();
         }

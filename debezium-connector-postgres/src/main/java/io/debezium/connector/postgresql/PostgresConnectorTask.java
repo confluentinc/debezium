@@ -591,7 +591,7 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
         }
 
         // task-0 is the leader: discover tables, prepare the snapshot (slot/export + lock-all) on a background thread.
-        if ("0".equals(taskId)) {
+        if (PostgresTaskContext.LEADER_TASK_ID.equals(taskId)) {
             final int leaderEpoch = epoch;
             final boolean shouldStream = !PostgresConnectorConfig.SnapshotMode.INITIAL_ONLY.getValue()
                     .equals(connectorConfig.getSnapshotMode().getValue());
@@ -601,11 +601,11 @@ public class PostgresConnectorTask extends BaseSourceTask<PostgresPartition, Pos
                     schema, dispatcher, notificationService, clock, leaderEpoch);
 
             // only used for logging
-            final PostgresPartition leaderPartition = new PostgresPartition(connectorConfig.getConnectorName(), "", "0");
+            final PostgresPartition leaderPartition = new PostgresPartition(connectorConfig.getConnectorName(), "", taskId);
             // the leader owns its thread and its private coordination facade
             this.smartSnapshotLeader = new SmartSnapshotLeader(
                     lifecycle, this.errorHandler,
-                    leaderEpoch, numTasks, shouldStream, config, connectorConfig,
+                    leaderEpoch, numTasks, shouldStream, config, connectorConfig, PostgresConnector.class,
                     () -> taskContext.configureLoggingContext("smart-snapshot-leader", leaderPartition));
             this.smartSnapshotLeader.start();
         }

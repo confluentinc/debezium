@@ -97,7 +97,9 @@ public class PostgresConnector extends RelationalBaseSourceConnector {
             SnapshotCoordinationFacade coordinationFacade = new SnapshotCoordinationFacade(config, connectorConfig);
             smartSnapshotConnectorCoordinator = new SmartSnapshotConnectorCoordinator(coordinationFacade, context(),
                     connectorConfig.getLogicalName(), connectorConfig.getSmartSnapshotMonitorPollIntervalMs(),
-                    connectorConfig.getContextName());
+                    connectorConfig.getContextName(),
+                    Threads.buildThreadName(PostgresConnector.class, connectorConfig.getLogicalName(),
+                            "smart-snapshot-monitor", ThreadNameContext.from(connectorConfig)));
 
             // this involves reading the coordination topic synchronously
             // ideally it should be quick

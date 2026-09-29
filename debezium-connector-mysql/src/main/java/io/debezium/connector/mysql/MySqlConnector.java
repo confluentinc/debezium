@@ -28,6 +28,7 @@ import io.debezium.pipeline.source.snapshot.SmartSnapshotConnectorCoordinator;
 import io.debezium.pipeline.source.snapshot.SmartSnapshotLogging;
 import io.debezium.pipeline.source.snapshot.SnapshotCoordinationFacade;
 import io.debezium.util.ThreadNameContext;
+import io.debezium.util.Threads;
 
 /**
  * A Kafka Connect source connector that creates tasks that read the MySQL binary log and generate the corresponding
@@ -87,7 +88,9 @@ public class MySqlConnector extends BinlogConnector<MySqlConnectorConfig> {
             SnapshotCoordinationFacade coordinationFacade = new SnapshotCoordinationFacade(config, connectorConfig);
             smartSnapshotConnectorCoordinator = new SmartSnapshotConnectorCoordinator(coordinationFacade, context(),
                     connectorConfig.getLogicalName(), connectorConfig.getSmartSnapshotMonitorPollIntervalMs(),
-                    connectorConfig.getContextName());
+                    connectorConfig.getContextName(),
+                    Threads.buildThreadName(MySqlConnector.class, connectorConfig.getLogicalName(),
+                            "smart-snapshot-monitor", ThreadNameContext.from(connectorConfig)));
 
             smartSnapshotConnectorCoordinator.start();
 
