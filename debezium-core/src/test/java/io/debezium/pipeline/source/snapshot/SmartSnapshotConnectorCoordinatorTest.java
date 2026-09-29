@@ -37,7 +37,6 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import io.debezium.config.ConfigurationNames;
-import io.debezium.pipeline.CommonOffsetContext;
 import io.debezium.pipeline.source.snapshot.SmartSnapshotConnectorCoordinator.MonitorAction;
 import io.debezium.util.Collect;
 
@@ -61,7 +60,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
     @Before
     public void before() {
         MockitoAnnotations.openMocks(this);
-        coordinator = new SmartSnapshotConnectorCoordinator(facade, connectorContext, "srv", 30_000L, "connector-context");
+        coordinator = new SmartSnapshotConnectorCoordinator(facade, connectorContext, "srv", 30_000L, "connector-context", "smart-snapshot-monitor");
     }
 
     @After
@@ -133,7 +132,8 @@ public class SmartSnapshotConnectorCoordinatorTest {
     public void startSkipsWhenCoordinationTopicShowsCompleted() {
         when(connectorContext.offsetStorageReader()).thenReturn(offsetStorageReader);
         when(offsetStorageReader.offset(any())).thenReturn(null);
-        when(facade.readSnapshotInfo()).thenReturn(Collect.hashMapOf(CommonOffsetContext.SNAPSHOT_COMPLETED_KEY, true));
+        // start() checks readCompletion() for a done marker; a real completion record carries the epoch it finished at
+        when(facade.readCompletion()).thenReturn(Collect.hashMapOf(SnapshotCoordinationFacade.EPOCH, 2));
 
         coordinator.start();
 
@@ -208,7 +208,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
     // (no leak), and stop() must see the freshly-published thread reference.
     @Test
     public void stopTerminatesRunningMonitorThread() throws Exception {
-        coordinator = new SmartSnapshotConnectorCoordinator(facade, connectorContext, "srv", 10L, "connector-context");
+        coordinator = new SmartSnapshotConnectorCoordinator(facade, connectorContext, "srv", 10L, "connector-context", "smart-snapshot-monitor");
         when(connectorContext.offsetStorageReader()).thenReturn(offsetStorageReader);
         when(offsetStorageReader.offset(any())).thenReturn(null);
         when(facade.readSnapshotInfo()).thenReturn(null);
@@ -233,7 +233,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
     // monitor — it logs and keeps polling.
     @Test
     public void monitorThreadSurvivesAThrowingIteration() throws Exception {
-        coordinator = new SmartSnapshotConnectorCoordinator(facade, connectorContext, "srv", 10L, "connector-context");
+        coordinator = new SmartSnapshotConnectorCoordinator(facade, connectorContext, "srv", 10L, "connector-context", "smart-snapshot-monitor");
         when(connectorContext.offsetStorageReader()).thenReturn(offsetStorageReader);
         when(offsetStorageReader.offset(any())).thenReturn(null);
         when(facade.readCompletion()).thenReturn(null);
@@ -283,7 +283,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
     // final epoch (never the stale epoch 1), and the monitor stops.
     @Test
     public void monitorAndTaskConfigsRaceThroughRestartBumpAndComplete() throws Exception {
-        coordinator = new SmartSnapshotConnectorCoordinator(facade, connectorContext, "srv", 10L, "connector-context");
+        coordinator = new SmartSnapshotConnectorCoordinator(facade, connectorContext, "srv", 10L, "connector-context", "smart-snapshot-monitor");
 
         // start() preconditions: fresh snapshot, saved epoch = 1
         when(connectorContext.offsetStorageReader()).thenReturn(offsetStorageReader);
