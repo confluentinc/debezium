@@ -80,7 +80,7 @@ public class MySqlConnector extends BinlogConnector<MySqlConnectorConfig> {
             }
             MySqlConnectorConfig connectorConfig = new MySqlConnectorConfig(config);
 
-            if (!SnapshotCoordinationFacade.hasCoordinationBootstrap(config)) {
+            if (SnapshotCoordinationFacade.isCoordinationBootstrapMissing(config)) {
                 LOGGER.info(SmartSnapshotLogging.CONNECTOR + " No coordination bootstrap configured; skipping smart snapshot setup in start()");
                 return;
             }

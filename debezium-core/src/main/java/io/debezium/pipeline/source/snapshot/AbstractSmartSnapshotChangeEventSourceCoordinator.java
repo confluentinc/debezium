@@ -53,7 +53,6 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
         extends ChangeEventSourceCoordinator<P, O> {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AbstractSmartSnapshotChangeEventSourceCoordinator.class);
-    private static final int DEFAULT_SNAPSHOT_INFO_POLL_INTERVAL_MS = 10_000;
 
     protected final int epoch;
     // Used only to create the task-side coordination facade (see createCoordination()).
@@ -65,7 +64,7 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
     // How long to wait for the leader to publish the snapshot info before failing this task.
     private final long snapshotInfoWaitTimeoutMs;
     // Interval between snapshot-info poll attempts. Visible for testing so a unit test does not sleep the default.
-    private long snapshotInfoPollIntervalMs = DEFAULT_SNAPSHOT_INFO_POLL_INTERVAL_MS;
+    private long snapshotInfoPollIntervalMs;
 
     protected AbstractSmartSnapshotChangeEventSourceCoordinator(
                                                                 Offsets<P, O> previousOffsets,
@@ -89,6 +88,7 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
         this.config = config;
         this.taskId = taskId;
         this.snapshotInfoWaitTimeoutMs = connectorConfig.getSmartSnapshotTaskSnapshotInfoWaitTimeoutMs();
+        this.snapshotInfoPollIntervalMs = connectorConfig.getSmartSnapshotTaskSnapshotInfoPollIntervalMs();
         // The coupling between this timeout and the leader join-wait timeout is validated at config time in
         // RelationalBaseSourceConnector#validateSmartSnapshotConfig.
     }
@@ -222,7 +222,7 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
         // data. It can safely re-run at the SAME epoch, so we must NOT force a restart for it. Keying this on the
         // join marker (as before) wrongly bumped the epoch when a task simply died while waiting for the snapshot
         // to be prepared.
-        if (snapshotCoordination.isTaskStartedTransaction(taskId, epoch)) {
+        if (snapshotCoordination.hasTaskStartedTransaction(taskId, epoch)) {
             LOGGER.warn("{} Rejoin after transaction start detected, signaling `restart_needed`", SmartSnapshotLogging.task(taskId, epoch));
             writeRestartNeeded();
             return;
