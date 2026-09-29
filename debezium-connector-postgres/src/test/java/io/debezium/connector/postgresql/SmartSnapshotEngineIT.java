@@ -216,10 +216,8 @@ public class SmartSnapshotEngineIT extends AbstractAsyncEngineConnectorTest {
     private static Set<Integer> keysFor(SourceRecords records, String topic) {
         Set<Integer> keys = new HashSet<>();
         List<SourceRecord> forTopic = records.recordsForTopic(topic);
-        System.out.println("printing the records for topic " + topic);
         if (forTopic != null) {
             for (SourceRecord r : forTopic) {
-                System.out.println("XXX " + r);
                 if (r.key() instanceof Struct) {
                     keys.add(((Struct) r.key()).getInt32("id"));
                 }

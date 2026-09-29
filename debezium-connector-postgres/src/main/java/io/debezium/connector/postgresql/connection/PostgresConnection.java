@@ -164,7 +164,7 @@ public class PostgresConnection extends JdbcConnection {
         this(config, null, connectionUsage, threadNameContext);
     }
 
-    public static JdbcConfiguration addDefaultSettings(JdbcConfiguration configuration, String connectionUsage) {
+    static JdbcConfiguration addDefaultSettings(JdbcConfiguration configuration, String connectionUsage) {
         // we require Postgres 9.4 as the minimum server version since that's where logical replication was first introduced
         return JdbcConfiguration.adapt(configuration.edit()
                 .with("assumeMinServerVersion", "9.4")
