@@ -94,7 +94,7 @@ public abstract class RelationalBaseSourceConnector extends BaseSourceConnector 
                             + ". Increase '" + TASKS_MAX_CONFIG + "' or disable smart snapshot.");
         }
 
-        if (!SnapshotCoordinationFacade.hasCoordinationBootstrap(config)) {
+        if (SnapshotCoordinationFacade.isCoordinationBootstrapMissing(config)) {
             addSmartSnapshotError(results, PRODUCER_BOOTSTRAP_OVERRIDE,
                     "Smart snapshot (" + CommonConnectorConfig.SMART_SNAPSHOT_ENABLED.name()
                             + "=true) requires a coordination bootstrap, but none is configured. Set '" + PRODUCER_BOOTSTRAP_OVERRIDE
