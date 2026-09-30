@@ -146,7 +146,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
     public void rejoinAfterTransactionStartSignalsRestartWithoutSnapshotting() throws Exception {
         when(coordination.isTaskDone(TASK_ID, EPOCH)).thenReturn(false);
         // the task had already started its transaction this epoch -> it may be mid-slice, so a clean round is needed
-        when(coordination.isTaskStartedTransaction(TASK_ID, EPOCH)).thenReturn(true);
+        when(coordination.hasTaskStartedTransaction(TASK_ID, EPOCH)).thenReturn(true);
 
         execute();
 
@@ -160,7 +160,7 @@ public class PostgresSmartSnapshotChangeEventSourceCoordinatorTest {
         // a join marker for this epoch is present, but the task never started its transaction (e.g. it died while
         // waiting for the snapshot). This must NOT force a restart; the task re-runs cleanly at the same epoch.
         when(coordination.readTaskJoinEpoch(TASK_ID)).thenReturn(EPOCH);
-        when(coordination.isTaskStartedTransaction(TASK_ID, EPOCH)).thenReturn(false);
+        when(coordination.hasTaskStartedTransaction(TASK_ID, EPOCH)).thenReturn(false);
         when(coordination.readEpoch()).thenReturn(null);
         when(coordination.readSnapshotInfo(EPOCH)).thenReturn(Collect.hashMapOf(
                 SnapshotCoordinationFacade.SNAPSHOT_NAME, "snap",

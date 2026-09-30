@@ -57,8 +57,8 @@ public class SnapshotCoordinationFacade {
         this.server = server;
     }
 
-    public static boolean hasCoordinationBootstrap(Configuration config) {
-        return KafkaLogSnapshotCoordination.hasBootstrap(config);
+    public static boolean isCoordinationBootstrapMissing(Configuration config) {
+        return !KafkaLogSnapshotCoordination.hasBootstrap(config);
     }
 
     /**
@@ -116,7 +116,6 @@ public class SnapshotCoordinationFacade {
             value.put(TXID, txId);
         }
         value.put(EPOCH, epoch);
-        value.put(NUM_TASKS, numTasks);
         // Publish the explicit per-task slice rather than a flat table list.
         value.put(ASSIGNMENTS, SmartSnapshotTableAssignments.buildAssignments(tables, numTasks));
         write(snapshotInfoKey(), value);
@@ -164,7 +163,7 @@ public class SnapshotCoordinationFacade {
         write(taskStartedTransactionKey(taskId), Collect.hashMapOf(EPOCH, epoch));
     }
 
-    public boolean isTaskStartedTransaction(String taskId, int epoch) {
+    public boolean hasTaskStartedTransaction(String taskId, int epoch) {
         return existsAtEpoch(taskStartedTransactionKey(taskId), epoch);
     }
 
@@ -251,7 +250,7 @@ public class SnapshotCoordinationFacade {
             return null;
         }
 
-        if (!SnapshotCoordinationFacade.hasCoordinationBootstrap(config)) {
+        if (isCoordinationBootstrapMissing(config)) {
             return null;
         }
 
