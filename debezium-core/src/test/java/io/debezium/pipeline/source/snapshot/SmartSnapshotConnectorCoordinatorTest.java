@@ -102,7 +102,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
         coordinator.taskConfigs(2, baseProps()); // numTasks = 2, epoch = 1
         when(facade.anyRestartNeeded(2, 1)).thenReturn(false);
         when(facade.allTasksDone(2, 1)).thenReturn(true);
-        when(facade.readSnapshotInfo()).thenReturn(Collect.hashMapOf(SnapshotCoordinationFacade.CONSISTENT_POINT, "0/16B3748"));
+        when(facade.readSnapshotInfo(1)).thenReturn(Collect.hashMapOf(SnapshotCoordinationFacade.CONSISTENT_POINT, "0/16B3748"));
         // the monitor writes completion; the runtime honors the request by running taskConfigs
         doAnswer(inv -> {
             coordinator.taskConfigs(2, baseProps());
@@ -142,7 +142,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
     }
 
     @Test
-    public void startFreshReadsAndPersistsTheEpochThenRunsMonitor() {
+    public void startAdoptsSavedEpochWithoutRewritingIt() {
         when(connectorContext.offsetStorageReader()).thenReturn(offsetStorageReader);
         when(offsetStorageReader.offset(any())).thenReturn(null);
         when(facade.readSnapshotInfo()).thenReturn(null);
@@ -152,7 +152,8 @@ public class SmartSnapshotConnectorCoordinatorTest {
         coordinator.start();
 
         assertThat(coordinator.isComplete()).isFalse();
-        verify(facade, times(1)).writeEpoch(2); // persistEpoch(readEpoch())
+        // a saved epoch already exists: adopt it, do not rewrite the same value
+        verify(facade, never()).writeEpoch(anyInt());
     }
 
     @Test
@@ -288,7 +289,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
         // start() preconditions: fresh snapshot, saved epoch = 1
         when(connectorContext.offsetStorageReader()).thenReturn(offsetStorageReader);
         when(offsetStorageReader.offset(any())).thenReturn(null);
-        when(facade.readSnapshotInfo()).thenReturn(Collect.hashMapOf(SnapshotCoordinationFacade.CONSISTENT_POINT,
+        when(facade.readSnapshotInfo(anyInt())).thenReturn(Collect.hashMapOf(SnapshotCoordinationFacade.CONSISTENT_POINT,
                 "0/16B3748"));
         when(facade.readCompletion()).thenReturn(null);
         when(facade.readEpoch()).thenReturn(1);
@@ -358,7 +359,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
         coordinator.taskConfigs(2, baseProps()); // epoch = 1, numTasks = 2
         when(facade.anyRestartNeeded(2, 1)).thenReturn(false);
         when(facade.allTasksDone(2, 1)).thenReturn(true);
-        when(facade.readSnapshotInfo()).thenReturn(Collect.hashMapOf(SnapshotCoordinationFacade.CONSISTENT_POINT, "0/16B3748"));
+        when(facade.readSnapshotInfo(1)).thenReturn(Collect.hashMapOf(SnapshotCoordinationFacade.CONSISTENT_POINT, "0/16B3748"));
         doThrow(new RuntimeException("kafka down")).when(connectorContext).requestTaskReconfiguration();
 
         assertThat(coordinator.monitorIteration()).isEqualTo(MonitorAction.STOP); // submit failed -> connector failed
