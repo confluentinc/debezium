@@ -130,9 +130,13 @@ public class SmartSnapshotConnectorCoordinator {
         // On the very first start there is no saved epoch yet; keep the initial value (1).
         Integer savedEpoch = snapshotCoordination.readEpoch();
         if (savedEpoch != null) {
+            // Already established on a previous start; adopt it as-is, no need to rewrite the same value.
             this.currentEpoch.set(savedEpoch);
         }
-        persistEpoch(currentEpoch.get());
+        else {
+            // First start: establish the initial epoch on the coordination topic.
+            persistEpoch(currentEpoch.get());
+        }
 
         startMonitorThread();
     }
@@ -353,12 +357,16 @@ public class SmartSnapshotConnectorCoordinator {
     }
 
     private void writeCompletion() {
-        Map<String, Object> snapshotInfo = snapshotCoordination.readSnapshotInfo();
+        int epoch = currentEpoch.get();
+        // Read the snapshot info for this exact epoch. readSnapshotInfo() (no epoch) returns whatever is latest on the
+        // topic, which could belong to an older round; scoping to the current epoch keeps the completion's consistent
+        // point in step with the epoch it is written under.
+        Map<String, Object> snapshotInfo = snapshotCoordination.readSnapshotInfo(epoch);
         String consistentPoint = snapshotInfo != null ? (String) snapshotInfo.get(SnapshotCoordinationFacade.CONSISTENT_POINT) : null;
         // Let it throw on failure. The caller (handleDownscale) then does NOT mark complete, and the next monitor
         // iteration retries the write. The producer behind this write already retries transient broker errors
         // internally, so a failure reaching here means it is genuinely not going through.
-        snapshotCoordination.writeCompletion(consistentPoint, currentEpoch.get());
+        snapshotCoordination.writeCompletion(consistentPoint, epoch);
     }
 
     private void persistEpoch(int epoch) {

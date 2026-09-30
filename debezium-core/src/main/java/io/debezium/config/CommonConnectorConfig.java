@@ -957,6 +957,17 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
                     + "before failing. Must be larger than the leader join-wait timeout plus snapshot preparation "
                     + "time, so a joined task does not give up before the snapshot is published. Internal, mainly for testing.");
 
+    public static final Field SMART_SNAPSHOT_TASK_SNAPSHOT_INFO_POLL_INTERVAL_MS = Field
+            .createInternal("smart.snapshot.internal.task.snapshot.info.poll.interval.ms")
+            .withDisplayName("Smart snapshot task snapshot-info poll interval (ms)")
+            .withType(Type.LONG)
+            .withWidth(Width.MEDIUM)
+            .withImportance(Importance.LOW)
+            .withDefault(10000L)
+            .withValidation(Field::isPositiveLong)
+            .withDescription("Interval in milliseconds at which a task polls the coordination topic for the snapshot "
+                    + "info published by the leader, up to the task snapshot-info wait timeout. Internal, mainly for testing.");
+
     public static final Field SMART_SNAPSHOT_LEADER_STARTED_TRANSACTION_TIMEOUT_MS = Field
             .createInternal("smart.snapshot.internal.leader.started.transaction.timeout.ms")
             .withDisplayName("Smart snapshot leader started-transaction wait timeout (ms)")
@@ -1508,6 +1519,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
                     SMART_SNAPSHOT_LEADER_STARTED_TRANSACTION_TIMEOUT_MS,
                     SMART_SNAPSHOT_LEADER_POLL_INTERVAL_MS,
                     SMART_SNAPSHOT_TASK_SNAPSHOT_INFO_WAIT_TIMEOUT_MS,
+                    SMART_SNAPSHOT_TASK_SNAPSHOT_INFO_POLL_INTERVAL_MS,
                     SNAPSHOT_MODE_CUSTOM_NAME,
                     SNAPSHOT_MODE_CONFIGURATION_BASED_SNAPSHOT_DATA,
                     SNAPSHOT_MODE_CONFIGURATION_BASED_SNAPSHOT_SCHEMA,
@@ -1572,6 +1584,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
     private final long smartSnapshotLeaderStartedTransactionTimeoutMs;
     private final long smartSnapshotLeaderPollIntervalMs;
     private final long smartSnapshotTaskSnapshotInfoWaitTimeoutMs;
+    private final long smartSnapshotTaskSnapshotInfoPollIntervalMs;
 
     private final String snapshotModeCustomName;
     private final Integer queryFetchSize;
@@ -1628,6 +1641,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
         this.smartSnapshotLeaderStartedTransactionTimeoutMs = config.getLong(SMART_SNAPSHOT_LEADER_STARTED_TRANSACTION_TIMEOUT_MS);
         this.smartSnapshotLeaderPollIntervalMs = config.getLong(SMART_SNAPSHOT_LEADER_POLL_INTERVAL_MS);
         this.smartSnapshotTaskSnapshotInfoWaitTimeoutMs = config.getLong(SMART_SNAPSHOT_TASK_SNAPSHOT_INFO_WAIT_TIMEOUT_MS);
+        this.smartSnapshotTaskSnapshotInfoPollIntervalMs = config.getLong(SMART_SNAPSHOT_TASK_SNAPSHOT_INFO_POLL_INTERVAL_MS);
         this.snapshotModeCustomName = config.getString(SNAPSHOT_MODE_CUSTOM_NAME);
         this.queryFetchSize = config.getInteger(QUERY_FETCH_SIZE);
         this.incrementalSnapshotChunkSize = config.getInteger(INCREMENTAL_SNAPSHOT_CHUNK_SIZE);
@@ -1809,6 +1823,10 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
 
     public long getSmartSnapshotTaskSnapshotInfoWaitTimeoutMs() {
         return smartSnapshotTaskSnapshotInfoWaitTimeoutMs;
+    }
+
+    public long getSmartSnapshotTaskSnapshotInfoPollIntervalMs() {
+        return smartSnapshotTaskSnapshotInfoPollIntervalMs;
     }
 
     public String getSnapshotModeCustomName() {
