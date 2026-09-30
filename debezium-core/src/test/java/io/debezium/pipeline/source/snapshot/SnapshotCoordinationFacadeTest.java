@@ -97,12 +97,12 @@ public class SnapshotCoordinationFacadeTest {
     }
 
     @Test
-    public void isTaskStartedTransactionRequiresMatchingEpoch() {
+    public void hasTaskStartedTransactionRequiresMatchingEpoch() {
         Map<String, String> key = Collect.hashMapOf("server", SERVER, "task", "1", "type", "task_started_transaction");
         when(coordination.read(key)).thenReturn(Collect.hashMapOf("epoch", 9));
 
-        assertThat(facade.isTaskStartedTransaction("1", 9)).isTrue();
-        assertThat(facade.isTaskStartedTransaction("1", 8)).isFalse();
+        assertThat(facade.hasTaskStartedTransaction("1", 9)).isTrue();
+        assertThat(facade.hasTaskStartedTransaction("1", 8)).isFalse();
     }
 
     @Test
@@ -156,7 +156,7 @@ public class SnapshotCoordinationFacadeTest {
     }
 
     @Test
-    public void writeSnapshotInfoStoresNameLsnAssignmentsAndTaskCount() throws Exception {
+    public void writeSnapshotInfoStoresNameLsnAndAssignments() throws Exception {
         List<TableId> tables = List.of(new TableId(null, "public", "a"), new TableId(null, "public", "b"));
 
         facade.writeSnapshotInfo("snap", "0/16B3748", 99L, 4, tables, 2);
@@ -167,7 +167,9 @@ public class SnapshotCoordinationFacadeTest {
                 .containsEntry("consistent_point", "0/16B3748")
                 .containsEntry("txid", 99L)
                 .containsEntry("epoch", 4)
-                .containsEntry("num_tasks", 2)
+                // num_tasks is not stored on the record: readers take the task count from their config, and the
+                // per-task slice below is what the leader publishes for tasks to read.
+                .doesNotContainKey("num_tasks")
                 // explicit per-task slice: task-0 -> [a], task-1 -> [b] after the stable sort + round-robin
                 .containsEntry("assignments", SmartSnapshotTableAssignments.buildAssignments(tables, 2));
     }
