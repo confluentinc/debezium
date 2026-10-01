@@ -524,6 +524,50 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
         }
     }
 
+    /**
+     * The action to take when {@code signal.data.collection.validation.enabled} is true and the
+     * validator finds errors with the configured signal data collection.
+     */
+    public enum SignalDataCollectionValidationAction implements EnumeratedValue {
+        /** Log errors as warnings; do not surface them on the {@code signal.data.collection} ConfigValue. */
+        WARN("warn"),
+
+        /** Surface errors on the {@code signal.data.collection} ConfigValue so connector validate() rejects the config. */
+        FAIL("fail");
+
+        private final String value;
+
+        SignalDataCollectionValidationAction(String value) {
+            this.value = value;
+        }
+
+        @Override
+        public String getValue() {
+            return value;
+        }
+
+        public static SignalDataCollectionValidationAction parse(String value) {
+            if (value == null) {
+                return null;
+            }
+            value = value.trim();
+            for (SignalDataCollectionValidationAction option : values()) {
+                if (option.getValue().equalsIgnoreCase(value)) {
+                    return option;
+                }
+            }
+            return null;
+        }
+
+        public static SignalDataCollectionValidationAction parse(String value, String defaultValue) {
+            SignalDataCollectionValidationAction action = parse(value);
+            if (action == null && defaultValue != null) {
+                action = parse(defaultValue);
+            }
+            return action;
+        }
+    }
+
     public enum EventConvertingFailureHandlingMode implements EnumeratedValue {
         /**
          * Problematic events will be skipped.
@@ -916,6 +960,27 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
             .withWidth(Width.MEDIUM)
             .withImportance(Importance.MEDIUM)
             .withDescription("The name of the data collection that is used to send signals/commands to Debezium. Signaling is disabled when not set.");
+
+    public static final Field SIGNAL_DATA_COLLECTION_VALIDATION_ENABLED = Field.create("signal.data.collection.validation.enabled")
+            .withDisplayName("Signal data collection validation enabled")
+            .withGroup(Field.createGroupEntry(Field.Group.ADVANCED, 24))
+            .withType(Type.BOOLEAN)
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.LOW)
+            .withDefault(false)
+            .withDescription("When enabled, the connector validates the signal data collection's existence and column count at validate time. "
+                    + "Disabled by default to preserve existing behavior.");
+
+    public static final Field SIGNAL_DATA_COLLECTION_VALIDATION_ACTION = Field.create("signal.data.collection.validation.action")
+            .withDisplayName("Signal data collection validation action")
+            .withGroup(Field.createGroupEntry(Field.Group.ADVANCED, 25))
+            .withEnum(SignalDataCollectionValidationAction.class, SignalDataCollectionValidationAction.WARN)
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.LOW)
+            .withDescription("Action to take when 'signal.data.collection.validation.enabled' is true and a validation error is found: "
+                    + "'warn' (the default) logs the errors and lets validate() pass; "
+                    + "'fail' surfaces the errors on the signal.data.collection ConfigValue so connector CREATE/UPDATE is rejected. "
+                    + "Has no effect when validation is disabled.");
 
     public static final Field SIGNAL_POLL_INTERVAL_MS = Field.create("signal.poll.interval.ms")
             .withDisplayName("Signal processor poll interval")
@@ -1450,6 +1515,8 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
                     Heartbeat.HEARTBEAT_INTERVAL,
                     Heartbeat.HEARTBEAT_TOPICS_PREFIX,
                     SIGNAL_DATA_COLLECTION,
+                    SIGNAL_DATA_COLLECTION_VALIDATION_ENABLED,
+                    SIGNAL_DATA_COLLECTION_VALIDATION_ACTION,
                     SIGNAL_POLL_INTERVAL_MS,
                     SIGNAL_ENABLED_CHANNELS,
                     TOPIC_NAMING_STRATEGY,
@@ -1489,6 +1556,8 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
     private final EventConvertingFailureHandlingMode eventConvertingFailureHandlingMode;
     private final String signalingDataCollection;
     private final TableId signalingDataCollectionId;
+    private final boolean signalDataCollectionValidationEnabled;
+    private final SignalDataCollectionValidationAction signalDataCollectionValidationAction;
 
     private final Duration signalPollInterval;
 
@@ -1538,6 +1607,8 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
         this.customConverterRegistry = new CustomConverterRegistry(getCustomConverters());
         this.binaryHandlingMode = BinaryHandlingMode.parse(config.getString(BINARY_HANDLING_MODE));
         this.signalingDataCollection = config.getString(SIGNAL_DATA_COLLECTION);
+        this.signalDataCollectionValidationEnabled = config.getBoolean(SIGNAL_DATA_COLLECTION_VALIDATION_ENABLED);
+        this.signalDataCollectionValidationAction = SignalDataCollectionValidationAction.parse(config.getString(SIGNAL_DATA_COLLECTION_VALIDATION_ACTION));
         this.signalPollInterval = Duration.ofMillis(config.getLong(SIGNAL_POLL_INTERVAL_MS));
         this.signalEnabledChannels = getSignalEnabledChannels(config);
         this.skippedOperations = determineSkippedOperations(config);
@@ -1564,9 +1635,21 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
         this.guardrailCollectionsMax = config.getInteger(GUARDRAIL_COLLECTIONS_MAX);
         this.guardrailCollectionsLimitAction = GuardrailCollectionsLimitAction.parse(config.getString(GUARDRAIL_COLLECTIONS_LIMIT_ACTION));
 
-        this.signalingDataCollectionId = !Strings.isNullOrBlank(this.signalingDataCollection)
-                ? TableId.parse(this.signalingDataCollection)
-                : null;
+        this.signalingDataCollectionId = parseSignalingDataCollection(this.signalingDataCollection);
+    }
+
+    private static TableId parseSignalingDataCollection(String raw) {
+        if (Strings.isNullOrBlank(raw)) {
+            return null;
+        }
+        try {
+            return TableId.parse(raw);
+        }
+        catch (RuntimeException e) {
+            LOGGER.warn("[signal.data.collection.validation] signal.data.collection '{}' could not be parsed as a table identifier ({}).",
+                    raw, e.getMessage());
+            throw e;
+        }
     }
 
     private static List<String> getSignalEnabledChannels(Configuration config) {
@@ -2060,6 +2143,14 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
 
     public String getSignalingDataCollectionId() {
         return signalingDataCollection;
+    }
+
+    public boolean isSignalDataCollectionValidationEnabled() {
+        return signalDataCollectionValidationEnabled;
+    }
+
+    public SignalDataCollectionValidationAction getSignalDataCollectionValidationAction() {
+        return signalDataCollectionValidationAction;
     }
 
     public Duration getSignalPollInterval() {

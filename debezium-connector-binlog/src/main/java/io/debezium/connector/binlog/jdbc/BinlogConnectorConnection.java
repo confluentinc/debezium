@@ -191,6 +191,23 @@ public abstract class BinlogConnectorConnection extends JdbcConnection {
     }
 
     /**
+     * MySQL/MariaDB parses {@code signal.data.collection} as {@code database.table} (catalog-first)
+     * and normalises the identifier to lowercase when the server is case-insensitive (see
+     * {@link #isTableIdCaseSensitive()}), matching how the rest of the binlog connector treats
+     * table identifiers.
+     */
+    @Override
+    protected TableId resolveSignalDataCollectionTableId(String raw) throws SQLException {
+        TableId parsed = TableId.parse(raw, true);
+        if (!isTableIdCaseSensitive()) {
+            parsed = parsed.toLowercase();
+        }
+        final Set<TableId> matches = readTableNames(
+                parsed.catalog(), null, parsed.table(), new String[]{ "TABLE" });
+        return matches.isEmpty() ? null : matches.iterator().next();
+    }
+
+    /**
      * Get the estimated table size, aka number of rows.
      *
      * @param tableId the table identifier; should never be null
