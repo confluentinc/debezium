@@ -5,6 +5,8 @@
  */
 package io.debezium.data.vector;
 
+import static io.debezium.util.Loggings.maybeRedactSensitiveData;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -16,8 +18,6 @@ import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static io.debezium.util.Loggings.maybeRedactSensitiveData;
 
 public final class Vectors {
     private static final String SPARSE_VECTOR_ERROR = "Cannot convert sparse vector {}, expected format is {i1:x,i2:y,i3:z,...}/dimensions";
