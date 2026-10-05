@@ -38,8 +38,7 @@ public class AwsChainedAssumeRoleMongoDbCredsProviderTest {
         Configuration config = Configuration.from(Map.of("key1", "value1", "key2", "value2"));
 
         // Intercept the constructor call to verify configure() is called
-        try (MockedConstruction<ChainedAssumeRoleCredentialsProvider> mocked =
-                     Mockito.mockConstruction(ChainedAssumeRoleCredentialsProvider.class)) {
+        try (MockedConstruction<ChainedAssumeRoleCredentialsProvider> mocked = Mockito.mockConstruction(ChainedAssumeRoleCredentialsProvider.class)) {
 
             AwsChainedAssumeRoleMongoDbCredsProvider provider = new AwsChainedAssumeRoleMongoDbCredsProvider();
             provider.init(config);

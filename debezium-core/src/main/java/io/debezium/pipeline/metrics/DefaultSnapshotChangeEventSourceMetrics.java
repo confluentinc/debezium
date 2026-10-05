@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
 import io.debezium.annotation.ThreadSafe;
+import io.debezium.config.CommonConnectorConfig;
 import io.debezium.connector.base.ChangeEventQueueMetrics;
 import io.debezium.connector.common.CdcSourceTaskContext;
 import io.debezium.pipeline.meters.SnapshotMeter;
@@ -34,8 +35,10 @@ public class DefaultSnapshotChangeEventSourceMetrics<P extends Partition> extend
                                                                                     EventMetadataProvider metadataProvider,
                                                                                     TaskStateMetrics taskStateMetrics) {
         super(taskContext, "snapshot", changeEventQueueMetrics, metadataProvider);
+        CommonConnectorConfig config = taskContext.getConfig();
+        snapshotMeter = new SnapshotMeter(taskContext.getClock(), taskStateMetrics,
+                config.isSmartSnapshotEnabled(), config.getDndDelayMs());
         this.taskStateMetrics = taskStateMetrics;
-        snapshotMeter = new SnapshotMeter(taskContext.getClock());
     }
 
     public <T extends CdcSourceTaskContext> DefaultSnapshotChangeEventSourceMetrics(T taskContext,
@@ -44,8 +47,10 @@ public class DefaultSnapshotChangeEventSourceMetrics<P extends Partition> extend
                                                                                     Map<String, String> tags,
                                                                                     TaskStateMetrics taskStateMetrics) {
         super(taskContext, changeEventQueueMetrics, metadataProvider, tags);
+        CommonConnectorConfig config = taskContext.getConfig();
+        snapshotMeter = new SnapshotMeter(taskContext.getClock(), taskStateMetrics,
+                config.isSmartSnapshotEnabled(), config.getDndDelayMs());
         this.taskStateMetrics = taskStateMetrics;
-        snapshotMeter = new SnapshotMeter(taskContext.getClock());
     }
 
     @Override
@@ -187,6 +192,6 @@ public class DefaultSnapshotChangeEventSourceMetrics<P extends Partition> extend
     public void reset() {
         super.reset();
         snapshotMeter.reset();
-        taskStateMetrics.reset();
+        taskStateMetrics.clearDnd();
     }
 }
