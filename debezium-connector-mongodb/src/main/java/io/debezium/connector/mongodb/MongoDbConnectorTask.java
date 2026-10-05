@@ -19,6 +19,8 @@ import org.apache.kafka.connect.source.SourceRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.mongodb.client.MongoClient;
+
 import io.debezium.DebeziumException;
 import io.debezium.annotation.ThreadSafe;
 import io.debezium.bean.StandardBeanNames;
@@ -87,6 +89,8 @@ public final class MongoDbConnectorTask extends BaseSourceTask<MongoDbPartition,
         this.taskName = "task" + config.getInteger(MongoDbConnectorConfig.TASK_ID);
         this.taskContext = new MongoDbTaskContext(config);
         this.connectionContext = new MongoDbConnectionContext(config);
+
+        validateSignalDataCollection(connectorConfig);
 
         final Schema structSchema = connectorConfig.getSourceInfoStructMaker().schema();
         this.schema = new MongoDbSchema(connectorConfig, taskContext.getFilters(), taskContext.getTopicNamingStrategy(), structSchema, schemaNameAdjuster);
@@ -352,6 +356,16 @@ public final class MongoDbConnectorTask extends BaseSourceTask<MongoDbPartition,
         catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new DebeziumException("Interrupted while validating guardrail limits", e);
+        }
+    }
+
+    private void validateSignalDataCollection(MongoDbConnectorConfig connectorConfig) {
+        try (MongoClient client = connectionContext.getMongoClient()) {
+            SignalDataCollectionValidationResult result = SignalDataCollectionValidator.validate(client,
+                    SignalDataCollectionValidationRequest.forConnector(connectorConfig));
+            if (!result.isValid()) {
+                LOGGER.warn("[signal.data.collection.validation] {}", String.join("; ", result.errors()));
+            }
         }
     }
 }
