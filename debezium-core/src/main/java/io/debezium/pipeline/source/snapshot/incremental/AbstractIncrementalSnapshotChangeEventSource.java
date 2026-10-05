@@ -256,12 +256,20 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
             return;
         }
         try {
-            preReadChunk(context);
-            // This commit should be unnecessary and might be removed later
-            jdbcConnection.commit();
-            context.startNewChunk();
-            emitWindowOpen();
-            LOGGER.trace("Window open emitted");
+            if (context.consumePreFlightOpenedWindow()) {
+                // The pre-flight check in addDataCollectionNamesToSnapshot has already done
+                // preReadChunk + commit + startNewChunk + emitWindowOpen for the first chunk;
+                // reuse that chunk ID and open watermark instead of producing a second pair.
+                LOGGER.trace("Reusing pre-flight opened window for chunk '{}'", context.currentChunkId());
+            }
+            else {
+                preReadChunk(context);
+                // This commit should be unnecessary and might be removed later
+                jdbcConnection.commit();
+                context.startNewChunk();
+                emitWindowOpen();
+                LOGGER.trace("Window open emitted");
+            }
             while (context.snapshotRunning()) {
 
                 LOGGER.trace("Checking if current table is invalid");
@@ -473,6 +481,43 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
         LOGGER.trace("Expanded data collections {}", expandedDataCollectionIds);
         if (expandedDataCollectionIds.size() > snapshotConfiguration.getDataCollections().size()) {
             LOGGER.info("Data-collections to snapshot have been expanded from {} to {}", snapshotConfiguration.getDataCollections(), expandedDataCollectionIds);
+        }
+
+        // Pre-flight check: only for fresh signals (not for signals arriving mid-snapshot, where a
+        // window is already in flight and writing a probe would clobber the active chunk).
+        // We do the real first emitWindowOpen here, before mutating any state. If it fails, we
+        // reject the signal cleanly — no queue mutation, no snapshot-running metric flip, no
+        // correlation-ID stored, no STARTED notification, no offset commit carrying orphan state.
+        // If it succeeds, we mark the flag so the first readChunk skips its own startNewChunk +
+        // emitWindowOpen pair and reuses the chunk we just opened.
+        if (shouldReadChunk) {
+            try {
+                preReadChunk(context);
+                // Defensive commit, matches readChunk()'s pattern
+                jdbcConnection.commit();
+                context.startNewChunk();
+                emitWindowOpen();
+                LOGGER.trace("Pre-flight window open emitted for signal {}", correlationId);
+            }
+            catch (Exception e) {
+                // Rollback pre-flight side effects: drop the minted chunk ID so any stale open
+                // bookmark arriving via CDC later is rejected by notExpectedChunk, and run
+                // postReadChunk so connector-specific session state (e.g., Oracle PDB session) is
+                // reset cleanly.
+                context.resetChunkId();
+                try {
+                    postReadChunk(context);
+                }
+                catch (Exception cleanupEx) {
+                    LOGGER.debug("postReadChunk during pre-flight rollback threw", cleanupEx);
+                }
+                LOGGER.warn(
+                        "Signal '{}' for incremental snapshot was rejected: pre-flight signal-table write failed. "
+                                + "No state was mutated; fix the underlying issue and re-issue the signal.",
+                        correlationId, e);
+                return;
+            }
+            context.markPreFlightOpenedWindow();
         }
 
         final List<DataCollection<T>> newDataCollectionIds = context.addDataCollectionNamesToSnapshot(correlationId, expandedDataCollectionIds,
