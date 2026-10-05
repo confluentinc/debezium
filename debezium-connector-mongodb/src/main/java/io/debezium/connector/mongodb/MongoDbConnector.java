@@ -105,12 +105,12 @@ public class MongoDbConnector extends BaseSourceConnector {
 
         // Validate connection when connection string is otherwise valid
         if (csValidation.errorMessages().isEmpty()) {
-            validateConnection(config, csValidation);
+            validateConnection(config, csValidation, validation.get(MongoDbConnectorConfig.SIGNAL_DATA_COLLECTION.name()));
         }
         return new Config(new ArrayList<>(validation.values()));
     }
 
-    public void validateConnection(Configuration config, ConfigValue connectionStringValidation) {
+    public void validateConnection(Configuration config, ConfigValue connectionStringValidation, ConfigValue signalDataCollectionValidation) {
         // Shard specific parameters shouldn't be set after RS connection mode removal
         if (config.hasKey(DEPRECATED_SHARD_CS_PARAMS_FILED)) {
             LOGGER.warn("Field '{}' is deprecated. Use only '{}' to set connection parameters", DEPRECATED_SHARD_CS_PARAMS_FILED,
@@ -136,6 +136,9 @@ public class MongoDbConnector extends BaseSourceConnector {
                     // Check base connection by accessing first database name
                     try (MongoClient client = connectionContext.getMongoClient()) {
                         client.listDatabaseNames().first(); // only when we try to fetch results a connection gets established
+                        SignalDataCollectionValidationResult signalResult = SignalDataCollectionValidator.validate(client,
+                                SignalDataCollectionValidationRequest.forConnector(connectorConfig));
+                        signalResult.errors().forEach(signalDataCollectionValidation::addErrorMessage);
                     }
 
                     // For RS clusters check that replica set name is present

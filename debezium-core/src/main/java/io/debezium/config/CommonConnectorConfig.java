@@ -917,6 +917,16 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
             .withImportance(Importance.MEDIUM)
             .withDescription("The name of the data collection that is used to send signals/commands to Debezium. Signaling is disabled when not set.");
 
+    public static final Field SIGNAL_DATA_COLLECTION_VALIDATION_ENABLED = Field.create("signal.data.collection.validation.enabled")
+            .withDisplayName("Signal data collection validation enabled")
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTOR_ADVANCED))
+            .withType(Type.BOOLEAN)
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.LOW)
+            .withDefault(false)
+            .withDescription("Enables validate-time checks on 'signal.data.collection': existence, accepted shape, "
+                    + "and (where applicable) effective column count.");
+
     public static final Field SIGNAL_POLL_INTERVAL_MS = Field.create("signal.poll.interval.ms")
             .withDisplayName("Signal processor poll interval")
             .withGroup(Field.createGroupEntry(Field.Group.ADVANCED, 21))
@@ -1450,6 +1460,7 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
                     Heartbeat.HEARTBEAT_INTERVAL,
                     Heartbeat.HEARTBEAT_TOPICS_PREFIX,
                     SIGNAL_DATA_COLLECTION,
+                    SIGNAL_DATA_COLLECTION_VALIDATION_ENABLED,
                     SIGNAL_POLL_INTERVAL_MS,
                     SIGNAL_ENABLED_CHANNELS,
                     TOPIC_NAMING_STRATEGY,
@@ -2060,6 +2071,10 @@ public abstract class CommonConnectorConfig extends AbstractConfig {
 
     public String getSignalingDataCollectionId() {
         return signalingDataCollection;
+    }
+
+    public boolean isSignalDataCollectionValidationEnabled() {
+        return config.getBoolean(SIGNAL_DATA_COLLECTION_VALIDATION_ENABLED);
     }
 
     public Duration getSignalPollInterval() {
