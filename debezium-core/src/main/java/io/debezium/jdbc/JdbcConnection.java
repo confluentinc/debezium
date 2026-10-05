@@ -1150,6 +1150,17 @@ public class JdbcConnection implements AutoCloseable {
         return tableIds;
     }
 
+    public List<String> getColumnNames(TableId tableId) throws SQLException {
+        DatabaseMetaData metadata = connection().getMetaData();
+        try (ResultSet rs = metadata.getColumns(tableId.catalog(), tableId.schema(), tableId.table(), null)) {
+            List<String> columnNames = new ArrayList<>();
+            while (rs.next()) {
+                columnNames.add(rs.getString(4));
+            }
+            return columnNames;
+        }
+    }
+
     /**
      * Returns a JDBC connection string using the current configuration and url.
      *
