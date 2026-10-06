@@ -10,7 +10,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -56,8 +55,9 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
 
     private final KafkaBasedLog<String, String> log;
     private final TopicAdmin topicAdmin;
-    private final ObjectMapper mapper = new ObjectMapper();
-    private final ObjectMapper keyMapper = new ObjectMapper().configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
+    // ORDER_MAP_ENTRIES_BY_KEYS makes serialization deterministic: a coordination key always encodes to the same JSON
+    // string, so log compaction can collapse updates for that key onto a single record. It is harmless for values.
+    private final ObjectMapper mapper = new ObjectMapper().configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
 
     // bootstrap + security (SASL/SSL) for the producer/consumer, from producer.override.*
     private final Map<String, Object> clientConfig;
@@ -73,17 +73,13 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
     private final Map<Map<String, String>, Map<String, Object>> cache = new ConcurrentHashMap<>();
 
     private final String topicName;
-    private final String clientIdSuffix;
-    private final boolean shouldCreateTopic;
+    // Base client id shared by the coordination producer and consumer, following the schema-history convention where a
+    // single name identifies the store; the one-off admin clients derive from it with a role suffix (see adminConfig).
+    private final String coordinationName;
 
     public KafkaLogSnapshotCoordination(Configuration configuration, CommonConnectorConfig commonConnectorConfig) {
-        this(configuration, commonConnectorConfig, true);
-    }
-
-    public KafkaLogSnapshotCoordination(Configuration configuration, CommonConnectorConfig commonConnectorConfig, boolean shouldCreateTopic) {
         this.topicName = commonConnectorConfig.getLogicalName() + "." + SNAPSHOT_COORDINATION_PREFIX;
-        this.clientIdSuffix = commonConnectorConfig.getLogicalName() + "-coordination-connector";
-        this.shouldCreateTopic = shouldCreateTopic;
+        this.coordinationName = commonConnectorConfig.getLogicalName() + "-snapshot-coordination";
         this.clientConfig = new HashMap<>(clientConfigFromOverrides(configuration, PRODUCER_OVERRIDE_PREFIX));
         // Admin client uses admin.override.* to match how Kafka Connect creates the connector's output topics.
         // TODO confirm admin.override.* (especially bootstrap.servers) is populated in Confluent Cloud for the
@@ -95,17 +91,14 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
         producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
         producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
         producerProps.put(ProducerConfig.ACKS_CONFIG, "all");
-        producerProps.put(ProducerConfig.CLIENT_ID_CONFIG, SNAPSHOT_COORDINATION_PREFIX + "-producer-" + clientIdSuffix);
+        producerProps.put(ProducerConfig.CLIENT_ID_CONFIG, coordinationName);
 
         Map<String, Object> consumerProps = new HashMap<>(clientConfig);
         consumerProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
-        consumerProps.put(ConsumerConfig.CLIENT_ID_CONFIG, SNAPSHOT_COORDINATION_PREFIX + "-consumer-" + clientIdSuffix);
+        consumerProps.put(ConsumerConfig.CLIENT_ID_CONFIG, coordinationName);
 
-        Map<String, Object> adminProps = new HashMap<>(adminClientConfig);
-        adminProps.put(AdminClientConfig.CLIENT_ID_CONFIG, SNAPSHOT_COORDINATION_PREFIX + "-admin-" + clientIdSuffix);
-
-        this.topicAdmin = new TopicAdmin(adminProps);
+        this.topicAdmin = new TopicAdmin(adminConfig(coordinationName + "-admin"));
         this.log = new KafkaBasedLog<>(
                 topicName, producerProps, consumerProps,
                 () -> topicAdmin,
@@ -116,7 +109,7 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
     }
 
     private String encodeKey(Map<String, String> key) throws Exception {
-        return keyMapper.writeValueAsString(new TreeMap<>(key));
+        return mapper.writeValueAsString(key);
     }
 
     @Override
@@ -124,7 +117,7 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
         if (started) {
             return true;
         }
-        if (shouldCreateTopic) {
+        if (policy == MissingTopicPolicy.CREATE_IF_MISSING) {
             // connector only: provision the topic before tailing it
             createTopic(topicName);
         }
@@ -218,6 +211,7 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
             });
         }
         catch (IOException e) {
+            LOGGER.error(SmartSnapshotLogging.COORDINATION + " Failed to parse coordination key '{}'", record.key(), e);
             throw new DebeziumException(SmartSnapshotLogging.COORDINATION + " Failed to parse coordination key", e);
         }
         if (record.value() == null) { // tombstone
@@ -230,14 +224,23 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
             cache.put(key, data);
         }
         catch (IOException e) {
+            LOGGER.error(SmartSnapshotLogging.COORDINATION + " Failed to parse coordination value for key {}", key, e);
             throw new DebeziumException(SmartSnapshotLogging.COORDINATION + " Failed to parse coordination value", e);
         }
     }
 
-    private boolean topicExists() {
+    /**
+     * Admin client config for a one-off admin operation: the shared admin overrides plus a role-specific client id.
+     */
+    private Map<String, Object> adminConfig(String clientId) {
         Map<String, Object> adminConfig = new HashMap<>(adminClientConfig);
-        adminConfig.put(AdminClientConfig.CLIENT_ID_CONFIG, SNAPSHOT_COORDINATION_PREFIX + "-exists-check-" + clientIdSuffix);
-        adminConfig.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, 5000);
+        adminConfig.put(AdminClientConfig.CLIENT_ID_CONFIG, clientId);
+        return adminConfig;
+    }
+
+    private boolean topicExists() {
+        Map<String, Object> adminConfig = adminConfig(coordinationName + "-topic-check");
+        // Bound the whole describeTopics call (across internal retries); the get() below is only a backstop.
         adminConfig.put(AdminClientConfig.DEFAULT_API_TIMEOUT_MS_CONFIG, 5000);
         try (AdminClient admin = AdminClient.create(adminConfig)) {
             admin.describeTopics(Collections.singleton(topicName)).allTopicNames().get(5, TimeUnit.SECONDS);
@@ -267,10 +270,7 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
      * {@link TopicExistsException} as success, so it is safe to call whenever the connector starts.
      */
     private void createTopic(String topicName) {
-        Map<String, Object> adminConfig = new HashMap<>(adminClientConfig);
-        adminConfig.put(AdminClientConfig.CLIENT_ID_CONFIG, SNAPSHOT_COORDINATION_PREFIX + "-create-" + clientIdSuffix);
-
-        try (AdminClient admin = AdminClient.create(adminConfig)) {
+        try (AdminClient admin = AdminClient.create(adminConfig(coordinationName + "-topic-create"))) {
             // Omit the replication factor so the broker default applies, rather than forcing an unsafe RF=1.
             NewTopic topic = new NewTopic(topicName, Optional.of(PARTITION_COUNT), Optional.<Short> empty());
             // Compaction keeps only the latest value per key, same as Kafka Connect's own connect-configs topic.
@@ -280,16 +280,15 @@ public class KafkaLogSnapshotCoordination implements SnapshotCoordination {
             result.all().get(30, TimeUnit.SECONDS);
             LOGGER.info(SmartSnapshotLogging.COORDINATION + " Snapshot coordination topic '{}' created", topicName);
         }
-        catch (ExecutionException e) {
-            if (e.getCause() instanceof TopicExistsException) {
+        catch (Exception e) {
+            // createTopics reports an existing topic as TopicExistsException, wrapped in ExecutionException from get();
+            // treat that as success so start() is safe to call on every connector start.
+            if (e instanceof ExecutionException && e.getCause() instanceof TopicExistsException) {
                 LOGGER.info(SmartSnapshotLogging.COORDINATION + " Snapshot coordination topic '{}' already exists", topicName);
             }
             else {
                 throw new DebeziumException(SmartSnapshotLogging.COORDINATION + " Failed to create snapshot coordination topic '" + topicName + "'", e);
             }
-        }
-        catch (Exception e) {
-            throw new DebeziumException(SmartSnapshotLogging.COORDINATION + " Failed to create snapshot coordination topic '" + topicName + "'", e);
         }
     }
 

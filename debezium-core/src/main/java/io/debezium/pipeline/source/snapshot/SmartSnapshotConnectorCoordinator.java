@@ -114,7 +114,7 @@ public class SmartSnapshotConnectorCoordinator {
             return;
         }
 
-        snapshotCoordination.start(SnapshotCoordination.MissingTopicPolicy.ASSUME_EXISTS);
+        snapshotCoordination.start(SnapshotCoordination.MissingTopicPolicy.CREATE_IF_MISSING);
 
         Map<String, Object> completionInfo = snapshotCoordination.readCompletion();
         if (completionInfo != null) {
