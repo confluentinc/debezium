@@ -61,16 +61,6 @@ public class SnapshotCoordinationFacade {
         return !KafkaLogSnapshotCoordination.hasBootstrap(config);
     }
 
-    /**
-     * Facade that does NOT create the coordination topic. Used by tasks (which fail fast if the topic is missing)
-     * and by read-only callers. Only the connector creates the topic.
-     */
-    public static SnapshotCoordinationFacade nonCreating(Configuration config, CommonConnectorConfig connectorConfig) {
-        return new SnapshotCoordinationFacade(
-                new KafkaLogSnapshotCoordination(config, connectorConfig, false),
-                connectorConfig.getLogicalName());
-    }
-
     public boolean start(SnapshotCoordination.MissingTopicPolicy policy) {
         return coordination.start(policy);
     }
@@ -254,7 +244,7 @@ public class SnapshotCoordinationFacade {
             return null;
         }
 
-        SnapshotCoordinationFacade facade = SnapshotCoordinationFacade.nonCreating(config, connectorConfig);
+        SnapshotCoordinationFacade facade = new SnapshotCoordinationFacade(config, connectorConfig);
 
         try {
             if (!facade.start(SnapshotCoordination.MissingTopicPolicy.SKIP)) {
