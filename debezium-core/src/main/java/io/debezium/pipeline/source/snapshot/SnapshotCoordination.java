@@ -50,7 +50,12 @@ public interface SnapshotCoordination {
     enum MissingTopicPolicy {
 
         /**
-         * Assume the topic exists and just start. Used by the connector, which creates the topic itself.
+         * Create the topic if it is missing, then start. Used by the connector, which owns topic provisioning.
+         */
+        CREATE_IF_MISSING,
+
+        /**
+         * Assume the topic exists and just start, without checking or creating it.
          */
         ASSUME_EXISTS,
 

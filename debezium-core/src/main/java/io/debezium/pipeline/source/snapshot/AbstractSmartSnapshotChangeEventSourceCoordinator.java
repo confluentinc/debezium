@@ -151,11 +151,12 @@ public abstract class AbstractSmartSnapshotChangeEventSourceCoordinator<P extend
 
     /**
      * Creates the task-side coordination facade. Called once, on the executor thread, at the start of
-     * {@link #executeChangeEventSources}. Non-creating: tasks never create the coordination topic, the connector
-     * provisions it. Visible for testing, so a test can hand in a mock instead of a Kafka-backed facade.
+     * {@link #executeChangeEventSources}. Tasks never create the coordination topic (they start with
+     * {@code FAIL}); the connector provisions it. Visible for testing, so a test can hand in a mock instead of a
+     * Kafka-backed facade.
      */
     protected SnapshotCoordinationFacade createCoordination() {
-        return SnapshotCoordinationFacade.nonCreating(config, connectorConfig);
+        return new SnapshotCoordinationFacade(config, connectorConfig);
     }
 
     private void stopCoordination() {
