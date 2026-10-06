@@ -18,7 +18,6 @@ import javax.management.MBeanServer;
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
 
-import org.apache.kafka.common.utils.Sanitizer;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +28,7 @@ import io.debezium.connector.common.CdcSourceTaskContext;
 import io.debezium.util.Clock;
 import io.debezium.util.Collect;
 import io.debezium.util.Metronome;
+import io.debezium.util.Sanitizer;
 
 /**
  * Base for metrics implementations.
