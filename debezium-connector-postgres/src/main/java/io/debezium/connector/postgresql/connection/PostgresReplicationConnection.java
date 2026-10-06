@@ -119,7 +119,7 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
                                           TypeRegistry typeRegistry,
                                           Properties streamParams,
                                           PostgresSchema schema) {
-        super(addDefaultSettings(config.getJdbcConfig()), PostgresConnection.FACTORY, "\"", "\"", ThreadNameContext.from(config));
+        super(addDefaultSettings(config), PostgresConnection.FACTORY, "\"", "\"", ThreadNameContext.from(config));
 
         this.connectorConfig = config;
         this.slotName = slotName;
@@ -137,16 +137,50 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
         this.slotCreationInfo = null;
         this.hasInitedSlot = false;
         this.replicaIdentityMapper = config.replicaIdentityMapper();
+
+        validateWalSenderTimeoutServerVersion();
     }
 
-    private static JdbcConfiguration addDefaultSettings(JdbcConfiguration configuration) {
+    private static JdbcConfiguration addDefaultSettings(PostgresConnectorConfig connectorConfig) {
         // first copy the parent's default settings...
         // then set some additional replication specific settings
-        return JdbcConfiguration.adapt(PostgresConnection.addDefaultSettings(configuration, PostgresConnection.CONNECTION_STREAMING)
+        var builder = PostgresConnection.addDefaultSettings(connectorConfig.getJdbcConfig(), PostgresConnection.CONNECTION_STREAMING)
                 .edit()
                 .with("replication", "database")
-                .with("preferQueryMode", "simple") // replication protocol only supports simple query mode
-                .build());
+                .with("preferQueryMode", "simple"); // replication protocol only supports simple query mode
+
+        final Integer walSenderTimeout = connectorConfig.walSenderTimeout();
+        if (walSenderTimeout != null) {
+            // Apply 'wal_sender_timeout' to this replication session only, via the libpq startup 'options' parameter.
+            // This is a per-session (USERSET) override available from PostgreSQL 12; it does not change the server-wide
+            // value or affect any other connection. The server version is validated in the constructor before the
+            // replication connection is opened, so an unsupported (<12) server fails with a clear error.
+            builder = builder.with("options", "-c wal_sender_timeout=" + walSenderTimeout);
+        }
+        return JdbcConfiguration.adapt(builder.build());
+    }
+
+    /**
+     * When {@code wal.sender.timeout.ms} is configured, ensure the server supports setting {@code wal_sender_timeout}
+     * per session (PostgreSQL 12+). On older servers the parameter is only reloadable server-wide, so sending it on the
+     * replication connection would fail; we reject it up front with an actionable message. The check runs against the
+     * already-established regular JDBC connection, so it does not open the replication connection with an invalid option.
+     */
+    private void validateWalSenderTimeoutServerVersion() {
+        if (connectorConfig.walSenderTimeout() == null) {
+            return;
+        }
+        try {
+            if (!((BaseConnection) jdbcConnection.connection()).haveMinimumServerVersion(ServerVersion.v12)) {
+                throw new DebeziumException("Configuration property '" + PostgresConnectorConfig.WAL_SENDER_TIMEOUT_MS.name()
+                        + "' requires PostgreSQL 12 or later, because 'wal_sender_timeout' can only be set per session from that "
+                        + "version. Remove the property to use the server-side value, or upgrade the PostgreSQL server.");
+            }
+        }
+        catch (SQLException e) {
+            throw new DebeziumException("Could not determine the PostgreSQL server version while validating '"
+                    + PostgresConnectorConfig.WAL_SENDER_TIMEOUT_MS.name() + "'", e);
+        }
     }
 
     private ServerInfo.ReplicationSlot getSlotInfo() throws SQLException, InterruptedException {

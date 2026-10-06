@@ -6,6 +6,7 @@
 
 package io.debezium.connector.postgresql.connection;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -83,6 +84,46 @@ public class ReplicationConnectionIT {
             ReplicationStream stream = connection.startStreaming(new WalPositionLocator());
             assertNull(stream.lastReceivedLsn());
             stream.close();
+        }
+    }
+
+    @Test
+    public void shouldApplyConfiguredWalSenderTimeoutToReplicationSession() throws Exception {
+        final PostgresConnectorConfig config = new PostgresConnectorConfig(TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.STATUS_UPDATE_INTERVAL_MS, 2000)
+                .with(PostgresConnectorConfig.WAL_SENDER_TIMEOUT_MS, 20000)
+                .build());
+        try (ReplicationConnection connection = TestHelper.createForReplication("wal_timeout_slot", true, config)) {
+            // open the replication connection (creates the slot) without starting the COPY stream, so we can query it
+            connection.initConnection();
+            final String sessionValue = ((PostgresReplicationConnection) connection)
+                    .queryAndMap("SHOW wal_sender_timeout", rs -> {
+                        rs.next();
+                        return rs.getString(1);
+                    });
+            // 20000 ms is reported by Postgres as "20s" and must be scoped to this session only
+            assertEquals("20s", sessionValue);
+        }
+    }
+
+    @Test
+    public void shouldNotChangeWalSenderTimeoutWhenNotConfigured() throws Exception {
+        final String serverDefault;
+        try (PostgresConnection admin = TestHelper.create()) {
+            serverDefault = admin.queryAndMap("SHOW wal_sender_timeout", rs -> {
+                rs.next();
+                return rs.getString(1);
+            });
+        }
+        // default config does not set wal.sender.timeout.ms -> the replication session must inherit the server value
+        try (ReplicationConnection connection = TestHelper.createForReplication("wal_timeout_default_slot", true)) {
+            connection.initConnection();
+            final String sessionValue = ((PostgresReplicationConnection) connection)
+                    .queryAndMap("SHOW wal_sender_timeout", rs -> {
+                        rs.next();
+                        return rs.getString(1);
+                    });
+            assertEquals(serverDefault, sessionValue);
         }
     }
 
