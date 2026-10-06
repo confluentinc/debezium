@@ -83,13 +83,13 @@ public class KafkaLogSnapshotCoordinationTest {
     private KafkaLogSnapshotCoordination newCoordination() {
         KafkaLogSnapshotCoordination coordination = new KafkaLogSnapshotCoordination(config, connectorConfig);
         started.add(coordination);
-        coordination.start(SnapshotCoordination.MissingTopicPolicy.ASSUME_EXISTS);
+        coordination.start(SnapshotCoordination.MissingTopicPolicy.CREATE_IF_MISSING);
         return coordination;
     }
 
-    // Non-creating instance (shouldCreateTopic=false), like a task: it must never create the coordination topic itself.
+    // Task-style instance: it starts with FAIL/SKIP/ASSUME_EXISTS, so it must never create the coordination topic itself.
     private KafkaLogSnapshotCoordination newNonCreatingCoordination() {
-        KafkaLogSnapshotCoordination coordination = new KafkaLogSnapshotCoordination(config, connectorConfig, false);
+        KafkaLogSnapshotCoordination coordination = new KafkaLogSnapshotCoordination(config, connectorConfig);
         started.add(coordination);
         return coordination;
     }
