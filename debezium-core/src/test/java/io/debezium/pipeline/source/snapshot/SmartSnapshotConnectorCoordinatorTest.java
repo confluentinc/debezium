@@ -138,7 +138,7 @@ public class SmartSnapshotConnectorCoordinatorTest {
         coordinator.start();
 
         assertThat(coordinator.isComplete()).isTrue();
-        verify(facade).start(SnapshotCoordination.MissingTopicPolicy.ASSUME_EXISTS);
+        verify(facade).start(SnapshotCoordination.MissingTopicPolicy.CREATE_IF_MISSING);
     }
 
     @Test
