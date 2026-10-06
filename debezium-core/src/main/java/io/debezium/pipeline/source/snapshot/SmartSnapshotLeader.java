@@ -84,7 +84,7 @@ public class SmartSnapshotLeader implements Runnable {
      * Visible for testing, so a test can hand in a mock instead of a Kafka-backed facade.
      */
     SnapshotCoordinationFacade createCoordination() {
-        return SnapshotCoordinationFacade.nonCreating(config, connectorConfig);
+        return new SnapshotCoordinationFacade(config, connectorConfig);
     }
 
     @Override
