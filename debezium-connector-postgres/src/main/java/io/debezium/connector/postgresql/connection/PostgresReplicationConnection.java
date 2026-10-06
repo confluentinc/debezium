@@ -155,7 +155,12 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
             // This is a per-session (USERSET) override available from PostgreSQL 12; it does not change the server-wide
             // value or affect any other connection. The server version is validated in the constructor before the
             // replication connection is opened, so an unsupported (<12) server fails with a clear error.
-            builder = builder.with("options", "-c wal_sender_timeout=" + walSenderTimeout);
+            // Append rather than replace so any user-supplied 'database.options' (already present as the 'options'
+            // JDBC property via the database.* subset) is preserved on the replication connection.
+            final String walSenderOption = "-c wal_sender_timeout=" + walSenderTimeout;
+            final String existingOptions = connectorConfig.getJdbcConfig().getString("options");
+            builder = builder.with("options",
+                    (existingOptions == null || existingOptions.isBlank()) ? walSenderOption : existingOptions + " " + walSenderOption);
         }
         return JdbcConfiguration.adapt(builder.build());
     }

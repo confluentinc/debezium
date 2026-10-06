@@ -89,6 +89,15 @@ public class ReplicationConnectionIT {
 
     @Test
     public void shouldApplyConfiguredWalSenderTimeoutToReplicationSession() throws Exception {
+        // the server-wide value must be left untouched; capture it to prove the override is session-scoped
+        final String serverDefault;
+        try (PostgresConnection admin = TestHelper.create()) {
+            serverDefault = admin.queryAndMap("SHOW wal_sender_timeout", rs -> {
+                rs.next();
+                return rs.getString(1);
+            });
+        }
+
         final PostgresConnectorConfig config = new PostgresConnectorConfig(TestHelper.defaultConfig()
                 .with(PostgresConnectorConfig.STATUS_UPDATE_INTERVAL_MS, 2000)
                 .with(PostgresConnectorConfig.WAL_SENDER_TIMEOUT_MS, 20000)
@@ -101,8 +110,17 @@ public class ReplicationConnectionIT {
                         rs.next();
                         return rs.getString(1);
                     });
-            // 20000 ms is reported by Postgres as "20s" and must be scoped to this session only
+            // 20000 ms is reported by Postgres as "20s" on the replication session
             assertEquals("20s", sessionValue);
+
+            // a concurrent regular connection must still report the server default -> the override did not leak
+            try (PostgresConnection other = TestHelper.create()) {
+                final String otherSessionValue = other.queryAndMap("SHOW wal_sender_timeout", rs -> {
+                    rs.next();
+                    return rs.getString(1);
+                });
+                assertEquals(serverDefault, otherSessionValue);
+            }
         }
     }
 

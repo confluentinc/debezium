@@ -1010,7 +1010,7 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
     public static final Field WAL_SENDER_TIMEOUT_MS = Field.create("wal.sender.timeout.ms")
             .withDisplayName("WAL sender timeout (ms)")
             .withType(Type.INT) // passed to Postgres as '-c wal_sender_timeout=<ms>', which does not accept long
-            .withGroup(Field.createGroupEntry(Field.Group.CONNECTION_ADVANCED_REPLICATION, 13))
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTION_ADVANCED_REPLICATION, 14))
             .withWidth(Width.SHORT)
             .withImportance(Importance.MEDIUM)
             .withDescription("Optionally sets the PostgreSQL 'wal_sender_timeout' for the connector's own replication session, "
@@ -1521,8 +1521,8 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
             // not provided: keep backward-compatible behavior (do not touch the server-side value), nothing to validate
             return 0;
         }
-        // 'status.update.interval.ms' has a default, so use it to resolve the effective value when unset
-        final int statusUpdateInterval = config.getInteger(PostgresConnectorConfig.STATUS_UPDATE_INTERVAL_MS, () -> 10_000);
+        // 'status.update.interval.ms' has a default, so getInteger(Field) resolves the effective value (its default) when unset
+        final int statusUpdateInterval = config.getInteger(PostgresConnectorConfig.STATUS_UPDATE_INTERVAL_MS);
         if (walSenderTimeout < 2 * statusUpdateInterval) {
             problems.accept(PostgresConnectorConfig.WAL_SENDER_TIMEOUT_MS, walSenderTimeout,
                     "'" + PostgresConnectorConfig.WAL_SENDER_TIMEOUT_MS.name() + "' must be at least twice '"
