@@ -117,6 +117,10 @@
         </dependency>
     </dependencies>
     <properties>
+        <!-- Reported by <connector>.version() via Module.version(). Defaults to this module's
+             pom version; the cloud wrapper build overrides it with -Dconnector.plugin.version
+             so the connector reports the cloud wrapper version. -->
+        <connector.plugin.version>${project.version}</connector.plugin.version>
         <!-- 
         Specify the properties for the various Docker containers.
         -->
