@@ -53,4 +53,53 @@ public class PostgresConnectorConfigDefTest extends ConfigDefinitionMetadataTest
 
         assertThat((problemCount == 0)).isTrue();
     }
+
+    @Test
+    public void shouldNotValidateWalSenderTimeoutWhenNotSet() {
+        // backward compatibility: when the property is absent, the connector leaves the server-side value untouched
+        Configuration.Builder configBuilder = TestHelper.defaultConfig();
+
+        int problemCount = PostgresConnectorConfig.validateWalSenderTimeout(
+                configBuilder.build(), PostgresConnectorConfig.WAL_SENDER_TIMEOUT_MS, (field, value, problemMessage) -> System.out.println(problemMessage));
+
+        assertThat(problemCount).isEqualTo(0);
+    }
+
+    @Test
+    public void shouldRejectWalSenderTimeoutBelowTwiceStatusInterval() {
+        // 15000 < 2 * 10000 must fail
+        Configuration.Builder configBuilder = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.STATUS_UPDATE_INTERVAL_MS, 10000)
+                .with(PostgresConnectorConfig.WAL_SENDER_TIMEOUT_MS, 15000);
+
+        int problemCount = PostgresConnectorConfig.validateWalSenderTimeout(
+                configBuilder.build(), PostgresConnectorConfig.WAL_SENDER_TIMEOUT_MS, (field, value, problemMessage) -> System.out.println(problemMessage));
+
+        assertThat(problemCount).isEqualTo(1);
+    }
+
+    @Test
+    public void shouldAcceptWalSenderTimeoutAtLeastTwiceStatusInterval() {
+        Configuration.Builder configBuilder = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.STATUS_UPDATE_INTERVAL_MS, 2000)
+                .with(PostgresConnectorConfig.WAL_SENDER_TIMEOUT_MS, 50000);
+
+        int problemCount = PostgresConnectorConfig.validateWalSenderTimeout(
+                configBuilder.build(), PostgresConnectorConfig.WAL_SENDER_TIMEOUT_MS, (field, value, problemMessage) -> System.out.println(problemMessage));
+
+        assertThat(problemCount).isEqualTo(0);
+    }
+
+    @Test
+    public void shouldAcceptWalSenderTimeoutAtExactlyTwiceStatusInterval() {
+        // boundary: exactly 2x is allowed
+        Configuration.Builder configBuilder = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.STATUS_UPDATE_INTERVAL_MS, 5000)
+                .with(PostgresConnectorConfig.WAL_SENDER_TIMEOUT_MS, 10000);
+
+        int problemCount = PostgresConnectorConfig.validateWalSenderTimeout(
+                configBuilder.build(), PostgresConnectorConfig.WAL_SENDER_TIMEOUT_MS, (field, value, problemMessage) -> System.out.println(problemMessage));
+
+        assertThat(problemCount).isEqualTo(0);
+    }
 }
