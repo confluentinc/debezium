@@ -78,6 +78,10 @@ public class PostgresPublicationTableComparisonTest {
         // Mock connector config
         when(connectorConfig.databaseName()).thenReturn(TEST_DATABASE_NAME);
         when(connectorConfig.getJdbcConfig()).thenReturn(JdbcConfiguration.create().build());
+        // 'wal.sender.timeout.ms' is unset by default; stub it explicitly because an unstubbed Mockito mock returns 0
+        // (not null) for an Integer-returning method, which would otherwise trip the constructor's server-version check
+        // against this mock's null JDBC connection.
+        when(connectorConfig.walSenderTimeout()).thenReturn(null);
 
         replicationConnection = createTestReplicationConnection();
 
