@@ -113,7 +113,7 @@ public class TimescaleDbTest extends AbstractAsyncEngineConnectorTest {
     }
 
     @Test
-    void shouldSelectTimescaleDbQueryBasedOnVersion() {
+    public void shouldSelectTimescaleDbQueryBasedOnVersion() {
         assertThat(QueryInformationSchemaMetadata.isTimescaleDbVersionAtLeast229("2.28.2")).isFalse();
         assertThat(QueryInformationSchemaMetadata.isTimescaleDbVersionAtLeast229("2.29.0")).isTrue();
         assertThat(QueryInformationSchemaMetadata.isTimescaleDbVersionAtLeast229("3.0.0")).isTrue();

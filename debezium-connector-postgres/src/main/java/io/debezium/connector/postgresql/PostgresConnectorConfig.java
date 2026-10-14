@@ -1007,6 +1007,22 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
             .withDescription("Frequency for sending replication connection status updates to the server, given in milliseconds. Defaults to 10 seconds (10,000 ms).")
             .withValidation(Field::isPositiveInteger);
 
+    public static final Field WAL_SENDER_TIMEOUT_MS = Field.create("wal.sender.timeout.ms")
+            .withDisplayName("WAL sender timeout (ms)")
+            .withType(Type.INT) // passed to Postgres as '-c wal_sender_timeout=<ms>', which does not accept long
+            .withGroup(Field.createGroupEntry(Field.Group.CONNECTION_ADVANCED_REPLICATION, 14))
+            .withWidth(Width.SHORT)
+            .withImportance(Importance.MEDIUM)
+            .withDescription("Optionally sets the PostgreSQL 'wal_sender_timeout' for the connector's own replication session, "
+                    + "given in milliseconds. When set, the server terminates the replication connection (and releases the "
+                    + "slot) if it does not hear from the connector within this period, which bounds how long a stale slot is "
+                    + "held after an abrupt network interruption. When left unset (the default) the connector does not change "
+                    + "the value and the server-side 'wal_sender_timeout' applies. Requires PostgreSQL 12 or later (the "
+                    + "parameter is only settable per session from that version); setting it against an older server fails the "
+                    + "connector. If set, the value must be at least twice 'status.update.interval.ms' so routine keep-alives "
+                    + "cannot trip the timeout.")
+            .withValidation(Field::isPositiveInteger, PostgresConnectorConfig::validateWalSenderTimeout);
+
     public static final Field LSN_FLUSH_TIMEOUT_MS = Field.create("lsn.flush.timeout.ms")
             .withDisplayName("LSN flush timeout (ms)")
             .withType(Type.LONG)
@@ -1302,6 +1318,14 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
         return Duration.ofMillis(getConfig().getLong(PostgresConnectorConfig.STATUS_UPDATE_INTERVAL_MS));
     }
 
+    /**
+     * The 'wal_sender_timeout' to apply to the connector's own replication session, in milliseconds,
+     * or {@code null} when the connector should not set it (the default, preserving the server-side value).
+     */
+    public Integer walSenderTimeout() {
+        return getConfig().getInteger(PostgresConnectorConfig.WAL_SENDER_TIMEOUT_MS.name());
+    }
+
     protected Duration lsnFlushTimeout() {
         return Duration.ofMillis(getConfig().getLong(PostgresConnectorConfig.LSN_FLUSH_TIMEOUT_MS));
     }
@@ -1417,6 +1441,7 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
                     RETRY_DELAY_MS,
                     SSL_SOCKET_FACTORY,
                     STATUS_UPDATE_INTERVAL_MS,
+                    WAL_SENDER_TIMEOUT_MS,
                     LSN_FLUSH_TIMEOUT_MS,
                     LSN_FLUSH_TIMEOUT_ACTION,
                     TCP_KEEPALIVE,
@@ -1486,6 +1511,25 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
         if (config.getString(PostgresConnectorConfig.SHOULD_FLUSH_LSN_IN_SOURCE_DB, "true").equalsIgnoreCase("false")) {
             LOGGER.warn("Property '" + PostgresConnectorConfig.SHOULD_FLUSH_LSN_IN_SOURCE_DB.name()
                     + "' is set to 'false', the LSN will not be flushed to the database source and WAL logs will not be cleared. User is expected to handle this outside Debezium.");
+        }
+        return 0;
+    }
+
+    protected static int validateWalSenderTimeout(Configuration config, Field field, Field.ValidationOutput problems) {
+        final Integer walSenderTimeout = config.getInteger(PostgresConnectorConfig.WAL_SENDER_TIMEOUT_MS.name());
+        if (walSenderTimeout == null) {
+            // not provided: keep backward-compatible behavior (do not touch the server-side value), nothing to validate
+            return 0;
+        }
+        // 'status.update.interval.ms' has a default, so getInteger(Field) resolves the effective value (its default) when unset
+        final int statusUpdateInterval = config.getInteger(PostgresConnectorConfig.STATUS_UPDATE_INTERVAL_MS);
+        if (walSenderTimeout < 2 * statusUpdateInterval) {
+            problems.accept(PostgresConnectorConfig.WAL_SENDER_TIMEOUT_MS, walSenderTimeout,
+                    "'" + PostgresConnectorConfig.WAL_SENDER_TIMEOUT_MS.name() + "' must be at least twice '"
+                            + PostgresConnectorConfig.STATUS_UPDATE_INTERVAL_MS.name() + "' (" + statusUpdateInterval
+                            + " ms), i.e. >= " + (2 * statusUpdateInterval) + " ms, so that routine keep-alive updates cannot trip the timeout; got "
+                            + walSenderTimeout + " ms");
+            return 1;
         }
         return 0;
     }
