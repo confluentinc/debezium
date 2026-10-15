@@ -98,8 +98,8 @@ public class ChangeEventSourceCoordinatorTest {
         coordinator.doSnapshot(snapshotSource, context, mock(Partition.class), mock(OffsetContext.class),
                 mock(SnapshottingTask.class));
 
-        verify(taskStateMetrics, times(1)).setConnectTaskDnd(1L);
-        verify(taskStateMetrics, times(1)).setConnectTaskDnd(0L);
+        verify(taskStateMetrics, times(1)).scheduleDndAfter(0);
+        verify(taskStateMetrics, times(1)).clearDnd();
     }
 
     @Test
@@ -115,8 +115,8 @@ public class ChangeEventSourceCoordinatorTest {
                 mock(OffsetContext.class), mock(SnapshottingTask.class)))
                 .isInstanceOf(RuntimeException.class);
 
-        verify(taskStateMetrics, times(1)).setConnectTaskDnd(1L);
-        verify(taskStateMetrics, times(1)).setConnectTaskDnd(0L);
+        verify(taskStateMetrics, times(1)).scheduleDndAfter(1);
+        verify(taskStateMetrics, times(1)).clearDnd();
     }
 
 }

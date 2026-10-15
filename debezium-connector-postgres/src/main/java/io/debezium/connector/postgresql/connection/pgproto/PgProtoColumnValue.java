@@ -5,6 +5,8 @@
  */
 package io.debezium.connector.postgresql.connection.pgproto;
 
+import static io.debezium.util.Loggings.maybeRedactSensitiveData;
+
 import java.math.BigDecimal;
 import java.nio.charset.Charset;
 import java.sql.SQLException;
@@ -32,8 +34,6 @@ import io.debezium.connector.postgresql.connection.DateTimeFormat;
 import io.debezium.connector.postgresql.proto.PgProto;
 import io.debezium.data.SpecialValueDecimal;
 import io.debezium.time.Conversions;
-
-import static io.debezium.util.Loggings.maybeRedactSensitiveData;
 
 /**
  * Replication message column sent by <a href="https://github.com/debezium/postgres-decoderbufs">Postgres Decoderbufs</>
