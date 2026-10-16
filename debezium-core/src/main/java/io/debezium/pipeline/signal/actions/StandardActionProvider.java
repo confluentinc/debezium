@@ -12,6 +12,7 @@ import io.debezium.pipeline.ChangeEventSourceCoordinator;
 import io.debezium.pipeline.EventDispatcher;
 import io.debezium.pipeline.signal.actions.snapshotting.CloseIncrementalSnapshotWindow;
 import io.debezium.pipeline.signal.actions.snapshotting.ExecuteSnapshot;
+import io.debezium.pipeline.signal.actions.snapshotting.IncrementalSnapshotProbe;
 import io.debezium.pipeline.signal.actions.snapshotting.OpenIncrementalSnapshotWindow;
 import io.debezium.pipeline.signal.actions.snapshotting.PauseIncrementalSnapshot;
 import io.debezium.pipeline.signal.actions.snapshotting.ResumeIncrementalSnapshot;
@@ -32,6 +33,7 @@ public class StandardActionProvider implements SignalActionProvider {
                 OpenIncrementalSnapshotWindow.NAME, new OpenIncrementalSnapshotWindow<>(),
                 CloseIncrementalSnapshotWindow.NAME, new CloseIncrementalSnapshotWindow<>(dispatcher),
                 PauseIncrementalSnapshot.NAME, new PauseIncrementalSnapshot<>(dispatcher),
-                ResumeIncrementalSnapshot.NAME, new ResumeIncrementalSnapshot<>(dispatcher));
+                ResumeIncrementalSnapshot.NAME, new ResumeIncrementalSnapshot<>(dispatcher),
+                IncrementalSnapshotProbe.NAME, new IncrementalSnapshotProbe<>());
     }
 }
