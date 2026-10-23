@@ -5,11 +5,11 @@
  */
 package io.debezium.connector.postgresql.transforms.timescaledb;
 
-import io.debezium.connector.postgresql.PostgresConnectorConfig;
-import io.debezium.relational.RelationalDatabaseConnectorConfig;
 import org.apache.kafka.common.config.ConfigDef;
 
 import io.debezium.config.Field;
+import io.debezium.connector.postgresql.PostgresConnectorConfig;
+import io.debezium.relational.RelationalDatabaseConnectorConfig;
 
 public class TimescaleDbConfigDefinition {
 

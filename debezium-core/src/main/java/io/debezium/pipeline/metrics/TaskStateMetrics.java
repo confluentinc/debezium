@@ -6,11 +6,10 @@
 
 package io.debezium.pipeline.metrics;
 
-import java.util.concurrent.atomic.AtomicLong;
-
 import io.debezium.annotation.ThreadSafe;
 import io.debezium.connector.common.CdcSourceTaskContext;
 import io.debezium.metrics.Metrics;
+import io.debezium.util.Clock;
 
 /**
  * Metrics for task-level state that is shared across different connector phases
@@ -19,27 +18,37 @@ import io.debezium.metrics.Metrics;
 @ThreadSafe
 public class TaskStateMetrics extends Metrics implements TaskStateMetricsMXBean {
 
-    private final AtomicLong connectTaskDnd = new AtomicLong();
+    private volatile long dndActivateAt = Long.MAX_VALUE;
+    private final Clock clock;
 
     public TaskStateMetrics(CdcSourceTaskContext taskContext) {
+        this(taskContext, taskContext.getClock());
+    }
+
+    // Visible for testing — allows injecting a custom clock
+    protected TaskStateMetrics(CdcSourceTaskContext taskContext, Clock clock) {
         super(taskContext, "task");
+        this.clock = clock;
     }
 
     @Override
     public long getConnectTaskDnd() {
-        return connectTaskDnd.get();
+        return clock.currentTimeInMillis() >= dndActivateAt ? 1 : 0;
     }
 
     /**
-     * Sets the do-not-disturb status.
+     * Schedules the do-not-disturb status to activate after the given delay.
      *
-     * @param dnd 1 if the task should not be disturbed, 0 otherwise
+     * @param delayMs delay in milliseconds; 0 means activate immediately
      */
-    public void setConnectTaskDnd(long dnd) {
-        connectTaskDnd.set(dnd);
+    public void scheduleDndAfter(long delayMs) {
+        this.dndActivateAt = clock.currentTimeInMillis() + delayMs;
     }
 
-    public void reset() {
-        connectTaskDnd.set(0);
+    /**
+     * Clears the do-not-disturb status so it reads as 0.
+     */
+    public void clearDnd() {
+        this.dndActivateAt = Long.MAX_VALUE;
     }
 }
