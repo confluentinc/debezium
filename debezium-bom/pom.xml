@@ -22,7 +22,7 @@
 
         <!-- Vitess dependencies -->
         <version.vitess.grpc>21.0.2</version.vitess.grpc>
-        <version.joda>2.10.1</version.joda>
+        <version.joda>2.15.0</version.joda>
         <version.google.protos>1.17.0</version.google.protos>
 
         <!-- re2j Regex Library -->
