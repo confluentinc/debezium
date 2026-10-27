@@ -136,6 +136,8 @@ public class OracleConnectorTask extends BaseSourceTask<OraclePartition, OracleO
 
         validateSchemaHistory(connectorConfig, jdbcConnection::validateLogPosition, previousOffsets, schema, snapshotterService.getSnapshotter());
 
+        validateSignalDataCollection(connectorConfig, jdbcConnection);
+
         // If the redo log position is not available it is necessary to re-execute snapshot
         if (previousOffset == null) {
             LOGGER.info("No previous offset found");
