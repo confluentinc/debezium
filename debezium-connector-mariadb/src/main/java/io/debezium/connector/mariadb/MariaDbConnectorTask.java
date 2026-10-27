@@ -156,6 +156,8 @@ public class MariaDbConnectorTask extends BinlogSourceTask<MariaDbPartition, Mar
 
         validateSchemaHistory(connectorConfig, connection::validateLogPosition, previousOffsets, schema, snapshotter);
 
+        validateSignalDataCollection(connectorConfig, connection);
+
         LOGGER.info("Reconnecting after validating schema recovery");
 
         try {
